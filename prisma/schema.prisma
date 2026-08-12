@@ -1,0 +1,220 @@
+// Findly: Smart Filters & Search — Prisma schema (PostgreSQL, multi-tenant)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Required by @shopify/shopify-app-session-storage-prisma (offline tokens live here).
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  READY
+  ERROR
+}
+
+enum MetafieldFilterType {
+  LIST
+  RANGE
+  BOOLEAN
+}
+
+/// Tenant root. Access tokens are referenced via Session.shop == Shop.domain (not duplicated).
+model Shop {
+  id            String    @id @default(cuid())
+  domain        String    @unique
+  installedAt   DateTime  @default(now())
+  uninstalledAt DateTime?
+  /// Denormalized plan label (kept in sync with Subscription / PLANS)
+  plan          String    @default("free")
+
+  filterConfigs         FilterConfig[]
+  metafieldMappings     MetafieldMapping[]
+  syncJob               SyncJob?
+  subscription          Subscription?
+  settings              AppSettings?
+  /// Catalog index (supports collection filter queries)
+  products              ProductFacet[]
+  memberships           CollectionMembership[]
+  collections           Collection[]
+  discoveredMetafields  DiscoveredMetafield[]
+}
+
+/// Merchant app/widget settings (admin Settings screen).
+model AppSettings {
+  id               String  @id @default(cuid())
+  shopId           String  @unique
+  shop             Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  widgetPosition   String  @default("left") // left | right | top
+  accentColor      String  @default("#1c1917")
+  showProductCounts Boolean @default(true)
+  collapseByDefault Boolean @default(false)
+  updatedAt        DateTime @updatedAt
+}
+
+/// Per-collection filter toggles + display order.
+model FilterConfig {
+  id                  String   @id @default(cuid())
+  shopId              String
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// Shopify collection GID; use empty string for shop-wide default
+  collectionGid       String   @default("")
+  enabled             Boolean  @default(true)
+  enablePrice         Boolean  @default(true)
+  enableAvailability  Boolean  @default(true)
+  enableVendor        Boolean  @default(true)
+  enableProductType   Boolean  @default(true)
+  enableTags          Boolean  @default(false)
+  /// Ordered filter keys, e.g. ["availability","price","vendor","productType","tags"]
+  displayOrder        String[] @default(["availability", "price", "vendor", "productType", "tags"])
+  updatedAt           DateTime @updatedAt
+
+  @@unique([shopId, collectionGid])
+  @@index([shopId])
+}
+
+/// Merchant-selected metafields that become storefront filters.
+model MetafieldMapping {
+  id           String              @id @default(cuid())
+  shopId       String
+  shop         Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  namespace    String
+  key          String
+  displayLabel String
+  filterType   MetafieldFilterType @default(LIST)
+  enabled      Boolean             @default(true)
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([shopId, namespace, key])
+  @@index([shopId])
+}
+
+/// Sync status tracker per shop (one row per tenant).
+model SyncJob {
+  id                    String     @id @default(cuid())
+  shopId                String     @unique
+  shop                  Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  lastFullSyncAt        DateTime?
+  lastIncrementalSyncAt DateTime?
+  status                SyncStatus @default(PENDING)
+  errorLog              String?
+  bulkOperationId       String?
+  updatedAt             DateTime   @updatedAt
+}
+
+/// Billing mirror + plan limits.
+model Subscription {
+  id                    String    @id @default(cuid())
+  shopId                String    @unique
+  shop                  Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  planName              String
+  status                String
+  shopifySubscriptionId String?
+  productLimit          Int       @default(5000)
+  filterLimit           Int       @default(25)
+  test                  Boolean   @default(false)
+  trialEndsAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+/// Denormalized product row for collection filter queries.
+model ProductFacet {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  productGid  String
+  handle      String
+  title       String
+  vendor      String   @default("")
+  productType String   @default("")
+  tags        String[]
+  options     Json     @default("{}")
+  priceMin    Decimal  @db.Decimal(12, 2)
+  priceMax    Decimal  @db.Decimal(12, 2)
+  available   Boolean  @default(true)
+  imageUrl    String?
+  metafields  Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, productGid])
+  @@index([shopId, vendor])
+  @@index([shopId, productType])
+  @@index([shopId, available])
+}
+
+model CollectionMembership {
+  id            String @id @default(cuid())
+  shopId        String
+  shop          Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  collectionGid String
+  productGid    String
+
+  @@unique([shopId, collectionGid, productGid])
+  @@index([shopId, collectionGid])
+}
+
+/// Synced collection list for admin UI / filter config.
+model Collection {
+  id            String   @id @default(cuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  collectionGid String
+  title         String
+  handle        String   @default("")
+  updatedAt     DateTime @updatedAt
+
+  @@unique([shopId, collectionGid])
+  @@index([shopId])
+}
+
+/// Metafield keys discovered during catalog sync (for mapping UI).
+model DiscoveredMetafield {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  namespace   String
+  key         String
+  sampleValue String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, namespace, key])
+  @@index([shopId])
+}
+
+/// GDPR / compliance webhook audit log (shop-scoped by domain; survives purge).
+model ComplianceRequest {
+  id         String   @id @default(cuid())
+  shopDomain String
+  topic      String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@index([shopDomain])
+}
