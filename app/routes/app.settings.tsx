@@ -78,13 +78,14 @@ export default function SettingsPage() {
   const submit = useSubmit();
   const shopify = useAppBridge();
   const [settings, setSettings] = useState(data.settings);
+  const [prevSettings, setPrevSettings] = useState(data.settings);
+  if (data.settings !== prevSettings) {
+    setPrevSettings(data.settings);
+    setSettings(data.settings);
+  }
 
   const saving =
     navigation.state === "submitting" || navigation.state === "loading";
-
-  useEffect(() => {
-    setSettings(data.settings);
-  }, [data.settings]);
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {

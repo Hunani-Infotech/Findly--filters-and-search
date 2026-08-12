@@ -43,7 +43,7 @@ Pick one:
 
 Verify:
 ```powershell
-node .\node_modules\prisma\build\index.js migrate deploy
+npx prisma migrate deploy
 node .\scripts\verify-step1.mjs
 ```
 

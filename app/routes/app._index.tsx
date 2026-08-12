@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   IndexTable,
-  InlineStack,
   Layout,
   Page,
   Text,
