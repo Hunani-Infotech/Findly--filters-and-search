@@ -1,0 +1,74 @@
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
+name = "Findly: Smart Filters & Search"
+client_id = ""
+application_url = "https://localhost"
+embedded = true
+
+[access_scopes]
+scopes = "read_products"
+
+[auth]
+redirect_urls = [ "https://localhost/auth/callback" ]
+
+[webhooks]
+api_version = "2025-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = ["app/scopes_update"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/create"
+  topics = ["products/create"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/update"
+  topics = ["products/update"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/delete"
+  topics = ["products/delete"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/create"
+  topics = ["collections/create"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/update"
+  topics = ["collections/update"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/delete"
+  topics = ["collections/delete"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/bulk_operations/finish"
+  topics = ["bulk_operations/finish"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app_subscriptions/update"
+  topics = ["app_subscriptions/update"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data_request"
+  compliance_topics = ["customers/data_request"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = ["customers/redact"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = ["shop/redact"]
+
+[app_proxy]
+url = "https://localhost/apps/smart-filter"
+subpath = "smart-filter"
+prefix = "apps"
+
+[pos]
+embedded = false

@@ -1,0 +1,139 @@
+import { useEffect } from "react";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
+import {
+  Banner,
+  BlockStack,
+  Card,
+  Layout,
+  Link,
+  Page,
+  Text,
+} from "@shopify/polaris";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
+import { enqueueSyncJob } from "../queues.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const { shop } = await ensureShopAccess(session.shop);
+  const syncJob = await prisma.syncJob.findUnique({
+    where: { shopId: shop.id },
+  });
+  const limits = await enforcePlanLimits(shop.id);
+
+  return {
+    syncJob,
+    productCount: limits.productCount,
+    productLimit: limits.productLimit,
+    plan: limits.plan,
+    overProductLimit: limits.overProductLimit,
+  };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  await ensureShopAccess(session.shop);
+
+  try {
+    await enqueueSyncJob(
+      "shop.fullSync",
+      { shop: session.shop },
+      { jobId: `${session.shop}:shop.fullSync` },
+    );
+    return { ok: true };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to queue full sync",
+    };
+  }
+};
+
+export default function SyncPage() {
+  const data = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof action>();
+  const shopify = useAppBridge();
+  const loading =
+    ["loading", "submitting"].includes(fetcher.state) &&
+    fetcher.formMethod === "POST";
+
+  useEffect(() => {
+    if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
+      shopify.toast.show("Full sync queued");
+    }
+    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
+      shopify.toast.show(fetcher.data.error, { isError: true });
+    }
+  }, [fetcher.data, shopify]);
+
+  const job = data.syncJob;
+
+  return (
+    <Page
+      title="Sync"
+      primaryAction={{
+        content: loading ? "Queueing…" : "Run full sync",
+        loading,
+        onAction: () => fetcher.submit({}, { method: "POST" }),
+      }}
+    >
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="400">
+            {data.overProductLimit && (
+              <Banner tone="warning">
+                <p>
+                  Product limit reached ({data.productCount}/
+                  {data.productLimit} on {data.plan}). Upgrade on{" "}
+                  <Link url="/app/billing">Billing</Link> for a higher cap.
+                </p>
+              </Banner>
+            )}
+
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">
+                  Status
+                </Text>
+                <Text as="p">Plan: {data.plan}</Text>
+                <Text as="p">Status: {job?.status ?? "PENDING"}</Text>
+                <Text as="p">
+                  Last full sync:{" "}
+                  {job?.lastFullSyncAt
+                    ? new Date(job.lastFullSyncAt).toLocaleString()
+                    : "Never"}
+                </Text>
+                <Text as="p">
+                  Last incremental sync:{" "}
+                  {job?.lastIncrementalSyncAt
+                    ? new Date(job.lastIncrementalSyncAt).toLocaleString()
+                    : "Never"}
+                </Text>
+                <Text as="p">
+                  Indexed products: {data.productCount} / {data.productLimit}
+                </Text>
+                {job?.errorLog ? (
+                  <Banner tone="critical">
+                    <p>{job.errorLog}</p>
+                  </Banner>
+                ) : null}
+              </BlockStack>
+            </Card>
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
+    </Page>
+  );
+}
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};

@@ -1,0 +1,253 @@
+/* Scoped to .smart-filter — mobile-first from 375px */
+
+.smart-filter {
+  --sf-ink: #1c1917;
+  --sf-muted: #57534e;
+  --sf-border: #d6d3d1;
+  --sf-surface: #fafaf9;
+  --sf-surface-hover: #f5f5f4;
+  --sf-accent: #292524;
+  --sf-focus: #78716c;
+  --sf-radius: 6px;
+  --sf-space: 0.75rem;
+
+  box-sizing: border-box;
+  color: var(--sf-ink);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0;
+}
+
+.smart-filter *,
+.smart-filter *::before,
+.smart-filter *::after {
+  box-sizing: border-box;
+}
+
+.smart-filter__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin: 0 0 0.75rem;
+  color: var(--sf-ink);
+}
+
+.smart-filter__status {
+  min-height: 1.25rem;
+  margin: 0.75rem 0 0;
+  color: var(--sf-muted);
+  font-size: 0.875rem;
+}
+
+.smart-filter__status[data-error="true"] {
+  color: #9f1239;
+}
+
+.smart-filter__facets {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.smart-filter__facet {
+  border-top: 1px solid var(--sf-border);
+  padding-top: 0.85rem;
+}
+
+.smart-filter__facet-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sf-muted);
+  margin-bottom: 0.55rem;
+}
+
+.smart-filter__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.smart-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: var(--sf-radius);
+  cursor: pointer;
+}
+
+.smart-filter__option:hover {
+  background: var(--sf-surface-hover);
+}
+
+.smart-filter__option input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--sf-accent);
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.smart-filter__option-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--sf-ink);
+  word-break: break-word;
+}
+
+.smart-filter__option-count {
+  color: var(--sf-muted);
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+}
+
+.smart-filter__price {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sf-space);
+}
+
+.smart-filter__price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.smart-filter__price-field .smart-filter__field-label {
+  font-size: 0.75rem;
+  color: var(--sf-muted);
+}
+
+.smart-filter__price-field input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+
+.smart-filter__price-field input[type="number"]:focus {
+  outline: 2px solid var(--sf-focus);
+  outline-offset: 1px;
+}
+
+.smart-filter__price-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.smart-filter__btn {
+  appearance: none;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  border-radius: var(--sf-radius);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  min-height: 2.5rem;
+}
+
+.smart-filter__btn:hover {
+  background: var(--sf-surface-hover);
+}
+
+.smart-filter__btn--primary {
+  background: var(--sf-accent);
+  border-color: var(--sf-accent);
+  color: #fafaf9;
+}
+
+.smart-filter__btn--primary:hover {
+  background: #1c1917;
+}
+
+.smart-filter__clear {
+  margin-top: 0.15rem;
+  align-self: flex-start;
+}
+
+/* Position: left (default sidebar) */
+.smart-filter--left {
+  max-width: 100%;
+}
+
+/* Position: right */
+.smart-filter--right {
+  max-width: 100%;
+}
+
+/* Position: top — horizontal facet strip on wider viewports */
+.smart-filter--top {
+  padding: 0.5rem 0 1rem;
+}
+
+.smart-filter--top .smart-filter__facets {
+  gap: 0.85rem;
+}
+
+/* Product cards hidden by the widget (outside root, attribute-scoped) */
+[data-smart-filter-hidden="true"] {
+  display: none !important;
+}
+
+/* ≥375px: comfort spacing on small phones (base is already mobile-first) */
+@media (min-width: 375px) {
+  .smart-filter {
+    padding: 0.85rem 0;
+  }
+
+  .smart-filter__facets {
+    gap: 1.15rem;
+  }
+}
+
+/* Tablet+ */
+@media (min-width: 750px) {
+  .smart-filter--left,
+  .smart-filter--right {
+    max-width: 18rem;
+  }
+
+  .smart-filter--left {
+    margin-inline-end: 1rem;
+  }
+
+  .smart-filter--right {
+    margin-inline-start: 1rem;
+  }
+
+  .smart-filter--top .smart-filter__facets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 1.25rem 1.5rem;
+    align-items: start;
+  }
+
+  .smart-filter--top .smart-filter__facet {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .smart-filter--top .smart-filter__clear {
+    grid-column: 1 / -1;
+  }
+
+  .smart-filter__facets {
+    gap: 1.5rem;
+  }
+}
