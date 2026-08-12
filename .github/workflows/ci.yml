@@ -33,6 +33,9 @@ jobs:
         run: npm run lint
 
       - name: Validate Prisma
+        env:
+          # Schema references env("DATABASE_URL"); validate does not connect.
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/findly?schema=public
         run: npx prisma generate && npx prisma validate
 
       - name: Build application
