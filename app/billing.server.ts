@@ -27,6 +27,11 @@ export function isBillingTestMode() {
   return (process.env.BILLING_TEST_MODE ?? "true").toLowerCase() === "true";
 }
 
+/** Local/dev only: Free plan uses Pro product/filter caps without a paid subscription. */
+export function isDevUnlockLimits() {
+  return (process.env.DEV_UNLOCK_LIMITS ?? "false").toLowerCase() === "true";
+}
+
 export async function getOrCreateShop(domain: string) {
   return prisma.shop.upsert({
     where: { domain },
@@ -75,13 +80,16 @@ export async function enforcePlanLimits(shopId: string) {
   }
 
   const planKey = getShopPlan(shop);
-  const plan = PLANS[planKey];
-  const productLimit =
-    planKey === "pro" && shop.subscription?.productLimit
+  const unlocked = isDevUnlockLimits();
+  const plan = unlocked ? PLANS.pro : PLANS[planKey];
+  const productLimit = unlocked
+    ? PLANS.pro.productLimit
+    : planKey === "pro" && shop.subscription?.productLimit
       ? shop.subscription.productLimit
       : plan.productLimit;
-  const filterLimit =
-    planKey === "pro" && shop.subscription?.filterLimit
+  const filterLimit = unlocked
+    ? PLANS.pro.filterLimit
+    : planKey === "pro" && shop.subscription?.filterLimit
       ? shop.subscription.filterLimit
       : plan.filterLimit;
 
@@ -103,6 +111,7 @@ export async function enforcePlanLimits(shopId: string) {
     overFilterLimit: filterCount > filterLimit,
     plan: planKey,
     planDetails: plan,
+    devUnlockLimits: unlocked,
   };
 }
 

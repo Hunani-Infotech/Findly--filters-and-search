@@ -11,6 +11,7 @@ declare namespace NodeJS {
     DATABASE_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
+    DEV_UNLOCK_LIMITS?: string;
     PROXY_SIGNATURE_BYPASS?: string;
     PORT?: string;
   }

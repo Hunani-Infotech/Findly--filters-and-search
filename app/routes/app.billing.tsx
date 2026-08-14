@@ -25,6 +25,7 @@ import {
   enforcePlanLimits,
   ensureShopAccess,
   isBillingTestMode,
+  isDevUnlockLimits,
   syncActiveSubscriptions,
 } from "../billing.server";
 
@@ -45,6 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     plans: PLANS,
     currentPlan: limits.plan,
     testMode: isBillingTestMode(),
+    devUnlockLimits: isDevUnlockLimits(),
     subscription: refreshed.shop.subscription,
     usage: {
       productCount: limits.productCount,
@@ -127,6 +129,16 @@ export default function BillingPage() {
             {data.testMode && (
               <Banner tone="info">
                 <p>Test mode is on (no real charges).</p>
+              </Banner>
+            )}
+
+            {data.devUnlockLimits && (
+              <Banner tone="info">
+                <p>
+                  Dev unlock is on: Free plan uses Pro product/filter caps for
+                  local testing ({data.usage.productLimit} products /{" "}
+                  {data.usage.filterLimit} metafield filters).
+                </p>
               </Banner>
             )}
 

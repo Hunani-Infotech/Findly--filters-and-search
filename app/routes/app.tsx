@@ -1,15 +1,23 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type {
+  HeadersFunction,
+  LinksFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
-
-import "@shopify/polaris/build/esm/styles.css";
+import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../shop.server";
+
+// Keep Polaris CSS on the /app layout so client navigations do not drop styles.
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: polarisStyles },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);

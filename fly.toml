@@ -10,7 +10,7 @@ primary_region = "iad"
 [env]
   PORT = "3000"
   NODE_ENV = "production"
-  SCOPES = "read_products"
+  SCOPES = "read_products,write_products"
 
 [processes]
   web = "npm run docker-start"
