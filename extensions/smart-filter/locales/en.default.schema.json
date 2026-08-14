@@ -1,0 +1,23 @@
+{
+  "blocks": {
+    "collection_filters": {
+      "name": "Collection filters",
+      "settings": {
+        "heading": {
+          "label": "Heading"
+        },
+        "position": {
+          "label": "Widget position",
+          "options": {
+            "left": "Left",
+            "right": "Right",
+            "top": "Top"
+          }
+        },
+        "show_counts": {
+          "label": "Show product counts"
+        }
+      }
+    }
+  }
+}
