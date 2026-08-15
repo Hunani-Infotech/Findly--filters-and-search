@@ -128,7 +128,13 @@ export default function Index() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
-            <Banner tone="info">
+            <Banner
+              tone="info"
+              action={{
+                content: "Edit defaults",
+                onAction: () => navigate("/app/collections/default"),
+              }}
+            >
               <p>
                 Shop-wide default filters:{" "}
                 {defaultConfig.exists

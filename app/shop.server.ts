@@ -1,6 +1,6 @@
 import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
-import { DEFAULT_DISPLAY_ORDER } from "./filters.server";
+import { DEFAULT_DISPLAY_ORDER, normalizeDisplayOrder } from "./filters.server";
 
 export async function ensureShop(domain: string) {
   const shop = await prisma.shop.upsert({
@@ -71,11 +71,16 @@ export type FilterConfigInput = {
   enableVendor?: boolean;
   enableProductType?: boolean;
   enableTags?: boolean;
+  enableOptions?: boolean;
+  priceRangeMode?: "auto" | "custom";
+  customPriceMin?: number | null;
+  customPriceMax?: number | null;
   displayOrder?: string[];
 };
 
 export async function saveFilterConfig(shopId: string, input: FilterConfigInput) {
   const collectionGid = input.collectionGid ?? "";
+  const priceRangeMode = input.priceRangeMode === "custom" ? "custom" : "auto";
   return prisma.filterConfig.upsert({
     where: { shopId_collectionGid: { shopId, collectionGid } },
     create: {
@@ -86,8 +91,14 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
       enableAvailability: input.enableAvailability ?? true,
       enableVendor: input.enableVendor ?? true,
       enableProductType: input.enableProductType ?? true,
-      enableTags: input.enableTags ?? false,
-      displayOrder: input.displayOrder ?? [...DEFAULT_DISPLAY_ORDER],
+      enableTags: input.enableTags ?? true,
+      enableOptions: input.enableOptions ?? true,
+      priceRangeMode,
+      customPriceMin: input.customPriceMin ?? null,
+      customPriceMax: input.customPriceMax ?? null,
+      displayOrder: normalizeDisplayOrder(
+        input.displayOrder ?? [...DEFAULT_DISPLAY_ORDER],
+      ),
     },
     update: {
       enabled: input.enabled,
@@ -96,7 +107,13 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
       enableVendor: input.enableVendor,
       enableProductType: input.enableProductType,
       enableTags: input.enableTags,
-      displayOrder: input.displayOrder,
+      enableOptions: input.enableOptions,
+      priceRangeMode,
+      customPriceMin: input.customPriceMin ?? null,
+      customPriceMax: input.customPriceMax ?? null,
+      displayOrder: input.displayOrder
+        ? normalizeDisplayOrder(input.displayOrder)
+        : input.displayOrder,
     },
   });
 }
@@ -126,4 +143,25 @@ export async function saveMetafieldMappings(
     })),
   });
   return getMetafieldMappings(shopId);
+}
+
+export function filterConfigPriceFields(config: {
+  priceRangeMode?: string | null;
+  customPriceMin?: unknown;
+  customPriceMax?: unknown;
+} | null) {
+  const toInput = (value: unknown) => {
+    if (value == null || value === "") return "";
+    const num =
+      typeof value === "object" && value && "toNumber" in value
+        ? (value as { toNumber: () => number }).toNumber()
+        : Number(value);
+    return Number.isFinite(num) ? String(num) : "";
+  };
+  return {
+    priceRangeMode:
+      config?.priceRangeMode === "custom" ? ("custom" as const) : ("auto" as const),
+    customPriceMin: toInput(config?.customPriceMin),
+    customPriceMax: toInput(config?.customPriceMax),
+  };
 }

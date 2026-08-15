@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import prisma from "./db.server";
 import {
   buildFacetAggregations,
+  expandFacetsWithOptions,
   facetsFromConfig,
   productMatchesFilters,
   type ProductFacetRow,
@@ -52,6 +53,7 @@ function toRow(p: {
   priceMin: { toNumber?: () => number } | number | string;
   priceMax: { toNumber?: () => number } | number | string;
   available: boolean;
+  status?: string | null;
   imageUrl: string | null;
   metafields: unknown;
 }): ProductFacetRow {
@@ -73,6 +75,7 @@ function toRow(p: {
     priceMin: num(p.priceMin),
     priceMax: num(p.priceMax),
     available: p.available,
+    status: p.status || "ACTIVE",
     imageUrl: p.imageUrl,
     metafields: (p.metafields as Record<string, string>) || {},
   };
@@ -110,13 +113,14 @@ export async function getCollectionFilterPayload(input: {
   }
 
   const mappings = await getMetafieldMappings(shop.id);
-  const facets = facetsFromConfig(config, mappings);
   const appSettings = await getAppSettings(shop.id);
   const settings = {
     showProductCounts: appSettings.showProductCounts,
     collapseByDefault: appSettings.collapseByDefault,
     widgetPosition: appSettings.widgetPosition,
     accentColor: appSettings.accentColor,
+    widgetShadow: appSettings.widgetShadow,
+    widgetRadius: appSettings.widgetRadius,
   };
 
   const memberships = await prisma.collectionMembership.findMany({
@@ -131,24 +135,34 @@ export async function getCollectionFilterPayload(input: {
       })
     : [];
 
-  const allRows = productsDb.map(toRow);
-  const filtered = allRows.filter((p) =>
-    productMatchesFilters(p, facets, input.selected),
+  const allRows = productsDb
+    .filter((product) => (product.status || "ACTIVE") === "ACTIVE")
+    .map(toRow);
+  const facets = expandFacetsWithOptions(
+    facetsFromConfig(config, mappings),
+    allRows,
   );
-  const aggregations = buildFacetAggregations(allRows, facets);
+  const filtered = allRows.filter((product) =>
+    productMatchesFilters(product, facets, input.selected),
+  );
+  const aggregations = buildFacetAggregations(allRows, facets, {
+    mode: config.priceRangeMode,
+    customMin: config.customPriceMin,
+    customMax: config.customPriceMax,
+  });
 
   const data = {
     enabled: true,
     settings,
     facets: aggregations,
-    products: filtered.map((p) => ({
-      id: p.productGid,
-      handle: p.handle,
-      title: p.title,
-      available: p.available,
-      priceMin: p.priceMin,
-      priceMax: p.priceMax,
-      imageUrl: p.imageUrl,
+    products: filtered.map((product) => ({
+      id: product.productGid,
+      handle: product.handle,
+      title: product.title,
+      available: product.available,
+      priceMin: product.priceMin,
+      priceMax: product.priceMax,
+      imageUrl: product.imageUrl,
     })),
     total: filtered.length,
     collectionGid,
@@ -164,7 +178,13 @@ export function parseSelectedFromSearchParams(
   searchParams.forEach((value, key) => {
     if (!key.startsWith("f.")) return;
     const facetKey = key.slice(2);
-    selected[facetKey] = value.split(",").filter(Boolean);
+    const parts = value.split(",");
+    // Keep empty price/range bounds ("50," or ",100"). List facets drop blanks.
+    if (facetKey === "price" || facetKey.startsWith("mf_")) {
+      selected[facetKey] = parts;
+      return;
+    }
+    selected[facetKey] = parts.filter(Boolean);
   });
   return selected;
 }

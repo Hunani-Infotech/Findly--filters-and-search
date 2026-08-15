@@ -80,6 +80,7 @@ export function mapProductToFacet(
       priceMin,
       priceMax,
       available,
+      status: product.status ?? "ACTIVE",
       imageUrl: product.featuredImage?.url ?? null,
       metafields: metafields as JsonObject,
     },

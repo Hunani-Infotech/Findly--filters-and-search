@@ -69,11 +69,13 @@ model AppSettings {
   id               String  @id @default(cuid())
   shopId           String  @unique
   shop             Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  widgetPosition   String  @default("left") // left | right | top
-  accentColor      String  @default("#1c1917")
+  widgetPosition    String  @default("left") // left | right | top
+  accentColor       String  @default("#1c1917")
   showProductCounts Boolean @default(true)
   collapseByDefault Boolean @default(false)
-  updatedAt        DateTime @updatedAt
+  widgetShadow      Boolean @default(true)
+  widgetRadius      Int     @default(12)
+  updatedAt         DateTime @updatedAt
 }
 
 /// Per-collection filter toggles + display order.
@@ -88,9 +90,14 @@ model FilterConfig {
   enableAvailability  Boolean  @default(true)
   enableVendor        Boolean  @default(true)
   enableProductType   Boolean  @default(true)
-  enableTags          Boolean  @default(false)
-  /// Ordered filter keys, e.g. ["availability","price","vendor","productType","tags"]
-  displayOrder        String[] @default(["availability", "price", "vendor", "productType", "tags"])
+  enableTags          Boolean  @default(true)
+  enableOptions       Boolean  @default(true)
+  /// auto = min/max from synced collection products; custom = merchant-defined bounds
+  priceRangeMode      String   @default("auto")
+  customPriceMin      Decimal? @db.Decimal(12, 2)
+  customPriceMax      Decimal? @db.Decimal(12, 2)
+  /// Ordered filter keys, e.g. ["availability","price","vendor","productType","tags","options"]
+  displayOrder        String[] @default(["availability", "price", "vendor", "productType", "tags", "options"])
   updatedAt           DateTime @updatedAt
 
   @@unique([shopId, collectionGid])
@@ -159,6 +166,8 @@ model ProductFacet {
   priceMin    Decimal  @db.Decimal(12, 2)
   priceMax    Decimal  @db.Decimal(12, 2)
   available   Boolean  @default(true)
+  /// Shopify product status: ACTIVE | DRAFT | ARCHIVED
+  status      String   @default("ACTIVE")
   imageUrl    String?
   metafields  Json     @default("{}")
   updatedAt   DateTime @updatedAt

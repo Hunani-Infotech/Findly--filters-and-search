@@ -230,6 +230,7 @@ export async function ingestBulkOperation(
         priceMin: facet.priceMin,
         priceMax: facet.priceMax,
         available: facet.available,
+        status: facet.status,
         imageUrl: facet.imageUrl,
         metafields: facet.metafields as object,
       },
@@ -327,6 +328,7 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
       priceMin: facet.priceMin,
       priceMax: facet.priceMax,
       available: facet.available,
+      status: facet.status,
       imageUrl: facet.imageUrl,
       metafields: facet.metafields,
     },
@@ -446,6 +448,18 @@ export async function rebuildCollection(
       })),
       skipDuplicates: true,
     });
+  }
+
+  if (productGids.length) {
+    const existingFacets = await prisma.productFacet.findMany({
+      where: { shopId: shop.id, productGid: { in: productGids } },
+      select: { productGid: true },
+    });
+    const existingGids = new Set(existingFacets.map((f) => f.productGid));
+    const missingGids = productGids.filter((gid) => !existingGids.has(gid));
+    for (const productGid of missingGids) {
+      await upsertProduct(shopDomain, productGid);
+    }
   }
 
   await setSyncStatus(shop.id, {

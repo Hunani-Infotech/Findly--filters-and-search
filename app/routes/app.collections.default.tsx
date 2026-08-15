@@ -30,68 +30,45 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import { ensureShopAccess } from "../billing.server";
 import { normalizeDisplayOrder } from "../filters.server";
 import { getFilterConfig, saveFilterConfig, filterConfigPriceFields } from "../shop.server";
-import { toCollectionGid } from "../settings.server";
 import { isMutationBusy } from "../components/admin-loading";
 
-export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+const DISPLAY_ORDER_LABELS: Record<string, string> = {
+  availability: "Availability",
+  price: "Price",
+  vendor: "Vendor",
+  productType: "Product type",
+  tags: "Tags",
+  tag: "Tags",
+  options: "Variant options",
+};
+
+function displayOrderLabel(key: string) {
+  return DISPLAY_ORDER_LABELS[key] ?? key;
+}
+
+type ConfigState = {
+  enabled: boolean;
+  enablePrice: boolean;
+  enableAvailability: boolean;
+  enableVendor: boolean;
+  enableProductType: boolean;
+  enableTags: boolean;
+  enableOptions: boolean;
+  priceRangeMode: "auto" | "custom";
+  customPriceMin: string;
+  customPriceMax: string;
+  displayOrder: string[];
+};
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-
-  const id = params.id;
-  if (!id) {
-    throw new Response("Collection id required", { status: 400 });
-  }
-
-  const collectionGid = toCollectionGid(id);
-  const collection = await prisma.collection.findUnique({
-    where: {
-      shopId_collectionGid: {
-        shopId: shop.id,
-        collectionGid,
-      },
-    },
-  });
-
-  if (!collection) {
-    return {
-      notFound: true as const,
-      collectionGid,
-      collection: null,
-      usingDefault: true,
-      config: {
-        enabled: true,
-        enablePrice: true,
-        enableAvailability: true,
-        enableVendor: true,
-        enableProductType: true,
-        enableTags: true,
-        enableOptions: true,
-        displayOrder: normalizeDisplayOrder(),
-        ...filterConfigPriceFields(null),
-      },
-    };
-  }
-
-  const config = await getFilterConfig(shop.id, collectionGid);
-  const hasSpecific = await prisma.filterConfig.findUnique({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid },
-    },
-  });
+  const config = await getFilterConfig(shop.id, "");
 
   return {
-    notFound: false as const,
-    collectionGid,
-    collection: {
-      title: collection.title,
-      handle: collection.handle,
-      collectionGid: collection.collectionGid,
-    },
-    usingDefault: !hasSpecific,
     config: {
       enabled: config?.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
@@ -106,16 +83,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request, params }: ActionFunctionArgs) => {
+export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-
-  const id = params.id;
-  if (!id) {
-    return { error: "Collection id required" };
-  }
-
-  const collectionGid = toCollectionGid(id);
   const form = await request.formData();
 
   const bool = (key: string) => form.get(key) === "true" || form.get(key) === "on";
@@ -155,7 +125,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   await saveFilterConfig(shop.id, {
-    collectionGid,
+    collectionGid: "",
     enabled: bool("enabled"),
     enablePrice: bool("enablePrice"),
     enableAvailability: bool("enableAvailability"),
@@ -172,35 +142,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return { ok: true };
 };
 
-const DISPLAY_ORDER_LABELS: Record<string, string> = {
-  availability: "Availability",
-  price: "Price",
-  vendor: "Vendor",
-  productType: "Product type",
-  tags: "Tags",
-  tag: "Tags",
-  options: "Variant options",
-};
-
-function displayOrderLabel(key: string) {
-  return DISPLAY_ORDER_LABELS[key] ?? key;
-}
-
-type ConfigState = {
-  enabled: boolean;
-  enablePrice: boolean;
-  enableAvailability: boolean;
-  enableVendor: boolean;
-  enableProductType: boolean;
-  enableTags: boolean;
-  enableOptions: boolean;
-  priceRangeMode: "auto" | "custom";
-  customPriceMin: string;
-  customPriceMax: string;
-  displayOrder: string[];
-};
-
-export default function CollectionFilterConfigPage() {
+export default function ShopDefaultFilterConfigPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -251,44 +193,9 @@ export default function CollectionFilterConfigPage() {
     submit(formData, { method: "POST" });
   };
 
-  if (data.notFound || !data.collection) {
-    return (
-      <Page
-        title="Collection not found"
-        backAction={{
-          content: "Collections",
-          onAction: () => navigate("/app"),
-        }}
-      >
-        <Layout>
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title="This collection is not in the local index"
-              action={{
-                content: "Go to Sync",
-                onAction: () => navigate("/app/sync"),
-              }}
-            >
-              <p>
-                Run a full sync, then open Configure again. Looking for{" "}
-                {data.collectionGid}.
-              </p>
-            </Banner>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    );
-  }
-
   return (
     <Page
-      title={data.collection.title}
-      subtitle={
-        data.collection.handle
-          ? `Handle: ${data.collection.handle}`
-          : data.collection.collectionGid
-      }
+      title="Shop-wide default filters"
       backAction={{
         content: "Collections",
         onAction: () => navigate("/app"),
@@ -299,7 +206,7 @@ export default function CollectionFilterConfigPage() {
         disabled: saving,
         onAction: () => {
           const form = document.getElementById(
-            "collection-filter-form",
+            "default-filter-form",
           ) as HTMLFormElement | null;
           form?.requestSubmit();
         },
@@ -307,16 +214,14 @@ export default function CollectionFilterConfigPage() {
     >
       <Layout>
         <Layout.Section>
-          <Form id="collection-filter-form" method="post" onSubmit={handleSubmit}>
+          <Form id="default-filter-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
-              {data.usingDefault && (
-                <Banner tone="info">
-                  <p>
-                    This collection is using the shop-wide default. Saving
-                    creates a collection-specific config.
-                  </p>
-                </Banner>
-              )}
+              <Banner tone="info">
+                <p>
+                  Collections without their own config inherit this shop-wide
+                  default.
+                </p>
+              </Banner>
 
               <Card>
                 <BlockStack gap="300">
@@ -325,7 +230,7 @@ export default function CollectionFilterConfigPage() {
                   </Text>
                   <FormLayout>
                     <Checkbox
-                      label="Enable filters for this collection"
+                      label="Enable filters by default"
                       checked={config.enabled}
                       disabled={saving}
                       onChange={(checked) =>
@@ -346,7 +251,7 @@ export default function CollectionFilterConfigPage() {
                           title="Price range"
                           choices={[
                             {
-                              label: "From products in this collection",
+                              label: "From products in each collection",
                               value: "auto",
                               helpText:
                                 "Slider min and max come from synced variant prices.",
@@ -502,11 +407,11 @@ export function ErrorBoundary() {
     error instanceof Error
       ? error.message
       : typeof error === "object" && error && "status" in error
-        ? `Could not load this collection (${String((error as { status: unknown }).status)})`
-        : "Could not load this collection";
+        ? `Could not load shop-wide defaults (${String((error as { status: unknown }).status)})`
+        : "Could not load shop-wide defaults";
 
   return (
-    <Page title="Collection filters">
+    <Page title="Shop-wide default filters">
       <Layout>
         <Layout.Section>
           <Banner tone="critical" title="This page did not load">

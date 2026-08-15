@@ -34,6 +34,13 @@ export const PRODUCT_NODE_QUERY = `#graphql
           }
         }
       }
+      collections(first: 50) {
+        edges {
+          node {
+            id
+          }
+        }
+      }
     }
   }
 `;
