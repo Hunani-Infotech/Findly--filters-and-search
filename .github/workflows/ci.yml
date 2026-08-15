@@ -6,6 +6,13 @@ jobs:
   CI:
     name: Node ${{ matrix.node }} and ${{ matrix.manager }}
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+      SHOPIFY_API_KEY: ci-placeholder
+      SHOPIFY_API_SECRET: ci-placeholder
+      SHOPIFY_APP_URL: https://example.com
+      SCOPES: write_products,read_products
+      REDIS_URL: redis://127.0.0.1:6379
     strategy:
       matrix:
         node: [22, 24]
