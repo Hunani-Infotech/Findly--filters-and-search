@@ -65,7 +65,7 @@ export function DisplayOrderList({
     ghostRef.current = null;
   };
 
-  const handleDragStart = (index: number, event: DragEvent<HTMLDivElement>) => {
+  const handleDragStart = (index: number, event: DragEvent<HTMLButtonElement>) => {
     if (disabled) return;
     const source = event.currentTarget;
     const ghost = source.cloneNode(true) as HTMLElement;
@@ -96,7 +96,7 @@ export function DisplayOrderList({
     setOverIndex(index);
   };
 
-  const handleDragOver = (index: number, event: DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (index: number, event: DragEvent<HTMLButtonElement>) => {
     if (disabled || dragIndex == null) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -106,7 +106,7 @@ export function DisplayOrderList({
     if (overIndex !== nextOver) setOverIndex(nextOver);
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (disabled || dragIndex == null || overIndex == null) {
       clearGhost();
@@ -130,7 +130,7 @@ export function DisplayOrderList({
 
   const handleKeyDown = (
     index: number,
-    event: KeyboardEvent<HTMLDivElement>,
+    event: KeyboardEvent<HTMLButtonElement>,
   ) => {
     if (disabled) return;
     if (event.key === "ArrowUp") {
@@ -149,13 +149,7 @@ export function DisplayOrderList({
         Drag a row to change the order shoppers see. Arrow keys also work when a
         row is focused.
       </Text>
-      <div
-        role="listbox"
-        aria-label="Filter display order"
-        aria-orientation="vertical"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={handleDrop}
-      >
+      <div>
         {keys.map((key, index) => {
           const dragging = dragIndex === index;
           const noop =
@@ -176,20 +170,22 @@ export function DisplayOrderList({
                   }}
                 />
               ) : null}
-              <div
-                role="option"
-                aria-selected={dragging}
+              <button
+                type="button"
                 draggable={!disabled}
-                tabIndex={disabled ? -1 : 0}
+                disabled={disabled}
+                aria-pressed={dragging}
                 aria-label={`${displayOrderLabel(key)}. Position ${index + 1} of ${keys.length}`}
                 onDragStart={(event) => handleDragStart(index, event)}
                 onDragOver={(event) => handleDragOver(index, event)}
+                onDrop={handleDrop}
                 onDragEnd={handleDragEnd}
                 onKeyDown={(event) => handleKeyDown(index, event)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
+                  width: "100%",
                   padding: "10px 12px",
                   marginBottom: 8,
                   minHeight: 40,
@@ -199,6 +195,9 @@ export function DisplayOrderList({
                     : "1px solid #e3e3e3",
                   background: dragging ? "#f6f6f7" : "#fff",
                   cursor: disabled ? "default" : "grab",
+                  textAlign: "left",
+                  font: "inherit",
+                  color: "inherit",
                 }}
               >
                 <span
@@ -219,7 +218,7 @@ export function DisplayOrderList({
                 >
                   <Text as="span">{displayOrderLabel(key)}</Text>
                 </span>
-              </div>
+              </button>
             </div>
           );
         })}
