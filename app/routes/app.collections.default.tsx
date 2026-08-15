@@ -16,7 +16,6 @@ import {
 import {
   Banner,
   BlockStack,
-  Button,
   Card,
   Checkbox,
   ChoiceList,
@@ -34,20 +33,7 @@ import { ensureShopAccess } from "../billing.server";
 import { normalizeDisplayOrder } from "../filters.server";
 import { getFilterConfig, saveFilterConfig, filterConfigPriceFields } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
-
-const DISPLAY_ORDER_LABELS: Record<string, string> = {
-  availability: "Availability",
-  price: "Price",
-  vendor: "Vendor",
-  productType: "Product type",
-  tags: "Tags",
-  tag: "Tags",
-  options: "Variant options",
-};
-
-function displayOrderLabel(key: string) {
-  return DISPLAY_ORDER_LABELS[key] ?? key;
-}
+import { DisplayOrderList } from "../components/display-order-list";
 
 type ConfigState = {
   enabled: boolean;
@@ -166,16 +152,6 @@ export default function ShopDefaultFilterConfigPage() {
       shopify.toast.show(actionData.error, { isError: true });
     }
   }, [actionData, shopify]);
-
-  const moveOrder = (index: number, dir: -1 | 1) => {
-    setConfig((c) => {
-      const next = [...c.displayOrder];
-      const target = index + dir;
-      if (target < 0 || target >= next.length) return c;
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...c, displayOrder: next };
-    });
-  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -361,37 +337,13 @@ export default function ShopDefaultFilterConfigPage() {
                   <Text as="h2" variant="headingMd">
                     Display order
                   </Text>
-                  <BlockStack gap="200">
-                    {config.displayOrder.map((key, index) => (
-                      <InlineStack
-                        key={key}
-                        align="space-between"
-                        blockAlign="center"
-                        gap="200"
-                      >
-                        <Text as="span">{displayOrderLabel(key)}</Text>
-                        <InlineStack gap="200">
-                          <Button
-                            size="slim"
-                            disabled={saving || index === 0}
-                            onClick={() => moveOrder(index, -1)}
-                          >
-                            Move up
-                          </Button>
-                          <Button
-                            size="slim"
-                            disabled={
-                              saving ||
-                              index === config.displayOrder.length - 1
-                            }
-                            onClick={() => moveOrder(index, 1)}
-                          >
-                            Move down
-                          </Button>
-                        </InlineStack>
-                      </InlineStack>
-                    ))}
-                  </BlockStack>
+                  <DisplayOrderList
+                    keys={config.displayOrder}
+                    disabled={saving}
+                    onChange={(displayOrder) =>
+                      setConfig((c) => ({ ...c, displayOrder }))
+                    }
+                  />
                 </BlockStack>
               </Card>
             </BlockStack>
