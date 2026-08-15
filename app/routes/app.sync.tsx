@@ -65,7 +65,9 @@ export default function SyncPage() {
   const revalidator = useRevalidator();
   const shopify = useAppBridge();
   const revalidatorRef = useRef(revalidator);
-  revalidatorRef.current = revalidator;
+  useEffect(() => {
+    revalidatorRef.current = revalidator;
+  });
 
   const queueing =
     ["loading", "submitting"].includes(fetcher.state) &&

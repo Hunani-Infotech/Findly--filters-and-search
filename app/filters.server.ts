@@ -485,7 +485,7 @@ export function buildFacetAggregations(
     }
 
     const values = [...counts.entries()]
-      .filter(([value, count]) =>
+      .filter(([, count]) =>
         facet.source === "availability" ? true : count > 0,
       )
       .sort((a, b) => {

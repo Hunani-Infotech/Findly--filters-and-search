@@ -1,6 +1,5 @@
 import prisma from "../db.server";
 import { enforcePlanLimits } from "../billing.server";
-import { purgeShopData } from "../compliance.server";
 import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {

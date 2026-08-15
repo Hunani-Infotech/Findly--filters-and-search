@@ -154,10 +154,11 @@ export default function MetafieldsPage() {
   }, [data.discovered, data.mappings]);
 
   const [rows, setRows] = useState(initialRows);
-
-  useEffect(() => {
+  const [loaderRows, setLoaderRows] = useState(initialRows);
+  if (initialRows !== loaderRows) {
+    setLoaderRows(initialRows);
     setRows(initialRows);
-  }, [initialRows]);
+  }
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {

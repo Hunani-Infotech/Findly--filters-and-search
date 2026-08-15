@@ -150,12 +150,13 @@ export default function ShopDefaultFilterConfigPage() {
   const submit = useSubmit();
   const shopify = useAppBridge();
   const [config, setConfig] = useState<ConfigState>(data.config);
+  const [loaderConfig, setLoaderConfig] = useState(data.config);
+  if (data.config !== loaderConfig) {
+    setLoaderConfig(data.config);
+    setConfig(data.config);
+  }
 
   const saving = isMutationBusy(navigation);
-
-  useEffect(() => {
-    setConfig(data.config);
-  }, [data.config]);
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {

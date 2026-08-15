@@ -810,13 +810,13 @@
       high.step = low.step;
       high.value = String(liveMax);
 
-      function updateFill() {
+      var updateFill = function () {
         var span = boundMax - boundMin || 1;
         var left = ((Number(low.value) - boundMin) / span) * 100;
         var right = ((Number(high.value) - boundMin) / span) * 100;
         fill.style.left = Math.max(0, left) + "%";
         fill.style.width = Math.max(0, right - left) + "%";
-      }
+      };
       updateFill();
 
       slider.appendChild(track);
@@ -827,7 +827,7 @@
 
       var debounceId = 0;
       var self = this;
-      function commitFromSlider() {
+      var commitFromSlider = function () {
         var a = Number(low.value);
         var b = Number(high.value);
         if (a > b) {
@@ -844,7 +844,7 @@
         debounceId = window.setTimeout(function () {
           self.applyRangeValues(facet, String(a), String(b), isProductPrice);
         }, 280);
-      }
+      };
       low.addEventListener("input", commitFromSlider);
       high.addEventListener("input", commitFromSlider);
     }
