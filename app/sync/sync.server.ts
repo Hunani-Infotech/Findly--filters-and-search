@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import { enforcePlanLimits } from "../billing.server";
 import { purgeShopData } from "../compliance.server";
+import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
@@ -137,41 +138,48 @@ export async function syncCollectionsList(shopDomain: string) {
 
 export async function startFullSync(shopDomain: string) {
   const shop = await ensureShop(shopDomain);
-  const admin = await getAdminForShop(shopDomain);
 
-  await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
-
-  // Collections list in parallel path (paginated GraphQL — collections are fewer than products)
   try {
-    await syncCollectionsList(shopDomain);
+    const admin = await getAdminForShop(shopDomain);
+
+    await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
+
+    // Collections list in parallel path (paginated GraphQL — collections are fewer than products)
+    try {
+      await syncCollectionsList(shopDomain);
+    } catch (error) {
+      log.error("Collection list sync failed", error);
+    }
+
+    const response = await admin.graphql(BULK_PRODUCTS_MUTATION);
+    const json = await response.json();
+    const payload = json.data?.bulkOperationRunQuery;
+    const userErrors = payload?.userErrors ?? [];
+
+    if (userErrors.length || !payload?.bulkOperation?.id) {
+      const message =
+        userErrors.map((e: { message: string }) => e.message).join("; ") ||
+        "Failed to start bulk operation";
+      await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
+      throw new Error(message);
+    }
+
+    const syncJob = await setSyncStatus(shop.id, {
+      status: "SYNCING",
+      bulkOperationId: payload.bulkOperation.id,
+      errorLog: null,
+    });
+
+    return {
+      shop,
+      syncJob,
+      bulkOperationId: payload.bulkOperation.id as string,
+    };
   } catch (error) {
-    console.error("Collection list sync failed", error);
-  }
-
-  const response = await admin.graphql(BULK_PRODUCTS_MUTATION);
-  const json = await response.json();
-  const payload = json.data?.bulkOperationRunQuery;
-  const userErrors = payload?.userErrors ?? [];
-
-  if (userErrors.length || !payload?.bulkOperation?.id) {
-    const message =
-      userErrors.map((e: { message: string }) => e.message).join("; ") ||
-      "Failed to start bulk operation";
+    const message = error instanceof Error ? error.message : String(error);
     await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
-    throw new Error(message);
+    throw error;
   }
-
-  const syncJob = await setSyncStatus(shop.id, {
-    status: "SYNCING",
-    bulkOperationId: payload.bulkOperation.id,
-    errorLog: null,
-  });
-
-  return {
-    shop,
-    syncJob,
-    bulkOperationId: payload.bulkOperation.id as string,
-  };
 }
 
 export async function ingestBulkOperation(
@@ -251,7 +259,7 @@ export async function ingestBulkOperation(
   try {
     await syncCollectionsList(shopDomain);
   } catch (error) {
-    console.error("Post-ingest collection sync failed", error);
+    log.error("Post-ingest collection sync failed", error);
   }
 
   const errorLog = truncated
@@ -446,9 +454,4 @@ export async function rebuildCollection(
   });
 
   return { count: productGids.length };
-}
-
-/** Hard-delete tenant data (APP_UNINSTALLED / shop/redact). */
-export async function uninstallShop(shopDomain: string) {
-  await purgeShopData(shopDomain);
 }

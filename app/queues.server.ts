@@ -13,11 +13,17 @@ export type SyncJobName =
 
 let syncQueue: Queue | null = null;
 
-export function getSyncQueue() {
+function getSyncQueue() {
   if (!syncQueue) {
     syncQueue = new Queue(SYNC_QUEUE, { connection: getRedis() });
   }
   return syncQueue;
+}
+
+/** BullMQ custom job IDs cannot contain `:` (Redis key separator). */
+function bullJobId(jobId?: string) {
+  if (!jobId) return undefined;
+  return jobId.replace(/:/g, "_");
 }
 
 export async function enqueueSyncJob(
@@ -25,8 +31,27 @@ export async function enqueueSyncJob(
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number },
 ) {
-  return getSyncQueue().add(name, data, {
-    jobId: opts?.jobId,
+  const queue = getSyncQueue();
+  const jobId = bullJobId(opts?.jobId);
+
+  if (jobId) {
+    const existing = await queue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      if (state === "failed" || state === "completed") {
+        await existing.remove();
+      } else if (
+        state === "active" ||
+        state === "waiting" ||
+        state === "delayed"
+      ) {
+        return existing;
+      }
+    }
+  }
+
+  return queue.add(name, data, {
+    jobId,
     delay: opts?.delay,
     removeOnComplete: 100,
     removeOnFail: 200,

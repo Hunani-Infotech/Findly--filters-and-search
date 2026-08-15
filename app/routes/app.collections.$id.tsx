@@ -8,7 +8,9 @@ import {
   Form,
   useActionData,
   useLoaderData,
+  useNavigate,
   useNavigation,
+  useRouteError,
   useSubmit,
 } from "react-router";
 import {
@@ -31,6 +33,7 @@ import { ensureShopAccess } from "../billing.server";
 import { DEFAULT_DISPLAY_ORDER } from "../filters.server";
 import { getFilterConfig, saveFilterConfig } from "../shop.server";
 import { toCollectionGid } from "../settings.server";
+import { isMutationBusy } from "../components/admin-loading";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -52,7 +55,21 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   });
 
   if (!collection) {
-    throw new Response("Collection not found", { status: 404 });
+    return {
+      notFound: true as const,
+      collectionGid,
+      collection: null,
+      usingDefault: true,
+      config: {
+        enabled: true,
+        enablePrice: true,
+        enableAvailability: true,
+        enableVendor: true,
+        enableProductType: true,
+        enableTags: false,
+        displayOrder: [...DEFAULT_DISPLAY_ORDER],
+      },
+    };
   }
 
   const config = await getFilterConfig(shop.id, collectionGid);
@@ -63,6 +80,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   });
 
   return {
+    notFound: false as const,
+    collectionGid,
     collection: {
       title: collection.title,
       handle: collection.handle,
@@ -138,12 +157,12 @@ export default function CollectionFilterConfigPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
   const [config, setConfig] = useState<ConfigState>(data.config);
 
-  const saving =
-    navigation.state === "submitting" || navigation.state === "loading";
+  const saving = isMutationBusy(navigation);
 
   useEffect(() => {
     setConfig(data.config);
@@ -181,6 +200,36 @@ export default function CollectionFilterConfigPage() {
     submit(formData, { method: "POST" });
   };
 
+  if (data.notFound || !data.collection) {
+    return (
+      <Page
+        title="Collection not found"
+        backAction={{
+          content: "Collections",
+          onAction: () => navigate("/app"),
+        }}
+      >
+        <Layout>
+          <Layout.Section>
+            <Banner
+              tone="warning"
+              title="This collection is not in the local index"
+              action={{
+                content: "Go to Sync",
+                onAction: () => navigate("/app/sync"),
+              }}
+            >
+              <p>
+                Run a full sync, then open Configure again. Looking for{" "}
+                {data.collectionGid}.
+              </p>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
+
   return (
     <Page
       title={data.collection.title}
@@ -189,10 +238,14 @@ export default function CollectionFilterConfigPage() {
           ? `Handle: ${data.collection.handle}`
           : data.collection.collectionGid
       }
-      backAction={{ content: "Collections", url: "/app" }}
+      backAction={{
+        content: "Collections",
+        onAction: () => navigate("/app"),
+      }}
       primaryAction={{
-        content: "Save",
+        content: saving ? "Saving…" : "Save",
         loading: saving,
+        disabled: saving,
         onAction: () => {
           const form = document.getElementById(
             "collection-filter-form",
@@ -223,6 +276,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Enable filters for this collection"
                       checked={config.enabled}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enabled: checked }))
                       }
@@ -230,6 +284,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Price"
                       checked={config.enablePrice}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enablePrice: checked }))
                       }
@@ -237,6 +292,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Availability"
                       checked={config.enableAvailability}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({
                           ...c,
@@ -247,6 +303,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Vendor"
                       checked={config.enableVendor}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enableVendor: checked }))
                       }
@@ -254,6 +311,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Product type"
                       checked={config.enableProductType}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({
                           ...c,
@@ -264,6 +322,7 @@ export default function CollectionFilterConfigPage() {
                     <Checkbox
                       label="Tags"
                       checked={config.enableTags}
+                      disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enableTags: checked }))
                       }
@@ -289,14 +348,17 @@ export default function CollectionFilterConfigPage() {
                         <InlineStack gap="200">
                           <Button
                             size="slim"
-                            disabled={index === 0}
+                            disabled={saving || index === 0}
                             onClick={() => moveOrder(index, -1)}
                           >
                             Move up
                           </Button>
                           <Button
                             size="slim"
-                            disabled={index === config.displayOrder.length - 1}
+                            disabled={
+                              saving ||
+                              index === config.displayOrder.length - 1
+                            }
                             onClick={() => moveOrder(index, 1)}
                           >
                             Move down
@@ -309,6 +371,28 @@ export default function CollectionFilterConfigPage() {
               </Card>
             </BlockStack>
           </Form>
+        </Layout.Section>
+      </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error && "status" in error
+        ? `Could not load this collection (${String((error as { status: unknown }).status)})`
+        : "Could not load this collection";
+
+  return (
+    <Page title="Collection filters">
+      <Layout>
+        <Layout.Section>
+          <Banner tone="critical" title="This page did not load">
+            <p>{message}</p>
+          </Banner>
         </Layout.Section>
       </Layout>
     </Page>

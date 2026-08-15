@@ -7,6 +7,7 @@ declare namespace NodeJS {
     SHOPIFY_API_SECRET?: string;
     SCOPES?: string;
     SHOPIFY_APP_URL?: string;
+    SHOPIFY_FLAG_STORE?: string;
     SHOP_CUSTOM_DOMAIN?: string;
     DATABASE_URL?: string;
     REDIS_URL?: string;

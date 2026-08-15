@@ -19,16 +19,5 @@
         }
       }
     }
-  },
-  "smart_filter": {
-    "loading": "Loading filters…",
-    "error": "Filters could not be loaded. Please try again.",
-    "empty": "No matching products.",
-    "disabled": "Filters are not enabled for this collection.",
-    "results_count": "{{ count }} products",
-    "clear": "Clear filters",
-    "price_min": "Min",
-    "price_max": "Max",
-    "apply_price": "Apply"
   }
 }

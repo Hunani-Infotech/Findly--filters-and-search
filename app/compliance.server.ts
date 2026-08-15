@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "./db.server";
+import { log } from "./log.server";
 
 /**
  * Hard-delete all tenant data for a shop domain (APP_UNINSTALLED / shop/redact).
@@ -11,7 +12,7 @@ export async function purgeShopData(shopDomain: string) {
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
 
   if (!shop) {
-    console.log(`[compliance] purgeShopData: no Shop row for ${shopDomain}`);
+    log.info(`[compliance] purgeShopData: no Shop row for ${shopDomain}`);
     return { deleted: false as const };
   }
 
@@ -29,7 +30,9 @@ export async function purgeShopData(shopDomain: string) {
     prisma.shop.delete({ where: { id: shop.id } }),
   ]);
 
-  console.log(`[compliance] purgeShopData: deleted tenant data for ${shopDomain}`);
+  log.success(
+    `[compliance] purgeShopData: deleted tenant data for ${shopDomain}`,
+  );
   return { deleted: true as const, shopId: shop.id };
 }
 
@@ -48,18 +51,17 @@ export async function logComplianceEvent(
         payload: data,
       },
     });
-    console.log(
+    log.success(
       `[compliance] logged ${topic} for ${shopDomain} (id=${row.id})`,
     );
     return row;
   } catch (error) {
-    console.error(
+    log.error(
       `[compliance] failed to persist ${topic} for ${shopDomain}`,
       error,
     );
-    console.log(
-      `[compliance] payload fallback`,
-      JSON.stringify({ shopDomain, topic, payload }),
+    log.warn(
+      `[compliance] payload fallback ${JSON.stringify({ shopDomain, topic, payload })}`,
     );
     return null;
   }

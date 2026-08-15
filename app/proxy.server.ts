@@ -113,7 +113,6 @@ export async function getCollectionFilterPayload(input: {
   const facets = facetsFromConfig(config, mappings);
   const appSettings = await getAppSettings(shop.id);
   const settings = {
-    showCounts: appSettings.showProductCounts,
     showProductCounts: appSettings.showProductCounts,
     collapseByDefault: appSettings.collapseByDefault,
     widgetPosition: appSettings.widgetPosition,

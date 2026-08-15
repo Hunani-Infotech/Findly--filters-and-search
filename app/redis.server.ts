@@ -18,5 +18,3 @@ export function getRedis() {
   }
   return global.redisGlobal;
 }
-
-export default getRedis;

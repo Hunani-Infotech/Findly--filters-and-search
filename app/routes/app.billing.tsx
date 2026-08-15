@@ -116,7 +116,9 @@ export default function BillingPage() {
     }
   }, [fetcher.data, shopify]);
 
-  const loading = ["loading", "submitting"].includes(fetcher.state);
+  const upgrading =
+    ["loading", "submitting"].includes(fetcher.state) &&
+    fetcher.formMethod === "POST";
   const isPro = data.currentPlan === "pro";
   const free = data.plans.free;
   const pro = data.plans.pro;
@@ -209,10 +211,15 @@ export default function BillingPage() {
                   </Text>
                   <Button
                     variant="primary"
-                    loading={loading}
+                    loading={upgrading}
+                    disabled={upgrading}
                     onClick={() => fetcher.submit({}, { method: "POST" })}
                   >
-                    {isPro ? "Manage / resubscribe" : "Upgrade to Pro"}
+                    {upgrading
+                      ? "Redirecting to Shopify…"
+                      : isPro
+                        ? "Manage / resubscribe"
+                        : "Upgrade to Pro"}
                   </Button>
                 </BlockStack>
               </Card>

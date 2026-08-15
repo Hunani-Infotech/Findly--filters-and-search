@@ -1,4 +1,4 @@
-import type { MetafieldFilterType } from "@prisma/client";
+import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
 import { DEFAULT_DISPLAY_ORDER } from "./filters.server";
 
@@ -15,20 +15,26 @@ export async function ensureShop(domain: string) {
     update: {},
   });
 
-  const existing = await prisma.filterConfig.findUnique({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: "" },
-    },
-  });
-
-  if (!existing) {
-    await prisma.filterConfig.create({
-      data: {
+  try {
+    await prisma.filterConfig.upsert({
+      where: {
+        shopId_collectionGid: { shopId: shop.id, collectionGid: "" },
+      },
+      create: {
         shopId: shop.id,
         collectionGid: "",
         displayOrder: [...DEFAULT_DISPLAY_ORDER],
       },
+      update: {},
     });
+  } catch (error) {
+    // Parallel afterAuth + nested /app loaders can still race Prisma upsert.
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    ) {
+      throw error;
+    }
   }
 
   return shop;

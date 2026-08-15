@@ -2,11 +2,28 @@ import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-// Related: https://github.com/remix-run/remix/issues/2835#issuecomment-1144102176
-// Replace the HOST env var with SHOPIFY_APP_URL so that it doesn't break the Vite server.
-// The CLI will eventually stop passing in HOST,
-// so we can remove this workaround after the next major release.
-if (
+function normalizeUrl(value: string | undefined) {
+  if (!value) return "";
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  return `https://${value}`;
+}
+
+function isPlaceholderAppUrl(value: string | undefined) {
+  if (!value) return true;
+  try {
+    const hostname = new URL(normalizeUrl(value)).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return true;
+  }
+}
+
+// Shopify CLI passes the Cloudflare tunnel as HOST. A .env value of
+// https://localhost must not win, or embedded auth stays on "Handling response".
+if (process.env.HOST && isPlaceholderAppUrl(process.env.SHOPIFY_APP_URL)) {
+  process.env.SHOPIFY_APP_URL = normalizeUrl(process.env.HOST);
+  delete process.env.HOST;
+} else if (
   process.env.HOST &&
   (!process.env.SHOPIFY_APP_URL ||
     process.env.SHOPIFY_APP_URL === process.env.HOST)
@@ -37,7 +54,7 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host],
+    allowedHosts: [host, "localhost", "127.0.0.1"],
     cors: {
       preflightContinue: true,
     },
@@ -57,5 +74,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
+  },
+  ssr: {
+    // Chalk uses package imports (#ansi-styles) that Vite should not bundle.
+    external: ["chalk"],
   },
 }) satisfies UserConfig;

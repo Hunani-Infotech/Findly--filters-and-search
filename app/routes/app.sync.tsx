@@ -1,17 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import {
   Banner,
   BlockStack,
   Card,
+  InlineStack,
   Layout,
   Link,
   Page,
+  Spinner,
   Text,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -60,10 +62,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function SyncPage() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
-  const loading =
+  const revalidatorRef = useRef(revalidator);
+  revalidatorRef.current = revalidator;
+
+  const queueing =
     ["loading", "submitting"].includes(fetcher.state) &&
     fetcher.formMethod === "POST";
+  const syncing = data.syncJob?.status === "SYNCING";
+  const queuedOk = Boolean(
+    fetcher.data && "ok" in fetcher.data && fetcher.data.ok,
+  );
+  const status = data.syncJob?.status;
+  const shouldPoll =
+    syncing || (queuedOk && status !== "READY" && status !== "ERROR");
+  const busy = queueing || shouldPoll;
 
   useEffect(() => {
     if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
@@ -74,14 +88,26 @@ export default function SyncPage() {
     }
   }, [fetcher.data, shopify]);
 
+  useEffect(() => {
+    if (!shouldPoll) return;
+
+    const intervalId = window.setInterval(() => {
+      if (revalidatorRef.current.state === "loading") return;
+      void revalidatorRef.current.revalidate();
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [shouldPoll]);
+
   const job = data.syncJob;
 
   return (
     <Page
       title="Sync"
       primaryAction={{
-        content: loading ? "Queueing…" : "Run full sync",
-        loading,
+        content: queueing ? "Queueing…" : shouldPoll ? "Syncing…" : "Run full sync",
+        loading: busy,
+        disabled: busy,
         onAction: () => fetcher.submit({}, { method: "POST" }),
       }}
     >
@@ -103,6 +129,12 @@ export default function SyncPage() {
                 <Text as="h2" variant="headingMd">
                   Status
                 </Text>
+                {syncing ? (
+                  <InlineStack gap="200" blockAlign="center">
+                    <Spinner accessibilityLabel="Syncing catalog" size="small" />
+                    <Text as="p">Catalog sync in progress…</Text>
+                  </InlineStack>
+                ) : null}
                 <Text as="p">Plan: {data.plan}</Text>
                 <Text as="p">Status: {job?.status ?? "PENDING"}</Text>
                 <Text as="p">

@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useNavigate, useNavigation } from "react-router";
 import {
   Badge,
   Banner,
@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   IndexTable,
-  InlineStack,
   Layout,
   Page,
   Text,
@@ -18,6 +17,7 @@ import prisma from "../db.server";
 import { ensureShopAccess } from "../billing.server";
 import { ensureShop } from "../shop.server";
 import { collectionNumericId } from "../settings.server";
+import { isNavigatingTo } from "../components/admin-loading";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -72,41 +72,58 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function Index() {
   const data = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const navigate = useNavigate();
   const { collections, defaultConfig } = data;
+  const syncing = isNavigatingTo(navigation, "/app/sync");
 
-  const rowMarkup = collections.map((collection, index) => (
-    <IndexTable.Row id={collection.id} key={collection.id} position={index}>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodyMd" fontWeight="semibold">
-          {collection.title}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" tone="subdued">
-          {collection.handle || "—"}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {collection.configured ? (
-          <Badge tone={collection.enabled ? "success" : "attention"}>
-            {collection.enabled ? "Configured" : "Configured (disabled)"}
-          </Badge>
-        ) : (
-          <Badge>Not configured</Badge>
-        )}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Button url={`/app/collections/${collection.numericId}`}>
-          Configure
-        </Button>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
+  const rowMarkup = collections.map((collection, index) => {
+    const configureHref = `/app/collections/${collection.numericId}`;
+    const configuring = isNavigatingTo(navigation, configureHref);
+
+    return (
+      <IndexTable.Row id={collection.id} key={collection.id} position={index}>
+        <IndexTable.Cell>
+          <Text as="span" variant="bodyMd" fontWeight="semibold">
+            {collection.title}
+          </Text>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Text as="span" tone="subdued">
+            {collection.handle || "—"}
+          </Text>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          {collection.configured ? (
+            <Badge tone={collection.enabled ? "success" : "attention"}>
+              {collection.enabled ? "Configured" : "Configured (disabled)"}
+            </Badge>
+          ) : (
+            <Badge>Not configured</Badge>
+          )}
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Button
+            onClick={(event) => {
+              event.stopPropagation();
+              navigate(configureHref);
+            }}
+            loading={configuring}
+            disabled={configuring}
+          >
+            Configure
+          </Button>
+        </IndexTable.Cell>
+      </IndexTable.Row>
+    );
+  });
 
   return (
     <Page
       title="Findly: Smart Filters & Search"
-      secondaryActions={[{ content: "Sync", url: "/app/sync" }]}
+      secondaryActions={[
+        { content: "Sync", url: "/app/sync", loading: syncing },
+      ]}
     >
       <Layout>
         <Layout.Section>

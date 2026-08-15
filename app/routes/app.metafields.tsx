@@ -29,6 +29,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
+import { isMutationBusy } from "../components/admin-loading";
 import {
   getMetafieldMappings,
   saveMetafieldMappings,
@@ -168,8 +169,7 @@ export default function MetafieldsPage() {
   }, [actionData, shopify]);
 
   const selectedCount = rows.filter((r) => r.enabled).length;
-  const saving =
-    navigation.state === "submitting" || navigation.state === "loading";
+  const saving = isMutationBusy(navigation);
 
   const updateRow = (
     namespace: string,
@@ -220,6 +220,7 @@ export default function MetafieldsPage() {
           label="Use as filter"
           labelHidden
           checked={row.enabled}
+          disabled={saving}
           onChange={(checked) => {
             if (checked && !row.enabled && selectedCount >= data.filterLimit) {
               shopify.toast.show(
@@ -238,7 +239,7 @@ export default function MetafieldsPage() {
           labelHidden
           autoComplete="off"
           value={row.displayLabel}
-          disabled={!row.enabled}
+          disabled={saving || !row.enabled}
           onChange={(value) =>
             updateRow(row.namespace, row.key, { displayLabel: value })
           }
@@ -250,7 +251,7 @@ export default function MetafieldsPage() {
           labelHidden
           options={FILTER_TYPE_OPTIONS}
           value={row.filterType}
-          disabled={!row.enabled}
+          disabled={saving || !row.enabled}
           onChange={(value) =>
             updateRow(row.namespace, row.key, {
               filterType: value as MetafieldFilterType,
@@ -265,8 +266,9 @@ export default function MetafieldsPage() {
     <Page
       title="Metafield filters"
       primaryAction={{
-        content: "Save mappings",
+        content: saving ? "Saving…" : "Save mappings",
         loading: saving,
+        disabled: saving,
         onAction: () => {
           const form = document.getElementById(
             "metafields-form",

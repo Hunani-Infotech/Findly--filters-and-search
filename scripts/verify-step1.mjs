@@ -3,6 +3,7 @@
  * Usage: node ./scripts/verify-step1.mjs
  */
 import { PrismaClient } from "@prisma/client";
+import { log } from "./terminal-log.mjs";
 
 const prisma = new PrismaClient();
 
@@ -32,15 +33,15 @@ try {
   const missing = required.filter((t) => !tables.has(t));
 
   if (missing.length) {
-    console.error("STEP1_FAIL missing tables:", missing.join(", "));
-    console.error("Run: npm run setup");
+    log.error(`STEP1_FAIL missing tables: ${missing.join(", ")}`);
+    log.error("Run: npm run setup");
     process.exit(1);
   }
 
-  console.log("STEP1_OK postgres connected; tables:", required.join(", "));
+  log.success(`STEP1_OK postgres connected; tables: ${required.join(", ")}`);
   process.exit(0);
 } catch (error) {
-  console.error("STEP1_FAIL", error.message);
+  log.error(`STEP1_FAIL ${error.message}`);
   process.exit(1);
 } finally {
   await prisma.$disconnect();

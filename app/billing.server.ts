@@ -32,7 +32,7 @@ export function isDevUnlockLimits() {
   return (process.env.DEV_UNLOCK_LIMITS ?? "false").toLowerCase() === "true";
 }
 
-export async function getOrCreateShop(domain: string) {
+async function getOrCreateShop(domain: string) {
   return prisma.shop.upsert({
     where: { domain },
     create: { domain, plan: PLANS.free.key },
@@ -133,7 +133,6 @@ export async function ensureShopAccess(shopDomain: string) {
 
   return {
     shop,
-    allowed: true,
     plan,
   };
 }

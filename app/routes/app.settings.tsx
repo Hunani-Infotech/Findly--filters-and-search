@@ -25,6 +25,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { isMutationBusy } from "../components/admin-loading";
 import { getAppSettings, saveAppSettings } from "../settings.server";
 
 const POSITION_OPTIONS = [
@@ -79,8 +80,7 @@ export default function SettingsPage() {
   const shopify = useAppBridge();
   const [settings, setSettings] = useState(data.settings);
 
-  const saving =
-    navigation.state === "submitting" || navigation.state === "loading";
+  const saving = isMutationBusy(navigation);
 
   useEffect(() => {
     setSettings(data.settings);
@@ -106,8 +106,9 @@ export default function SettingsPage() {
     <Page
       title="Settings"
       primaryAction={{
-        content: "Save",
+        content: saving ? "Saving…" : "Save",
         loading: saving,
+        disabled: saving,
         onAction: () => {
           const form = document.getElementById(
             "settings-form",
@@ -126,6 +127,7 @@ export default function SettingsPage() {
                     label="Widget position"
                     options={POSITION_OPTIONS}
                     value={settings.widgetPosition}
+                    disabled={saving}
                     onChange={(value) =>
                       setSettings((s) => ({
                         ...s,
@@ -137,6 +139,7 @@ export default function SettingsPage() {
                     label="Accent color"
                     autoComplete="off"
                     value={settings.accentColor}
+                    disabled={saving}
                     onChange={(value) =>
                       setSettings((s) => ({ ...s, accentColor: value }))
                     }
@@ -145,6 +148,7 @@ export default function SettingsPage() {
                   <Checkbox
                     label="Show product counts on filter options"
                     checked={settings.showProductCounts}
+                    disabled={saving}
                     onChange={(checked) =>
                       setSettings((s) => ({
                         ...s,
@@ -155,6 +159,7 @@ export default function SettingsPage() {
                   <Checkbox
                     label="Collapse filter groups by default"
                     checked={settings.collapseByDefault}
+                    disabled={saving}
                     onChange={(checked) =>
                       setSettings((s) => ({
                         ...s,

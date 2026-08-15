@@ -1,4 +1,4 @@
-import { logComplianceEvent } from "./compliance.server";
+import { log } from "./log.server";
 import { enqueueSyncJob } from "./queues.server";
 
 /** Fast-ack webhook handling — enqueue BullMQ jobs only. */
@@ -58,29 +58,7 @@ export async function handleWebhookTopic(
       );
       break;
     }
-    case "APP_UNINSTALLED": {
-      await enqueueSyncJob(
-        "shop.cleanup",
-        { shop },
-        { jobId: `${shop}:shop.cleanup` },
-      );
-      break;
-    }
-    case "SHOP_REDACT": {
-      await logComplianceEvent(shop, topic, payload);
-      await enqueueSyncJob(
-        "shop.cleanup",
-        { shop },
-        { jobId: `${shop}:shop.cleanup` },
-      );
-      break;
-    }
-    case "CUSTOMERS_REDACT":
-    case "CUSTOMERS_DATA_REQUEST": {
-      await logComplianceEvent(shop, topic, payload);
-      break;
-    }
     default:
-      console.log(`Unhandled webhook topic: ${topic}`);
+      log.warn(`Unhandled webhook topic: ${topic}`);
   }
 }

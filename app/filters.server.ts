@@ -1,20 +1,18 @@
 import type { FilterConfig, MetafieldFilterType, MetafieldMapping } from "@prisma/client";
 
-export type FacetSource =
+type FacetSource =
   | "vendor"
   | "productType"
   | "tag"
-  | "option"
   | "price"
   | "availability"
   | "metafield";
 
-export type FacetDef = {
+type FacetDef = {
   key: string;
   source: FacetSource;
   label: string;
-  type: "checkbox" | "swatch" | "range";
-  optionName?: string;
+  type: "checkbox" | "range";
   metafieldNamespace?: string;
   metafieldKey?: string;
   enabled: boolean;
@@ -154,12 +152,6 @@ export function productMatchesFilters(
         if (Number.isFinite(max) && product.priceMin > max) return false;
         break;
       }
-      case "option": {
-        const optionValues =
-          product.options[facet.optionName || facet.label] || [];
-        if (!values.some((v) => optionValues.includes(v))) return false;
-        break;
-      }
       case "metafield": {
         const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
         const mf = product.metafields[path];
@@ -222,9 +214,6 @@ export function buildFacetAggregations(
           break;
         case "availability":
           vals = [p.available ? "in_stock" : "out_of_stock"];
-          break;
-        case "option":
-          vals = p.options[facet.optionName || facet.label] || [];
           break;
         case "metafield": {
           const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;

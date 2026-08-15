@@ -5,9 +5,10 @@
  * Usage:
  *   npm run seed:catalog
  *   node ./scripts/seed-dev-catalog.mjs
- *   node ./scripts/seed-dev-catalog.mjs --shop=your-store.myshopify.com
+ *   node ./scripts/seed-dev-catalog.mjs --shop=findly-test-store.myshopify.com
  */
 import { PrismaClient } from "@prisma/client";
+import { log } from "./terminal-log.mjs";
 
 const API_VERSION = "2025-10";
 const TITLE_PREFIX = "[Findly Seed]";
@@ -36,16 +37,14 @@ function isAccessDenied(payload) {
 }
 
 function printScopeHelp() {
-  console.error(`
-ACCESS DENIED / missing write_products scope.
+  log.error(`ACCESS DENIED / missing write_products scope.
 Your offline session may predate the current scopes in shopify.app.toml.
 
 Fix:
   1. Ensure scopes include write_products (and read_products).
   2. Restart \`npm run dev\` and reinstall / update the app on the dev store
      so Shopify grants the new scopes.
-  3. Re-run: npm run seed:catalog
-`);
+  3. Re-run: npm run seed:catalog`);
 }
 
 async function adminGraphql(shop, accessToken, query, variables = {}) {
@@ -471,7 +470,19 @@ function buildProductSetInput(item) {
       price: v.price,
     }));
   } else {
-    input.variants = [{ price: item.price ?? "19.99" }];
+    input.productOptions = [
+      {
+        name: "Title",
+        position: 1,
+        values: [{ name: "Default Title" }],
+      },
+    ];
+    input.variants = [
+      {
+        optionValues: [{ optionName: "Title", name: "Default Title" }],
+        price: item.price ?? "19.99",
+      },
+    ];
   }
 
   return input;
@@ -501,14 +512,35 @@ async function ensureMetafieldDefinitions(shop, accessToken) {
     if (errors.length && !alreadyExists) {
       assertNoUserErrors(`metafieldDefinitionCreate(${definition.key})`, errors);
     } else if (payload.createdDefinition) {
-      console.log(
+      log.success(
         `metafield definition ok: custom.${definition.key} (${payload.createdDefinition.id})`,
       );
     } else {
-      console.log(`metafield definition exists: custom.${definition.key}`);
+      log.info(`metafield definition exists: custom.${definition.key}`);
     }
     await sleep(SLEEP_MS);
   }
+}
+
+const PRODUCTS_BY_TAG = `#graphql
+query SeedProductsByTag($query: String!) {
+  products(first: 50, query: $query) {
+    edges {
+      node {
+        id
+        title
+      }
+    }
+  }
+}`;
+
+async function existingSeedTitles(shop, accessToken) {
+  const data = await adminGraphql(shop, accessToken, PRODUCTS_BY_TAG, {
+    query: `tag:${SEED_TAG}`,
+  });
+  return new Map(
+    (data.products?.edges ?? []).map((e) => [e.node.title, e.node]),
+  );
 }
 
 async function createProduct(shop, accessToken, item) {
@@ -559,6 +591,29 @@ async function createProduct(shop, accessToken, item) {
   return product;
 }
 
+async function findCollectionByTitle(shop, accessToken, title) {
+  const data = await adminGraphql(
+    shop,
+    accessToken,
+    `#graphql
+    query SeedFindCollection($query: String!) {
+      collections(first: 10, query: $query) {
+        edges {
+          node {
+            id
+            title
+            handle
+          }
+        }
+      }
+    }`,
+    { query: `title:'${title}'` },
+  );
+  return (
+    data.collections?.edges?.find((e) => e.node.title === title)?.node ?? null
+  );
+}
+
 async function createCollection(shop, accessToken, title, productIds) {
   const data = await adminGraphql(shop, accessToken, COLLECTION_CREATE, {
     input: {
@@ -577,7 +632,10 @@ async function createCollection(shop, accessToken, title, productIds) {
 }
 
 async function main() {
-  const shopArg = parseShopArg(process.argv.slice(2));
+  const shopArg =
+    parseShopArg(process.argv.slice(2)) ||
+    process.env.SHOPIFY_FLAG_STORE ||
+    null;
 
   const session = await prisma.session.findFirst({
     where: {
@@ -589,7 +647,7 @@ async function main() {
   });
 
   if (!session) {
-    console.error(
+    log.error(
       shopArg
         ? `No offline Session found for shop=${shopArg}. Install the app on that store first.`
         : "No offline Session rows. Install the app via `npm run dev` on a dev store first.",
@@ -598,63 +656,79 @@ async function main() {
   }
 
   if (!session.accessToken || session.accessToken.length < 10) {
-    console.error(`Session for ${session.shop} is missing accessToken.`);
+    log.error(`Session for ${session.shop} is missing accessToken.`);
     process.exit(1);
   }
 
-  console.log(`Using shop=${session.shop} scope=${session.scope || "(none)"}`);
-  console.log(`API ${API_VERSION} — seeding ${CATALOG.length} products…`);
+  log.info(`Using shop=${session.shop} scope=${session.scope || "(none)"}`);
+  log.info(`API ${API_VERSION} — seeding ${CATALOG.length} products…`);
 
   await ensureMetafieldDefinitions(session.shop, session.accessToken);
+
+  const existingByTitle = await existingSeedTitles(
+    session.shop,
+    session.accessToken,
+  );
+  log.info(`Already on store: ${existingByTitle.size} ${SEED_TAG} products`);
 
   const createdProducts = [];
   const apparelIds = [];
   const outdoorIds = [];
 
   for (const item of CATALOG) {
-    const product = await createProduct(session.shop, session.accessToken, item);
+    const existing = existingByTitle.get(item.title);
+    const product = existing
+      ? existing
+      : await createProduct(session.shop, session.accessToken, item);
     createdProducts.push(product);
-    console.log(
-      `product ${product.id}  ${product.title}  variants=${product.variants?.nodes?.length ?? 0}`,
+    log.info(
+      existing
+        ? `skip existing ${product.id}  ${item.title}`
+        : `product ${product.id}  ${product.title}  variants=${product.variants?.nodes?.length ?? 0}`,
     );
     if (item.collections.includes("apparel")) apparelIds.push(product.id);
     if (item.collections.includes("outdoor")) outdoorIds.push(product.id);
   }
 
   const collections = [];
-  collections.push(
-    await createCollection(
+  for (const [title, productIds] of [
+    ["Findly Seed Apparel", apparelIds],
+    ["Findly Seed Outdoor", outdoorIds],
+  ]) {
+    const existing = await findCollectionByTitle(
       session.shop,
       session.accessToken,
-      "Findly Seed Apparel",
-      apparelIds,
-    ),
-  );
-  console.log(`collection ${collections[0].id}  ${collections[0].title}`);
+      title,
+    );
+    const collection = existing
+      ? existing
+      : await createCollection(
+          session.shop,
+          session.accessToken,
+          title,
+          productIds,
+        );
+    collections.push(collection);
+    log.info(
+      existing
+        ? `skip existing collection ${collection.id}  ${title}`
+        : `collection ${collection.id}  ${collection.title}`,
+    );
+  }
 
-  collections.push(
-    await createCollection(
-      session.shop,
-      session.accessToken,
-      "Findly Seed Outdoor",
-      outdoorIds,
-    ),
-  );
-  console.log(`collection ${collections[1].id}  ${collections[1].title}`);
-
-  console.log("\n--- Created product GIDs ---");
+  log.info("\n--- Created product GIDs ---");
   for (const p of createdProducts) {
-    console.log(p.id);
+    log.info(p.id);
   }
-  console.log("\n--- Created collection GIDs ---");
+  log.info("\n--- Created collection GIDs ---");
   for (const c of collections) {
-    console.log(c.id);
+    log.info(c.id);
   }
 
-  console.log(
-    `\nDone. ${createdProducts.length} products, ${collections.length} collections (tag=${SEED_TAG}).`,
+  log.success(
+    `Done. ${createdProducts.length} products, ${collections.length} collections (tag=${SEED_TAG}).`,
   );
-  console.log("Next: open app Sync and Run full sync");
+  log.info("Next: open app Sync and Run full sync");
 }
 
 try {
@@ -664,7 +738,7 @@ try {
   if (isAccessDenied(error.message)) {
     printScopeHelp();
   }
-  console.error("SEED_FAIL", error.message);
+  log.error(`SEED_FAIL ${error.message}`);
   process.exit(1);
 } finally {
   await prisma.$disconnect();
