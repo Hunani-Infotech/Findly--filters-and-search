@@ -11,7 +11,7 @@ const DISPLAY_ORDER_LABELS: Record<string, string> = {
   options: "Variant options",
 };
 
-export function displayOrderLabel(key: string) {
+function displayOrderLabel(key: string) {
   return DISPLAY_ORDER_LABELS[key] ?? key;
 }
 
@@ -150,8 +150,9 @@ export function DisplayOrderList({
         row is focused.
       </Text>
       <div
-        role="list"
+        role="listbox"
         aria-label="Filter display order"
+        aria-orientation="vertical"
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
       >
@@ -176,10 +177,10 @@ export function DisplayOrderList({
                 />
               ) : null}
               <div
-                role="listitem"
+                role="option"
+                aria-selected={dragging}
                 draggable={!disabled}
                 tabIndex={disabled ? -1 : 0}
-                aria-grabbed={dragging}
                 aria-label={`${displayOrderLabel(key)}. Position ${index + 1} of ${keys.length}`}
                 onDragStart={(event) => handleDragStart(index, event)}
                 onDragOver={(event) => handleDragOver(index, event)}
