@@ -2,26 +2,31 @@ import { useEffect } from "react";
 import {
   useFetchers,
   useNavigation,
-  type Navigation,
 } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { Spinner } from "@shopify/polaris";
 
+type NavigationState = {
+  state: string;
+  formMethod?: string | undefined;
+  location?: { pathname: string } | undefined;
+};
+
 /** True while a POST/PUT/PATCH/DELETE form is in flight (not a GET page load). */
-export function isMutationBusy(navigation: Navigation) {
+export function isMutationBusy(navigation: NavigationState) {
   if (navigation.state === "idle") return false;
   const method = navigation.formMethod?.toUpperCase();
   return Boolean(method && method !== "GET");
 }
 
 /** True while navigating to a new admin page (loader GET). */
-function isPageNavigation(navigation: Navigation) {
+function isPageNavigation(navigation: NavigationState) {
   if (navigation.state !== "loading") return false;
   const method = navigation.formMethod?.toUpperCase();
   return !method || method === "GET";
 }
 
-export function isNavigatingTo(navigation: Navigation, pathname: string) {
+export function isNavigatingTo(navigation: NavigationState, pathname: string) {
   return (
     isPageNavigation(navigation) && navigation.location?.pathname === pathname
   );

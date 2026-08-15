@@ -104,8 +104,7 @@ export default function Index() {
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Button
-            onClick={(event) => {
-              event.stopPropagation();
+            onClick={() => {
               navigate(configureHref);
             }}
             loading={configuring}
