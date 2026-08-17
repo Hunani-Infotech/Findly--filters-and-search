@@ -34,12 +34,13 @@ If work drifts into these, stop and return to the current step below. There is n
 
 Pick one:
 
-1. Install Docker Desktop, then from the project root:
+1. **No Docker (default):** from the project root, `npm install` then `npm run dev`. That starts local Postgres + Redis, runs Prisma migrations, the worker, and the Shopify app. Data stays in gitignored `.local/`.
+2. Install Docker Desktop, then:
    ```powershell
    docker compose up -d
    npm run setup
    ```
-2. Or set `DATABASE_URL` in `.env` to a hosted Postgres (Neon/Supabase/Fly) and run `npm run setup`.
+3. Or set `DATABASE_URL` in `.env` to a hosted Postgres (Neon/Supabase/Fly) and run `npm run setup`.
 
 Verify:
 ```powershell

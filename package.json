@@ -4,6 +4,8 @@
   "scripts": {
     "build": "react-router build",
     "dev": "node ./scripts/dev.mjs",
+    "dev:shopify": "node ./node_modules/@shopify/cli/bin/run.js app dev",
+    "dev:infra": "node ./scripts/start-local-infra.mjs",
     "dev:web": "node ./node_modules/@react-router/dev/bin.js dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
@@ -61,6 +63,7 @@
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "embedded-postgres": "^16.14.0-beta.17",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",

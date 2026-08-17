@@ -1,9 +1,9 @@
-# Local stack: Postgres + Redis 7 + BullMQ worker
-# Prerequisite: Docker Desktop running (needs WSL2 on Windows).
+# Optional Docker stack: Postgres + Redis 7 + BullMQ worker
+# Default local path does not need Docker: `npm run dev`
+# (embedded Postgres + Redis, worker, and Shopify app).
 #
-# One-click (recommended on Windows):
+# Docker one-click (Windows):
 #   Double-click START-DEV.cmd
-#   (starts Docker services + ngrok + shopify app dev)
 #
 # Infra only:
 #   npm run docker:up

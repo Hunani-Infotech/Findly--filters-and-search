@@ -18,12 +18,14 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 
 ## Quick start
 
-1. Copy `.env.example` → `.env` and fill Shopify credentials.
-2. Start local infra: `docker compose up -d` (Postgres + Redis)
-3. `npm install`
-4. `npm run setup`
-5. Install Shopify CLI globally if needed: `npm i -g @shopify/cli`
-6. `npm run dev` (web) and in another terminal `npm run worker`
+1. Copy `.env` from a teammate (or create it) and fill Shopify credentials.
+   Use local Postgres/Redis URLs:
+   `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_filter?schema=public`
+   `REDIS_URL=redis://localhost:6379`
+2. `npm install`
+3. `npm run dev` — starts Postgres, Redis, the sync worker, and the Shopify app (no Docker)
+
+Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run dev:shopify` and `npm run worker`.
 
 ## Fly.io
 

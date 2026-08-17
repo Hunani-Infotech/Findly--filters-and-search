@@ -60,7 +60,7 @@ extensions/smart-filter/    # Theme App Extension (Liquid + JS + CSS)
 prisma/                     # Schema + migrations (PostgreSQL)
 docs/                       # Specs + this guide
 fly.toml                    # web + worker processes
-docker-compose.yml          # Local Postgres + Redis
+docker-compose.yml          # Optional Docker Postgres + Redis (`npm run dev` does not need this)
 ```
 
 ---
@@ -145,7 +145,7 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 |------|-----|
 | **Node.js** ≥ 20.19 (see `package.json` engines) | App runtime |
 | **npm** | Dependencies |
-| **Docker Desktop** *(or hosted Postgres/Redis)* | Local DB + Redis |
+| **Docker Desktop** *(optional)* | Alternative to the bundled local Postgres/Redis |
 | **Shopify CLI** (`npm i -g @shopify/cli`) | `shopify app dev` / deploy |
 | **Fly CLI** *(when deploying)* | `fly launch` / secrets / deploy |
 | **Git** | Version control |
@@ -184,22 +184,16 @@ Also set `client_id` in `shopify.app.toml` to the API key.
 ## 7. Local run (after tools are ready)
 
 ```powershell
-# 1) Infra
-docker compose up -d
-
-# 2) App
+# 1) Fill .env with Shopify credentials, then:
 npm install
-npm run setup          # prisma generate + migrate deploy
+npm run dev            # Postgres + Redis + worker + Shopify app (no Docker)
+
+# 2) Install on a development store in the browser
 node .\scripts\verify-step1.mjs
-
-# 3) Fill .env with Shopify credentials, then:
-npm i -g @shopify/cli
-npm run dev            # terminal A — web + tunnel
-npm run worker         # terminal B — sync-queue
-
-# 4) Install on a development store in the browser
 node .\scripts\verify-step2.mjs
 ```
+
+`npm run dev` starts local Postgres + Redis without Docker (data in gitignored `.local/`). Docker remains optional: `docker compose up -d`, then `npm run dev:shopify` and `npm run worker`.
 
 ---
 
