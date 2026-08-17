@@ -1,0 +1,355 @@
+/* Admin live preview of the storefront filter widget.
+   Local CSS-module classes; widget styles are nested under
+   .preview so they cannot leak into Polaris. */
+
+.preview {
+  box-sizing: border-box;
+}
+
+.preview *,
+.preview *::before,
+.preview *::after {
+  box-sizing: border-box;
+}
+
+.stageHint {
+  display: block;
+  font-size: 12px;
+  color: #6d7175;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+/* --- Layout picker (Filter layout cards) --- */
+
+.layoutGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.layoutCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #c9cccf;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.layoutCard:hover {
+  border-color: #8c9196;
+}
+
+.layoutCardSelected {
+  border-color: #1a1a1a;
+  box-shadow: 0 0 0 1px #1a1a1a;
+}
+
+.layoutCardDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.layoutThumb {
+  height: 92px;
+  background: #f6f6f7;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.layoutThumbLeft {
+  grid-template-columns: 22% 1fr;
+}
+
+.layoutThumbRight {
+  grid-template-columns: 1fr 22%;
+}
+
+.layoutThumbTop {
+  grid-template-rows: 18% 1fr;
+}
+
+.layoutFilter {
+  background: #5c5f62;
+  border-radius: 3px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.layoutProducts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.layoutProduct {
+  background: #d2d5d8;
+  border-radius: 3px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.layoutChoice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #202223;
+  line-height: 1.2;
+}
+
+.layoutRadio {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #1a1a1a;
+  flex-shrink: 0;
+}
+
+/* --- Live filter-panel mock --- */
+
+.preview .widget {
+  --sf-ink: #1c1917;
+  --sf-muted: #6d7175;
+  --sf-border: #e1e3e5;
+  --sf-surface: #ffffff;
+  --sf-accent: #1c1917;
+  --sf-accent-soft: color-mix(in srgb, var(--sf-accent) 14%, #fff);
+  --sf-radius: 12px;
+  --sf-shadow: none;
+  --sf-title-size: 16px;
+  --sf-title-color: var(--sf-ink);
+  --sf-font-body: inherit;
+  --sf-font-heading: inherit;
+
+  padding: 4px 2px 8px;
+  background: var(--sf-surface);
+  border: 0;
+  border-radius: var(--sf-radius);
+  box-shadow: var(--sf-shadow);
+  font-family: var(--sf-font-body);
+  color: var(--sf-ink);
+  font-size: 13px;
+  line-height: 1.45;
+  min-width: 0;
+}
+
+.preview .title {
+  font-family: var(--sf-font-heading);
+  font-size: var(--sf-title-size, 16px);
+  font-weight: 700;
+  color: var(--sf-title-color);
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+}
+
+.preview .titleHidden {
+  display: none;
+}
+
+.preview .filterBy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.preview .filterByLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+
+.preview .clear {
+  font-size: 13px;
+  font-weight: 500;
+  color: #005bd3;
+}
+
+.preview .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.preview .chip {
+  background: #f1f2f3;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sf-ink);
+  border: 1px solid #e1e3e5;
+}
+
+.preview .chipStrong {
+  font-weight: 700;
+}
+
+.preview .chipX {
+  color: var(--sf-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.preview .facet {
+  border-top: 1px solid var(--sf-border);
+  padding: 12px 0 8px;
+}
+
+.preview .facet:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.preview .facetLabel {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #202223;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.preview .chevron {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+
+.preview .chevronCollapsed {
+  transform: rotate(-45deg);
+}
+
+.preview .option {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.preview .check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #8c9196;
+  border-radius: 4px;
+  flex-shrink: 0;
+  position: relative;
+  background: #fff;
+}
+
+.preview .checkOn {
+  background: var(--sf-accent);
+  border-color: var(--sf-accent);
+}
+
+.preview .checkOn::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.preview .optionText {
+  flex: 1;
+  font-weight: 400;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.preview .count {
+  color: var(--sf-muted);
+  font-size: 13px;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.preview .slider {
+  height: 4px;
+  background: #e1e3e5;
+  border-radius: 999px;
+  position: relative;
+  margin: 14px 6px 16px;
+}
+
+.preview .sliderFill {
+  position: absolute;
+  left: 12%;
+  width: 62%;
+  height: 100%;
+  background: var(--sf-accent);
+  border-radius: 999px;
+}
+
+.preview .sliderThumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--sf-accent);
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+.preview .sliderThumbMin {
+  left: 12%;
+}
+
+.preview .sliderThumbMax {
+  left: 74%;
+}
+
+.preview .priceInputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.preview .priceBox {
+  border: 1px solid #c9cccf;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--sf-ink);
+  background: #fff;
+}
+
+@media (max-width: 52rem) {
+  .layoutGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -29,6 +29,10 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import {
+  LayoutPicker,
+  WidgetLookPreview,
+} from "../components/widget-preview";
+import {
   DEFAULT_APP_SETTINGS,
   WIDGET_RADIUS_MAX,
   WIDGET_RADIUS_MIN,
@@ -43,12 +47,6 @@ import {
   parseWidgetTitleSize,
 } from "../app-settings";
 import { getAppSettings, saveAppSettings } from "../settings.server";
-
-const POSITION_OPTIONS = [
-  { label: "Left", value: "left" },
-  { label: "Right", value: "right" },
-  { label: "Top", value: "top" },
-];
 
 const FONT_OPTIONS = [
   { label: "Match the theme (recommended)", value: "theme" },
@@ -258,6 +256,7 @@ export default function SettingsPage() {
   return (
     <Page
       title="Settings"
+      fullWidth
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,
@@ -284,21 +283,46 @@ export default function SettingsPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Filter layout
+                  </Text>
+                  <LayoutPicker
+                    value={settings.widgetPosition}
+                    disabled={saving}
+                    onChange={(value: "left" | "right" | "top") =>
+                      setSettings((s) => ({ ...s, widgetPosition: value }))
+                    }
+                  />
+                  <Checkbox
+                    label="Show the number of matching products"
+                    checked={settings.showProductCounts}
+                    disabled={saving}
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        showProductCounts: checked,
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="Collapse filter groups by default"
+                    checked={settings.collapseByDefault}
+                    disabled={saving}
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        collapseByDefault: checked,
+                      }))
+                    }
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Widget look
                   </Text>
                   <FormLayout>
-                    <Select
-                      label="Widget position"
-                      options={POSITION_OPTIONS}
-                      value={settings.widgetPosition}
-                      disabled={saving}
-                      onChange={(value) =>
-                        setSettings((s) => ({
-                          ...s,
-                          widgetPosition: value as "left" | "right" | "top",
-                        }))
-                      }
-                    />
                     <TextField
                       label="Title text"
                       autoComplete="off"
@@ -426,7 +450,10 @@ export default function SettingsPage() {
                             value={settings.accentColor}
                             disabled={saving}
                             onChange={(value) =>
-                              setSettings((s) => ({ ...s, accentColor: value }))
+                              setSettings((s) => ({
+                                ...s,
+                                accentColor: value,
+                              }))
                             }
                             helpText="Used for buttons, selected filters, and the price range slider."
                           />
@@ -514,40 +541,20 @@ export default function SettingsPage() {
                   </FormLayout>
                 </BlockStack>
               </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Filter display
-                  </Text>
-                  <FormLayout>
-                    <Checkbox
-                      label="Show product counts on filter options"
-                      checked={settings.showProductCounts}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setSettings((s) => ({
-                          ...s,
-                          showProductCounts: checked,
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      label="Collapse filter groups by default"
-                      checked={settings.collapseByDefault}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setSettings((s) => ({
-                          ...s,
-                          collapseByDefault: checked,
-                        }))
-                      }
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Card>
             </BlockStack>
           </Form>
+        </Layout.Section>
+        <Layout.Section variant="oneThird">
+          <div style={{ position: "sticky", top: 16 }}>
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">
+                  Preview
+                </Text>
+                <WidgetLookPreview settings={settings} />
+              </BlockStack>
+            </Card>
+          </div>
         </Layout.Section>
       </Layout>
     </Page>
