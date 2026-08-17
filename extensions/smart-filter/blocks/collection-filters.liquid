@@ -7,16 +7,7 @@
   data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
   {{ block.shopify_attributes }}
 >
-  <div class="smart-filter__title">
-    <img
-      class="smart-filter__logo"
-      src="{{ 'filter-logo.jpg' | asset_url }}"
-      alt=""
-      width="32"
-      height="32"
-    >
-    <span class="smart-filter__title-text">{{ block.settings.heading }}</span>
-  </div>
+  <div class="smart-filter__title" data-title>Filter:</div>
   <div class="smart-filter__facets" data-facets></div>
   <div class="smart-filter__status" data-status aria-live="polite"></div>
 </div>
@@ -31,12 +22,6 @@
   "stylesheet": "smart-filter.css",
   "javascript": "smart-filter.js",
   "settings": [
-    {
-      "type": "text",
-      "id": "heading",
-      "label": "t:blocks.collection_filters.settings.heading.label",
-      "default": "Filter products"
-    },
     {
       "type": "select",
       "id": "position",

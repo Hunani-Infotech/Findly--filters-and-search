@@ -3,9 +3,6 @@
     "collection_filters": {
       "name": "Collection filters",
       "settings": {
-        "heading": {
-          "label": "Heading"
-        },
         "position": {
           "label": "Widget position",
           "options": {

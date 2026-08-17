@@ -121,6 +121,11 @@ export async function getCollectionFilterPayload(input: {
     accentColor: appSettings.accentColor,
     widgetShadow: appSettings.widgetShadow,
     widgetRadius: appSettings.widgetRadius,
+    widgetFontMode: appSettings.widgetFontMode,
+    widgetFontFamily: appSettings.widgetFontFamily,
+    widgetTitle: appSettings.widgetTitle,
+    widgetTitleSize: appSettings.widgetTitleSize,
+    widgetTitleColor: appSettings.widgetTitleColor,
   };
 
   const memberships = await prisma.collectionMembership.findMany({

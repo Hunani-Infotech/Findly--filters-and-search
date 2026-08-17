@@ -152,6 +152,14 @@
     return /^[a-zA-Z][a-zA-Z-]{1,30}$/.test(color);
   }
 
+  function looksLikeFontFamily(value) {
+    if (typeof value !== "string") return false;
+    var font = value.trim();
+    if (!font || font.length > 120) return false;
+    if (/url\s*\(|expression|@import|[<>]|javascript:/i.test(font)) return false;
+    return /^[a-zA-Z0-9\s"',._-]+$/.test(font);
+  }
+
   function handleFromHref(href) {
     if (!href) return null;
     try {
@@ -358,6 +366,7 @@
     this.root = root;
     this.facetsEl = qs(root, "[data-facets]");
     this.statusEl = qs(root, "[data-status]");
+    this.titleEl = qs(root, "[data-title]");
     this.proxyBase = (root.getAttribute("data-proxy-base") || "/apps/smart-filter").replace(
       /\/$/,
       "",
@@ -395,6 +404,54 @@
     var radius = Number(settings.widgetRadius);
     if (Number.isFinite(radius) && radius >= 0 && radius <= 40) {
       this.root.style.setProperty("--sf-radius", radius + "px");
+    }
+
+    var fontMode = String(settings.widgetFontMode || "theme");
+    var customFont = looksLikeFontFamily(settings.widgetFontFamily)
+      ? settings.widgetFontFamily.trim()
+      : "";
+    if (fontMode === "custom" && customFont) {
+      this.root.style.setProperty("--sf-font-body", customFont);
+      this.root.style.setProperty("--sf-font-heading", customFont);
+    } else if (fontMode === "heading") {
+      this.root.style.setProperty(
+        "--sf-font-body",
+        "var(--font-heading-family, inherit)",
+      );
+      this.root.style.setProperty(
+        "--sf-font-heading",
+        "var(--font-heading-family, inherit)",
+      );
+    } else if (fontMode === "body") {
+      this.root.style.setProperty(
+        "--sf-font-body",
+        "var(--font-body-family, inherit)",
+      );
+      this.root.style.setProperty(
+        "--sf-font-heading",
+        "var(--font-body-family, inherit)",
+      );
+    } else {
+      this.root.style.removeProperty("--sf-font-body");
+      this.root.style.removeProperty("--sf-font-heading");
+    }
+
+    if (typeof settings.widgetTitle === "string" && this.titleEl) {
+      var title = settings.widgetTitle.trim();
+      this.titleEl.textContent = title;
+      this.titleEl.hidden = !title;
+    }
+
+    var titleSize = Number(settings.widgetTitleSize);
+    if (Number.isFinite(titleSize) && titleSize >= 12 && titleSize <= 32) {
+      this.root.style.setProperty("--sf-title-size", titleSize + "px");
+    }
+
+    if (looksLikeCssColor(settings.widgetTitleColor)) {
+      this.root.style.setProperty(
+        "--sf-title-color",
+        settings.widgetTitleColor.trim(),
+      );
     }
 
     if (typeof settings.showProductCounts === "boolean") {

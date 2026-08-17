@@ -1,10 +1,15 @@
 import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
-  WIDGET_RADIUS_OPTIONS,
+  parseWidgetFontMode,
+  parseWidgetRadius,
+  parseWidgetTitleSize,
+  sanitizeFontFamily,
+  sanitizeWidgetTitle,
+  sanitizeWidgetTitleColor,
 } from "./app-settings";
 
-export { DEFAULT_APP_SETTINGS, WIDGET_RADIUS_OPTIONS };
+export { DEFAULT_APP_SETTINGS };
 
 export type AppSettingsInput = {
   widgetPosition?: "left" | "right" | "top";
@@ -13,6 +18,11 @@ export type AppSettingsInput = {
   collapseByDefault?: boolean;
   widgetShadow?: boolean;
   widgetRadius?: number;
+  widgetFontMode?: "theme" | "heading" | "body" | "custom";
+  widgetFontFamily?: string;
+  widgetTitle?: string;
+  widgetTitleSize?: number;
+  widgetTitleColor?: string;
 };
 
 export async function getAppSettings(shopId: string) {
@@ -32,11 +42,14 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     typeof input.accentColor === "string" && input.accentColor.trim()
       ? input.accentColor.trim().slice(0, 64)
       : DEFAULT_APP_SETTINGS.accentColor;
-  const widgetRadius = WIDGET_RADIUS_OPTIONS.some(
-    (value) => value === input.widgetRadius,
-  )
-    ? Number(input.widgetRadius)
-    : DEFAULT_APP_SETTINGS.widgetRadius;
+  const widgetRadius = parseWidgetRadius(input.widgetRadius);
+
+  const widgetFontMode = parseWidgetFontMode(input.widgetFontMode);
+  const widgetFontFamily =
+    widgetFontMode === "custom" ? sanitizeFontFamily(input.widgetFontFamily) : "";
+  const widgetTitle = sanitizeWidgetTitle(input.widgetTitle);
+  const widgetTitleSize = parseWidgetTitleSize(input.widgetTitleSize);
+  const widgetTitleColor = sanitizeWidgetTitleColor(input.widgetTitleColor);
 
   return prisma.appSettings.upsert({
     where: { shopId },
@@ -48,6 +61,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       collapseByDefault: input.collapseByDefault ?? false,
       widgetShadow: input.widgetShadow ?? true,
       widgetRadius,
+      widgetFontMode,
+      widgetFontFamily,
+      widgetTitle,
+      widgetTitleSize,
+      widgetTitleColor,
     },
     update: {
       widgetPosition,
@@ -56,6 +74,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       collapseByDefault: input.collapseByDefault,
       widgetShadow: input.widgetShadow,
       widgetRadius,
+      widgetFontMode,
+      widgetFontFamily,
+      widgetTitle,
+      widgetTitleSize,
+      widgetTitleColor,
     },
   });
 }

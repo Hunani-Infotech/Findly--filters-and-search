@@ -75,6 +75,12 @@ model AppSettings {
   collapseByDefault Boolean @default(false)
   widgetShadow      Boolean @default(true)
   widgetRadius      Int     @default(12)
+  /// theme | heading | body | custom
+  widgetFontMode    String  @default("theme")
+  widgetFontFamily  String  @default("")
+  widgetTitle       String  @default("Filter:")
+  widgetTitleSize   Int     @default(16)
+  widgetTitleColor  String  @default("#1c1917")
   updatedAt         DateTime @updatedAt
 }
 

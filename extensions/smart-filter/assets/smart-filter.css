@@ -12,9 +12,12 @@
   --sf-radius: 12px;
   --sf-space: 0.75rem;
   --sf-shadow: 0 8px 24px rgb(28 25 23 / 6%);
+  --sf-font-body: var(--font-body-family, inherit);
+  --sf-font-heading: var(--font-heading-family, var(--font-body-family, inherit));
 
   box-sizing: border-box;
   color: var(--sf-ink);
+  font-family: var(--sf-font-body);
   font-size: 0.9375rem;
   line-height: 1.45;
   max-width: 100%;
@@ -33,28 +36,23 @@
   box-sizing: border-box;
 }
 
+.smart-filter button,
+.smart-filter input,
+.smart-filter select {
+  font-family: inherit;
+}
+
 .smart-filter__title {
-  font-size: 1.15rem;
+  font-family: var(--sf-font-heading);
+  font-size: var(--sf-title-size, 16px);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0 0 0.85rem;
-  color: var(--sf-ink);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+  color: var(--sf-title-color, var(--sf-ink));
 }
 
-.smart-filter__logo {
-  width: 2rem;
-  height: 2rem;
-  object-fit: cover;
-  border-radius: min(8px, var(--sf-radius));
-  flex-shrink: 0;
-  display: block;
-}
-
-.smart-filter__title-text {
-  min-width: 0;
+.smart-filter__title[hidden] {
+  display: none;
 }
 
 .smart-filter__chips {
