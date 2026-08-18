@@ -26,7 +26,8 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "seed:catalog": "node ./scripts/seed-dev-catalog.mjs"
+    "seed:catalog": "node ./scripts/seed-dev-catalog.mjs",
+    "share:db": "node ./scripts/share-db.mjs"
   },
   "type": "module",
   "engines": {

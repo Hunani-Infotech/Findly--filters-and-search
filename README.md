@@ -25,6 +25,8 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 2. `npm install`
 3. `npm run dev` — starts Postgres, Redis, the sync worker, and the Shopify app (no Docker)
 
+To share **this machine's** Postgres with a teammate (host only; they do not run this): keep `npm run dev` running, then `npm run share:db`. Send them the printed `DATABASE_URL`. They keep `REDIS_URL=redis://localhost:6379`.
+
 Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run dev:shopify` and `npm run worker`.
 
 ## Fly.io
