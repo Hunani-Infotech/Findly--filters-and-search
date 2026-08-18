@@ -28,7 +28,7 @@ If work drifts into these, stop and return to the current step below. There is n
 | 10 | Storefront search (solid basic — not AI) | **NOT STARTED** — launch scope; build after filters widget works |
 | 11 | Billing | HOLD |
 | 12 | Compliance webhooks | HOLD |
-| 13 | Manual QA (filters + search + theme) | HOLD |
+| 13 | Manual QA (filters + search + theme) | **CODE GATE PASS** (`npm run verify:b5` → `STEPB5_OK`). Live theme clicks still required for final storefront sign-off. |
 
 ## Unblock step 1 (Postgres)
 

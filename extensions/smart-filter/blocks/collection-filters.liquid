@@ -8,9 +8,39 @@
   data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
   {{ block.shopify_attributes }}
 >
-  <div class="smart-filter__title" data-title>Filter:</div>
-  <div class="smart-filter__facets" data-facets></div>
-  <div class="smart-filter__status" data-status aria-live="polite"></div>
+  <button
+    type="button"
+    class="smart-filter__toggle"
+    data-drawer-toggle
+    aria-expanded="false"
+    aria-controls="smart-filter-panel"
+  >
+    {{ "blocks.collection_filters.filter" | t }}
+    <span class="smart-filter__toggle-count" data-drawer-count hidden></span>
+  </button>
+  <div class="smart-filter__backdrop" data-drawer-backdrop hidden></div>
+  <div
+    class="smart-filter__panel"
+    id="smart-filter-panel"
+    data-drawer-panel
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="smart-filter-title"
+  >
+    <div class="smart-filter__panel-head">
+      <div class="smart-filter__title" id="smart-filter-title" data-title>Filter:</div>
+      <button
+        type="button"
+        class="smart-filter__close"
+        data-drawer-close
+        aria-label="{{ "blocks.collection_filters.close" | t }}"
+      >
+        ×
+      </button>
+    </div>
+    <div class="smart-filter__facets" data-facets></div>
+    <div class="smart-filter__status" data-status aria-live="polite"></div>
+  </div>
 </div>
 
 {% schema %}

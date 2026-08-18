@@ -73,6 +73,8 @@ model AppSettings {
   accentColor       String  @default("#1c1917")
   showProductCounts Boolean @default(true)
   collapseByDefault Boolean @default(false)
+  /// show | hide | hide_after_filter (Globo out-of-stock display)
+  hideOutOfStock    String  @default("show")
   widgetShadow      Boolean @default(true)
   widgetRadius      Int     @default(12)
   /// theme | heading | body | custom

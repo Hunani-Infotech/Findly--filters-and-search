@@ -35,6 +35,7 @@ import {
   WidgetLookPreview,
 } from "../components/widget-preview";
 import {
+  HIDE_OUT_OF_STOCK_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
   SEARCH_FIELD_KEYS,
@@ -48,9 +49,11 @@ import {
   isPresetRadius,
   isPresetTitleSize,
   normalizeSearchFields,
+  parseHideOutOfStock,
   parseWidgetFontMode,
   parseWidgetRadius,
   parseWidgetTitleSize,
+  type HideOutOfStockMode,
   type SearchFieldKey,
 } from "../app-settings";
 import { getAppSettings, saveAppSettings } from "../settings.server";
@@ -83,6 +86,7 @@ type SettingsState = {
   accentColor: string;
   showProductCounts: boolean;
   collapseByDefault: boolean;
+  hideOutOfStock: HideOutOfStockMode;
   widgetShadow: boolean;
   widgetRadius: number;
   radiusChoice: string;
@@ -100,6 +104,7 @@ function toSettingsState(settings: {
   accentColor: string;
   showProductCounts: boolean;
   collapseByDefault: boolean;
+  hideOutOfStock?: string;
   widgetShadow: boolean;
   widgetRadius: number;
   widgetFontMode: string;
@@ -116,6 +121,7 @@ function toSettingsState(settings: {
     accentColor: settings.accentColor,
     showProductCounts: settings.showProductCounts,
     collapseByDefault: settings.collapseByDefault,
+    hideOutOfStock: parseHideOutOfStock(settings.hideOutOfStock),
     widgetShadow: settings.widgetShadow,
     widgetRadius,
     radiusChoice: isPresetRadius(widgetRadius) ? String(widgetRadius) : "custom",
@@ -154,6 +160,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       accentColor: settings.accentColor,
       showProductCounts: settings.showProductCounts,
       collapseByDefault: settings.collapseByDefault,
+      hideOutOfStock: settings.hideOutOfStock,
       widgetShadow: settings.widgetShadow,
       widgetRadius: settings.widgetRadius,
       widgetFontMode: settings.widgetFontMode,
@@ -202,6 +209,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     collapseByDefault:
       form.get("collapseByDefault") === "true" ||
       form.get("collapseByDefault") === "on",
+    hideOutOfStock: parseHideOutOfStock(form.get("hideOutOfStock")),
     widgetShadow:
       form.get("widgetShadow") === "true" || form.get("widgetShadow") === "on",
     widgetRadius: parseWidgetRadius(form.get("widgetRadius")),
@@ -254,6 +262,7 @@ export default function SettingsPage() {
     formData.set("accentColor", next.accentColor);
     formData.set("showProductCounts", String(next.showProductCounts));
     formData.set("collapseByDefault", String(next.collapseByDefault));
+    formData.set("hideOutOfStock", next.hideOutOfStock);
     formData.set("widgetShadow", String(next.widgetShadow));
     formData.set("widgetRadius", String(next.widgetRadius));
     formData.set("widgetFontMode", next.widgetFontMode);
@@ -340,6 +349,19 @@ export default function SettingsPage() {
                       setSettings((s) => ({
                         ...s,
                         collapseByDefault: checked,
+                      }))
+                    }
+                  />
+                  <Select
+                    label="Out-of-stock products"
+                    options={HIDE_OUT_OF_STOCK_OPTIONS}
+                    value={settings.hideOutOfStock}
+                    disabled={saving}
+                    helpText="Show all, hide sold-out products, or hide them only after a shopper applies a filter. The availability filter still works."
+                    onChange={(value) =>
+                      setSettings((s) => ({
+                        ...s,
+                        hideOutOfStock: parseHideOutOfStock(value),
                       }))
                     }
                   />

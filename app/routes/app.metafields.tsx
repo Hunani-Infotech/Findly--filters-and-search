@@ -325,9 +325,8 @@ export default function MetafieldsPage() {
 
               <Banner tone="info">
                 <p>
-                  Boolean metafields can be mapped and saved. The storefront
-                  currently shows them as a checkbox list (a dedicated
-                  true/false control is not part of this step).
+                  Boolean metafields appear on the storefront as Yes / No
+                  (true/false) choices, not a raw value list.
                 </p>
               </Banner>
 

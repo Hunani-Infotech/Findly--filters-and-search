@@ -13,7 +13,7 @@ export type FacetDef = {
   key: string;
   source: FacetSource;
   label: string;
-  type: "checkbox" | "range";
+  type: "checkbox" | "range" | "boolean";
   metafieldNamespace?: string;
   metafieldKey?: string;
   optionName?: string;
@@ -23,6 +23,25 @@ export type FacetDef = {
 
 export const UNSPECIFIED_VALUE = "__unspecified__";
 export const UNSPECIFIED_LABEL = "Unspecified";
+export const BOOLEAN_TRUE = "true";
+export const BOOLEAN_FALSE = "false";
+export const BOOLEAN_TRUE_LABEL = "Yes";
+export const BOOLEAN_FALSE_LABEL = "No";
+
+/** Canonical Shopify boolean strings, plus common 1/0/yes/no variants. */
+export function normalizeBooleanMetafieldValue(
+  raw: string | undefined | null,
+): typeof BOOLEAN_TRUE | typeof BOOLEAN_FALSE | null {
+  if (raw == null) return null;
+  const trimmed = String(raw).trim().toLowerCase();
+  if (trimmed === "true" || trimmed === "1" || trimmed === "yes") {
+    return BOOLEAN_TRUE;
+  }
+  if (trimmed === "false" || trimmed === "0" || trimmed === "no") {
+    return BOOLEAN_FALSE;
+  }
+  return null;
+}
 
 export const DEFAULT_DISPLAY_ORDER = [
   "availability",
@@ -151,6 +170,7 @@ function metafieldTypeToFacetType(
   filterType: MetafieldFilterType,
 ): FacetDef["type"] {
   if (filterType === "RANGE") return "range";
+  if (filterType === "BOOLEAN") return "boolean";
   return "checkbox";
 }
 
@@ -328,6 +348,23 @@ export function productMatchesFilters(
           if (!nums.length) return false;
           if (Number.isFinite(min) && nums.every((n) => n < min)) return false;
           if (Number.isFinite(max) && nums.every((n) => n > max)) return false;
+        } else if (facet.type === "boolean") {
+          const wantTrue = values.some(
+            (value) => normalizeBooleanMetafieldValue(value) === BOOLEAN_TRUE,
+          );
+          const wantFalse = values.some(
+            (value) => normalizeBooleanMetafieldValue(value) === BOOLEAN_FALSE,
+          );
+          if (wantTrue && wantFalse) break;
+          const actuals = new Set(
+            list
+              .map((item) => normalizeBooleanMetafieldValue(item))
+              .filter((item): item is typeof BOOLEAN_TRUE | typeof BOOLEAN_FALSE =>
+                item != null,
+              ),
+          );
+          if (wantTrue && !actuals.has(BOOLEAN_TRUE)) return false;
+          if (wantFalse && !actuals.has(BOOLEAN_FALSE)) return false;
         } else if (!values.some((value) => list.includes(value))) {
           return false;
         }
@@ -340,9 +377,32 @@ export function productMatchesFilters(
   return true;
 }
 
+export function hasActiveFilterSelection(selected: SelectedFilters): boolean {
+  return Object.values(selected).some(
+    (values) => Array.isArray(values) && values.length > 0,
+  );
+}
+
+/** Merchant hide-OOS policy. Shopper availability=out_of_stock still wins. */
+export function applyHideOutOfStock<T extends { available: boolean }>(
+  products: T[],
+  mode: string,
+  selected: SelectedFilters,
+): T[] {
+  const hideAlways = mode === "hide";
+  const hideAfter = mode === "hide_after_filter";
+  if (!hideAlways && !hideAfter) return products;
+  if ((selected.availability ?? []).includes("out_of_stock")) return products;
+  if (hideAfter && !hasActiveFilterSelection(selected)) return products;
+  return products.filter((product) => product.available);
+}
+
 function labelFor(facet: FacetDef, value: string) {
   if (facet.source === "availability") {
     return value === "in_stock" ? "In stock" : "Out of stock";
+  }
+  if (facet.type === "boolean") {
+    return value === BOOLEAN_TRUE ? BOOLEAN_TRUE_LABEL : BOOLEAN_FALSE_LABEL;
   }
   if (value === UNSPECIFIED_VALUE || value === "") return UNSPECIFIED_LABEL;
   return value;
@@ -469,7 +529,16 @@ export function buildFacetAggregations(
           break;
         case "metafield": {
           const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
-          vals = metafieldListValues(product.metafields[path]);
+          const rawValues = metafieldListValues(product.metafields[path]);
+          if (facet.type === "boolean") {
+            vals = rawValues
+              .map((item) => normalizeBooleanMetafieldValue(item))
+              .filter((item): item is typeof BOOLEAN_TRUE | typeof BOOLEAN_FALSE =>
+                item != null,
+              );
+          } else {
+            vals = rawValues;
+          }
           break;
         }
       }
@@ -484,13 +553,27 @@ export function buildFacetAggregations(
       if (!counts.has("out_of_stock")) counts.set("out_of_stock", 0);
     }
 
+    if (facet.type === "boolean") {
+      if (!counts.has(BOOLEAN_TRUE)) counts.set(BOOLEAN_TRUE, 0);
+      if (!counts.has(BOOLEAN_FALSE)) counts.set(BOOLEAN_FALSE, 0);
+    }
+
     const values = [...counts.entries()]
       .filter(([, count]) =>
-        facet.source === "availability" ? true : count > 0,
+        facet.source === "availability" || facet.type === "boolean"
+          ? true
+          : count > 0,
       )
       .sort((a, b) => {
         if (facet.source === "availability") {
           const order = { in_stock: 0, out_of_stock: 1 } as Record<string, number>;
+          return (order[a[0]] ?? 9) - (order[b[0]] ?? 9);
+        }
+        if (facet.type === "boolean") {
+          const order = { [BOOLEAN_TRUE]: 0, [BOOLEAN_FALSE]: 1 } as Record<
+            string,
+            number
+          >;
           return (order[a[0]] ?? 9) - (order[b[0]] ?? 9);
         }
         if (a[0] === UNSPECIFIED_VALUE) return 1;

@@ -216,19 +216,16 @@ try {
   if (!waterproofFacet) {
     fail("filter payload missing metafield facet for custom.waterproof");
   }
-  if (waterproofFacet.type !== "checkbox") {
+  if (waterproofFacet.type !== "boolean") {
     fail(
-      `custom.waterproof BOOLEAN facet type expected checkbox until C1, got ${waterproofFacet.type}`,
+      `custom.waterproof BOOLEAN facet type expected boolean, got ${waterproofFacet.type}`,
     );
   }
 
   log.info(`metafield facet (LIST/material): ${JSON.stringify(materialFacet)}`);
   log.info(`metafield facet (RANGE/weight_g): ${JSON.stringify(weightFacet)}`);
   log.info(
-    `metafield facet (BOOLEAN/waterproof as checkbox): ${JSON.stringify(waterproofFacet)}`,
-  );
-  log.info(
-    "BOOLEAN is saved but rendered as checkbox until C1 (custom.waterproof).",
+    `metafield facet (BOOLEAN/waterproof Yes/No): ${JSON.stringify(waterproofFacet)}`,
   );
 
   const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import(

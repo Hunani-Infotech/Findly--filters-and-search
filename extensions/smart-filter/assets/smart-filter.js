@@ -107,6 +107,20 @@
     return null;
   }
 
+  function chipDisplayLabel(facets, key, value) {
+    var list = facets || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].key !== key) continue;
+      var values = list[i].values || [];
+      for (var j = 0; j < values.length; j++) {
+        if (String(values[j].value) === String(value) && values[j].label) {
+          return String(values[j].label);
+        }
+      }
+    }
+    return String(value);
+  }
+
   function isSizeFacet(facet) {
     if (/size|length|width/i.test(String(facet.label || facet.key || ""))) {
       return true;
@@ -325,11 +339,12 @@
         var isProductPrice = source === "price" || key === "price";
         var isRange =
           isProductPrice || type === "price" || type === "price_range" || type === "range";
+        var isBoolean = type === "boolean" || type === "bool";
         var range = facet.range || {};
         return {
           key: key,
           label: facet.label || facet.name || key,
-          type: isRange ? "price_range" : "list",
+          type: isRange ? "price_range" : isBoolean ? "boolean" : "list",
           isProductPrice: isProductPrice,
           source: source,
           values: Array.isArray(facet.values) ? facet.values : [],
@@ -391,8 +406,11 @@
     this.price = { min: "", max: "" };
     this.facets = [];
     this._reqId = 0;
+    this._drawerPrevOverflow = "";
+    this._onDrawerKey = this.onDrawerKey.bind(this);
     root.classList.add("smart-filter--" + this.position);
     root.setAttribute("data-position", this.position);
+    this.bindDrawer();
   }
 
   Widget.prototype.applySettings = function (settings) {
@@ -591,6 +609,7 @@
             applyProductVisibility(null);
             dispatchUpdate([]);
             setStatus(this.statusEl, MSG_DISABLED, false);
+            this.syncDrawerBadge();
             return;
           }
 
@@ -601,6 +620,7 @@
           applyProductVisibility(handles);
           dispatchUpdate(handles);
           this.updateStatus(data, handles);
+          this.syncDrawerBadge();
         }.bind(this),
       )
       .catch(
@@ -612,6 +632,82 @@
           }
         }.bind(this),
       );
+  };
+
+  Widget.prototype.bindDrawer = function () {
+    this.toggleEl = qs(this.root, "[data-drawer-toggle]");
+    this.backdropEl = qs(this.root, "[data-drawer-backdrop]");
+    this.panelEl = qs(this.root, "[data-drawer-panel]");
+    this.closeEl = qs(this.root, "[data-drawer-close]");
+    this.countEl = qs(this.root, "[data-drawer-count]");
+
+    if (this.toggleEl) {
+      this.toggleEl.addEventListener(
+        "click",
+        function () {
+          this.openDrawer();
+        }.bind(this),
+      );
+    }
+    if (this.closeEl) {
+      this.closeEl.addEventListener(
+        "click",
+        function () {
+          this.closeDrawer();
+        }.bind(this),
+      );
+    }
+    if (this.backdropEl) {
+      this.backdropEl.addEventListener(
+        "click",
+        function () {
+          this.closeDrawer();
+        }.bind(this),
+      );
+    }
+  };
+
+  Widget.prototype.onDrawerKey = function (event) {
+    if (event.key === "Escape") this.closeDrawer();
+  };
+
+  Widget.prototype.openDrawer = function () {
+    if (this.root.classList.contains("is-drawer-open")) return;
+    this.root.classList.add("is-drawer-open");
+    if (this.toggleEl) this.toggleEl.setAttribute("aria-expanded", "true");
+    if (this.backdropEl) this.backdropEl.hidden = false;
+    document.addEventListener("keydown", this._onDrawerKey);
+    this._drawerPrevOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    if (this.closeEl) this.closeEl.focus();
+  };
+
+  Widget.prototype.closeDrawer = function () {
+    if (!this.root.classList.contains("is-drawer-open")) return;
+    this.root.classList.remove("is-drawer-open");
+    if (this.toggleEl) this.toggleEl.setAttribute("aria-expanded", "false");
+    if (this.backdropEl) this.backdropEl.hidden = true;
+    document.removeEventListener("keydown", this._onDrawerKey);
+    document.documentElement.style.overflow = this._drawerPrevOverflow || "";
+    if (this.toggleEl) this.toggleEl.focus();
+  };
+
+  Widget.prototype.syncDrawerBadge = function () {
+    if (!this.countEl) return;
+    var n = 0;
+    Object.keys(this.selected).forEach(
+      function (key) {
+        n += (this.selected[key] || []).length;
+      }.bind(this),
+    );
+    if (this.price.min !== "" || this.price.max !== "") n += 1;
+    if (n) {
+      this.countEl.hidden = false;
+      this.countEl.textContent = String(n);
+    } else {
+      this.countEl.hidden = true;
+      this.countEl.textContent = "";
+    }
   };
 
   Widget.prototype.toggleValue = function (key, value, checked) {
@@ -657,13 +753,14 @@
 
     Object.keys(this.selected).forEach(function (key) {
       (self.selected[key] || []).forEach(function (value) {
+        var chipLabel = chipDisplayLabel(self.facets, key, value);
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "smart-filter__chip";
-        chip.setAttribute("aria-label", "Remove " + value);
+        chip.setAttribute("aria-label", "Remove " + chipLabel);
         chip.innerHTML =
           "<span>" +
-          String(value).replace(/</g, "&lt;") +
+          String(chipLabel).replace(/</g, "&lt;") +
           '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
         chip.addEventListener("click", function () {
           self.toggleValue(key, value, false);
@@ -740,6 +837,8 @@
 
         if (facet.type === "price_range") {
           wrap.appendChild(this.renderPriceFacet(facet));
+        } else if (facet.type === "boolean") {
+          wrap.appendChild(this.renderBooleanFacet(facet));
         } else {
           wrap.appendChild(this.renderListFacet(facet));
         }
@@ -762,19 +861,28 @@
     }
   };
 
+  Widget.prototype.renderBooleanFacet = function (facet) {
+    var list = this.renderListFacet(facet);
+    list.className = "smart-filter__options smart-filter__options--boolean";
+    return list;
+  };
+
   Widget.prototype.renderListFacet = function (facet) {
     var list = document.createElement("ul");
-    var asColor = isColorFacet(facet);
-    var asSize = isSizeFacet(facet);
+    var asBoolean = facet.type === "boolean";
+    var asColor = !asBoolean && isColorFacet(facet);
+    var asSize = !asBoolean && isSizeFacet(facet);
     list.className =
       "smart-filter__options" +
       (asColor ? " smart-filter__options--swatches" : "") +
-      (asSize ? " smart-filter__options--pills" : "");
+      (asSize ? " smart-filter__options--pills" : "") +
+      (asBoolean ? " smart-filter__options--boolean" : "");
     var selected = this.selected[facet.key] || [];
     var showCounts = this.showCounts;
-    var items = asSize ? sortSizeValues(facet.values) : facet.values;
+    var items = asSize ? sortSizeValues(facet.values || []) : facet.values || [];
     var isAvailability =
       facet.source === "availability" || facet.key === "availability";
+    var isBinary = isAvailability || asBoolean;
 
     items.forEach(
       function (item) {
@@ -804,7 +912,7 @@
         input.name = "sf." + facet.key;
         input.value = value;
         input.checked = selected.indexOf(value) !== -1;
-        input.disabled = isAvailability && empty && !input.checked;
+        input.disabled = isBinary && empty && !input.checked;
         input.addEventListener(
           "change",
           function (event) {

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { FilterConfig } from "@prisma/client";
 import prisma from "./db.server";
 import {
+  applyHideOutOfStock,
   buildFacetAggregations,
   expandFacetsWithOptions,
   facetsFromConfig,
@@ -163,6 +164,7 @@ async function buildFacetPayload(input: {
   const settings = {
     showProductCounts: appSettings.showProductCounts,
     collapseByDefault: appSettings.collapseByDefault,
+    hideOutOfStock: appSettings.hideOutOfStock,
     widgetPosition: appSettings.widgetPosition,
     accentColor: appSettings.accentColor,
     widgetShadow: appSettings.widgetShadow,
@@ -178,8 +180,13 @@ async function buildFacetPayload(input: {
     facetsFromConfig(input.config, cappedMappings),
     input.rows,
   );
-  const filtered = input.rows.filter((product) =>
+  const matched = input.rows.filter((product) =>
     productMatchesFilters(product, facets, input.selected),
+  );
+  const filtered = applyHideOutOfStock(
+    matched,
+    appSettings.hideOutOfStock,
+    input.selected,
   );
   const aggregations = buildFacetAggregations(input.rows, facets, {
     mode: input.config.priceRangeMode,

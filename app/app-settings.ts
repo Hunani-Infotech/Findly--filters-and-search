@@ -41,11 +41,38 @@ export function normalizeSearchFields(value: unknown): SearchFieldKey[] {
   return next;
 }
 
+export const HIDE_OUT_OF_STOCK_MODES = [
+  "show",
+  "hide",
+  "hide_after_filter",
+] as const;
+
+export type HideOutOfStockMode = (typeof HIDE_OUT_OF_STOCK_MODES)[number];
+
+export const HIDE_OUT_OF_STOCK_OPTIONS: {
+  label: string;
+  value: HideOutOfStockMode;
+}[] = [
+  { label: "Show all products", value: "show" },
+  { label: "Hide out-of-stock products", value: "hide" },
+  {
+    label: "Hide out-of-stock products only after filtering",
+    value: "hide_after_filter",
+  },
+];
+
+export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {
+  return HIDE_OUT_OF_STOCK_MODES.includes(value as HideOutOfStockMode)
+    ? (value as HideOutOfStockMode)
+    : "show";
+}
+
 export const DEFAULT_APP_SETTINGS = {
   widgetPosition: "left" as const,
   accentColor: "#1c1917",
   showProductCounts: true,
   collapseByDefault: false,
+  hideOutOfStock: "show" as HideOutOfStockMode,
   widgetShadow: true,
   widgetRadius: 12,
   widgetFontMode: "theme" as const,

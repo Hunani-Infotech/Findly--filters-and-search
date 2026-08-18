@@ -2,6 +2,8 @@
   "blocks": {
     "collection_filters": {
       "name": "Collection filters",
+      "filter": "Filter",
+      "close": "Close filters",
       "settings": {
         "position": {
           "label": "Widget position",

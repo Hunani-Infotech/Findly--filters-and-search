@@ -2,12 +2,14 @@ import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
   normalizeSearchFields,
+  parseHideOutOfStock,
   parseWidgetFontMode,
   parseWidgetRadius,
   parseWidgetTitleSize,
   sanitizeFontFamily,
   sanitizeWidgetTitle,
   sanitizeWidgetTitleColor,
+  type HideOutOfStockMode,
   type SearchFieldKey,
 } from "./app-settings";
 
@@ -18,6 +20,7 @@ export type AppSettingsInput = {
   accentColor?: string;
   showProductCounts?: boolean;
   collapseByDefault?: boolean;
+  hideOutOfStock?: HideOutOfStockMode | string;
   widgetShadow?: boolean;
   widgetRadius?: number;
   widgetFontMode?: "theme" | "heading" | "body" | "custom";
@@ -64,6 +67,9 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     input.searchFields !== undefined
       ? normalizeSearchFields(input.searchFields)
       : [...DEFAULT_APP_SETTINGS.searchFields];
+  const hideOutOfStock = parseHideOutOfStock(
+    input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
+  );
 
   return prisma.appSettings.upsert({
     where: { shopId },
@@ -73,6 +79,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       accentColor,
       showProductCounts: input.showProductCounts ?? true,
       collapseByDefault: input.collapseByDefault ?? false,
+      hideOutOfStock,
       widgetShadow: input.widgetShadow ?? true,
       widgetRadius,
       widgetFontMode,
@@ -87,6 +94,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       accentColor,
       showProductCounts: input.showProductCounts,
       collapseByDefault: input.collapseByDefault,
+      ...(input.hideOutOfStock !== undefined ? { hideOutOfStock } : {}),
       widgetShadow: input.widgetShadow,
       widgetRadius,
       widgetFontMode,
