@@ -24,7 +24,7 @@
 
 .layoutGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -75,6 +75,18 @@
 
 .layoutThumbTop {
   grid-template-rows: 18% 1fr;
+}
+
+.layoutThumbOffcanvas {
+  grid-template-rows: 22% 1fr;
+}
+
+.layoutOffcanvasBtn {
+  width: 42%;
+  height: 10px;
+  border-radius: 999px;
+  background: #5c5f62;
+  align-self: start;
 }
 
 .layoutFilter {
@@ -157,6 +169,15 @@
 
 .preview .titleHidden {
   display: none;
+}
+
+.preview .collectionSearch {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  color: #8c9196;
+  font-size: 12px;
 }
 
 .preview .filterBy {

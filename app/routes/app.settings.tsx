@@ -38,8 +38,11 @@ import {
   HIDE_OUT_OF_STOCK_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
+  SUGGESTION_LIST_MAX,
   SEARCH_FIELD_KEYS,
   SEARCH_FIELD_LABELS,
+  SORT_OPTION_KEYS,
+  SORT_OPTION_LABELS,
   WIDGET_RADIUS_MAX,
   WIDGET_RADIUS_MIN,
   WIDGET_RADIUS_PRESETS,
@@ -48,13 +51,19 @@ import {
   WIDGET_TITLE_SIZE_PRESETS,
   isPresetRadius,
   isPresetTitleSize,
+  normalizeHandleList,
   normalizeSearchFields,
+  normalizeSortOptions,
   parseHideOutOfStock,
+  parseSortOption,
   parseWidgetFontMode,
+  parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
   type HideOutOfStockMode,
   type SearchFieldKey,
+  type SortOptionKey,
+  type WidgetPosition,
 } from "../app-settings";
 import { getAppSettings, saveAppSettings } from "../settings.server";
 
@@ -82,7 +91,7 @@ const RADIUS_OPTIONS = [
 ];
 
 type SettingsState = {
-  widgetPosition: "left" | "right" | "top";
+  widgetPosition: WidgetPosition;
   accentColor: string;
   showProductCounts: boolean;
   collapseByDefault: boolean;
@@ -97,10 +106,20 @@ type SettingsState = {
   titleSizeChoice: string;
   widgetTitleColor: string;
   searchFields: SearchFieldKey[];
+  sortOptionsEnabled: SortOptionKey[];
+  defaultSort: SortOptionKey;
+  hideSortDropdown: boolean;
+  inStockOnTop: boolean;
+  soldOutToBottom: boolean;
+  enableCollectionSearch: boolean;
+  showSuggestionsOnEmptyQuery: boolean;
+  showSuggestionsOnNoResults: boolean;
+  suggestionProductHandles: string[];
+  suggestionCollectionHandles: string[];
 };
 
 function toSettingsState(settings: {
-  widgetPosition: "left" | "right" | "top";
+  widgetPosition: string;
   accentColor: string;
   showProductCounts: boolean;
   collapseByDefault: boolean;
@@ -113,11 +132,21 @@ function toSettingsState(settings: {
   widgetTitleSize: number;
   widgetTitleColor: string;
   searchFields?: unknown;
+  sortOptionsEnabled?: unknown;
+  defaultSort?: string;
+  hideSortDropdown?: boolean;
+  inStockOnTop?: boolean;
+  soldOutToBottom?: boolean;
+  enableCollectionSearch?: boolean;
+  showSuggestionsOnEmptyQuery?: boolean;
+  showSuggestionsOnNoResults?: boolean;
+  suggestionProductHandles?: unknown;
+  suggestionCollectionHandles?: unknown;
 }): SettingsState {
   const widgetRadius = parseWidgetRadius(settings.widgetRadius);
   const widgetTitleSize = parseWidgetTitleSize(settings.widgetTitleSize);
   return {
-    widgetPosition: settings.widgetPosition,
+    widgetPosition: parseWidgetPosition(settings.widgetPosition),
     accentColor: settings.accentColor,
     showProductCounts: settings.showProductCounts,
     collapseByDefault: settings.collapseByDefault,
@@ -137,6 +166,23 @@ function toSettingsState(settings: {
       settings.searchFields === undefined
         ? [...DEFAULT_SEARCH_FIELDS]
         : normalizeSearchFields(settings.searchFields),
+    sortOptionsEnabled:
+      settings.sortOptionsEnabled === undefined
+        ? [...DEFAULT_APP_SETTINGS.sortOptionsEnabled]
+        : normalizeSortOptions(settings.sortOptionsEnabled),
+    defaultSort: parseSortOption(settings.defaultSort),
+    hideSortDropdown: Boolean(settings.hideSortDropdown),
+    inStockOnTop: Boolean(settings.inStockOnTop),
+    soldOutToBottom: Boolean(settings.soldOutToBottom),
+    enableCollectionSearch: Boolean(settings.enableCollectionSearch),
+    showSuggestionsOnEmptyQuery: Boolean(settings.showSuggestionsOnEmptyQuery),
+    showSuggestionsOnNoResults: Boolean(settings.showSuggestionsOnNoResults),
+    suggestionProductHandles: normalizeHandleList(
+      settings.suggestionProductHandles,
+    ),
+    suggestionCollectionHandles: normalizeHandleList(
+      settings.suggestionCollectionHandles,
+    ),
   };
 }
 
@@ -156,7 +202,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     settings: toSettingsState({
-      widgetPosition: settings.widgetPosition as "left" | "right" | "top",
+      widgetPosition: settings.widgetPosition,
       accentColor: settings.accentColor,
       showProductCounts: settings.showProductCounts,
       collapseByDefault: settings.collapseByDefault,
@@ -169,6 +215,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       widgetTitleSize: settings.widgetTitleSize,
       widgetTitleColor: settings.widgetTitleColor || DEFAULT_APP_SETTINGS.widgetTitleColor,
       searchFields: settings.searchFields,
+      sortOptionsEnabled: settings.sortOptionsEnabled,
+      defaultSort: settings.defaultSort,
+      hideSortDropdown: settings.hideSortDropdown,
+      inStockOnTop: settings.inStockOnTop,
+      soldOutToBottom: settings.soldOutToBottom,
+      enableCollectionSearch: settings.enableCollectionSearch,
+      showSuggestionsOnEmptyQuery: settings.showSuggestionsOnEmptyQuery,
+      showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
+      suggestionProductHandles: settings.suggestionProductHandles,
+      suggestionCollectionHandles: settings.suggestionCollectionHandles,
     }),
   };
 };
@@ -183,9 +239,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, reset: true };
   }
 
-  const positionRaw = String(form.get("widgetPosition") || "left");
-  const widgetPosition =
-    positionRaw === "right" || positionRaw === "top" ? positionRaw : "left";
+  const widgetPosition = parseWidgetPosition(form.get("widgetPosition"));
 
   let searchFields = [...DEFAULT_SEARCH_FIELDS];
   const searchFieldsRaw = form.get("searchFields");
@@ -194,6 +248,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const parsed = JSON.parse(searchFieldsRaw) as unknown;
       if (Array.isArray(parsed)) {
         searchFields = normalizeSearchFields(parsed);
+      }
+    } catch {
+      // keep default
+    }
+  }
+
+  let sortOptionsEnabled = [...DEFAULT_APP_SETTINGS.sortOptionsEnabled];
+  const sortOptionsRaw = form.get("sortOptionsEnabled");
+  if (typeof sortOptionsRaw === "string" && sortOptionsRaw) {
+    try {
+      const parsed = JSON.parse(sortOptionsRaw) as unknown;
+      if (Array.isArray(parsed)) {
+        sortOptionsEnabled = normalizeSortOptions(parsed);
       }
     } catch {
       // keep default
@@ -221,6 +288,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("widgetTitleColor") || DEFAULT_APP_SETTINGS.widgetTitleColor,
     ),
     searchFields,
+    sortOptionsEnabled,
+    defaultSort: parseSortOption(form.get("defaultSort")),
+    hideSortDropdown:
+      form.get("hideSortDropdown") === "true" ||
+      form.get("hideSortDropdown") === "on",
+    inStockOnTop:
+      form.get("inStockOnTop") === "true" || form.get("inStockOnTop") === "on",
+    soldOutToBottom:
+      form.get("soldOutToBottom") === "true" ||
+      form.get("soldOutToBottom") === "on",
+    enableCollectionSearch:
+      form.get("enableCollectionSearch") === "true" ||
+      form.get("enableCollectionSearch") === "on",
+    showSuggestionsOnEmptyQuery:
+      form.get("showSuggestionsOnEmptyQuery") === "true" ||
+      form.get("showSuggestionsOnEmptyQuery") === "on",
+    showSuggestionsOnNoResults:
+      form.get("showSuggestionsOnNoResults") === "true" ||
+      form.get("showSuggestionsOnNoResults") === "on",
+    suggestionProductHandles: normalizeHandleList(
+      form.get("suggestionProductHandles"),
+    ),
+    suggestionCollectionHandles: normalizeHandleList(
+      form.get("suggestionCollectionHandles"),
+    ),
   });
 
   return { ok: true };
@@ -271,6 +363,28 @@ export default function SettingsPage() {
     formData.set("widgetTitleSize", String(next.widgetTitleSize));
     formData.set("widgetTitleColor", next.widgetTitleColor);
     formData.set("searchFields", JSON.stringify(next.searchFields));
+    formData.set("sortOptionsEnabled", JSON.stringify(next.sortOptionsEnabled));
+    formData.set("defaultSort", next.defaultSort);
+    formData.set("hideSortDropdown", String(next.hideSortDropdown));
+    formData.set("inStockOnTop", String(next.inStockOnTop));
+    formData.set("soldOutToBottom", String(next.soldOutToBottom));
+    formData.set("enableCollectionSearch", String(next.enableCollectionSearch));
+    formData.set(
+      "showSuggestionsOnEmptyQuery",
+      String(next.showSuggestionsOnEmptyQuery),
+    );
+    formData.set(
+      "showSuggestionsOnNoResults",
+      String(next.showSuggestionsOnNoResults),
+    );
+    formData.set(
+      "suggestionProductHandles",
+      next.suggestionProductHandles.join("\n"),
+    );
+    formData.set(
+      "suggestionCollectionHandles",
+      next.suggestionCollectionHandles.join("\n"),
+    );
     submit(formData, { method: "POST" });
   };
 
@@ -323,10 +437,16 @@ export default function SettingsPage() {
                   <Text as="h2" variant="headingMd">
                     Filter layout
                   </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Globo tree styles: Vertical (left or right sidebar),
+                    Horizontal (filters above the grid), or Off-canvas (Filter
+                    button + drawer). Place the theme block above the product
+                    grid for Horizontal.
+                  </Text>
                   <LayoutPicker
                     value={settings.widgetPosition}
                     disabled={saving}
-                    onChange={(value: "left" | "right" | "top") =>
+                    onChange={(value: WidgetPosition) =>
                       setSettings((s) => ({ ...s, widgetPosition: value }))
                     }
                   />
@@ -344,7 +464,8 @@ export default function SettingsPage() {
                   <Checkbox
                     label="Collapse filter groups by default"
                     checked={settings.collapseByDefault}
-                    disabled={saving}
+                    disabled={saving || settings.widgetPosition === "top"}
+                    helpText="Does not apply to the Horizontal tree style."
                     onChange={(checked) =>
                       setSettings((s) => ({
                         ...s,
@@ -371,13 +492,130 @@ export default function SettingsPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    Sort By
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Shoppers sort the theme product grid together with active
+                    filters. Featured order comes from the Shopify collection
+                    (sync after changing collection sort). Best-selling and %
+                    sale off are omitted until sales and compare-at data exist
+                    (C15).
+                  </Text>
+                  <Checkbox
+                    label="Hide the Sort By dropdown"
+                    checked={settings.hideSortDropdown}
+                    disabled={saving}
+                    helpText="Products still use the default sort. Uncheck every option below to hide the dropdown the same way."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        hideSortDropdown: checked,
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="Display in-stock products on top"
+                    checked={settings.inStockOnTop}
+                    disabled={saving}
+                    helpText="Keeps available products first. Combines with the selected Sort By order among in-stock items."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        inStockOnTop: checked,
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="Move sold-out products to the bottom"
+                    checked={settings.soldOutToBottom}
+                    disabled={saving}
+                    helpText="Pushes out-of-stock products last while keeping the selected sort inside each group."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        soldOutToBottom: checked,
+                      }))
+                    }
+                  />
+                  <FormLayout>
+                    {SORT_OPTION_KEYS.map((key) => (
+                      <Checkbox
+                        key={key}
+                        label={SORT_OPTION_LABELS[key]}
+                        checked={settings.sortOptionsEnabled.includes(key)}
+                        disabled={saving}
+                        onChange={(checked) =>
+                          setSettings((s) => {
+                            const next = checked
+                              ? s.sortOptionsEnabled.includes(key)
+                                ? s.sortOptionsEnabled
+                                : [...s.sortOptionsEnabled, key]
+                              : s.sortOptionsEnabled.filter(
+                                  (option) => option !== key,
+                                );
+                            const defaultSort = next.includes(s.defaultSort)
+                              ? s.defaultSort
+                              : parseSortOption(next[0] ?? "manual");
+                            return {
+                              ...s,
+                              sortOptionsEnabled: next,
+                              defaultSort,
+                            };
+                          })
+                        }
+                      />
+                    ))}
+                  </FormLayout>
+                  <Select
+                    label="Default sort"
+                    options={(settings.sortOptionsEnabled.length
+                      ? settings.sortOptionsEnabled
+                      : ["manual" as const]
+                    ).map((key) => ({
+                      label: SORT_OPTION_LABELS[key],
+                      value: key,
+                    }))}
+                    value={
+                      settings.sortOptionsEnabled.includes(settings.defaultSort)
+                        ? settings.defaultSort
+                        : (settings.sortOptionsEnabled[0] ?? "manual")
+                    }
+                    disabled={saving || settings.sortOptionsEnabled.length === 0}
+                    helpText="“Featured” follows the Shopify collection sort after catalog sync."
+                    onChange={(value) =>
+                      setSettings((s) => ({
+                        ...s,
+                        defaultSort: parseSortOption(value),
+                      }))
+                    }
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Search fields
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
                     Field order sets simple relevance: a match in the first
                     enabled field ranks above a match only in a later field. No
-                    typo or synonym matching.
+                    typo or synonym matching. Mapped metafields (enabled on the
+                    Metafields page) are searchable when Metafields is ticked —
+                    for example “cotton” matches a material metafield.
                   </Text>
+                  <Checkbox
+                    label="Enable search on collection pages"
+                    checked={settings.enableCollectionSearch}
+                    disabled={saving}
+                    helpText="Shows a search bar on collection pages. Matches stay inside that collection plus any active filters — not store-wide."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        enableCollectionSearch: checked,
+                      }))
+                    }
+                  />
                   {settings.searchFields.length === 0 ? (
                     <Banner tone="warning">
                       <p>
@@ -427,6 +665,58 @@ export default function SettingsPage() {
                       }
                     />
                   ) : null}
+                  <Checkbox
+                    label="Show pinned suggestions when the search box is empty"
+                    checked={settings.showSuggestionsOnEmptyQuery}
+                    disabled={saving}
+                    helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        showSuggestionsOnEmptyQuery: checked,
+                      }))
+                    }
+                  />
+                  <Checkbox
+                    label="Show pinned suggestions when a search has no results"
+                    checked={settings.showSuggestionsOnNoResults}
+                    disabled={saving}
+                    helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
+                    onChange={(checked) =>
+                      setSettings((s) => ({
+                        ...s,
+                        showSuggestionsOnNoResults: checked,
+                      }))
+                    }
+                  />
+                  <TextField
+                    label="Pinned product handles"
+                    value={settings.suggestionProductHandles.join("\n")}
+                    multiline={4}
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
+                    onChange={(value) =>
+                      setSettings((s) => ({
+                        ...s,
+                        suggestionProductHandles: normalizeHandleList(value),
+                      }))
+                    }
+                  />
+                  <TextField
+                    label="Pinned collection handles"
+                    value={settings.suggestionCollectionHandles.join("\n")}
+                    multiline={3}
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText="Optional collection links shown with the same suggestion lists."
+                    onChange={(value) =>
+                      setSettings((s) => ({
+                        ...s,
+                        suggestionCollectionHandles: normalizeHandleList(value),
+                      }))
+                    }
+                  />
                 </BlockStack>
               </Card>
 

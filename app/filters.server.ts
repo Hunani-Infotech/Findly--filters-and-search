@@ -9,6 +9,34 @@ export type FacetSource =
   | "metafield"
   | "option";
 
+export const FACET_DISPLAY_TYPES = [
+  "list",
+  "dropdown",
+  "checkbox",
+  "swatch",
+  "swatch-text",
+  "slider",
+  "radio",
+  "box",
+] as const;
+
+export type FacetDisplayType = (typeof FACET_DISPLAY_TYPES)[number];
+
+export const FACET_MATCH_MODES = ["or", "and"] as const;
+
+export type FacetMatchMode = (typeof FACET_MATCH_MODES)[number];
+
+export const FACET_DISPLAY_TYPE_LABELS: Record<FacetDisplayType, string> = {
+  list: "List",
+  dropdown: "Dropdown",
+  checkbox: "Checkbox",
+  swatch: "Swatch",
+  "swatch-text": "Swatch-text",
+  slider: "Slider",
+  radio: "Radio",
+  box: "Box",
+};
+
 export type FacetDef = {
   key: string;
   source: FacetSource;
@@ -16,9 +44,12 @@ export type FacetDef = {
   type: "checkbox" | "range" | "boolean";
   metafieldNamespace?: string;
   metafieldKey?: string;
+  metafieldOwner?: "PRODUCT" | "VARIANT";
   optionName?: string;
   optionNames?: string[];
   enabled: boolean;
+  displayType?: FacetDisplayType;
+  matchMode?: FacetMatchMode;
 };
 
 export const UNSPECIFIED_VALUE = "__unspecified__";
@@ -77,6 +108,34 @@ export function metafieldListValues(raw: string | undefined | null): string[] {
   return [raw];
 }
 
+export function metafieldFacetKey(
+  namespace: string,
+  key: string,
+  ownerType: "PRODUCT" | "VARIANT" = "PRODUCT",
+) {
+  return ownerType === "VARIANT"
+    ? `mf_v_${namespace}_${key}`
+    : `mf_${namespace}_${key}`;
+}
+
+export function metafieldValuesForProduct(
+  product: {
+    metafields?: Record<string, string>;
+    variantMetafields?: Record<string, string>;
+  },
+  facet: Pick<
+    FacetDef,
+    "metafieldNamespace" | "metafieldKey" | "metafieldOwner"
+  >,
+) {
+  const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
+  const bag =
+    facet.metafieldOwner === "VARIANT"
+      ? product.variantMetafields
+      : product.metafields;
+  return metafieldListValues(bag?.[path]);
+}
+
 export function normalizeDisplayOrder(order?: string[] | null) {
   const next = order?.length ? [...order] : [...DEFAULT_DISPLAY_ORDER];
   for (const key of DEFAULT_DISPLAY_ORDER) {
@@ -87,11 +146,279 @@ export function normalizeDisplayOrder(order?: string[] | null) {
   return next;
 }
 
+export function withMappedFacetKeys(
+  order: string[] | null | undefined,
+  mappedKeys: string[],
+) {
+  const next = normalizeDisplayOrder(order);
+  for (const key of mappedKeys) {
+    if (key && !next.includes(key)) next.push(key);
+  }
+  return next;
+}
+
+export function parseDisplayTypes(raw: unknown): Record<string, FacetDisplayType> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const allowed = new Set<string>(FACET_DISPLAY_TYPES);
+  const out: Record<string, FacetDisplayType> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== "string" || !allowed.has(value)) continue;
+    out[key] = coerceDisplayType(key, value as FacetDisplayType);
+  }
+  return out;
+}
+
+export function parseMatchModes(raw: unknown): Record<string, FacetMatchMode> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, FacetMatchMode> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value === "and" || value === "or") out[key] = value;
+  }
+  return out;
+}
+
+export function matchModeForFacet(
+  facet: Pick<FacetDef, "key" | "source">,
+  map: Record<string, FacetMatchMode>,
+): FacetMatchMode {
+  if (facet.source === "tag") {
+    if (map.tag === "and" || map.tags === "and") return "and";
+    return "or";
+  }
+  if (facet.source === "option") {
+    if (map[facet.key] === "and" || map.options === "and") return "and";
+    return "or";
+  }
+  if (facet.source === "metafield") {
+    return map[facet.key] === "and" ? "and" : "or";
+  }
+  return "or";
+}
+
+function selectedMatchList(
+  selected: string[],
+  actual: string[],
+  mode: FacetMatchMode = "or",
+) {
+  if (!selected.length) return true;
+  if (mode === "and") return selected.every((value) => actual.includes(value));
+  return selected.some((value) => actual.includes(value));
+}
+
+function isRangeDisplayKey(key: string, kind?: string) {
+  if (key === "price") return true;
+  const normalized = String(kind || "").toUpperCase();
+  return normalized === "RANGE";
+}
+
+function coerceDisplayType(
+  key: string,
+  value: FacetDisplayType,
+  kind?: string,
+): FacetDisplayType {
+  if (isRangeDisplayKey(key, kind) || key === "price") return "slider";
+  if (value === "slider" && !key.startsWith("mf_")) return "checkbox";
+  return value;
+}
+
+export function displayTypeChoicesForKey(
+  key: string,
+  kind?: string,
+): FacetDisplayType[] {
+  if (isRangeDisplayKey(key, kind)) return ["slider"];
+  if (
+    key === "options" ||
+    key.startsWith("opt_") ||
+    key === "tags" ||
+    key === "tag" ||
+    key.startsWith("mf_")
+  ) {
+    return ["list", "dropdown", "checkbox", "swatch", "swatch-text", "radio", "box"];
+  }
+  return ["list", "dropdown", "checkbox", "radio", "box"];
+}
+
+export function displayTypeForFacet(
+  facet: Pick<FacetDef, "key" | "source" | "label" | "type">,
+  map: Record<string, FacetDisplayType>,
+): FacetDisplayType {
+  if (facet.type === "range" || facet.source === "price") return "slider";
+  if (facet.type === "boolean") return map[facet.key] || "checkbox";
+  const stored =
+    map[facet.key] ||
+    (facet.source === "option" ? map.options : undefined) ||
+    (facet.source === "tag" ? map.tags || map.tag : undefined);
+  if (stored === "slider") return "checkbox";
+  if (stored === "swatch" && facet.source === "option") {
+    if (/size|length|width/i.test(facet.label)) return "box";
+    return "swatch";
+  }
+  if (stored) return stored;
+  if (/colou?r|hue|shade/i.test(facet.label) || /colou?r|hue|shade/i.test(facet.key)) {
+    return "swatch";
+  }
+  if (/size|length|width/i.test(facet.label) || /size|length|width/i.test(facet.key)) {
+    return "box";
+  }
+  return "checkbox";
+}
+
+function configDisplayTypes(config: FilterConfig | null) {
+  return parseDisplayTypes(
+    config && "displayTypes" in config ? config.displayTypes : {},
+  );
+}
+
+function configMatchModes(config: FilterConfig | null) {
+  return parseMatchModes(
+    config && "matchModes" in config ? config.matchModes : {},
+  );
+}
+
+export const VALUE_SORT_MODES = ["auto", "alpha", "manual"] as const;
+export type ValueSortMode = (typeof VALUE_SORT_MODES)[number];
+
+export type FacetValueSort = {
+  mode: ValueSortMode;
+  values?: string[];
+};
+
+export type ValueSortMap = Record<string, FacetValueSort>;
+
+export const VALUE_SORT_MODE_LABELS: Record<ValueSortMode, string> = {
+  auto: "Automatic (A–Z, size order for Size)",
+  alpha: "Alphabetical (A–Z)",
+  manual: "Manual",
+};
+
+export function parseValueSort(raw: unknown): ValueSortMap {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const allowed = new Set<string>(VALUE_SORT_MODES);
+  const out: ValueSortMap = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!key || typeof key !== "string") continue;
+    if (typeof value === "string" && allowed.has(value)) {
+      out[key] = { mode: value as ValueSortMode };
+      continue;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const rec = value as { mode?: unknown; values?: unknown };
+    if (typeof rec.mode !== "string" || !allowed.has(rec.mode)) continue;
+    const values = Array.isArray(rec.values)
+      ? rec.values
+          .filter((item): item is string => typeof item === "string" && item.length > 0)
+          .slice(0, 200)
+      : [];
+    out[key] = {
+      mode: rec.mode as ValueSortMode,
+      ...(rec.mode === "manual" && values.length ? { values } : {}),
+    };
+  }
+  return out;
+}
+
+export function valueSortForFacet(
+  facet: Pick<FacetDef, "key" | "source">,
+  map: ValueSortMap,
+): FacetValueSort {
+  if (map[facet.key]) return map[facet.key];
+  if (facet.source === "tag") return map.tags || map.tag || { mode: "auto" };
+  return { mode: "auto" };
+}
+
+/** Globo-style size rank: XS/S/M/L then numbered sizes. Unranked values sort after. */
+export function sizeRank(raw: string): number | null {
+  const value = String(raw || "").trim().toLowerCase();
+  if (!value) return null;
+  const numeric = value.match(/^(\d+(\.\d+)?)/);
+  if (numeric) return 1000 + Number(numeric[1]);
+  const small = value.match(/^(x*)s$/);
+  if (small) return 40 - small[1].length;
+  if (value === "m") return 50;
+  const large = value.match(/^(x*)l$/);
+  if (large) return 60 + large[1].length;
+  const numbered = value.match(/^(\d+)\s*x?l$/);
+  if (numbered) return 60 + Number(numbered[1]);
+  return null;
+}
+
+export function isSizeLikeFacet(
+  facet: Pick<FacetDef, "key" | "label">,
+  values: string[],
+): boolean {
+  if (/size|length|width/i.test(facet.label) || /size|length|width/i.test(facet.key)) {
+    return true;
+  }
+  if (!values.length) return false;
+  const sized = values.filter((value) => sizeRank(value) != null).length;
+  return sized / values.length >= 0.6;
+}
+
+export function mergeManualValueOrder(saved: string[] | undefined, catalog: string[]): string[] {
+  const allowed = new Set(catalog);
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const value of saved ?? []) {
+    if (!allowed.has(value) || seen.has(value)) continue;
+    next.push(value);
+    seen.add(value);
+  }
+  const rest = catalog.filter((value) => !seen.has(value));
+  rest.sort((a, b) => {
+    if (a === UNSPECIFIED_VALUE) return 1;
+    if (b === UNSPECIFIED_VALUE) return -1;
+    return a.localeCompare(b);
+  });
+  return [...next, ...rest];
+}
+
+function compareListedValues(
+  a: string,
+  b: string,
+  facet: Pick<FacetDef, "key" | "label" | "source" | "type">,
+  sort: FacetValueSort,
+): number {
+  if (facet.source === "availability") {
+    const order = { in_stock: 0, out_of_stock: 1 } as Record<string, number>;
+    return (order[a] ?? 9) - (order[b] ?? 9);
+  }
+  if (facet.type === "boolean") {
+    const order = { [BOOLEAN_TRUE]: 0, [BOOLEAN_FALSE]: 1 } as Record<string, number>;
+    return (order[a] ?? 9) - (order[b] ?? 9);
+  }
+  if (a === UNSPECIFIED_VALUE) return 1;
+  if (b === UNSPECIFIED_VALUE) return -1;
+
+  if (sort.mode === "manual" && sort.values?.length) {
+    const index = new Map(sort.values.map((value, i) => [value, i]));
+    const ia = index.has(a) ? (index.get(a) as number) : 10_000;
+    const ib = index.has(b) ? (index.get(b) as number) : 10_000;
+    if (ia !== ib) return ia - ib;
+    return a.localeCompare(b);
+  }
+
+  if (sort.mode === "alpha" || sort.mode === "manual") {
+    return a.localeCompare(b);
+  }
+
+  const values = [a, b];
+  if (isSizeLikeFacet(facet, values) || isSizeLikeFacet(facet, sort.values ?? [])) {
+    const ar = sizeRank(a);
+    const br = sizeRank(b);
+    if (ar != null && br != null) return ar - br;
+    if (ar != null) return -1;
+    if (br != null) return 1;
+  }
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
 export function facetsFromConfig(
   config: FilterConfig | null,
   mappings: MetafieldMapping[] = [],
 ): FacetDef[] {
   const order = normalizeDisplayOrder(config?.displayOrder);
+  const displayTypes = configDisplayTypes(config);
+  const matchModes = configMatchModes(config);
 
   const builtIns: Record<string, FacetDef> = {
     availability: {
@@ -100,6 +427,10 @@ export function facetsFromConfig(
       label: "Availability",
       type: "checkbox",
       enabled: config?.enableAvailability ?? true,
+      displayType: displayTypeForFacet(
+        { key: "availability", source: "availability", label: "Availability", type: "checkbox" },
+        displayTypes,
+      ),
     },
     price: {
       key: "price",
@@ -107,6 +438,7 @@ export function facetsFromConfig(
       label: "Price",
       type: "range",
       enabled: config?.enablePrice ?? true,
+      displayType: "slider",
     },
     vendor: {
       key: "vendor",
@@ -114,6 +446,10 @@ export function facetsFromConfig(
       label: "Vendor",
       type: "checkbox",
       enabled: config?.enableVendor ?? true,
+      displayType: displayTypeForFacet(
+        { key: "vendor", source: "vendor", label: "Vendor", type: "checkbox" },
+        displayTypes,
+      ),
     },
     productType: {
       key: "productType",
@@ -121,6 +457,10 @@ export function facetsFromConfig(
       label: "Product type",
       type: "checkbox",
       enabled: config?.enableProductType ?? true,
+      displayType: displayTypeForFacet(
+        { key: "productType", source: "productType", label: "Product type", type: "checkbox" },
+        displayTypes,
+      ),
     },
     tags: {
       key: "tag",
@@ -128,6 +468,11 @@ export function facetsFromConfig(
       label: "Tags",
       type: "checkbox",
       enabled: config?.enableTags ?? true,
+      displayType: displayTypeForFacet(
+        { key: "tag", source: "tag", label: "Tags", type: "checkbox" },
+        displayTypes,
+      ),
+      matchMode: matchModeForFacet({ key: "tag", source: "tag" }, matchModes),
     },
     options: {
       key: "options",
@@ -135,6 +480,14 @@ export function facetsFromConfig(
       label: "Options",
       type: "checkbox",
       enabled: config?.enableOptions ?? true,
+      displayType: displayTypeForFacet(
+        { key: "options", source: "option", label: "Options", type: "checkbox" },
+        displayTypes,
+      ),
+      matchMode: matchModeForFacet(
+        { key: "options", source: "option" },
+        matchModes,
+      ),
     },
   };
 
@@ -153,15 +506,31 @@ export function facetsFromConfig(
   const metafieldFacets = mappings
     .filter((mapping) => mapping.enabled)
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((mapping) => ({
-      key: `mf_${mapping.namespace}_${mapping.key}`,
-      source: "metafield" as const,
-      label: mapping.displayLabel,
-      type: metafieldTypeToFacetType(mapping.filterType),
-      metafieldNamespace: mapping.namespace,
-      metafieldKey: mapping.key,
-      enabled: true,
-    }));
+    .map((mapping) => {
+      const ownerType =
+        mapping.ownerType === "VARIANT" ? "VARIANT" : "PRODUCT";
+      const key = metafieldFacetKey(
+        mapping.namespace,
+        mapping.key,
+        ownerType,
+      );
+      const type = metafieldTypeToFacetType(mapping.filterType);
+      return {
+        key,
+        source: "metafield" as const,
+        label: mapping.displayLabel,
+        type,
+        metafieldNamespace: mapping.namespace,
+        metafieldKey: mapping.key,
+        metafieldOwner: ownerType as "PRODUCT" | "VARIANT",
+        enabled: true,
+        displayType: displayTypeForFacet(
+          { key, source: "metafield", label: mapping.displayLabel, type },
+          displayTypes,
+        ),
+        matchMode: matchModeForFacet({ key, source: "metafield" }, matchModes),
+      };
+    });
 
   return [...ordered, ...metafieldFacets];
 }
@@ -173,6 +542,11 @@ function metafieldTypeToFacetType(
   if (filterType === "BOOLEAN") return "boolean";
   return "checkbox";
 }
+
+export type VariantImageEntry = {
+  options: Record<string, string>;
+  imageUrl: string;
+};
 
 export type ProductFacetRow = {
   productGid: string;
@@ -187,7 +561,11 @@ export type ProductFacetRow = {
   available: boolean;
   status: string;
   imageUrl: string | null;
+  variantImages?: VariantImageEntry[];
   metafields: Record<string, string>;
+  variantMetafields?: Record<string, string>;
+  publishedAt?: Date | null;
+  sortPosition?: number;
 };
 
 export type SelectedFilters = Record<string, string[]>;
@@ -200,6 +578,83 @@ export function canonicalOptionLabel(name: string) {
   if (SIZE_NAME.test(trimmed)) return "Size";
   if (COLOR_NAME.test(trimmed)) return "Color";
   return trimmed;
+}
+
+export function parseVariantImages(raw: unknown): VariantImageEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: VariantImageEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as { options?: unknown; imageUrl?: unknown };
+    if (typeof rec.imageUrl !== "string" || !rec.imageUrl) continue;
+    const options: Record<string, string> = {};
+    if (rec.options && typeof rec.options === "object" && !Array.isArray(rec.options)) {
+      for (const [key, value] of Object.entries(
+        rec.options as Record<string, unknown>,
+      )) {
+        if (typeof value === "string" && value) options[key] = value;
+      }
+    }
+    if (!Object.keys(options).length) continue;
+    out.push({ options, imageUrl: rec.imageUrl });
+  }
+  return out;
+}
+
+function variantOptionValue(
+  options: Record<string, string>,
+  name: string,
+): string | undefined {
+  if (options[name]) return options[name];
+  const canon = canonicalOptionLabel(name);
+  for (const [key, value] of Object.entries(options)) {
+    if (canonicalOptionLabel(key) === canon) return value;
+  }
+  return undefined;
+}
+
+export function selectedOptionFilterGroups(
+  facets: FacetDef[],
+  selected: SelectedFilters,
+): Array<{ names: string[]; values: string[] }> {
+  const groups: Array<{ names: string[]; values: string[] }> = [];
+  for (const facet of facets) {
+    if (facet.source !== "option" || !facet.enabled) continue;
+    const values = selected[facet.key];
+    if (!values?.length) continue;
+    const names = [
+      ...(facet.optionNames ?? []),
+      facet.optionName,
+      facet.label,
+    ].filter((name): name is string => Boolean(name));
+    groups.push({ names, values });
+  }
+  return groups;
+}
+
+export function matchingVariantImageUrl(
+  variants: VariantImageEntry[],
+  optionGroups: Array<{ names: string[]; values: string[] }>,
+): string | null {
+  if (!optionGroups.length || !variants.length) return null;
+  let best: { score: number; url: string } | null = null;
+  for (const variant of variants) {
+    let score = 0;
+    let conflict = false;
+    for (const group of optionGroups) {
+      let actual: string | undefined;
+      for (const name of group.names) {
+        actual = variantOptionValue(variant.options, name);
+        if (actual) break;
+      }
+      if (!actual) continue;
+      if (group.values.includes(actual)) score += 1;
+      else conflict = true;
+    }
+    if (conflict || score === 0) continue;
+    if (!best || score > best.score) best = { score, url: variant.imageUrl };
+  }
+  return best?.url ?? null;
 }
 
 function isUselessOption(name: string, values: string[]) {
@@ -268,14 +723,25 @@ export function expandFacetsWithOptions(
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([label, group]) => {
       const names = [...group.names].sort();
+      const key = optionFacetKey(label);
       return {
-        key: optionFacetKey(label),
+        key,
         source: "option" as const,
         label,
         type: "checkbox" as const,
         enabled: true,
         optionName: names[0],
         optionNames: names,
+        displayType: displayTypeForFacet(
+          { key, source: "option", label, type: "checkbox" },
+          placeholder.displayType
+            ? { options: placeholder.displayType }
+            : {},
+        ),
+        matchMode: matchModeForFacet(
+          { key, source: "option" },
+          placeholder.matchMode === "and" ? { options: "and" } : {},
+        ),
       };
     });
 
@@ -315,7 +781,15 @@ export function productMatchesFilters(
         if (!matchesUnspecified(values, product.productType)) return false;
         break;
       case "tag":
-        if (!values.some((value) => product.tags.includes(value))) return false;
+        if (
+          !selectedMatchList(
+            values,
+            product.tags,
+            facet.matchMode ?? "or",
+          )
+        ) {
+          return false;
+        }
         break;
       case "availability": {
         const wantIn = values.includes("in_stock");
@@ -334,13 +808,19 @@ export function productMatchesFilters(
       }
       case "option": {
         const optionValues = optionValuesFor(product, facet);
-        if (!values.some((value) => optionValues.includes(value))) return false;
+        if (
+          !selectedMatchList(
+            values,
+            optionValues,
+            facet.matchMode ?? "or",
+          )
+        ) {
+          return false;
+        }
         break;
       }
       case "metafield": {
-        const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
-        const raw = product.metafields[path];
-        const list = metafieldListValues(raw);
+        const list = metafieldValuesForProduct(product, facet);
         if (facet.type === "range") {
           const nums = list.map(Number).filter((n) => Number.isFinite(n));
           const min = parseBound(values[0]);
@@ -365,7 +845,9 @@ export function productMatchesFilters(
           );
           if (wantTrue && !actuals.has(BOOLEAN_TRUE)) return false;
           if (wantFalse && !actuals.has(BOOLEAN_FALSE)) return false;
-        } else if (!values.some((value) => list.includes(value))) {
+        } else if (
+          !selectedMatchList(values, list, facet.matchMode ?? "or")
+        ) {
           return false;
         }
         break;
@@ -453,16 +935,102 @@ export function resolvePriceBounds(
   return catalogPriceBounds(products);
 }
 
+export type RangeBoundEntry = {
+  mode: "auto" | "custom";
+  min: number | null;
+  max: number | null;
+};
+
+export type RangeBoundMap = Record<string, RangeBoundEntry>;
+
+export type RangeBoundFormMap = Record<
+  string,
+  { mode: "auto" | "custom"; min: string; max: string }
+>;
+
+export function parseRangeBounds(raw: unknown): RangeBoundMap {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: RangeBoundMap = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!key || typeof value !== "object" || value == null || Array.isArray(value)) {
+      continue;
+    }
+    const rec = value as Record<string, unknown>;
+    const mode = rec.mode === "custom" ? "custom" : "auto";
+    let min = decimalToNumber(rec.min);
+    let max = decimalToNumber(rec.max);
+    if (min != null && max != null && min > max) {
+      const swap = min;
+      min = max;
+      max = swap;
+    }
+    out[key] = { mode, min, max };
+  }
+  return out;
+}
+
+export function rangeBoundsToForm(map: RangeBoundMap): RangeBoundFormMap {
+  const out: RangeBoundFormMap = {};
+  for (const [key, entry] of Object.entries(map)) {
+    out[key] = {
+      mode: entry.mode,
+      min: entry.min == null ? "" : String(entry.min),
+      max: entry.max == null ? "" : String(entry.max),
+    };
+  }
+  return out;
+}
+
+export function catalogMetafieldRangeBounds(
+  products: ProductFacetRow[],
+  facet: Pick<FacetDef, "metafieldNamespace" | "metafieldKey" | "metafieldOwner">,
+) {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const product of products) {
+    for (const value of metafieldValuesForProduct(product, facet)) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) continue;
+      min = Math.min(min, num);
+      max = Math.max(max, num);
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max };
+}
+
+export function resolveMetafieldRangeBounds(
+  products: ProductFacetRow[],
+  facet: Pick<
+    FacetDef,
+    "key" | "metafieldNamespace" | "metafieldKey" | "metafieldOwner"
+  >,
+  rangeBounds: RangeBoundMap = {},
+) {
+  const settings = rangeBounds[facet.key];
+  if (settings?.mode === "custom") {
+    const min = settings.min;
+    const max = settings.max;
+    if (min != null && max != null && max >= min) return { min, max };
+  }
+  return catalogMetafieldRangeBounds(products, facet);
+}
+
 export function buildFacetAggregations(
   products: ProductFacetRow[],
   facets: FacetDef[],
   priceSettings?: PriceRangeSettings | null,
+  valueSort: ValueSortMap = {},
+  rangeBounds: RangeBoundMap = {},
 ) {
   const result: Array<{
     key: string;
     label: string;
     type: FacetDef["type"];
     source: FacetSource;
+    displayType?: FacetDisplayType;
+    matchMode?: FacetMatchMode;
+    valueSortMode?: ValueSortMode;
     values?: Array<{ value: string; label: string; count: number }>;
     range?: { min: number | null; max: number | null };
   }> = [];
@@ -475,6 +1043,7 @@ export function buildFacetAggregations(
         label: facet.label,
         type: facet.type,
         source: facet.source,
+        displayType: facet.displayType ?? "slider",
         range: {
           min: bounds?.min ?? null,
           max: bounds?.max ?? null,
@@ -484,25 +1053,16 @@ export function buildFacetAggregations(
     }
 
     if (facet.source === "metafield" && facet.type === "range") {
-      const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
-      let min = Number.POSITIVE_INFINITY;
-      let max = Number.NEGATIVE_INFINITY;
-      for (const product of products) {
-        for (const value of metafieldListValues(product.metafields[path])) {
-          const num = Number(value);
-          if (!Number.isFinite(num)) continue;
-          min = Math.min(min, num);
-          max = Math.max(max, num);
-        }
-      }
+      const bounds = resolveMetafieldRangeBounds(products, facet, rangeBounds);
       result.push({
         key: facet.key,
         label: facet.label,
         type: facet.type,
         source: facet.source,
+        displayType: facet.displayType ?? "slider",
         range: {
-          min: Number.isFinite(min) ? min : 0,
-          max: Number.isFinite(max) ? max : 0,
+          min: bounds?.min ?? 0,
+          max: bounds?.max ?? 0,
         },
       });
       continue;
@@ -528,8 +1088,7 @@ export function buildFacetAggregations(
           vals = optionValuesFor(product, facet);
           break;
         case "metafield": {
-          const path = `${facet.metafieldNamespace}.${facet.metafieldKey}`;
-          const rawValues = metafieldListValues(product.metafields[path]);
+          const rawValues = metafieldValuesForProduct(product, facet);
           if (facet.type === "boolean") {
             vals = rawValues
               .map((item) => normalizeBooleanMetafieldValue(item))
@@ -558,28 +1117,14 @@ export function buildFacetAggregations(
       if (!counts.has(BOOLEAN_FALSE)) counts.set(BOOLEAN_FALSE, 0);
     }
 
+    const sort = valueSortForFacet(facet, valueSort);
     const values = [...counts.entries()]
       .filter(([, count]) =>
         facet.source === "availability" || facet.type === "boolean"
           ? true
           : count > 0,
       )
-      .sort((a, b) => {
-        if (facet.source === "availability") {
-          const order = { in_stock: 0, out_of_stock: 1 } as Record<string, number>;
-          return (order[a[0]] ?? 9) - (order[b[0]] ?? 9);
-        }
-        if (facet.type === "boolean") {
-          const order = { [BOOLEAN_TRUE]: 0, [BOOLEAN_FALSE]: 1 } as Record<
-            string,
-            number
-          >;
-          return (order[a[0]] ?? 9) - (order[b[0]] ?? 9);
-        }
-        if (a[0] === UNSPECIFIED_VALUE) return 1;
-        if (b[0] === UNSPECIFIED_VALUE) return -1;
-        return a[0].localeCompare(b[0]);
-      })
+      .sort((a, b) => compareListedValues(a[0], b[0], facet, sort))
       .map(([value, count]) => ({
         value,
         label: labelFor(facet, value),
@@ -593,9 +1138,36 @@ export function buildFacetAggregations(
       label: facet.label,
       type: facet.type,
       source: facet.source,
+      displayType: facet.displayType ?? "checkbox",
+      matchMode: facet.matchMode ?? "or",
+      valueSortMode: sort.mode,
       values,
     });
   }
 
   return result;
+}
+
+export function listFacetValueCatalog(
+  products: ProductFacetRow[],
+  config: FilterConfig | null,
+  mappings: MetafieldMapping[] = [],
+): Array<{ key: string; label: string; values: string[] }> {
+  const facets = expandFacetsWithOptions(
+    facetsFromConfig(config, mappings),
+    products,
+  );
+  return buildFacetAggregations(products, facets, null, {})
+    .filter(
+      (facet) =>
+        facet.values?.length &&
+        facet.source !== "availability" &&
+        facet.type !== "range" &&
+        facet.type !== "boolean",
+    )
+    .map((facet) => ({
+      key: facet.key,
+      label: facet.label,
+      values: (facet.values ?? []).map((item) => item.value),
+    }));
 }

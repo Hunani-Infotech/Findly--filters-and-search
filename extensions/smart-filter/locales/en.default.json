@@ -3,14 +3,18 @@
     "collection_filters": {
       "name": "Collection filters",
       "filter": "Filter",
+      "sort": "Sort by",
+      "search": "Search in collection",
+      "search_placeholder": "Search products",
       "close": "Close filters",
       "settings": {
         "position": {
-          "label": "Widget position",
+          "label": "Filter tree style",
           "options": {
-            "left": "Left",
-            "right": "Right",
-            "top": "Top"
+            "left": "Vertical (left)",
+            "right": "Vertical (right)",
+            "top": "Horizontal",
+            "offcanvas": "Off-canvas"
           }
         },
         "show_counts": {

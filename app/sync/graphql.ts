@@ -10,6 +10,8 @@ export const PRODUCT_NODE_QUERY = `#graphql
       productType
       tags
       status
+      createdAt
+      publishedAt
       featuredImage {
         url
       }
@@ -23,6 +25,22 @@ export const PRODUCT_NODE_QUERY = `#graphql
             sku
             price
             availableForSale
+            image {
+              url
+            }
+            selectedOptions {
+              name
+              value
+            }
+            metafields(first: 30) {
+              edges {
+                node {
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
           }
         }
       }
@@ -82,6 +100,8 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
               productType
               tags
               status
+              createdAt
+              publishedAt
               featuredImage { url }
               options { name values }
               variants {
@@ -90,6 +110,17 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
                     sku
                     price
                     availableForSale
+                    image { url }
+                    selectedOptions { name value }
+                    metafields {
+                      edges {
+                        node {
+                          namespace
+                          key
+                          value
+                        }
+                      }
+                    }
                   }
                 }
               }

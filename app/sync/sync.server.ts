@@ -24,6 +24,48 @@ async function getAdminForShop(shopDomain: string): Promise<GraphqlClient> {
   return admin;
 }
 
+async function syncProductMemberships(
+  shopId: string,
+  productGid: string,
+  collectionGids: string[],
+) {
+  const existing = await prisma.collectionMembership.findMany({
+    where: { shopId, productGid },
+  });
+  if (!collectionGids.length) {
+    await prisma.collectionMembership.deleteMany({
+      where: { shopId, productGid },
+    });
+    return;
+  }
+  await prisma.collectionMembership.deleteMany({
+    where: {
+      shopId,
+      productGid,
+      collectionGid: { notIn: collectionGids },
+    },
+  });
+  for (const collectionGid of collectionGids) {
+    const prev = existing.find((row) => row.collectionGid === collectionGid);
+    await prisma.collectionMembership.upsert({
+      where: {
+        shopId_collectionGid_productGid: {
+          shopId,
+          collectionGid,
+          productGid,
+        },
+      },
+      create: {
+        shopId,
+        collectionGid,
+        productGid,
+        position: prev?.position ?? 0,
+      },
+      update: {},
+    });
+  }
+}
+
 async function setSyncStatus(
   shopId: string,
   data: {
@@ -59,6 +101,7 @@ async function setSyncStatus(
 async function recordDiscoveredMetafields(
   shopId: string,
   metafields: Record<string, string>,
+  ownerType: "PRODUCT" | "VARIANT" = "PRODUCT",
 ) {
   for (const [path, sampleValue] of Object.entries(metafields)) {
     const dot = path.indexOf(".");
@@ -69,12 +112,13 @@ async function recordDiscoveredMetafields(
 
     await prisma.discoveredMetafield.upsert({
       where: {
-        shopId_namespace_key: { shopId, namespace, key },
+        shopId_namespace_key_ownerType: { shopId, namespace, key, ownerType },
       },
       create: {
         shopId,
         namespace,
         key,
+        ownerType,
         sampleValue: sampleValue?.slice(0, 500) ?? null,
       },
       update: {
@@ -232,28 +276,25 @@ export async function ingestBulkOperation(
         available: facet.available,
         status: facet.status,
         imageUrl: facet.imageUrl,
+        variantImages: facet.variantImages as object,
         metafields: facet.metafields as object,
+        variantMetafields: facet.variantMetafields as object,
+        publishedAt: facet.publishedAt,
       },
     });
 
     await recordDiscoveredMetafields(
       shop.id,
       (facet.metafields as Record<string, string>) || {},
+      "PRODUCT",
+    );
+    await recordDiscoveredMetafields(
+      shop.id,
+      (facet.variantMetafields as Record<string, string>) || {},
+      "VARIANT",
     );
 
-    await prisma.collectionMembership.deleteMany({
-      where: { shopId: shop.id, productGid: facet.productGid },
-    });
-    if (collectionGids.length) {
-      await prisma.collectionMembership.createMany({
-        data: collectionGids.map((collectionGid) => ({
-          shopId: shop.id,
-          collectionGid,
-          productGid: facet.productGid,
-        })),
-        skipDuplicates: true,
-      });
-    }
+    await syncProductMemberships(shop.id, facet.productGid, collectionGids);
     upserted += 1;
   }
 
@@ -261,6 +302,18 @@ export async function ingestBulkOperation(
     await syncCollectionsList(shopDomain);
   } catch (error) {
     log.error("Post-ingest collection sync failed", error);
+  }
+
+  try {
+    const collections = await prisma.collection.findMany({
+      where: { shopId: shop.id },
+      select: { collectionGid: true },
+    });
+    for (const collection of collections) {
+      await rebuildCollection(shopDomain, collection.collectionGid);
+    }
+  } catch (error) {
+    log.error("Post-ingest collection order sync failed", error);
   }
 
   const errorLog = truncated
@@ -330,29 +383,26 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
       priceMax: facet.priceMax,
       available: facet.available,
       status: facet.status,
-      imageUrl: facet.imageUrl,
-      metafields: facet.metafields,
-    },
-  });
+        imageUrl: facet.imageUrl,
+        variantImages: facet.variantImages,
+        metafields: facet.metafields,
+        variantMetafields: facet.variantMetafields,
+        publishedAt: facet.publishedAt,
+      },
+    });
 
   await recordDiscoveredMetafields(
     shop.id,
     (facet.metafields as Record<string, string>) || {},
+    "PRODUCT",
+  );
+  await recordDiscoveredMetafields(
+    shop.id,
+    (facet.variantMetafields as Record<string, string>) || {},
+    "VARIANT",
   );
 
-  await prisma.collectionMembership.deleteMany({
-    where: { shopId: shop.id, productGid: facet.productGid },
-  });
-  if (collectionGids.length) {
-    await prisma.collectionMembership.createMany({
-      data: collectionGids.map((collectionGid) => ({
-        shopId: shop.id,
-        collectionGid,
-        productGid: facet.productGid,
-      })),
-      skipDuplicates: true,
-    });
-  }
+  await syncProductMemberships(shop.id, facet.productGid, collectionGids);
 
   await setSyncStatus(shop.id, {
     status: "READY",
@@ -442,10 +492,11 @@ export async function rebuildCollection(
   });
   if (productGids.length) {
     await prisma.collectionMembership.createMany({
-      data: productGids.map((productGid) => ({
+      data: productGids.map((productGid, index) => ({
         shopId: shop.id,
         collectionGid,
         productGid,
+        position: index,
       })),
       skipDuplicates: true,
     });

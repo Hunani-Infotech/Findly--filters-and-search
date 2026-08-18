@@ -1,6 +1,6 @@
 import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
-import { DEFAULT_DISPLAY_ORDER, normalizeDisplayOrder } from "./filters.server";
+import { DEFAULT_DISPLAY_ORDER, listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
 
 export async function ensureShop(domain: string) {
   const shop = await prisma.shop.upsert({
@@ -76,6 +76,10 @@ export type FilterConfigInput = {
   customPriceMin?: number | null;
   customPriceMax?: number | null;
   displayOrder?: string[];
+  displayTypes?: Record<string, string>;
+  matchModes?: Record<string, string>;
+  valueSort?: ValueSortMap;
+  rangeBounds?: Record<string, { mode?: string; min?: unknown; max?: unknown }>;
 };
 
 export async function saveFilterConfig(shopId: string, input: FilterConfigInput) {
@@ -99,6 +103,10 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
       displayOrder: normalizeDisplayOrder(
         input.displayOrder ?? [...DEFAULT_DISPLAY_ORDER],
       ),
+      displayTypes: parseDisplayTypes(input.displayTypes),
+      matchModes: parseMatchModes(input.matchModes),
+      valueSort: parseValueSort(input.valueSort),
+      rangeBounds: parseRangeBounds(input.rangeBounds),
     },
     update: {
       enabled: input.enabled,
@@ -114,8 +122,30 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
       displayOrder: input.displayOrder
         ? normalizeDisplayOrder(input.displayOrder)
         : input.displayOrder,
+      displayTypes:
+        input.displayTypes !== undefined
+          ? parseDisplayTypes(input.displayTypes)
+          : undefined,
+      matchModes:
+        input.matchModes !== undefined
+          ? parseMatchModes(input.matchModes)
+          : undefined,
+      valueSort:
+        input.valueSort !== undefined ? parseValueSort(input.valueSort) : undefined,
+      rangeBounds:
+        input.rangeBounds !== undefined
+          ? parseRangeBounds(input.rangeBounds)
+          : undefined,
     },
   });
+}
+
+export type MetafieldOwnerTypeValue = "PRODUCT" | "VARIANT";
+
+export function normalizeMetafieldOwnerType(
+  value: unknown,
+): MetafieldOwnerTypeValue {
+  return value === "VARIANT" ? "VARIANT" : "PRODUCT";
 }
 
 export async function saveMetafieldMappings(
@@ -127,6 +157,7 @@ export async function saveMetafieldMappings(
     filterType: MetafieldFilterType;
     enabled: boolean;
     sortOrder: number;
+    ownerType?: MetafieldOwnerTypeValue | string;
   }>,
 ) {
   await prisma.metafieldMapping.deleteMany({ where: { shopId } });
@@ -140,7 +171,8 @@ export async function saveMetafieldMappings(
       filterType: m.filterType,
       enabled: m.enabled,
       sortOrder: m.sortOrder,
-    })),
+      ownerType: normalizeMetafieldOwnerType(m.ownerType),
+    })) as Prisma.MetafieldMappingCreateManyInput[],
   });
   return getMetafieldMappings(shopId);
 }
@@ -164,4 +196,49 @@ export function filterConfigPriceFields(config: {
     customPriceMin: toInput(config?.customPriceMin),
     customPriceMax: toInput(config?.customPriceMax),
   };
+}
+
+export async function getListFacetValueCatalog(
+  shopId: string,
+  collectionGid = "",
+) {
+  const mappings = await getMetafieldMappings(shopId);
+  const config = await getFilterConfig(shopId, collectionGid || "");
+  let products;
+  if (collectionGid) {
+    const memberships = await prisma.collectionMembership.findMany({
+      where: { shopId, collectionGid },
+      take: 500,
+      select: { productGid: true },
+    });
+    products = await prisma.productFacet.findMany({
+      where: {
+        shopId,
+        productGid: { in: memberships.map((row) => row.productGid) },
+      },
+    });
+  } else {
+    products = await prisma.productFacet.findMany({
+      where: { shopId, status: "ACTIVE" },
+      take: 500,
+    });
+  }
+
+  const rows: ProductFacetRow[] = products.map((product) => ({
+    productGid: product.productGid,
+    handle: product.handle,
+    title: product.title,
+    vendor: product.vendor,
+    productType: product.productType,
+    tags: product.tags,
+    options: (product.options as Record<string, string[]>) || {},
+    priceMin: Number(product.priceMin),
+    priceMax: Number(product.priceMax),
+    available: product.available,
+    status: product.status,
+    imageUrl: product.imageUrl,
+    metafields: (product.metafields as Record<string, string>) || {},
+  }));
+
+  return listFacetValueCatalog(rows, config, mappings);
 }

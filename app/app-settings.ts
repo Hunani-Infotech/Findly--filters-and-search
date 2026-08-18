@@ -5,6 +5,7 @@ export const SEARCH_FIELD_KEYS = [
   "tags",
   "sku",
   "options",
+  "metafields",
 ] as const;
 
 export type SearchFieldKey = (typeof SEARCH_FIELD_KEYS)[number];
@@ -14,6 +15,7 @@ export const DEFAULT_SEARCH_FIELDS: SearchFieldKey[] = [
   "vendor",
   "productType",
   "tags",
+  "metafields",
 ];
 
 export const SEARCH_FIELD_LABELS: Record<SearchFieldKey, string> = {
@@ -23,6 +25,7 @@ export const SEARCH_FIELD_LABELS: Record<SearchFieldKey, string> = {
   tags: "Tags",
   sku: "SKU",
   options: "Options",
+  metafields: "Metafields (mapped)",
 };
 
 /** Unique allowed keys, preserving merchant order. Empty array = no fields enabled. */
@@ -37,6 +40,41 @@ export function normalizeSearchFields(value: unknown): SearchFieldKey[] {
     }
     seen.add(item);
     next.push(item as SearchFieldKey);
+  }
+  return next;
+}
+
+export const SUGGESTION_LIST_MAX = 8;
+
+export function parseStorefrontHandle(raw: string): string {
+  let value = raw.trim().toLowerCase();
+  value = value.replace(/^https?:\/\/[^/]+\//i, "");
+  value = value.replace(/^\/+/, "");
+  value = value.replace(/^(products|collections)\//, "");
+  value = value.split(/[?#]/)[0] ?? "";
+  value = value.replace(/\/+$/, "");
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(value)) return "";
+  return value.slice(0, 100);
+}
+
+export function normalizeHandleList(
+  value: unknown,
+  max = SUGGESTION_LIST_MAX,
+): string[] {
+  const parts = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : [];
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    const handle = parseStorefrontHandle(part);
+    if (!handle || seen.has(handle)) continue;
+    seen.add(handle);
+    next.push(handle);
+    if (next.length >= max) break;
   }
   return next;
 }
@@ -67,8 +105,68 @@ export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {
     : "show";
 }
 
+export const WIDGET_POSITIONS = [
+  "left",
+  "right",
+  "top",
+  "offcanvas",
+] as const;
+
+export type WidgetPosition = (typeof WIDGET_POSITIONS)[number];
+
+export function parseWidgetPosition(value: unknown): WidgetPosition {
+  return WIDGET_POSITIONS.includes(value as WidgetPosition)
+    ? (value as WidgetPosition)
+    : "left";
+}
+
+export const SORT_OPTION_KEYS = [
+  "manual",
+  "title_asc",
+  "title_desc",
+  "price_asc",
+  "price_desc",
+  "date_desc",
+  "date_asc",
+] as const;
+
+export type SortOptionKey = (typeof SORT_OPTION_KEYS)[number];
+
+export const DEFAULT_SORT_OPTIONS: SortOptionKey[] = [...SORT_OPTION_KEYS];
+
+export const SORT_OPTION_LABELS: Record<SortOptionKey, string> = {
+  manual: "Featured (same as Shopify collection)",
+  title_asc: "Alphabetical, A–Z",
+  title_desc: "Alphabetical, Z–A",
+  price_asc: "Price, low to high",
+  price_desc: "Price, high to low",
+  date_desc: "Date, new to old",
+  date_asc: "Date, old to new",
+};
+
+export function normalizeSortOptions(value: unknown): SortOptionKey[] {
+  if (!Array.isArray(value)) return [...DEFAULT_SORT_OPTIONS];
+  const allowed = new Set<string>(SORT_OPTION_KEYS);
+  const seen = new Set<string>();
+  const next: SortOptionKey[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !allowed.has(item) || seen.has(item)) {
+      continue;
+    }
+    seen.add(item);
+    next.push(item as SortOptionKey);
+  }
+  return next;
+}
+
+export function parseSortOption(value: unknown): SortOptionKey {
+  return SORT_OPTION_KEYS.includes(value as SortOptionKey)
+    ? (value as SortOptionKey)
+    : "manual";
+}
+
 export const DEFAULT_APP_SETTINGS = {
-  widgetPosition: "left" as const,
+  widgetPosition: "left" as WidgetPosition,
   accentColor: "#1c1917",
   showProductCounts: true,
   collapseByDefault: false,
@@ -81,6 +179,24 @@ export const DEFAULT_APP_SETTINGS = {
   widgetTitleSize: 16,
   widgetTitleColor: "#1c1917",
   searchFields: [...DEFAULT_SEARCH_FIELDS] as SearchFieldKey[],
+  sortOptionsEnabled: [
+    "manual",
+    "title_asc",
+    "title_desc",
+    "price_asc",
+    "price_desc",
+    "date_desc",
+    "date_asc",
+  ] as SortOptionKey[],
+  defaultSort: "manual" as SortOptionKey,
+  hideSortDropdown: false,
+  inStockOnTop: false,
+  soldOutToBottom: false,
+  enableCollectionSearch: false,
+  showSuggestionsOnEmptyQuery: false,
+  showSuggestionsOnNoResults: false,
+  suggestionProductHandles: [] as string[],
+  suggestionCollectionHandles: [] as string[],
 };
 
 export const WIDGET_RADIUS_PRESETS = [

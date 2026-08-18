@@ -1,9 +1,13 @@
 import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
+  normalizeHandleList,
   normalizeSearchFields,
+  normalizeSortOptions,
   parseHideOutOfStock,
+  parseSortOption,
   parseWidgetFontMode,
+  parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
   sanitizeFontFamily,
@@ -11,12 +15,14 @@ import {
   sanitizeWidgetTitleColor,
   type HideOutOfStockMode,
   type SearchFieldKey,
+  type SortOptionKey,
+  type WidgetPosition,
 } from "./app-settings";
 
 export { DEFAULT_APP_SETTINGS };
 
 export type AppSettingsInput = {
-  widgetPosition?: "left" | "right" | "top";
+  widgetPosition?: WidgetPosition;
   accentColor?: string;
   showProductCounts?: boolean;
   collapseByDefault?: boolean;
@@ -29,6 +35,16 @@ export type AppSettingsInput = {
   widgetTitleSize?: number;
   widgetTitleColor?: string;
   searchFields?: SearchFieldKey[] | string[];
+  sortOptionsEnabled?: SortOptionKey[] | string[];
+  defaultSort?: SortOptionKey | string;
+  hideSortDropdown?: boolean;
+  inStockOnTop?: boolean;
+  soldOutToBottom?: boolean;
+  enableCollectionSearch?: boolean;
+  showSuggestionsOnEmptyQuery?: boolean;
+  showSuggestionsOnNoResults?: boolean;
+  suggestionProductHandles?: string[] | string;
+  suggestionCollectionHandles?: string[] | string;
 };
 
 export async function getAppSettings(shopId: string) {
@@ -43,14 +59,17 @@ export async function getAppSettings(shopId: string) {
   return {
     ...row,
     searchFields: normalizeSearchFields(row.searchFields),
+    sortOptionsEnabled: normalizeSortOptions(row.sortOptionsEnabled),
+    defaultSort: parseSortOption(row.defaultSort),
+    suggestionProductHandles: normalizeHandleList(row.suggestionProductHandles),
+    suggestionCollectionHandles: normalizeHandleList(
+      row.suggestionCollectionHandles,
+    ),
   };
 }
 
 export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
-  const widgetPosition =
-    input.widgetPosition === "right" || input.widgetPosition === "top"
-      ? input.widgetPosition
-      : "left";
+  const widgetPosition = parseWidgetPosition(input.widgetPosition); // left | right | top | offcanvas
   const accentColor =
     typeof input.accentColor === "string" && input.accentColor.trim()
       ? input.accentColor.trim().slice(0, 64)
@@ -70,6 +89,36 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const hideOutOfStock = parseHideOutOfStock(
     input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
   );
+  const sortOptionsEnabled =
+    input.sortOptionsEnabled !== undefined
+      ? normalizeSortOptions(input.sortOptionsEnabled)
+      : [...DEFAULT_APP_SETTINGS.sortOptionsEnabled];
+  const defaultSort = parseSortOption(
+    input.defaultSort ?? DEFAULT_APP_SETTINGS.defaultSort,
+  );
+  const hideSortDropdown =
+    input.hideSortDropdown ?? DEFAULT_APP_SETTINGS.hideSortDropdown;
+  const inStockOnTop =
+    input.inStockOnTop ?? DEFAULT_APP_SETTINGS.inStockOnTop;
+  const soldOutToBottom =
+    input.soldOutToBottom ?? DEFAULT_APP_SETTINGS.soldOutToBottom;
+  const enableCollectionSearch =
+    input.enableCollectionSearch ??
+    DEFAULT_APP_SETTINGS.enableCollectionSearch;
+  const showSuggestionsOnEmptyQuery =
+    input.showSuggestionsOnEmptyQuery ??
+    DEFAULT_APP_SETTINGS.showSuggestionsOnEmptyQuery;
+  const showSuggestionsOnNoResults =
+    input.showSuggestionsOnNoResults ??
+    DEFAULT_APP_SETTINGS.showSuggestionsOnNoResults;
+  const suggestionProductHandles = normalizeHandleList(
+    input.suggestionProductHandles ??
+      DEFAULT_APP_SETTINGS.suggestionProductHandles,
+  );
+  const suggestionCollectionHandles = normalizeHandleList(
+    input.suggestionCollectionHandles ??
+      DEFAULT_APP_SETTINGS.suggestionCollectionHandles,
+  );
 
   return prisma.appSettings.upsert({
     where: { shopId },
@@ -88,6 +137,16 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       widgetTitleSize,
       widgetTitleColor,
       searchFields,
+      sortOptionsEnabled,
+      defaultSort,
+      hideSortDropdown,
+      inStockOnTop,
+      soldOutToBottom,
+      enableCollectionSearch,
+      showSuggestionsOnEmptyQuery,
+      showSuggestionsOnNoResults,
+      suggestionProductHandles,
+      suggestionCollectionHandles,
     },
     update: {
       widgetPosition,
@@ -103,6 +162,26 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       widgetTitleSize,
       widgetTitleColor,
       ...(input.searchFields !== undefined ? { searchFields } : {}),
+      ...(input.sortOptionsEnabled !== undefined ? { sortOptionsEnabled } : {}),
+      ...(input.defaultSort !== undefined ? { defaultSort } : {}),
+      ...(input.hideSortDropdown !== undefined ? { hideSortDropdown } : {}),
+      ...(input.inStockOnTop !== undefined ? { inStockOnTop } : {}),
+      ...(input.soldOutToBottom !== undefined ? { soldOutToBottom } : {}),
+      ...(input.enableCollectionSearch !== undefined
+        ? { enableCollectionSearch }
+        : {}),
+      ...(input.showSuggestionsOnEmptyQuery !== undefined
+        ? { showSuggestionsOnEmptyQuery }
+        : {}),
+      ...(input.showSuggestionsOnNoResults !== undefined
+        ? { showSuggestionsOnNoResults }
+        : {}),
+      ...(input.suggestionProductHandles !== undefined
+        ? { suggestionProductHandles }
+        : {}),
+      ...(input.suggestionCollectionHandles !== undefined
+        ? { suggestionCollectionHandles }
+        : {}),
     },
   });
 }

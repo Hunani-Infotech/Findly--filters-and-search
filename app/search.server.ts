@@ -1,7 +1,13 @@
 import type { Prisma, ProductFacet } from "@prisma/client";
-import { normalizeSearchFields, type SearchFieldKey } from "./app-settings";
+import {
+  normalizeHandleList,
+  normalizeSearchFields,
+  type SearchFieldKey,
+} from "./app-settings";
 import prisma from "./db.server";
+import { metafieldListValues } from "./filters.server";
 import { getAppSettings } from "./settings.server";
+import { getMetafieldMappings } from "./shop.server";
 
 const DEFAULT_TAKE = 24;
 const MAX_TAKE = 48;
@@ -37,10 +43,50 @@ function flattenedOptionValues(options: unknown): string[] {
   return values;
 }
 
-function fieldMatches(
-  row: Pick<ProductFacet, "title" | "vendor" | "productType" | "tags" | "skus" | "options">,
+export function enabledMetafieldPaths(
+  mappings: Array<{ enabled: boolean; namespace: string; key: string }>,
+): string[] {
+  return mappings
+    .filter((mapping) => mapping.enabled)
+    .map((mapping) => `${mapping.namespace}.${mapping.key}`);
+}
+
+function metafieldRecord(
+  metafields: ProductFacet["metafields"],
+): Record<string, unknown> {
+  if (!metafields || typeof metafields !== "object" || Array.isArray(metafields)) {
+    return {};
+  }
+  return metafields as Record<string, unknown>;
+}
+
+function metafieldsMatch(
+  row: Pick<ProductFacet, "metafields">,
+  query: string,
+  paths: string[],
+): boolean {
+  if (paths.length === 0) return false;
+  const record = metafieldRecord(row.metafields);
+  for (const path of paths) {
+    const raw = record[path];
+    const values = metafieldListValues(raw == null ? null : String(raw));
+    if (values.some((value) => containsInsensitive(value, query))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type SearchableRow = Pick<
+  ProductFacet,
+  "title" | "vendor" | "productType" | "tags" | "skus" | "options" | "metafields"
+>;
+
+export function fieldMatches(
+  row: SearchableRow,
   field: SearchFieldKey,
   query: string,
+  metafieldPaths: string[] = [],
 ): boolean {
   switch (field) {
     case "title":
@@ -57,9 +103,26 @@ function fieldMatches(
       return flattenedOptionValues(row.options).some((value) =>
         containsInsensitive(value, query),
       );
+    case "metafields":
+      return metafieldsMatch(row, query, metafieldPaths);
     default:
       return false;
   }
+}
+
+/** True when any enabled search field contains the query (C7 collection scope). */
+export function productMatchesKeyword(
+  row: SearchableRow,
+  query: string,
+  fields: readonly string[] = [],
+  metafieldPaths: string[] = [],
+): boolean {
+  const normalized = normalizeSearchQuery(query);
+  const enabled = normalizeSearchFields(fields);
+  if (!normalized || enabled.length === 0) return false;
+  return enabled.some((field) =>
+    fieldMatches(row, field, normalized, metafieldPaths),
+  );
 }
 
 /**
@@ -67,13 +130,14 @@ function fieldMatches(
  * Weight is (n - index) so earlier fields outrank later ones. Ties sort by title ASC.
  */
 function scoreSearchHit(
-  row: Pick<ProductFacet, "title" | "vendor" | "productType" | "tags" | "skus" | "options">,
+  row: SearchableRow,
   query: string,
   fields: SearchFieldKey[],
+  metafieldPaths: string[],
 ): number {
   const n = fields.length;
   for (let index = 0; index < fields.length; index++) {
-    if (fieldMatches(row, fields[index], query)) {
+    if (fieldMatches(row, fields[index], query, metafieldPaths)) {
       return n - index;
     }
   }
@@ -94,7 +158,8 @@ export function keywordSearchWhere(
   const needsScan =
     enabled.includes("tags") ||
     enabled.includes("sku") ||
-    enabled.includes("options");
+    enabled.includes("options") ||
+    enabled.includes("metafields");
 
   if (needsScan) {
     return { shopId, status: "ACTIVE" };
@@ -120,9 +185,17 @@ export function keywordSearchWhere(
   return { shopId, status: "ACTIVE", OR: or };
 }
 
-function rankHits(rows: ProductFacet[], query: string, fields: SearchFieldKey[]) {
+function rankHits(
+  rows: ProductFacet[],
+  query: string,
+  fields: SearchFieldKey[],
+  metafieldPaths: string[],
+) {
   return rows
-    .map((row) => ({ row, score: scoreSearchHit(row, query, fields) }))
+    .map((row) => ({
+      row,
+      score: scoreSearchHit(row, query, fields, metafieldPaths),
+    }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -140,12 +213,16 @@ async function fetchRankedHits(
   const fields = normalizeSearchFields(settings.searchFields);
   if (fields.length === 0) return [];
 
+  const metafieldPaths = fields.includes("metafields")
+    ? enabledMetafieldPaths(await getMetafieldMappings(shopId))
+    : [];
+
   const rows = await prisma.productFacet.findMany({
     where: keywordSearchWhere(shopId, query, fields),
     take: Math.max(take, CANDIDATE_TAKE),
   });
 
-  return rankHits(rows, query, fields).slice(0, take);
+  return rankHits(rows, query, fields, metafieldPaths).slice(0, take);
 }
 
 export async function searchProducts(
@@ -161,7 +238,11 @@ export async function searchProducts(
   const take = Math.min(Math.max(options?.take ?? DEFAULT_TAKE, 1), MAX_TAKE);
   const rows = await fetchRankedHits(shopId, normalized, take);
 
-  return rows.map((row) => ({
+  return rows.map(toSearchProductCard);
+}
+
+function toSearchProductCard(row: ProductFacet) {
+  return {
     productGid: row.productGid,
     handle: row.handle,
     title: row.title,
@@ -171,7 +252,62 @@ export async function searchProducts(
     priceMax: toNumber(row.priceMax),
     imageUrl: row.imageUrl,
     available: row.available,
-  }));
+  };
+}
+
+export type SearchSuggestionProduct = ReturnType<typeof toSearchProductCard>;
+
+export type SearchSuggestionCollection = {
+  handle: string;
+  title: string;
+  url: string;
+};
+
+/** Merchant-pinned products/collections for empty focus and zero-result states (C9). */
+export async function getPinnedSearchSuggestions(shopId: string): Promise<{
+  products: SearchSuggestionProduct[];
+  collections: SearchSuggestionCollection[];
+}> {
+  const settings = await getAppSettings(shopId);
+  const productHandles = normalizeHandleList(settings.suggestionProductHandles);
+  const collectionHandles = normalizeHandleList(
+    settings.suggestionCollectionHandles,
+  );
+
+  const products: SearchSuggestionProduct[] = [];
+  if (productHandles.length > 0) {
+    const rows = await prisma.productFacet.findMany({
+      where: {
+        shopId,
+        status: "ACTIVE",
+        handle: { in: productHandles },
+      },
+    });
+    const byHandle = new Map(rows.map((row) => [row.handle, row]));
+    for (const handle of productHandles) {
+      const row = byHandle.get(handle);
+      if (row) products.push(toSearchProductCard(row));
+    }
+  }
+
+  const collections: SearchSuggestionCollection[] = [];
+  if (collectionHandles.length > 0) {
+    const rows = await prisma.collection.findMany({
+      where: { shopId, handle: { in: collectionHandles } },
+    });
+    const byHandle = new Map(rows.map((row) => [row.handle, row]));
+    for (const handle of collectionHandles) {
+      const row = byHandle.get(handle);
+      if (!row) continue;
+      collections.push({
+        handle: row.handle,
+        title: row.title,
+        url: `/collections/${row.handle}`,
+      });
+    }
+  }
+
+  return { products, collections };
 }
 
 /** Full ProductFacet rows for search-page filters (tags/options/metafields/price). */

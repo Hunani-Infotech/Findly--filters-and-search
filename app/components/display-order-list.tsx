@@ -1,5 +1,11 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { BlockStack, Text } from "@shopify/polaris";
+import { BlockStack, Select, Text } from "@shopify/polaris";
+import {
+  displayTypeChoicesForKey,
+  FACET_DISPLAY_TYPE_LABELS,
+  parseDisplayTypes,
+  type FacetDisplayType,
+} from "../filters.server";
 
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",
@@ -24,7 +30,10 @@ type DisplayOrderListProps = {
   keys: string[];
   disabled?: boolean;
   onChange: (next: string[]) => void;
+  displayTypes?: Record<string, string>;
+  onDisplayTypesChange?: (next: Record<string, FacetDisplayType>) => void;
   labels?: Partial<Record<string, string>>;
+  facetKinds?: Record<string, string>;
   helpText?: string;
 };
 
@@ -62,8 +71,11 @@ export function DisplayOrderList({
   keys,
   disabled = false,
   onChange,
+  displayTypes,
+  onDisplayTypesChange,
   labels,
-  helpText = "Drag a row to change the order shoppers see. Arrow keys also work when a row is focused.",
+  facetKinds,
+  helpText = "Drag a row to change the order shoppers see. Arrow keys also work when a row is focused. Display type: List, Dropdown, Checkbox, Swatch, Swatch-text, Slider. Collection and Rating wait for later steps.",
 }: DisplayOrderListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -178,6 +190,15 @@ export function DisplayOrderList({
                   }}
                 />
               ) : null}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  width: "100%",
+                  marginBottom: 8,
+                }}
+              >
               <button
                 type="button"
                 draggable={!disabled}
@@ -193,9 +214,9 @@ export function DisplayOrderList({
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
-                  width: "100%",
+                  flex: 1,
+                  minWidth: 0,
                   padding: "10px 12px",
-                  marginBottom: 8,
                   minHeight: 40,
                   borderRadius: 10,
                   border: dragging
@@ -227,6 +248,41 @@ export function DisplayOrderList({
                   <Text as="span">{displayOrderLabel(key, labels)}</Text>
                 </span>
               </button>
+              {onDisplayTypesChange ? (
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- isolate Select from row drag
+                <div
+                  style={{ width: 160, flexShrink: 0 }}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <Select
+                    label="Display type"
+                    labelHidden
+                    disabled={disabled}
+                    options={displayTypeChoicesForKey(
+                      key,
+                      facetKinds?.[key],
+                    ).map((value) => ({
+                      label: FACET_DISPLAY_TYPE_LABELS[value],
+                      value,
+                    }))}
+                    value={
+                      parseDisplayTypes(displayTypes)[key] ||
+                      (key === "price" ||
+                      String(facetKinds?.[key] || "").toUpperCase() === "RANGE"
+                        ? "slider"
+                        : "checkbox")
+                    }
+                    onChange={(value) =>
+                      onDisplayTypesChange({
+                        ...parseDisplayTypes(displayTypes),
+                        [key]: value as FacetDisplayType,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+              </div>
             </div>
           );
         })}

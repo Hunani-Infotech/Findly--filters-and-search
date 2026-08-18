@@ -4,11 +4,12 @@
       "name": "Collection filters",
       "settings": {
         "position": {
-          "label": "Widget position",
+          "label": "Filter tree style",
           "options": {
-            "left": "Left",
-            "right": "Right",
-            "top": "Top"
+            "left": "Vertical (left)",
+            "right": "Vertical (right)",
+            "top": "Horizontal",
+            "offcanvas": "Off-canvas"
           }
         },
         "show_counts": {

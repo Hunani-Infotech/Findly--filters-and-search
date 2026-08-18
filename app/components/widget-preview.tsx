@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
+import type { WidgetPosition } from "../app-settings";
 import styles from "./widget-preview.module.css";
 
 export type WidgetPreviewSettings = {
-  widgetPosition: "left" | "right" | "top";
+  widgetPosition: WidgetPosition;
   accentColor: string;
   showProductCounts: boolean;
   collapseByDefault: boolean;
@@ -13,6 +14,7 @@ export type WidgetPreviewSettings = {
   widgetTitle: string;
   widgetTitleSize: number;
   widgetTitleColor: string;
+  enableCollectionSearch?: boolean;
 };
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
@@ -52,7 +54,9 @@ function LayoutThumb({ position }: { position: LayoutPosition }) {
       ? styles.layoutThumbRight
       : position === "top"
         ? styles.layoutThumbTop
-        : styles.layoutThumbLeft;
+        : position === "offcanvas"
+          ? styles.layoutThumbOffcanvas
+          : styles.layoutThumbLeft;
   const filter = <div className={styles.layoutFilter} />;
   const products = (
     <div className={styles.layoutProducts}>
@@ -70,6 +74,11 @@ function LayoutThumb({ position }: { position: LayoutPosition }) {
           {products}
           {filter}
         </>
+      ) : position === "offcanvas" ? (
+        <>
+          <div className={styles.layoutOffcanvasBtn} />
+          {products}
+        </>
       ) : (
         <>
           {filter}
@@ -85,8 +94,9 @@ const LAYOUT_OPTIONS: {
   label: string;
 }[] = [
   { value: "left", label: "Vertical" },
+  { value: "right", label: "Vertical (right)" },
   { value: "top", label: "Horizontal" },
-  { value: "right", label: "Right sidebar" },
+  { value: "offcanvas", label: "Off-canvas" },
 ];
 
 export function LayoutPicker({
@@ -131,7 +141,8 @@ export function LayoutPicker({
 
 function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   const title = settings.widgetTitle.trim();
-  const collapsed = settings.collapseByDefault;
+  const collapsed =
+    settings.collapseByDefault && settings.widgetPosition !== "top";
   const counts = settings.showProductCounts;
 
   return (
@@ -139,6 +150,9 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
       <p className={title ? styles.title : `${styles.title} ${styles.titleHidden}`}>
         {title}
       </p>
+      {settings.enableCollectionSearch ? (
+        <div className={styles.collectionSearch}>Search products</div>
+      ) : null}
       <div className={styles.filterBy}>
         <span className={styles.filterByLabel}>Filter by</span>
         <span className={styles.clear}>Clear</span>
@@ -225,6 +239,29 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
             <div className={styles.priceInputs}>
               <div className={styles.priceBox}>20</div>
               <div className={styles.priceBox}>180</div>
+            </div>
+          </>
+        )}
+      </div>
+      <div className={styles.facet}>
+        <div className={styles.facetLabel}>
+          Length
+          <span
+            className={
+              collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
+            }
+          />
+        </div>
+        {collapsed ? null : (
+          <>
+            <div className={styles.slider}>
+              <div className={styles.sliderFill} />
+              <div className={`${styles.sliderThumb} ${styles.sliderThumbMin}`} />
+              <div className={`${styles.sliderThumb} ${styles.sliderThumbMax}`} />
+            </div>
+            <div className={styles.priceInputs}>
+              <div className={styles.priceBox}>10</div>
+              <div className={styles.priceBox}>100</div>
             </div>
           </>
         )}

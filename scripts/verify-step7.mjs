@@ -109,7 +109,12 @@ async function seedShopData() {
   ]) {
     await prisma.discoveredMetafield.upsert({
       where: {
-        shopId_namespace_key: { shopId: shop.id, namespace, key },
+        shopId_namespace_key_ownerType: {
+          shopId: shop.id,
+          namespace,
+          key,
+          ownerType: "PRODUCT",
+        },
       },
       create: { shopId: shop.id, namespace, key, sampleValue },
       update: { sampleValue },
@@ -146,10 +151,11 @@ async function seedShopData() {
   for (const mapping of mappingDefs) {
     await prisma.metafieldMapping.upsert({
       where: {
-        shopId_namespace_key: {
+        shopId_namespace_key_ownerType: {
           shopId: shop.id,
           namespace: mapping.namespace,
           key: mapping.key,
+          ownerType: "PRODUCT",
         },
       },
       create: { shopId: shop.id, ...mapping },

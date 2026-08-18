@@ -30,10 +30,12 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { normalizeDisplayOrder } from "../filters.server";
-import { getFilterConfig, saveFilterConfig, filterConfigPriceFields } from "../shop.server";
+import { metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { DisplayOrderList } from "../components/display-order-list";
+import { FacetValueSortEditor } from "../components/facet-value-sort";
+import { NumericRangeBounds } from "../components/numeric-range-bounds";
 
 type ConfigState = {
   enabled: boolean;
@@ -47,14 +49,36 @@ type ConfigState = {
   customPriceMin: string;
   customPriceMax: string;
   displayOrder: string[];
+  displayTypes: Record<string, string>;
+  matchModes: Record<string, "or" | "and">;
+  valueSort: ValueSortMap;
+  rangeBounds: RangeBoundFormMap;
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const config = await getFilterConfig(shop.id, "");
+  const valueCatalog = await getListFacetValueCatalog(shop.id, "");
+  const mappedFacets = (await getMetafieldMappings(shop.id))
+    .filter((mapping) => mapping.enabled)
+    .map((mapping) => ({
+      key: metafieldFacetKey(
+        mapping.namespace,
+        mapping.key,
+        mapping.ownerType === "VARIANT" ? "VARIANT" : "PRODUCT",
+      ),
+      label: mapping.displayLabel || mapping.key,
+      filterType: mapping.filterType,
+    }));
+  const listMetafields = mappedFacets.filter(
+    (mapping) => mapping.filterType === "LIST",
+  );
 
   return {
+    valueCatalog,
+    listMetafields,
+    mappedFacets,
     config: {
       enabled: config?.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
@@ -63,7 +87,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       enableProductType: config?.enableProductType ?? true,
       enableTags: config?.enableTags ?? true,
       enableOptions: config?.enableOptions ?? true,
-      displayOrder: normalizeDisplayOrder(config?.displayOrder),
+      displayOrder: withMappedFacetKeys(
+        config?.displayOrder,
+        mappedFacets.map((facet) => facet.key),
+      ),
+      displayTypes: parseDisplayTypes(
+        config && "displayTypes" in config ? config.displayTypes : {},
+      ),
+      matchModes: parseMatchModes(
+        config && "matchModes" in config ? config.matchModes : {},
+      ),
+      valueSort: parseValueSort(
+        config && "valueSort" in config ? config.valueSort : {},
+      ),
+      rangeBounds: rangeBoundsToForm(
+        parseRangeBounds(
+          config && "rangeBounds" in config ? config.rangeBounds : {},
+        ),
+      ),
       ...filterConfigPriceFields(config),
     },
   };
@@ -89,6 +130,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  let displayTypes = parseDisplayTypes({});
+  const typesRaw = form.get("displayTypes");
+  if (typeof typesRaw === "string" && typesRaw) {
+    try {
+      displayTypes = parseDisplayTypes(JSON.parse(typesRaw));
+    } catch {
+      // keep empty
+    }
+  }
+
+  let matchModes = parseMatchModes({});
+  const modesRaw = form.get("matchModes");
+  if (typeof modesRaw === "string" && modesRaw) {
+    try {
+      matchModes = parseMatchModes(JSON.parse(modesRaw));
+    } catch {
+      // keep empty
+    }
+  }
+
+  let valueSort = parseValueSort({});
+  const sortRaw = form.get("valueSort");
+  if (typeof sortRaw === "string" && sortRaw) {
+    try {
+      valueSort = parseValueSort(JSON.parse(sortRaw));
+    } catch {
+      // keep empty
+    }
+  }
+
+  let rangeBounds = parseRangeBounds({});
+  const boundsRaw = form.get("rangeBounds");
+  if (typeof boundsRaw === "string" && boundsRaw) {
+    try {
+      rangeBounds = parseRangeBounds(JSON.parse(boundsRaw));
+    } catch {
+      // keep empty
+    }
+  }
+
   const parseMoney = (key: string) => {
     const raw = form.get(key);
     if (typeof raw !== "string" || !raw.trim()) return null;
@@ -110,6 +191,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Custom price range needs both a min and a max." };
   }
 
+  for (const [key, entry] of Object.entries(rangeBounds)) {
+    if (entry.mode === "custom" && (entry.min == null || entry.max == null)) {
+      return { error: `Custom range for ${key} needs both a min and a max.` };
+    }
+  }
+
   await saveFilterConfig(shop.id, {
     collectionGid: "",
     enabled: bool("enabled"),
@@ -123,6 +210,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     customPriceMin: customMin,
     customPriceMax: customMax,
     displayOrder,
+    displayTypes,
+    matchModes,
+    valueSort,
+    rangeBounds,
   });
 
   return { ok: true };
@@ -167,6 +258,10 @@ export default function ShopDefaultFilterConfigPage() {
     formData.set("customPriceMin", config.customPriceMin);
     formData.set("customPriceMax", config.customPriceMax);
     formData.set("displayOrder", JSON.stringify(config.displayOrder));
+    formData.set("displayTypes", JSON.stringify(config.displayTypes));
+    formData.set("matchModes", JSON.stringify(config.matchModes));
+    formData.set("valueSort", JSON.stringify(config.valueSort));
+    formData.set("rangeBounds", JSON.stringify(config.rangeBounds));
     submit(formData, { method: "POST" });
   };
 
@@ -282,6 +377,16 @@ export default function ShopDefaultFilterConfigPage() {
                         ) : null}
                       </BlockStack>
                     ) : null}
+                    <NumericRangeBounds
+                      fields={(data.mappedFacets ?? []).filter(
+                        (facet) => facet.filterType === "RANGE",
+                      )}
+                      value={config.rangeBounds}
+                      disabled={saving}
+                      onChange={(rangeBounds) =>
+                        setConfig((c) => ({ ...c, rangeBounds }))
+                      }
+                    />
                     <Checkbox
                       label="Availability"
                       checked={config.enableAvailability}
@@ -335,13 +440,112 @@ export default function ShopDefaultFilterConfigPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
+                    AND vs OR
+                  </Text>
+                  <Banner tone="info">
+                    <p>
+                      By default, values inside one filter are OR (Red or Blue).
+                      Different filters still combine with AND (Color and Size).
+                      Tick Use AND condition so a product must match every
+                      selected value in that filter (tags, options, or list
+                      metafields).
+                    </p>
+                  </Banner>
+                  <FormLayout>
+                    <Checkbox
+                      label="Use AND condition for Tags"
+                      helpText="Product must have every selected tag."
+                      checked={config.matchModes.tags === "and"}
+                      disabled={saving || !config.enableTags}
+                      onChange={(checked) =>
+                        setConfig((c) => ({
+                          ...c,
+                          matchModes: {
+                            ...c.matchModes,
+                            tags: checked ? "and" : "or",
+                          },
+                        }))
+                      }
+                    />
+                    <Checkbox
+                      label="Use AND condition for Variant options"
+                      helpText="Product must include every selected option value (for example Red and Blue variants)."
+                      checked={config.matchModes.options === "and"}
+                      disabled={saving || !config.enableOptions}
+                      onChange={(checked) =>
+                        setConfig((c) => ({
+                          ...c,
+                          matchModes: {
+                            ...c.matchModes,
+                            options: checked ? "and" : "or",
+                          },
+                        }))
+                      }
+                    />
+                    {(data.listMetafields ?? []).map((field) => (
+                      <Checkbox
+                        key={field.key}
+                        label={`Use AND condition for ${field.label}`}
+                        helpText="List metafield must contain every selected value."
+                        checked={config.matchModes[field.key] === "and"}
+                        disabled={saving}
+                        onChange={(checked) =>
+                          setConfig((c) => ({
+                            ...c,
+                            matchModes: {
+                              ...c.matchModes,
+                              [field.key]: checked ? "and" : "or",
+                            },
+                          }))
+                        }
+                      />
+                    ))}
+                  </FormLayout>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
                     Display order
                   </Text>
                   <DisplayOrderList
                     keys={config.displayOrder}
                     disabled={saving}
+                    displayTypes={config.displayTypes}
+                    labels={Object.fromEntries(
+                      (data.mappedFacets ?? []).map((facet) => [
+                        facet.key,
+                        facet.label,
+                      ]),
+                    )}
+                    facetKinds={Object.fromEntries(
+                      (data.mappedFacets ?? []).map((facet) => [
+                        facet.key,
+                        facet.filterType,
+                      ]),
+                    )}
                     onChange={(displayOrder) =>
                       setConfig((c) => ({ ...c, displayOrder }))
+                    }
+                    onDisplayTypesChange={(displayTypes) =>
+                      setConfig((c) => ({ ...c, displayTypes }))
+                    }
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Filter value order
+                  </Text>
+                  <FacetValueSortEditor
+                    catalog={data.valueCatalog}
+                    valueSort={config.valueSort}
+                    disabled={saving}
+                    onChange={(valueSort) =>
+                      setConfig((c) => ({ ...c, valueSort }))
                     }
                   />
                 </BlockStack>

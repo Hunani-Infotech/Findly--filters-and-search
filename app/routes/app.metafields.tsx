@@ -32,7 +32,9 @@ import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import {
   getMetafieldMappings,
+  normalizeMetafieldOwnerType,
   saveMetafieldMappings,
+  type MetafieldOwnerTypeValue,
 } from "../shop.server";
 
 type MappingDraft = {
@@ -42,6 +44,7 @@ type MappingDraft = {
   filterType: MetafieldFilterType;
   enabled: boolean;
   sortOrder: number;
+  ownerType: MetafieldOwnerTypeValue;
 };
 
 const FILTER_TYPE_OPTIONS = [
@@ -50,7 +53,21 @@ const FILTER_TYPE_OPTIONS = [
   { label: "Boolean", value: "BOOLEAN" },
 ];
 
+const OWNER_TYPE_OPTIONS = [
+  { label: "Product", value: "PRODUCT" },
+  { label: "Variant", value: "VARIANT" },
+];
+
 const VALID_FILTER_TYPES = new Set<string>(["LIST", "RANGE", "BOOLEAN"]);
+const VALID_OWNER_TYPES = new Set<string>(["PRODUCT", "VARIANT"]);
+
+function mappingRowId(
+  ownerType: MetafieldOwnerTypeValue,
+  namespace: string,
+  key: string,
+) {
+  return `${ownerType}:${namespace}.${key}`;
+}
 
 function parseMappingsPayload(
   raw: string,
@@ -117,6 +134,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         error: `Invalid filter type for ${mapping.namespace}.${mapping.key}. Choose List, Range, or Boolean.`,
       };
     }
+    const ownerType = normalizeMetafieldOwnerType(mapping.ownerType);
+    if (!VALID_OWNER_TYPES.has(ownerType)) {
+      return {
+        error: `Invalid owner for ${mapping.namespace}.${mapping.key}. Choose Product or Variant.`,
+      };
+    }
+    mapping.ownerType = ownerType;
   }
 
   const enabledInTableOrder = mappings
@@ -128,6 +152,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       filterType: mapping.filterType,
       enabled: true as const,
       sortOrder: index,
+      ownerType: mapping.ownerType,
     }));
 
   const limits = await enforcePlanLimits(shop.id);
@@ -151,15 +176,25 @@ export default function MetafieldsPage() {
   const shopify = useAppBridge();
 
   const initialRows = useMemo(() => {
-    const mappingKey = (namespace: string, key: string) =>
-      `${namespace}.${key}`;
     const byKey = new Map(
-      data.mappings.map((m) => [mappingKey(m.namespace, m.key), m]),
+      data.mappings.map((m) => [
+        mappingRowId(
+          normalizeMetafieldOwnerType(
+            (m as { ownerType?: unknown }).ownerType,
+          ),
+          m.namespace,
+          m.key,
+        ),
+        m,
+      ]),
     );
     const seen = new Set<string>();
 
     const fromDiscovered = data.discovered.map((d, index) => {
-      const id = mappingKey(d.namespace, d.key);
+      const ownerType = normalizeMetafieldOwnerType(
+        (d as { ownerType?: unknown }).ownerType,
+      );
+      const id = mappingRowId(ownerType, d.namespace, d.key);
       seen.add(id);
       const existing = byKey.get(id);
       return {
@@ -170,11 +205,24 @@ export default function MetafieldsPage() {
         filterType: (existing?.filterType ?? "LIST") as MetafieldFilterType,
         enabled: Boolean(existing),
         sortOrder: existing?.sortOrder ?? index,
+        ownerType,
+        discovered: true,
       };
     });
 
     const orphans = data.mappings
-      .filter((m) => !seen.has(mappingKey(m.namespace, m.key)))
+      .filter(
+        (m) =>
+          !seen.has(
+            mappingRowId(
+              normalizeMetafieldOwnerType(
+                (m as { ownerType?: unknown }).ownerType,
+              ),
+              m.namespace,
+              m.key,
+            ),
+          ),
+      )
       .map((m) => ({
         namespace: m.namespace,
         key: m.key,
@@ -183,6 +231,10 @@ export default function MetafieldsPage() {
         filterType: m.filterType as MetafieldFilterType,
         enabled: true,
         sortOrder: m.sortOrder,
+        ownerType: normalizeMetafieldOwnerType(
+          (m as { ownerType?: unknown }).ownerType,
+        ),
+        discovered: false,
       }));
 
     return [...fromDiscovered, ...orphans];
@@ -210,11 +262,14 @@ export default function MetafieldsPage() {
   const updateRow = (
     namespace: string,
     key: string,
+    ownerType: MetafieldOwnerTypeValue,
     patch: Partial<(typeof rows)[number]>,
   ) => {
     setRows((prev) =>
       prev.map((row) =>
-        row.namespace === namespace && row.key === key
+        row.namespace === namespace &&
+        row.key === key &&
+        row.ownerType === ownerType
           ? { ...row, ...patch }
           : row,
       ),
@@ -235,10 +290,12 @@ export default function MetafieldsPage() {
     submit(formData, { method: "POST" });
   };
 
-  const rowMarkup = rows.map((row, index) => (
+  const rowMarkup = rows.map((row, index) => {
+    const rowId = mappingRowId(row.ownerType, row.namespace, row.key);
+    return (
     <IndexTable.Row
-      id={`${row.namespace}.${row.key}`}
-      key={`${row.namespace}.${row.key}`}
+      id={rowId}
+      key={rowId}
       position={index}
     >
       <IndexTable.Cell>
@@ -250,6 +307,35 @@ export default function MetafieldsPage() {
             Sample: {row.sampleValue}
           </Text>
         ) : null}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Select
+          label="Owner"
+          labelHidden
+          options={OWNER_TYPE_OPTIONS}
+          value={row.ownerType}
+          disabled={saving || row.discovered}
+          onChange={(value) => {
+            const nextOwner = normalizeMetafieldOwnerType(value);
+            if (nextOwner === row.ownerType) return;
+            const collision = rows.some(
+              (other) =>
+                other.namespace === row.namespace &&
+                other.key === row.key &&
+                other.ownerType === nextOwner,
+            );
+            if (collision) {
+              shopify.toast.show(
+                `${row.namespace}.${row.key} is already mapped as ${nextOwner === "VARIANT" ? "Variant" : "Product"}.`,
+                { isError: true },
+              );
+              return;
+            }
+            updateRow(row.namespace, row.key, row.ownerType, {
+              ownerType: nextOwner,
+            });
+          }}
+        />
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Checkbox
@@ -265,7 +351,9 @@ export default function MetafieldsPage() {
               );
               return;
             }
-            updateRow(row.namespace, row.key, { enabled: checked });
+            updateRow(row.namespace, row.key, row.ownerType, {
+              enabled: checked,
+            });
           }}
         />
       </IndexTable.Cell>
@@ -277,7 +365,9 @@ export default function MetafieldsPage() {
           value={row.displayLabel}
           disabled={saving || !row.enabled}
           onChange={(value) =>
-            updateRow(row.namespace, row.key, { displayLabel: value })
+            updateRow(row.namespace, row.key, row.ownerType, {
+              displayLabel: value,
+            })
           }
         />
       </IndexTable.Cell>
@@ -289,14 +379,15 @@ export default function MetafieldsPage() {
           value={row.filterType}
           disabled={saving || !row.enabled}
           onChange={(value) =>
-            updateRow(row.namespace, row.key, {
+            updateRow(row.namespace, row.key, row.ownerType, {
               filterType: value as MetafieldFilterType,
             })
           }
         />
       </IndexTable.Cell>
     </IndexTable.Row>
-  ));
+    );
+  });
 
   return (
     <Page
@@ -325,8 +416,20 @@ export default function MetafieldsPage() {
 
               <Banner tone="info">
                 <p>
+                  Variant metafields: a product matches if any variant has the
+                  selected value. Product metafields stay product-level. Re-sync
+                  catalog after this update.
+                </p>
+              </Banner>
+
+              <Banner tone="info">
+                <p>
                   Boolean metafields appear on the storefront as Yes / No
-                  (true/false) choices, not a raw value list.
+                  (true/false) choices, not a raw value list. Enabled product
+                  mappings are also searchable from the storefront search bar
+                  when Settings → Search fields includes Metafields (mapped).
+                  Search stays product-level; variant metafield filters apply
+                  to collection filters only.
                 </p>
               </Banner>
 
@@ -357,8 +460,8 @@ export default function MetafieldsPage() {
                   action={{ content: "Run sync", url: "/app/sync" }}
                 >
                   <p>
-                    Run a full sync to discover product metafields from your
-                    catalog.
+                    Run a full sync to discover product and variant metafields
+                    from your catalog.
                   </p>
                 </Banner>
               ) : (
@@ -371,6 +474,7 @@ export default function MetafieldsPage() {
                     itemCount={rows.length}
                     headings={[
                       { title: "Metafield" },
+                      { title: "Owner" },
                       { title: "Use as filter" },
                       { title: "Label" },
                       { title: "Filter type" },

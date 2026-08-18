@@ -152,6 +152,21 @@
   outline-offset: 1px;
 }
 
+.smart-filter-search__suggest-heading {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sfs-muted);
+}
+
+.smart-filter-search__suggest-heading[hidden],
+.smart-filter-search__suggestions[hidden],
+.smart-filter-search__collections[hidden] {
+  display: none;
+}
+
 .smart-filter-search__results {
   list-style: none;
   margin: 0.5rem 0 0;
@@ -159,6 +174,11 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.smart-filter-search__suggestions,
+.smart-filter-search__collections {
+  margin-top: 0.35rem;
 }
 
 .smart-filter-search__item {

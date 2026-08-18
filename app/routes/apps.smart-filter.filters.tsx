@@ -31,6 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const searchQuery =
     url.searchParams.get("q") || url.searchParams.get("query") || "";
   const selected = parseSelectedFromSearchParams(url.searchParams);
+  const sort = url.searchParams.get("sort");
 
   const hasCollection = Boolean(collectionId || collectionGid);
   const result =
@@ -39,12 +40,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shopDomain,
           query: searchQuery,
           selected,
+          sort,
         })
       : await getCollectionFilterPayload({
           shopDomain,
           collectionId,
           collectionGid,
           selected,
+          sort,
+          query: searchQuery,
         });
 
   if ("error" in result && result.error) {

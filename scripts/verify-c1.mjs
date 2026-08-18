@@ -175,11 +175,12 @@ async function seedShopData() {
 
   await prisma.metafieldMapping.upsert({
     where: {
-      shopId_namespace_key: {
-        shopId: shop.id,
-        namespace: "custom",
-        key: "waterproof",
-      },
+        shopId_namespace_key_ownerType: {
+          shopId: shop.id,
+          namespace: "custom",
+          key: "waterproof",
+          ownerType: "PRODUCT",
+        },
     },
     create: {
       shopId: shop.id,
