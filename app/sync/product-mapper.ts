@@ -8,6 +8,7 @@ type ShopifyVariantNode = {
   id?: string;
   sku?: string | null;
   price?: string | null;
+  compareAtPrice?: string | null;
   availableForSale?: boolean | null;
   image?: { url?: string | null } | null;
   selectedOptions?: Array<{ name?: string | null; value?: string | null }> | null;
@@ -58,6 +59,45 @@ function parseShopifyDate(value?: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Variant-level % off. Never pairs one variant's price with another's compare-at. */
+export function variantSalePercent(
+  price: number,
+  compareAt: number,
+): number {
+  if (
+    !Number.isFinite(price) ||
+    !Number.isFinite(compareAt) ||
+    compareAt <= 0 ||
+    compareAt <= price
+  ) {
+    return 0;
+  }
+  return ((compareAt - price) / compareAt) * 100;
+}
+
+export function compareAtAndSaleFromVariants(
+  variants: Array<{ price?: string | null; compareAtPrice?: string | null }>,
+): {
+  compareAtMin: number | null;
+  compareAtMax: number | null;
+  salePct: number;
+} {
+  const compareAts = variants
+    .map((variant) => Number(variant.compareAtPrice))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  let salePct = 0;
+  for (const variant of variants) {
+    const price = Number(variant.price);
+    const compareAt = Number(variant.compareAtPrice);
+    salePct = Math.max(salePct, variantSalePercent(price, compareAt));
+  }
+  return {
+    compareAtMin: compareAts.length ? Math.min(...compareAts) : null,
+    compareAtMax: compareAts.length ? Math.max(...compareAts) : null,
+    salePct: Math.round(salePct * 100) / 100,
+  };
 }
 
 export type VariantImageEntry = {
@@ -159,6 +199,8 @@ export function mapProductToFacet(
     .filter((n) => Number.isFinite(n));
   const priceMin = prices.length ? Math.min(...prices) : 0;
   const priceMax = prices.length ? Math.max(...prices) : 0;
+  const { compareAtMin, compareAtMax, salePct } =
+    compareAtAndSaleFromVariants(variants);
   const available =
     product.status === "ACTIVE" &&
     variants.some((v) => v.availableForSale !== false);
@@ -189,6 +231,9 @@ export function mapProductToFacet(
       options: options as JsonObject,
       priceMin,
       priceMax,
+      compareAtMin,
+      compareAtMax,
+      salePct,
       available,
       status: product.status ?? "ACTIVE",
       imageUrl: product.featuredImage?.url ?? null,

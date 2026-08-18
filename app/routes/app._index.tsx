@@ -18,29 +18,33 @@ import { ensureShopAccess } from "../billing.server";
 import { ensureShop } from "../shop.server";
 import { collectionNumericId } from "../settings.server";
 import { isNavigatingTo } from "../components/admin-loading";
+import { SetupGuide } from "../components/setup-guide";
+import { getSetupProgress } from "../setup-progress.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
   await ensureShopAccess(session.shop);
 
-  const [collections, filterConfigs, defaultConfig] = await Promise.all([
-    prisma.collection.findMany({
-      where: { shopId: shop.id },
-      orderBy: { title: "asc" },
-    }),
-    prisma.filterConfig.findMany({
-      where: {
-        shopId: shop.id,
-        collectionGid: { not: "" },
-      },
-    }),
-    prisma.filterConfig.findUnique({
-      where: {
-        shopId_collectionGid: { shopId: shop.id, collectionGid: "" },
-      },
-    }),
-  ]);
+  const [collections, filterConfigs, defaultConfig, progress] =
+    await Promise.all([
+      prisma.collection.findMany({
+        where: { shopId: shop.id },
+        orderBy: { title: "asc" },
+      }),
+      prisma.filterConfig.findMany({
+        where: {
+          shopId: shop.id,
+          collectionGid: { not: "" },
+        },
+      }),
+      prisma.filterConfig.findUnique({
+        where: {
+          shopId_collectionGid: { shopId: shop.id, collectionGid: "" },
+        },
+      }),
+      getSetupProgress(shop.id, session.shop),
+    ]);
 
   const configByGid = new Map(
     filterConfigs.map((c) => [c.collectionGid, c] as const),
@@ -67,6 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       exists: Boolean(defaultConfig),
       enabled: defaultConfig?.enabled ?? false,
     },
+    setup: progress,
   };
 };
 
@@ -74,8 +79,13 @@ export default function Index() {
   const data = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const navigate = useNavigate();
-  const { collections, defaultConfig } = data;
+  const { collections, defaultConfig, setup } = data;
   const syncing = isNavigatingTo(navigation, "/app/sync");
+  const settingsLoading = isNavigatingTo(navigation, "/app/settings");
+  const nextStep = setup.nextStep;
+  const nextStepLoading = nextStep
+    ? isNavigatingTo(navigation, nextStep.href)
+    : false;
 
   const rowMarkup = collections.map((collection, index) => {
     const configureHref = `/app/collections/${collection.numericId}`;
@@ -119,12 +129,26 @@ export default function Index() {
 
   return (
     <Page
-      title="Findly: Smart Filters & Search"
+      title="Findly filters and search"
+      subtitle="Collection filters, storefront search, and theme blocks in one place."
       secondaryActions={[
         { content: "Sync", url: "/app/sync", loading: syncing },
+        { content: "Settings", url: "/app/settings", loading: settingsLoading },
       ]}
+      primaryAction={
+        nextStep
+          ? {
+              content: nextStep.actionLabel,
+              url: nextStep.href,
+              loading: nextStepLoading,
+            }
+          : undefined
+      }
     >
       <Layout>
+        <Layout.Section>
+          <SetupGuide progress={setup} />
+        </Layout.Section>
         <Layout.Section>
           <BlockStack gap="400">
             <Banner
@@ -144,6 +168,14 @@ export default function Index() {
                 . Collections without their own config inherit the default.
               </p>
             </Banner>
+
+            <Text as="h2" variant="headingMd">
+              Collection overrides
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Most stores only need the shop-wide default. Open a collection
+              when it should show different options or stay off.
+            </Text>
 
             {collections.length === 0 ? (
               <Banner

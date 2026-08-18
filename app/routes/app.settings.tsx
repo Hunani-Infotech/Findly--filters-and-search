@@ -21,6 +21,7 @@ import {
   Layout,
   Page,
   Select,
+  Tabs,
   Text,
   TextField,
 } from "@shopify/polaris";
@@ -30,6 +31,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { DisplayOrderList } from "../components/display-order-list";
+import { ThemeSetupCard } from "../components/theme-setup-card";
 import {
   LayoutPicker,
   WidgetLookPreview,
@@ -89,6 +91,27 @@ const RADIUS_OPTIONS = [
   })),
   { label: "Custom", value: "custom" },
 ];
+
+const SETTINGS_TABS = [
+  { id: "layout", content: "Layout", panelID: "settings-layout" },
+  { id: "sort", content: "Sort", panelID: "settings-sort" },
+  { id: "search", content: "Search", panelID: "settings-search" },
+  { id: "look", content: "Look", panelID: "settings-look" },
+  { id: "theme", content: "Theme", panelID: "settings-theme" },
+] as const;
+
+type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
+
+function parseSettingsTab(value: unknown): SettingsTabId {
+  const raw = typeof value === "string" ? value : "";
+  return SETTINGS_TABS.some((tab) => tab.id === raw)
+    ? (raw as SettingsTabId)
+    : "layout";
+}
+
+function tabPanelStyle(visible: boolean) {
+  return visible ? undefined : { display: "none" as const };
+}
 
 type SettingsState = {
   widgetPosition: WidgetPosition;
@@ -199,8 +222,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const settings = await getAppSettings(shop.id);
+  const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
 
   return {
+    tab,
+    shopDomain: session.shop,
     settings: toSettingsState({
       widgetPosition: settings.widgetPosition,
       accentColor: settings.accentColor,
@@ -326,10 +352,16 @@ export default function SettingsPage() {
   const shopify = useAppBridge();
   const [settings, setSettings] = useState<SettingsState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);
+  const [selectedTab, setSelectedTab] = useState<SettingsTabId>(data.tab);
   if (data.settings !== loaderSettings) {
     setLoaderSettings(data.settings);
     setSettings(data.settings);
   }
+
+  const selectedTabIndex = SETTINGS_TABS.findIndex(
+    (tab) => tab.id === selectedTab,
+  );
+  const showPreview = selectedTab === "layout" || selectedTab === "look";
 
   const saving = isMutationBusy(navigation);
 
@@ -408,6 +440,7 @@ export default function SettingsPage() {
   return (
     <Page
       title="Settings"
+      subtitle="Layout, search, sort, stock rules, and look. Filter option sources (Price, Tags, metafields) are on Filters."
       fullWidth
       primaryAction={{
         content: saving ? "Saving…" : "Save",
@@ -422,6 +455,10 @@ export default function SettingsPage() {
       }}
       secondaryActions={[
         {
+          content: "Default filters",
+          url: "/app/collections/default",
+        },
+        {
           content: "Reset defaults",
           disabled: saving,
           onAction: handleReset,
@@ -430,15 +467,29 @@ export default function SettingsPage() {
     >
       <Layout>
         <Layout.Section>
-          <Form id="settings-form" method="post" onSubmit={handleSubmit}>
+          <BlockStack gap="400">
+            <Tabs
+              tabs={[...SETTINGS_TABS]}
+              selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
+              onSelect={(index) => {
+                const next = SETTINGS_TABS[index];
+                if (next) setSelectedTab(next.id);
+              }}
+            />
+            <Form id="settings-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
+              <div
+                id="settings-layout"
+                role="tabpanel"
+                style={tabPanelStyle(selectedTab === "layout")}
+              >
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
                     Filter layout
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Globo tree styles: Vertical (left or right sidebar),
+                    Common filter layouts: Vertical (left or right sidebar),
                     Horizontal (filters above the grid), or Off-canvas (Filter
                     button + drawer). Place the theme block above the product
                     grid for Horizontal.
@@ -488,7 +539,13 @@ export default function SettingsPage() {
                   />
                 </BlockStack>
               </Card>
+              </div>
 
+              <div
+                id="settings-sort"
+                role="tabpanel"
+                style={tabPanelStyle(selectedTab === "sort")}
+              >
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
@@ -497,9 +554,8 @@ export default function SettingsPage() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     Shoppers sort the theme product grid together with active
                     filters. Featured order comes from the Shopify collection
-                    (sync after changing collection sort). Best-selling and %
-                    sale off are omitted until sales and compare-at data exist
-                    (C15).
+                    (sync after changing collection sort). Best-selling and
+                    percent-off sorting are not available yet.
                   </Text>
                   <Checkbox
                     label="Hide the Sort By dropdown"
@@ -591,7 +647,13 @@ export default function SettingsPage() {
                   />
                 </BlockStack>
               </Card>
+              </div>
 
+              <div
+                id="settings-search"
+                role="tabpanel"
+                style={tabPanelStyle(selectedTab === "search")}
+              >
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
@@ -719,7 +781,13 @@ export default function SettingsPage() {
                   />
                 </BlockStack>
               </Card>
+              </div>
 
+              <div
+                id="settings-look"
+                role="tabpanel"
+                style={tabPanelStyle(selectedTab === "look")}
+              >
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
@@ -944,9 +1012,25 @@ export default function SettingsPage() {
                   </FormLayout>
                 </BlockStack>
               </Card>
+              </div>
             </BlockStack>
           </Form>
+            <div
+              id="settings-theme"
+              role="tabpanel"
+              style={tabPanelStyle(selectedTab === "theme")}
+            >
+              <BlockStack gap="300">
+                <ThemeSetupCard shopDomain={data.shopDomain} />
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Search and Collection filters theme blocks are required for
+                  filters and search to appear on the storefront.
+                </Text>
+              </BlockStack>
+            </div>
+          </BlockStack>
         </Layout.Section>
+        {showPreview ? (
         <Layout.Section variant="oneThird">
           <div style={{ position: "sticky", top: 16 }}>
             <Card>
@@ -959,6 +1043,7 @@ export default function SettingsPage() {
             </Card>
           </div>
         </Layout.Section>
+        ) : null}
       </Layout>
     </Page>
   );

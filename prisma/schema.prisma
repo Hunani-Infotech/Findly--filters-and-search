@@ -119,6 +119,8 @@ model FilterConfig {
   collectionGid       String   @default("")
   enabled             Boolean  @default(true)
   enablePrice         Boolean  @default(true)
+  /// % off slider from variant compare-at vs price (C15); off by default
+  enableSale          Boolean  @default(false)
   enableAvailability  Boolean  @default(true)
   enableVendor        Boolean  @default(true)
   enableProductType   Boolean  @default(true)
@@ -128,8 +130,8 @@ model FilterConfig {
   priceRangeMode      String   @default("auto")
   customPriceMin      Decimal? @db.Decimal(12, 2)
   customPriceMax      Decimal? @db.Decimal(12, 2)
-  /// Ordered filter keys, e.g. ["availability","price","vendor","productType","tags","options"]
-  displayOrder        String[] @default(["availability", "price", "vendor", "productType", "tags", "options"])
+  /// Ordered filter keys, e.g. ["availability","price","sale","vendor","productType","tags","options"]
+  displayOrder        String[] @default(["availability", "price", "sale", "vendor", "productType", "tags", "options"])
   /// Per-facet UI: vendor -> checkbox, productType -> dropdown, options -> swatch, price -> slider, …
   displayTypes        Json     @default("{}")
   /// Per-facet value combine: tags/options/mf_* -> "and" | "or" (default OR)
@@ -208,6 +210,11 @@ model ProductFacet {
   options     Json     @default("{}")
   priceMin    Decimal  @db.Decimal(12, 2)
   priceMax    Decimal  @db.Decimal(12, 2)
+  /// Min/max variant compare-at; null when no variant has a compare-at
+  compareAtMin Decimal? @db.Decimal(12, 2)
+  compareAtMax Decimal? @db.Decimal(12, 2)
+  /// Max variant-level % off: (compareAt - price) / compareAt * 100 when compareAt > price
+  salePct     Decimal  @default(0) @db.Decimal(5, 2)
   available   Boolean  @default(true)
   /// Shopify product status: ACTIVE | DRAFT | ARCHIVED
   status      String   @default("ACTIVE")

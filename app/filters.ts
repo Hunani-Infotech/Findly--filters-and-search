@@ -5,6 +5,7 @@ export type FacetSource =
   | "productType"
   | "tag"
   | "price"
+  | "sale"
   | "availability"
   | "metafield"
   | "option";
@@ -77,6 +78,7 @@ export function normalizeBooleanMetafieldValue(
 export const DEFAULT_DISPLAY_ORDER = [
   "availability",
   "price",
+  "sale",
   "vendor",
   "productType",
   "tags",
@@ -206,7 +208,7 @@ function selectedMatchList(
 }
 
 function isRangeDisplayKey(key: string, kind?: string) {
-  if (key === "price") return true;
+  if (key === "price" || key === "sale") return true;
   const normalized = String(kind || "").toUpperCase();
   return normalized === "RANGE";
 }
@@ -216,7 +218,7 @@ function coerceDisplayType(
   value: FacetDisplayType,
   kind?: string,
 ): FacetDisplayType {
-  if (isRangeDisplayKey(key, kind) || key === "price") return "slider";
+  if (isRangeDisplayKey(key, kind) || key === "price" || key === "sale") return "slider";
   if (value === "slider" && !key.startsWith("mf_")) return "checkbox";
   return value;
 }
@@ -242,7 +244,7 @@ export function displayTypeForFacet(
   facet: Pick<FacetDef, "key" | "source" | "label" | "type">,
   map: Record<string, FacetDisplayType>,
 ): FacetDisplayType {
-  if (facet.type === "range" || facet.source === "price") return "slider";
+  if (facet.type === "range" || facet.source === "price" || facet.source === "sale") return "slider";
   if (facet.type === "boolean") return map[facet.key] || "checkbox";
   const stored =
     map[facet.key] ||
@@ -440,6 +442,14 @@ export function facetsFromConfig(
       enabled: config?.enablePrice ?? true,
       displayType: "slider",
     },
+    sale: {
+      key: "sale",
+      source: "sale",
+      label: "% Sale off",
+      type: "range",
+      enabled: config?.enableSale ?? false,
+      displayType: "slider",
+    },
     vendor: {
       key: "vendor",
       source: "vendor",
@@ -558,6 +568,9 @@ export type ProductFacetRow = {
   options: Record<string, string[]>;
   priceMin: number;
   priceMax: number;
+  compareAtMin?: number | null;
+  compareAtMax?: number | null;
+  salePct?: number;
   available: boolean;
   status: string;
   imageUrl: string | null;
@@ -806,6 +819,14 @@ export function productMatchesFilters(
         if (Number.isFinite(max) && product.priceMin > max) return false;
         break;
       }
+      case "sale": {
+        const min = parseBound(values[0]);
+        const max = parseBound(values[1]);
+        const pct = Number(product.salePct ?? 0);
+        if (Number.isFinite(min) && pct < min) return false;
+        if (Number.isFinite(max) && pct > max) return false;
+        break;
+      }
       case "option": {
         const optionValues = optionValuesFor(product, facet);
         if (
@@ -921,6 +942,19 @@ export function catalogPriceBounds(products: ProductFacetRow[]) {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
   if (min === 0 && max === 0) return null;
   return { min, max };
+}
+
+export function catalogSaleBounds(products: ProductFacetRow[]) {
+  let max = 0;
+  let any = false;
+  for (const product of products) {
+    const pct = Number(product.salePct ?? 0);
+    if (!Number.isFinite(pct) || pct <= 0) continue;
+    any = true;
+    max = Math.max(max, pct);
+  }
+  if (!any) return { min: 0, max: 100 };
+  return { min: 0, max: Math.max(100, Math.ceil(max)) };
 }
 
 export function resolvePriceBounds(
@@ -1047,6 +1081,22 @@ export function buildFacetAggregations(
         range: {
           min: bounds?.min ?? null,
           max: bounds?.max ?? null,
+        },
+      });
+      continue;
+    }
+
+    if (facet.source === "sale") {
+      const bounds = catalogSaleBounds(products);
+      result.push({
+        key: facet.key,
+        label: facet.label,
+        type: facet.type,
+        source: facet.source,
+        displayType: facet.displayType ?? "slider",
+        range: {
+          min: bounds.min,
+          max: bounds.max,
         },
       });
       continue;

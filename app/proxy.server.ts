@@ -70,6 +70,9 @@ function toRow(p: {
   options: unknown;
   priceMin: { toNumber?: () => number } | number | string;
   priceMax: { toNumber?: () => number } | number | string;
+  compareAtMin?: { toNumber?: () => number } | number | string | null;
+  compareAtMax?: { toNumber?: () => number } | number | string | null;
+  salePct?: { toNumber?: () => number } | number | string | null;
   available: boolean;
   status?: string | null;
   imageUrl: string | null;
@@ -95,6 +98,15 @@ function toRow(p: {
     options: (p.options as Record<string, string[]>) || {},
     priceMin: num(p.priceMin),
     priceMax: num(p.priceMax),
+    compareAtMin:
+      p.compareAtMin == null || p.compareAtMin === ""
+        ? null
+        : num(p.compareAtMin),
+    compareAtMax:
+      p.compareAtMax == null || p.compareAtMax === ""
+        ? null
+        : num(p.compareAtMax),
+    salePct: p.salePct == null || p.salePct === "" ? 0 : num(p.salePct),
     available: p.available,
     status: p.status || "ACTIVE",
     imageUrl: p.imageUrl,

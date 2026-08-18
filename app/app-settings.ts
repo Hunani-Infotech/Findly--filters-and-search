@@ -128,6 +128,7 @@ export const SORT_OPTION_KEYS = [
   "price_desc",
   "date_desc",
   "date_asc",
+  "sale_pct_desc",
 ] as const;
 
 export type SortOptionKey = (typeof SORT_OPTION_KEYS)[number];
@@ -142,6 +143,7 @@ export const SORT_OPTION_LABELS: Record<SortOptionKey, string> = {
   price_desc: "Price, high to low",
   date_desc: "Date, new to old",
   date_asc: "Date, old to new",
+  sale_pct_desc: "% Sale off",
 };
 
 export function normalizeSortOptions(value: unknown): SortOptionKey[] {
@@ -187,6 +189,7 @@ export const DEFAULT_APP_SETTINGS = {
     "price_desc",
     "date_desc",
     "date_asc",
+    "sale_pct_desc",
   ] as SortOptionKey[],
   defaultSort: "manual" as SortOptionKey,
   hideSortDropdown: false,

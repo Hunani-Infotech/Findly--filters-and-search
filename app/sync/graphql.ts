@@ -24,6 +24,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
           node {
             sku
             price
+            compareAtPrice
             availableForSale
             image {
               url
@@ -109,6 +110,7 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
                   node {
                     sku
                     price
+                    compareAtPrice
                     availableForSale
                     image { url }
                     selectedOptions { name value }

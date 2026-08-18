@@ -73,6 +73,7 @@ export type FilterConfigInput = {
   collectionGid?: string;
   enabled?: boolean;
   enablePrice?: boolean;
+  enableSale?: boolean;
   enableAvailability?: boolean;
   enableVendor?: boolean;
   enableProductType?: boolean;
@@ -98,6 +99,7 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
       collectionGid,
       enabled: input.enabled ?? true,
       enablePrice: input.enablePrice ?? true,
+      enableSale: input.enableSale ?? false,
       enableAvailability: input.enableAvailability ?? true,
       enableVendor: input.enableVendor ?? true,
       enableProductType: input.enableProductType ?? true,
@@ -117,6 +119,7 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
     update: {
       enabled: input.enabled,
       enablePrice: input.enablePrice,
+      enableSale: input.enableSale,
       enableAvailability: input.enableAvailability,
       enableVendor: input.enableVendor,
       enableProductType: input.enableProductType,
@@ -232,6 +235,11 @@ export async function getListFacetValueCatalog(
     options: (product.options as Record<string, string[]>) || {},
     priceMin: Number(product.priceMin),
     priceMax: Number(product.priceMax),
+    compareAtMin:
+      product.compareAtMin == null ? null : Number(product.compareAtMin),
+    compareAtMax:
+      product.compareAtMax == null ? null : Number(product.compareAtMax),
+    salePct: Number(product.salePct),
     available: product.available,
     status: product.status,
     imageUrl: product.imageUrl,

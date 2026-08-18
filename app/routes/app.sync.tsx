@@ -12,6 +12,7 @@ import {
   InlineStack,
   Layout,
   Link,
+  List,
   Page,
   Spinner,
   Text,
@@ -126,6 +127,24 @@ export default function SyncPage() {
               </Banner>
             )}
 
+            {job?.status === "READY" && !data.overProductLimit ? (
+              <Banner
+                tone="success"
+                action={{
+                  content: "Set default filters",
+                  url: "/app/collections/default",
+                }}
+              >
+                <p>
+                  Catalog is ready. Next:{" "}
+                  <Link url="/app/metafields">map metafields</Link> if you use
+                  custom attributes, then set shop-wide default filters, then
+                  open <Link url="/app/settings">Settings</Link> for layout,
+                  search, and sort.
+                </p>
+              </Banner>
+            ) : null}
+
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">
@@ -159,6 +178,27 @@ export default function SyncPage() {
                     <p>{job.errorLog}</p>
                   </Banner>
                 ) : null}
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">
+                  What to do next
+                </Text>
+                <List type="number">
+                  <List.Item>
+                    Map metafields if you use custom attributes
+                  </List.Item>
+                  <List.Item>
+                    Set shop-wide default filter options
+                  </List.Item>
+                  <List.Item>Settings → layout, search, sort</List.Item>
+                  <List.Item>
+                    Add Collection filters + Product search blocks in the theme
+                    editor
+                  </List.Item>
+                </List>
               </BlockStack>
             </Card>
           </BlockStack>

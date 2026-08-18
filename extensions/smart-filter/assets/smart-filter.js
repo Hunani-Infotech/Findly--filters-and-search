@@ -339,6 +339,7 @@
     price_desc: "Price, high to low",
     date_desc: "Date, new to old",
     date_asc: "Date, old to new",
+    sale_pct_desc: "% Sale off",
   };
 
   function serializeState(selected, price, sort, query) {

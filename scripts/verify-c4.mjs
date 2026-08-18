@@ -38,11 +38,11 @@ function assertStaticMarkers() {
   if (!settingsPage.includes("sortOptionsEnabled") || !settingsPage.includes("hideSortDropdown")) {
     fail("admin settings missing Sort By controls");
   }
-  if (/best.?sell|sale_pct|sale off/i.test(appSettings) && /SORT_OPTION_KEYS[\s\S]*best/i.test(appSettings)) {
-    fail("do not add best-selling or % sale sort keys without data");
+  if (/best.?sell/i.test(appSettings) && /SORT_OPTION_KEYS[\s\S]*best/i.test(appSettings)) {
+    fail("do not add best-selling sort keys without sales data");
   }
-  if (appSettings.includes('"best_selling"') || appSettings.includes('"sale_pct"')) {
-    fail("% sale / best-selling sort keys must stay omitted until C15 / sales data");
+  if (appSettings.includes('"best_selling"')) {
+    fail("best-selling sort keys must stay omitted until sales data exists");
   }
   if (!liquid.includes("data-sort") || !liquid.includes("data-sort-wrap")) {
     fail("collection-filters.liquid missing sort dropdown");
@@ -198,8 +198,8 @@ try {
   if (persisted.defaultSort !== "manual") {
     fail(`defaultSort persist failed: ${persisted.defaultSort}`);
   }
-  if (persisted.sortOptionsEnabled.includes("sale_pct")) {
-    fail("% sale sort must not appear before C15");
+  if (persisted.sortOptionsEnabled.includes("best_selling")) {
+    fail("best-selling sort must stay omitted until sales data exists");
   }
 
   const featured = await payload("manual");

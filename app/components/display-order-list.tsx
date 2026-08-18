@@ -10,6 +10,7 @@ import {
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",
   price: "Price",
+  sale: "% Sale off",
   vendor: "Vendor",
   productType: "Product type",
   tags: "Tags",
@@ -75,7 +76,7 @@ export function DisplayOrderList({
   onDisplayTypesChange,
   labels,
   facetKinds,
-  helpText = "Drag a row to change the order shoppers see. Arrow keys also work when a row is focused. Display type: List, Dropdown, Checkbox, Swatch, Swatch-text, Slider. Collection and Rating wait for later steps.",
+  helpText = "Drag a row to change the order shoppers see. Arrow keys also work when a row is focused. Display type: List, Dropdown, Checkbox, Swatch, Swatch-text, Slider, Radio, or Box. Price and numeric ranges stay sliders.",
 }: DisplayOrderListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);

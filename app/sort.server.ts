@@ -44,6 +44,9 @@ export function sortProductRows(
       case "date_asc":
         ordered = copy.sort((a, b) => time(a) - time(b));
         break;
+      case "sale_pct_desc":
+        ordered = copy.sort((a, b) => (b.salePct ?? 0) - (a.salePct ?? 0));
+        break;
       case "manual":
       default:
         ordered = copy.sort(

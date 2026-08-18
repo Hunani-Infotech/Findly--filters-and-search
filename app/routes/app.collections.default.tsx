@@ -35,11 +35,13 @@ import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFi
 import { isMutationBusy } from "../components/admin-loading";
 import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
+import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 
 type ConfigState = {
   enabled: boolean;
   enablePrice: boolean;
+  enableSale: boolean;
   enableAvailability: boolean;
   enableVendor: boolean;
   enableProductType: boolean;
@@ -82,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     config: {
       enabled: config?.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
+      enableSale: config?.enableSale ?? false,
       enableAvailability: config?.enableAvailability ?? true,
       enableVendor: config?.enableVendor ?? true,
       enableProductType: config?.enableProductType ?? true,
@@ -201,6 +204,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     collectionGid: "",
     enabled: bool("enabled"),
     enablePrice: bool("enablePrice"),
+    enableSale: bool("enableSale"),
     enableAvailability: bool("enableAvailability"),
     enableVendor: bool("enableVendor"),
     enableProductType: bool("enableProductType"),
@@ -249,6 +253,7 @@ export default function ShopDefaultFilterConfigPage() {
     const formData = new FormData();
     formData.set("enabled", String(config.enabled));
     formData.set("enablePrice", String(config.enablePrice));
+    formData.set("enableSale", String(config.enableSale));
     formData.set("enableAvailability", String(config.enableAvailability));
     formData.set("enableVendor", String(config.enableVendor));
     formData.set("enableProductType", String(config.enableProductType));
@@ -288,17 +293,16 @@ export default function ShopDefaultFilterConfigPage() {
         <Layout.Section>
           <Form id="default-filter-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
-              <Banner tone="info">
-                <p>
-                  Collections without their own config inherit this shop-wide
-                  default.
-                </p>
-              </Banner>
+              <FilterOptionsGuide variant="default" />
 
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Filter toggles
+                    1. Filter options
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    Turn on the options shoppers should see. Mapped metafields
+                    appear automatically after you enable them on Metafields.
                   </Text>
                   <FormLayout>
                     <Checkbox
@@ -377,6 +381,15 @@ export default function ShopDefaultFilterConfigPage() {
                         ) : null}
                       </BlockStack>
                     ) : null}
+                    <Checkbox
+                      label="% Sale off"
+                      helpText="Slider uses real variant compare-at vs price. Turn on after catalog sync."
+                      checked={config.enableSale}
+                      disabled={saving}
+                      onChange={(checked) =>
+                        setConfig((c) => ({ ...c, enableSale: checked }))
+                      }
+                    />
                     <NumericRangeBounds
                       fields={(data.mappedFacets ?? []).filter(
                         (facet) => facet.filterType === "RANGE",
@@ -440,7 +453,7 @@ export default function ShopDefaultFilterConfigPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    AND vs OR
+                    2. Matching (AND vs OR)
                   </Text>
                   <Banner tone="info">
                     <p>
@@ -507,7 +520,7 @@ export default function ShopDefaultFilterConfigPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Display order
+                    3. Display type and order
                   </Text>
                   <DisplayOrderList
                     keys={config.displayOrder}
@@ -538,7 +551,7 @@ export default function ShopDefaultFilterConfigPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Filter value order
+                    4. Filter value order
                   </Text>
                   <FacetValueSortEditor
                     catalog={data.valueCatalog}

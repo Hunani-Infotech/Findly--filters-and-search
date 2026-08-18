@@ -402,6 +402,10 @@ export default function MetafieldsPage() {
           form?.requestSubmit();
         },
       }}
+      secondaryActions={[
+        { content: "Default filters", url: "/app/collections/default" },
+        { content: "Search fields", url: "/app/settings?tab=search" },
+      ]}
     >
       <Layout>
         <Layout.Section>
@@ -429,6 +433,21 @@ export default function MetafieldsPage() {
                   when Settings → Search fields includes Metafields (mapped).
                   Search stays product-level; variant metafield filters apply
                   to collection filters only.
+                </p>
+              </Banner>
+
+              <Banner
+                tone="info"
+                action={{
+                  content: "Default filters",
+                  url: "/app/collections/default",
+                }}
+              >
+                <p>
+                  After you save mappings, open shop-wide default filters to
+                  set display type, AND/OR, range bounds, and order for those
+                  metafields. Then add Collection filters in the theme editor
+                  (Settings → Theme setup).
                 </p>
               </Banner>
 
