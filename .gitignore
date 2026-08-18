@@ -33,3 +33,16 @@ pnpm-lock.yaml
 .local/
 npmdev.log
 
+# Cursor skills on this PC only — not shared via git
+.cursor/skills/
+
+# Globo comparison / step prompts — local only
+GLOBO-MATCH-STEP-PROMPTS.txt
+docs/findly-vs-globo-comparison.html
+docs/agent-prompts/
+
+# Cloudflare tunnel / share-db — this PC only
+scripts/share-db.mjs
+scripts/share-db-connect.mjs
+scripts/share-db-lib.mjs
+

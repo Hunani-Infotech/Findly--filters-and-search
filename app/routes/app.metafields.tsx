@@ -50,6 +50,31 @@ const FILTER_TYPE_OPTIONS = [
   { label: "Boolean", value: "BOOLEAN" },
 ];
 
+const VALID_FILTER_TYPES = new Set<string>(["LIST", "RANGE", "BOOLEAN"]);
+
+function parseMappingsPayload(
+  raw: string,
+):
+  | { ok: true; mappings: MappingDraft[] }
+  | { ok: false; error: string } {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) {
+      return {
+        ok: false,
+        error:
+          "Invalid mappings data. Refresh the page and try saving again.",
+      };
+    }
+    return { ok: true, mappings: parsed as MappingDraft[] };
+  } catch {
+    return {
+      ok: false,
+      error: "Invalid mappings data. Refresh the page and try saving again.",
+    };
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
@@ -79,31 +104,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = await ensureShopAccess(session.shop);
 
   const form = await request.formData();
-  const mappings = JSON.parse(
-    String(form.get("mappings") || "[]"),
-  ) as MappingDraft[];
+  const parsed = parseMappingsPayload(String(form.get("mappings") || "[]"));
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
 
-  const enabledMappings = mappings.filter((m) => m.enabled);
+  const { mappings } = parsed;
+
+  for (const mapping of mappings) {
+    if (!VALID_FILTER_TYPES.has(mapping.filterType)) {
+      return {
+        error: `Invalid filter type for ${mapping.namespace}.${mapping.key}. Choose List, Range, or Boolean.`,
+      };
+    }
+  }
+
+  const enabledInTableOrder = mappings
+    .filter((mapping) => mapping.enabled)
+    .map((mapping, index) => ({
+      namespace: mapping.namespace,
+      key: mapping.key,
+      displayLabel: mapping.displayLabel || mapping.key,
+      filterType: mapping.filterType,
+      enabled: true as const,
+      sortOrder: index,
+    }));
+
   const limits = await enforcePlanLimits(shop.id);
 
-  if (enabledMappings.length > limits.filterLimit) {
+  if (enabledInTableOrder.length > limits.filterLimit) {
     return {
-      error: `Your ${limits.plan} plan allows up to ${limits.filterLimit} metafield filters (selected ${enabledMappings.length}). Remove some or upgrade on Billing.`,
+      error: `Your ${limits.plan} plan allows up to ${limits.filterLimit} metafield filters (selected ${enabledInTableOrder.length}). Remove some or upgrade on Billing.`,
     };
   }
 
-  // Persist only enabled mappings (counts toward plan limit)
-  await saveMetafieldMappings(
-    shop.id,
-    enabledMappings.map((m, index) => ({
-      namespace: m.namespace,
-      key: m.key,
-      displayLabel: m.displayLabel || m.key,
-      filterType: m.filterType,
-      enabled: true,
-      sortOrder: index,
-    })),
-  );
+  await saveMetafieldMappings(shop.id, enabledInTableOrder);
 
   return { ok: true };
 };
@@ -282,6 +317,20 @@ export default function MetafieldsPage() {
         <Layout.Section>
           <Form id="metafields-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
+              {actionData && "error" in actionData && actionData.error ? (
+                <Banner tone="critical" title="Could not save mappings">
+                  <p>{actionData.error}</p>
+                </Banner>
+              ) : null}
+
+              <Banner tone="info">
+                <p>
+                  Boolean metafields can be mapped and saved. The storefront
+                  currently shows them as a checkbox list (a dedicated
+                  true/false control is not part of this step).
+                </p>
+              </Banner>
+
               <Banner
                 tone={
                   selectedCount > data.filterLimit || data.overFilterLimit
@@ -291,9 +340,16 @@ export default function MetafieldsPage() {
               >
                 <p>
                   Metafield filters: {selectedCount}/{data.filterLimit} on{" "}
-                  {data.plan} plan.
+                  {data.plan} plan (Free: 5, Pro: 25).
                 </p>
               </Banner>
+
+              {rows.length > 0 ? (
+                <Text as="p" tone="subdued" variant="bodySm">
+                  Enabled filters appear on the storefront in this table order
+                  (top to bottom).
+                </Text>
+              ) : null}
 
               {rows.length === 0 ? (
                 <Banner

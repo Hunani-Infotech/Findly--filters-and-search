@@ -20,6 +20,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
       variants(first: 100) {
         edges {
           node {
+            sku
             price
             availableForSale
           }
@@ -86,6 +87,7 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
               variants {
                 edges {
                   node {
+                    sku
                     price
                     availableForSale
                   }

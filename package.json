@@ -27,7 +27,11 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
     "seed:catalog": "node ./scripts/seed-dev-catalog.mjs",
-    "share:db": "node ./scripts/share-db.mjs"
+    "verify:a7": "node ./scripts/verify-step7.mjs",
+    "verify:b1": "node ./scripts/verify-b1.mjs",
+    "verify:b2": "node ./scripts/verify-b2.mjs",
+    "verify:b3": "node ./scripts/verify-b3.mjs",
+    "verify:b4": "node ./scripts/verify-b4.mjs"
   },
   "type": "module",
   "engines": {

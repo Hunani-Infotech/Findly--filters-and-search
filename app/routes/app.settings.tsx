@@ -12,6 +12,7 @@ import {
   useSubmit,
 } from "react-router";
 import {
+  Banner,
   BlockStack,
   Card,
   Checkbox,
@@ -28,12 +29,16 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
+import { DisplayOrderList } from "../components/display-order-list";
 import {
   LayoutPicker,
   WidgetLookPreview,
 } from "../components/widget-preview";
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_SEARCH_FIELDS,
+  SEARCH_FIELD_KEYS,
+  SEARCH_FIELD_LABELS,
   WIDGET_RADIUS_MAX,
   WIDGET_RADIUS_MIN,
   WIDGET_RADIUS_PRESETS,
@@ -42,9 +47,11 @@ import {
   WIDGET_TITLE_SIZE_PRESETS,
   isPresetRadius,
   isPresetTitleSize,
+  normalizeSearchFields,
   parseWidgetFontMode,
   parseWidgetRadius,
   parseWidgetTitleSize,
+  type SearchFieldKey,
 } from "../app-settings";
 import { getAppSettings, saveAppSettings } from "../settings.server";
 
@@ -85,6 +92,7 @@ type SettingsState = {
   widgetTitleSize: number;
   titleSizeChoice: string;
   widgetTitleColor: string;
+  searchFields: SearchFieldKey[];
 };
 
 function toSettingsState(settings: {
@@ -99,6 +107,7 @@ function toSettingsState(settings: {
   widgetTitle: string;
   widgetTitleSize: number;
   widgetTitleColor: string;
+  searchFields?: unknown;
 }): SettingsState {
   const widgetRadius = parseWidgetRadius(settings.widgetRadius);
   const widgetTitleSize = parseWidgetTitleSize(settings.widgetTitleSize);
@@ -118,6 +127,10 @@ function toSettingsState(settings: {
       ? String(widgetTitleSize)
       : "custom",
     widgetTitleColor: settings.widgetTitleColor || DEFAULT_APP_SETTINGS.widgetTitleColor,
+    searchFields:
+      settings.searchFields === undefined
+        ? [...DEFAULT_SEARCH_FIELDS]
+        : normalizeSearchFields(settings.searchFields),
   };
 }
 
@@ -148,6 +161,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       widgetTitle: settings.widgetTitle ?? DEFAULT_APP_SETTINGS.widgetTitle,
       widgetTitleSize: settings.widgetTitleSize,
       widgetTitleColor: settings.widgetTitleColor || DEFAULT_APP_SETTINGS.widgetTitleColor,
+      searchFields: settings.searchFields,
     }),
   };
 };
@@ -165,6 +179,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const positionRaw = String(form.get("widgetPosition") || "left");
   const widgetPosition =
     positionRaw === "right" || positionRaw === "top" ? positionRaw : "left";
+
+  let searchFields = [...DEFAULT_SEARCH_FIELDS];
+  const searchFieldsRaw = form.get("searchFields");
+  if (typeof searchFieldsRaw === "string" && searchFieldsRaw) {
+    try {
+      const parsed = JSON.parse(searchFieldsRaw) as unknown;
+      if (Array.isArray(parsed)) {
+        searchFields = normalizeSearchFields(parsed);
+      }
+    } catch {
+      // keep default
+    }
+  }
 
   await saveAppSettings(shop.id, {
     widgetPosition,
@@ -185,6 +212,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     widgetTitleColor: String(
       form.get("widgetTitleColor") || DEFAULT_APP_SETTINGS.widgetTitleColor,
     ),
+    searchFields,
   });
 
   return { ok: true };
@@ -233,6 +261,7 @@ export default function SettingsPage() {
     formData.set("widgetTitle", next.widgetTitle);
     formData.set("widgetTitleSize", String(next.widgetTitleSize));
     formData.set("widgetTitleColor", next.widgetTitleColor);
+    formData.set("searchFields", JSON.stringify(next.searchFields));
     submit(formData, { method: "POST" });
   };
 
@@ -244,7 +273,7 @@ export default function SettingsPage() {
   const handleReset = () => {
     if (
       !window.confirm(
-        "Reset widget look and filter display settings to the defaults?",
+        "Reset widget look, search fields, and filter display settings to the defaults?",
       )
     ) {
       return;
@@ -314,6 +343,68 @@ export default function SettingsPage() {
                       }))
                     }
                   />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Search fields
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Field order sets simple relevance: a match in the first
+                    enabled field ranks above a match only in a later field. No
+                    typo or synonym matching.
+                  </Text>
+                  {settings.searchFields.length === 0 ? (
+                    <Banner tone="warning">
+                      <p>
+                        Search will return no products until at least one field
+                        is enabled.
+                      </p>
+                    </Banner>
+                  ) : null}
+                  <FormLayout>
+                    {SEARCH_FIELD_KEYS.map((key) => (
+                      <Checkbox
+                        key={key}
+                        label={SEARCH_FIELD_LABELS[key]}
+                        checked={settings.searchFields.includes(key)}
+                        disabled={saving}
+                        onChange={(checked) =>
+                          setSettings((s) => {
+                            if (checked) {
+                              if (s.searchFields.includes(key)) return s;
+                              return {
+                                ...s,
+                                searchFields: [...s.searchFields, key],
+                              };
+                            }
+                            return {
+                              ...s,
+                              searchFields: s.searchFields.filter(
+                                (field) => field !== key,
+                              ),
+                            };
+                          })
+                        }
+                      />
+                    ))}
+                  </FormLayout>
+                  {settings.searchFields.length > 0 ? (
+                    <DisplayOrderList
+                      keys={settings.searchFields}
+                      disabled={saving}
+                      labels={SEARCH_FIELD_LABELS}
+                      helpText="Drag an enabled field to change search priority. Arrow keys also work when a row is focused."
+                      onChange={(next) =>
+                        setSettings((s) => ({
+                          ...s,
+                          searchFields: normalizeSearchFields(next),
+                        }))
+                      }
+                    />
+                  ) : null}
                 </BlockStack>
               </Card>
 

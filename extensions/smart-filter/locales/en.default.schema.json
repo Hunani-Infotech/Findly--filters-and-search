@@ -15,6 +15,17 @@
           "label": "Show product counts"
         }
       }
+    },
+    "product_search": {
+      "name": "Product search",
+      "settings": {
+        "placeholder": {
+          "label": "Placeholder text"
+        },
+        "show_images": {
+          "label": "Show images"
+        }
+      }
     }
   }
 }

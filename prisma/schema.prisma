@@ -81,6 +81,8 @@ model AppSettings {
   widgetTitle       String  @default("Filter:")
   widgetTitleSize   Int     @default(16)
   widgetTitleColor  String  @default("#1c1917")
+  /// Ordered searchable fields, e.g. ["title","vendor","productType","tags"]
+  searchFields      String[] @default(["title", "vendor", "productType", "tags"])
   updatedAt         DateTime @updatedAt
 }
 
@@ -168,6 +170,7 @@ model ProductFacet {
   vendor      String   @default("")
   productType String   @default("")
   tags        String[]
+  skus        String[] @default([])
   options     Json     @default("{}")
   priceMin    Decimal  @db.Decimal(12, 2)
   priceMax    Decimal  @db.Decimal(12, 2)

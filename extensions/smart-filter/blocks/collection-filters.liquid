@@ -1,7 +1,8 @@
 <div
   id="smart-filter-root"
   class="smart-filter smart-filter--{{ block.settings.position }}"
-  data-collection-id="{{ collection.id }}"
+  data-collection-id="{% if template contains 'collection' %}{{ collection.id }}{% endif %}"
+  data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
   data-position="{{ block.settings.position }}"
   data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
@@ -17,7 +18,7 @@
   "name": "t:blocks.collection_filters.name",
   "target": "section",
   "enabled_on": {
-    "templates": ["collection"]
+    "templates": ["collection", "search"]
   },
   "stylesheet": "smart-filter.css",
   "javascript": "smart-filter.js",

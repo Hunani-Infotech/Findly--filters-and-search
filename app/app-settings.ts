@@ -1,3 +1,46 @@
+export const SEARCH_FIELD_KEYS = [
+  "title",
+  "vendor",
+  "productType",
+  "tags",
+  "sku",
+  "options",
+] as const;
+
+export type SearchFieldKey = (typeof SEARCH_FIELD_KEYS)[number];
+
+export const DEFAULT_SEARCH_FIELDS: SearchFieldKey[] = [
+  "title",
+  "vendor",
+  "productType",
+  "tags",
+];
+
+export const SEARCH_FIELD_LABELS: Record<SearchFieldKey, string> = {
+  title: "Title",
+  vendor: "Vendor",
+  productType: "Product type",
+  tags: "Tags",
+  sku: "SKU",
+  options: "Options",
+};
+
+/** Unique allowed keys, preserving merchant order. Empty array = no fields enabled. */
+export function normalizeSearchFields(value: unknown): SearchFieldKey[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>(SEARCH_FIELD_KEYS);
+  const seen = new Set<string>();
+  const next: SearchFieldKey[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !allowed.has(item) || seen.has(item)) {
+      continue;
+    }
+    seen.add(item);
+    next.push(item as SearchFieldKey);
+  }
+  return next;
+}
+
 export const DEFAULT_APP_SETTINGS = {
   widgetPosition: "left" as const,
   accentColor: "#1c1917",
@@ -10,6 +53,7 @@ export const DEFAULT_APP_SETTINGS = {
   widgetTitle: "Filter:",
   widgetTitleSize: 16,
   widgetTitleColor: "#1c1917",
+  searchFields: [...DEFAULT_SEARCH_FIELDS] as SearchFieldKey[],
 };
 
 export const WIDGET_RADIUS_PRESETS = [

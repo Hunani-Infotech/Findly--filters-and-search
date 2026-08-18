@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import {
   getCollectionFilterPayload,
+  getSearchFilterPayload,
   parseSelectedFromSearchParams,
   verifyAppProxySignature,
 } from "../proxy.server";
@@ -27,14 +28,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("shop") || url.searchParams.get("shop_domain") || "";
   const collectionId = url.searchParams.get("collection_id");
   const collectionGid = url.searchParams.get("collection_gid");
+  const searchQuery =
+    url.searchParams.get("q") || url.searchParams.get("query") || "";
   const selected = parseSelectedFromSearchParams(url.searchParams);
 
-  const result = await getCollectionFilterPayload({
-    shopDomain,
-    collectionId,
-    collectionGid,
-    selected,
-  });
+  const hasCollection = Boolean(collectionId || collectionGid);
+  const result =
+    searchQuery.trim() && !hasCollection
+      ? await getSearchFilterPayload({
+          shopDomain,
+          query: searchQuery,
+          selected,
+        })
+      : await getCollectionFilterPayload({
+          shopDomain,
+          collectionId,
+          collectionGid,
+          selected,
+        });
 
   if ("error" in result && result.error) {
     return new Response(JSON.stringify({ error: result.error }), {

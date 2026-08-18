@@ -9,16 +9,23 @@ const DISPLAY_ORDER_LABELS: Record<string, string> = {
   tags: "Tags",
   tag: "Tags",
   options: "Variant options",
+  title: "Title",
+  sku: "SKU",
 };
 
-function displayOrderLabel(key: string) {
-  return DISPLAY_ORDER_LABELS[key] ?? key;
+function displayOrderLabel(
+  key: string,
+  labels?: Partial<Record<string, string>>,
+) {
+  return labels?.[key] ?? DISPLAY_ORDER_LABELS[key] ?? key;
 }
 
 type DisplayOrderListProps = {
   keys: string[];
   disabled?: boolean;
   onChange: (next: string[]) => void;
+  labels?: Partial<Record<string, string>>;
+  helpText?: string;
 };
 
 function reorder(keys: string[], from: number, to: number) {
@@ -55,6 +62,8 @@ export function DisplayOrderList({
   keys,
   disabled = false,
   onChange,
+  labels,
+  helpText = "Drag a row to change the order shoppers see. Arrow keys also work when a row is focused.",
 }: DisplayOrderListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -146,8 +155,7 @@ export function DisplayOrderList({
   return (
     <BlockStack gap="200">
       <Text as="p" variant="bodySm" tone="subdued">
-        Drag a row to change the order shoppers see. Arrow keys also work when a
-        row is focused.
+        {helpText}
       </Text>
       <div>
         {keys.map((key, index) => {
@@ -175,7 +183,7 @@ export function DisplayOrderList({
                 draggable={!disabled}
                 disabled={disabled}
                 aria-pressed={dragging}
-                aria-label={`${displayOrderLabel(key)}. Position ${index + 1} of ${keys.length}`}
+                aria-label={`${displayOrderLabel(key, labels)}. Position ${index + 1} of ${keys.length}`}
                 onDragStart={(event) => handleDragStart(index, event)}
                 onDragOver={(event) => handleDragOver(index, event)}
                 onDrop={handleDrop}
@@ -216,7 +224,7 @@ export function DisplayOrderList({
                     userSelect: "none",
                   }}
                 >
-                  <Text as="span">{displayOrderLabel(key)}</Text>
+                  <Text as="span">{displayOrderLabel(key, labels)}</Text>
                 </span>
               </button>
             </div>

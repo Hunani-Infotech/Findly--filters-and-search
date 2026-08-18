@@ -14,7 +14,11 @@ type ShopifyProduct = {
   options?: Array<{ name: string; values: string[] }> | null;
   variants?: {
     edges?: Array<{
-      node: { price?: string | null; availableForSale?: boolean | null };
+      node: {
+        sku?: string | null;
+        price?: string | null;
+        availableForSale?: boolean | null;
+      };
     }>;
   } | null;
   metafields?: {
@@ -44,6 +48,13 @@ export function mapProductToFacet(
   collectionGids: string[];
 } {
   const variants = product.variants?.edges?.map((e) => e.node) ?? [];
+  const skus = [
+    ...new Set(
+      variants
+        .map((v) => (typeof v.sku === "string" ? v.sku.trim() : ""))
+        .filter(Boolean),
+    ),
+  ];
   const prices = variants
     .map((v) => Number(v.price))
     .filter((n) => Number.isFinite(n));
@@ -76,6 +87,7 @@ export function mapProductToFacet(
       vendor: product.vendor ?? "",
       productType: product.productType ?? "",
       tags: normalizeTags(product.tags),
+      skus,
       options: options as JsonObject,
       priceMin,
       priceMax,

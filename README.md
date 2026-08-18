@@ -25,7 +25,7 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 2. `npm install`
 3. `npm run dev` — starts Postgres, Redis, the sync worker, and the Shopify app (no Docker)
 
-To share **this machine's** Postgres with a teammate (host only; they do not run this): keep `npm run dev` running, then `npm run share:db`. Send them the printed `DATABASE_URL`. They keep `REDIS_URL=redis://localhost:6379`.
+To share **this machine's** Postgres with a teammate over Cloudflare (host only): keep `npm run dev` running, create a **new** Cloudflare Tunnel + subdomain (TCP → `tcp://localhost:5432`, do not change `hunaniinfotech.com` root DNS), install `cloudflared` as a Windows service, then `npm run share:db`. The teammate runs `npm run share:db:connect` and uses the printed localhost `DATABASE_URL`. They keep `REDIS_URL=redis://localhost:6379`. Never commit a tunnel token.
 
 Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run dev:shopify` and `npm run worker`.
 

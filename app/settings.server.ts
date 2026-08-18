@@ -1,12 +1,14 @@
 import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
+  normalizeSearchFields,
   parseWidgetFontMode,
   parseWidgetRadius,
   parseWidgetTitleSize,
   sanitizeFontFamily,
   sanitizeWidgetTitle,
   sanitizeWidgetTitleColor,
+  type SearchFieldKey,
 } from "./app-settings";
 
 export { DEFAULT_APP_SETTINGS };
@@ -23,14 +25,22 @@ export type AppSettingsInput = {
   widgetTitle?: string;
   widgetTitleSize?: number;
   widgetTitleColor?: string;
+  searchFields?: SearchFieldKey[] | string[];
 };
 
 export async function getAppSettings(shopId: string) {
-  return prisma.appSettings.upsert({
+  const row = await prisma.appSettings.upsert({
     where: { shopId },
-    create: { shopId },
+    create: {
+      shopId,
+      searchFields: [...DEFAULT_APP_SETTINGS.searchFields],
+    },
     update: {},
   });
+  return {
+    ...row,
+    searchFields: normalizeSearchFields(row.searchFields),
+  };
 }
 
 export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
@@ -50,6 +60,10 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const widgetTitle = sanitizeWidgetTitle(input.widgetTitle);
   const widgetTitleSize = parseWidgetTitleSize(input.widgetTitleSize);
   const widgetTitleColor = sanitizeWidgetTitleColor(input.widgetTitleColor);
+  const searchFields =
+    input.searchFields !== undefined
+      ? normalizeSearchFields(input.searchFields)
+      : [...DEFAULT_APP_SETTINGS.searchFields];
 
   return prisma.appSettings.upsert({
     where: { shopId },
@@ -66,6 +80,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       widgetTitle,
       widgetTitleSize,
       widgetTitleColor,
+      searchFields,
     },
     update: {
       widgetPosition,
@@ -79,6 +94,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       widgetTitle,
       widgetTitleSize,
       widgetTitleColor,
+      ...(input.searchFields !== undefined ? { searchFields } : {}),
     },
   });
 }

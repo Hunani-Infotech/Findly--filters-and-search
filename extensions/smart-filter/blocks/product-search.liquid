@@ -1,0 +1,68 @@
+<div
+  class="smart-filter-search"
+  data-proxy-base="/apps/smart-filter"
+  data-show-images="{% if block.settings.show_images %}true{% else %}false{% endif %}"
+  {{ block.shopify_attributes }}
+>
+  <form class="smart-filter-search__form" data-search-form role="search">
+    <label class="smart-filter-search__label vis-hidden" for="smart-filter-search-q-{{ block.id }}">
+      Search products
+    </label>
+    <div class="smart-filter-search__row">
+      <input
+        id="smart-filter-search-q-{{ block.id }}"
+        class="smart-filter-search__input"
+        type="search"
+        name="q"
+        autocomplete="off"
+        enterkeyhint="search"
+        data-search-input
+        placeholder="{{ block.settings.placeholder | escape }}"
+      >
+      <button class="smart-filter-search__submit" type="submit" data-search-submit>
+        Search
+      </button>
+    </div>
+  </form>
+  <div class="smart-filter-search__status" data-status aria-live="polite"></div>
+  <div
+    class="smart-filter-search__empty"
+    data-empty
+    role="status"
+    hidden
+  >
+    <p class="smart-filter-search__empty-heading">No products found</p>
+    <p class="smart-filter-search__empty-copy">Your search did not match any products.</p>
+    <button type="button" class="smart-filter-search__clear" data-clear-query>
+      Clear query
+    </button>
+  </div>
+  <ul class="smart-filter-search__results" data-results role="list"></ul>
+</div>
+
+{% schema %}
+{
+  "name": "t:blocks.product_search.name",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["search"],
+    "groups": ["header"]
+  },
+  "stylesheet": "smart-filter-search.css",
+  "javascript": "smart-filter-search.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "placeholder",
+      "label": "t:blocks.product_search.settings.placeholder.label",
+      "default": "Search products"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_images",
+      "label": "t:blocks.product_search.settings.show_images.label",
+      "default": true
+    }
+  ]
+}
+{% endschema %}

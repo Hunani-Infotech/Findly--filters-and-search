@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import type { FilterConfig } from "@prisma/client";
 import prisma from "./db.server";
 import {
   buildFacetAggregations,
@@ -10,6 +11,12 @@ import {
 } from "./filters.server";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
 import { getAppSettings } from "./settings.server";
+import { enforcePlanLimits } from "./billing.server";
+import {
+  normalizeSearchQuery,
+  searchProductFacets,
+  searchProducts,
+} from "./search.server";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
 export function verifyAppProxySignature(url: URL): boolean {
@@ -112,22 +119,6 @@ export async function getCollectionFilterPayload(input: {
     };
   }
 
-  const mappings = await getMetafieldMappings(shop.id);
-  const appSettings = await getAppSettings(shop.id);
-  const settings = {
-    showProductCounts: appSettings.showProductCounts,
-    collapseByDefault: appSettings.collapseByDefault,
-    widgetPosition: appSettings.widgetPosition,
-    accentColor: appSettings.accentColor,
-    widgetShadow: appSettings.widgetShadow,
-    widgetRadius: appSettings.widgetRadius,
-    widgetFontMode: appSettings.widgetFontMode,
-    widgetFontFamily: appSettings.widgetFontFamily,
-    widgetTitle: appSettings.widgetTitle,
-    widgetTitleSize: appSettings.widgetTitleSize,
-    widgetTitleColor: appSettings.widgetTitleColor,
-  };
-
   const memberships = await prisma.collectionMembership.findMany({
     where: { shopId: shop.id, collectionGid },
     select: { productGid: true },
@@ -143,21 +134,61 @@ export async function getCollectionFilterPayload(input: {
   const allRows = productsDb
     .filter((product) => (product.status || "ACTIVE") === "ACTIVE")
     .map(toRow);
+
+  return buildFacetPayload({
+    shopId: shop.id,
+    config,
+    rows: allRows,
+    selected: input.selected,
+    collectionGid,
+  });
+}
+
+async function buildFacetPayload(input: {
+  shopId: string;
+  config: FilterConfig;
+  rows: ProductFacetRow[];
+  selected: SelectedFilters;
+  collectionGid?: string | null;
+  query?: string | null;
+}) {
+  const [mappings, appSettings, limits] = await Promise.all([
+    getMetafieldMappings(input.shopId),
+    getAppSettings(input.shopId),
+    enforcePlanLimits(input.shopId),
+  ]);
+  const cappedMappings = mappings
+    .filter((mapping) => mapping.enabled)
+    .slice(0, limits.filterLimit);
+  const settings = {
+    showProductCounts: appSettings.showProductCounts,
+    collapseByDefault: appSettings.collapseByDefault,
+    widgetPosition: appSettings.widgetPosition,
+    accentColor: appSettings.accentColor,
+    widgetShadow: appSettings.widgetShadow,
+    widgetRadius: appSettings.widgetRadius,
+    widgetFontMode: appSettings.widgetFontMode,
+    widgetFontFamily: appSettings.widgetFontFamily,
+    widgetTitle: appSettings.widgetTitle,
+    widgetTitleSize: appSettings.widgetTitleSize,
+    widgetTitleColor: appSettings.widgetTitleColor,
+  };
+
   const facets = expandFacetsWithOptions(
-    facetsFromConfig(config, mappings),
-    allRows,
+    facetsFromConfig(input.config, cappedMappings),
+    input.rows,
   );
-  const filtered = allRows.filter((product) =>
+  const filtered = input.rows.filter((product) =>
     productMatchesFilters(product, facets, input.selected),
   );
-  const aggregations = buildFacetAggregations(allRows, facets, {
-    mode: config.priceRangeMode,
-    customMin: config.customPriceMin,
-    customMax: config.customPriceMax,
+  const aggregations = buildFacetAggregations(input.rows, facets, {
+    mode: input.config.priceRangeMode,
+    customMin: input.config.customPriceMin,
+    customMax: input.config.customPriceMax,
   });
 
   const data = {
-    enabled: true,
+    enabled: true as const,
     settings,
     facets: aggregations,
     products: filtered.map((product) => ({
@@ -170,7 +201,80 @@ export async function getCollectionFilterPayload(input: {
       imageUrl: product.imageUrl,
     })),
     total: filtered.length,
-    collectionGid,
+    ...(input.collectionGid != null ? { collectionGid: input.collectionGid } : {}),
+    ...(input.query != null ? { query: input.query } : {}),
+  };
+
+  return { data, status: 200 as const };
+}
+
+export async function getSearchFilterPayload(input: {
+  shopDomain: string;
+  query: string;
+  selected: SelectedFilters;
+}) {
+  const shop = await prisma.shop.findUnique({
+    where: { domain: input.shopDomain },
+  });
+  if (!shop) {
+    return { error: "Shop not synced", status: 404 as const };
+  }
+
+  const query = normalizeSearchQuery(input.query);
+  if (!query) {
+    return {
+      data: { enabled: true, query: "", facets: [], products: [], total: 0 },
+      status: 200 as const,
+    };
+  }
+
+  const config = await getFilterConfig(shop.id, "");
+  if (!config?.enabled) {
+    return {
+      data: { enabled: false, facets: [], products: [], total: 0 },
+      status: 200 as const,
+    };
+  }
+
+  const productsDb = await searchProductFacets(shop.id, query);
+  const allRows = productsDb.map(toRow);
+
+  return buildFacetPayload({
+    shopId: shop.id,
+    config,
+    rows: allRows,
+    selected: input.selected,
+    query,
+  });
+}
+
+export async function getSearchPayload(input: {
+  shopDomain: string;
+  query: string;
+}) {
+  const shop = await prisma.shop.findUnique({
+    where: { domain: input.shopDomain },
+  });
+  if (!shop) {
+    return { error: "Shop not synced", status: 404 as const };
+  }
+
+  const products = await searchProducts(shop.id, input.query);
+  const data = {
+    query: normalizeSearchQuery(input.query),
+    products: products.map((product) => ({
+      id: product.productGid,
+      handle: product.handle,
+      title: product.title,
+      vendor: product.vendor,
+      productType: product.productType,
+      available: product.available,
+      priceMin: product.priceMin,
+      priceMax: product.priceMax,
+      imageUrl: product.imageUrl,
+      url: `/products/${product.handle}`,
+    })),
+    total: products.length,
   };
 
   return { data, status: 200 as const };

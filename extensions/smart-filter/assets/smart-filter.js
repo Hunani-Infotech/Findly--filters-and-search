@@ -372,6 +372,16 @@
       "",
     );
     this.collectionId = root.getAttribute("data-collection-id") || "";
+    this.searchQuery = (root.getAttribute("data-search-query") || "").trim();
+    if (!this.searchQuery) {
+      try {
+        this.searchQuery = (
+          new URLSearchParams(window.location.search).get("q") || ""
+        ).trim();
+      } catch (err) {
+        this.searchQuery = "";
+      }
+    }
     this.blockPosition = root.getAttribute("data-position") || "";
     this.position = this.blockPosition || "left";
     this.showCounts = String(root.getAttribute("data-show-counts") || "true") !== "false";
@@ -487,7 +497,11 @@
 
   Widget.prototype.buildProxyUrl = function () {
     var params = new URLSearchParams();
-    if (this.collectionId) params.set("collection_id", this.collectionId);
+    if (this.collectionId) {
+      params.set("collection_id", this.collectionId);
+    } else if (this.searchQuery) {
+      params.set("q", this.searchQuery);
+    }
 
     Object.keys(this.selected).forEach(
       function (key) {
@@ -540,6 +554,13 @@
     }
 
     var count = total != null ? total : handles.length;
+    if (
+      this.searchQuery &&
+      (count === 0 || (typeof total === "number" ? total === 0 : !handles.length))
+    ) {
+      setStatus(this.statusEl, MSG_NO_MATCH, false);
+      return;
+    }
     setStatus(this.statusEl, count ? String(count) + " products" : "", false);
   };
 
@@ -970,7 +991,7 @@
   };
 
   Widget.prototype.init = function () {
-    if (!this.collectionId) {
+    if (!this.collectionId && !this.searchQuery) {
       setStatus(this.statusEl, MSG_ERROR, true);
       return;
     }
