@@ -31,11 +31,10 @@ import prisma from "../db.server";
 import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import {
-  getMetafieldMappings,
   normalizeMetafieldOwnerType,
-  saveMetafieldMappings,
   type MetafieldOwnerTypeValue,
-} from "../shop.server";
+} from "../metafield-owner";
+import { getMetafieldMappings, saveMetafieldMappings } from "../shop.server";
 
 type MappingDraft = {
   namespace: string;

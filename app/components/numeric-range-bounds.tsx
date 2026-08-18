@@ -1,5 +1,5 @@
 import { BlockStack, ChoiceList, InlineStack, Text, TextField } from "@shopify/polaris";
-import type { RangeBoundFormMap } from "../filters.server";
+import type { RangeBoundFormMap } from "../filters";
 
 type RangeField = { key: string; label: string };
 

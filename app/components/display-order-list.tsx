@@ -5,7 +5,7 @@ import {
   FACET_DISPLAY_TYPE_LABELS,
   parseDisplayTypes,
   type FacetDisplayType,
-} from "../filters.server";
+} from "../filters";
 
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",

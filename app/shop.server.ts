@@ -1,6 +1,12 @@
 import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
 import { DEFAULT_DISPLAY_ORDER, listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
+import {
+  normalizeMetafieldOwnerType,
+  type MetafieldOwnerTypeValue,
+} from "./metafield-owner";
+
+export { normalizeMetafieldOwnerType, type MetafieldOwnerTypeValue };
 
 export async function ensureShop(domain: string) {
   const shop = await prisma.shop.upsert({
@@ -138,14 +144,6 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
           : undefined,
     },
   });
-}
-
-export type MetafieldOwnerTypeValue = "PRODUCT" | "VARIANT";
-
-export function normalizeMetafieldOwnerType(
-  value: unknown,
-): MetafieldOwnerTypeValue {
-  return value === "VARIANT" ? "VARIANT" : "PRODUCT";
 }
 
 export async function saveMetafieldMappings(

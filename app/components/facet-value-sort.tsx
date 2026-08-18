@@ -7,7 +7,7 @@ import {
   parseValueSort,
   type ValueSortMap,
   type ValueSortMode,
-} from "../filters.server";
+} from "../filters";
 
 export type FacetValueCatalogItem = {
   key: string;
