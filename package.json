@@ -31,7 +31,9 @@
     "verify:b1": "node ./scripts/verify-b1.mjs",
     "verify:b2": "node ./scripts/verify-b2.mjs",
     "verify:b3": "node ./scripts/verify-b3.mjs",
-    "verify:b4": "node ./scripts/verify-b4.mjs"
+    "verify:b4": "node ./scripts/verify-b4.mjs",
+    "share:db": "node ./scripts/share-db.mjs",
+    "share:db:connect": "node ./scripts/share-db-connect.mjs"
   },
   "type": "module",
   "engines": {
