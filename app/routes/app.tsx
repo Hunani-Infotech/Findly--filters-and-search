@@ -10,6 +10,7 @@ import enTranslations from "@shopify/polaris/locales/en.json";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import adminStyles from "../admin.css?url";
 
 import {
   AdminNavigationOverlay,
@@ -21,6 +22,7 @@ import { ensureShop } from "../shop.server";
 // Keep Polaris CSS on the /app layout so client navigations do not drop styles.
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: polarisStyles },
+  { rel: "stylesheet", href: adminStyles },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -69,7 +71,9 @@ export default function App() {
           <a href="/app/sync">Sync</a>
           <a href="/app/billing">Billing</a>
         </NavMenu>
-        <Outlet />
+        <div className="findly-admin-shell">
+          <Outlet />
+        </div>
         <AdminNavigationOverlay />
       </PolarisAppProvider>
     </ShopifyAppProvider>

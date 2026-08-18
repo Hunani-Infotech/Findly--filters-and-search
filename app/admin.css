@@ -1,0 +1,9 @@
+/* Embedded admin iframe: keep last fields off the bottom edge. */
+.findly-admin-shell {
+  box-sizing: border-box;
+  padding-bottom: 4rem;
+}
+
+.findly-admin-shell > *:last-child {
+  margin-bottom: 0;
+}
