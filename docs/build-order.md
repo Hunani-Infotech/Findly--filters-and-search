@@ -17,7 +17,7 @@ If work drifts into these, stop and return to the current step below. There is n
 | Step | Description | Status |
 |------|-------------|--------|
 | 1 | Scaffold + Prisma + Postgres connection | **VERIFIED** — `verify-step1.mjs` → `STEP1_OK` (Postgres `localhost:5432` + Redis `localhost:6379`; keep `npm run dev` running) |
-| 2 | Auth/session E2E install on dev store | **BLOCKED** — `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET` empty; `client_id` empty in `shopify.app.toml` |
+| 2 | Auth/session E2E install on dev store | **VERIFIED** — `verify-step2.mjs` → `STEP2_OK` (offline Session for `findly-test-store.myshopify.com`) |
 | 3 | Data models + migrations applied | Waiting on step 1 |
 | 4 | Bulk sync on install (50+ products) | Waiting on steps 1–3 |
 | 5 | Incremental webhook sync | Waiting on step 4 |
