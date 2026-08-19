@@ -51,6 +51,10 @@
     "verify:c15": "node ./scripts/verify-c15.mjs",
     "verify:d1": "node ./scripts/verify-d1.mjs",
     "verify:d5": "node ./scripts/verify-d5.mjs",
+    "verify:d12": "node ./scripts/verify-d12.mjs",
+    "verify:f1": "node ./scripts/verify-f1.mjs",
+    "verify:f3": "node ./scripts/verify-f3.mjs",
+    "verify:f4": "node ./scripts/verify-f4.mjs",
     "share:db": "node ./scripts/share-db.mjs",
     "share:db:connect": "node ./scripts/share-db-connect.mjs"
   },

@@ -14,6 +14,7 @@ import {
 import {
   Banner,
   BlockStack,
+  Button,
   Card,
   Checkbox,
   FormLayout,
@@ -93,10 +94,10 @@ const RADIUS_OPTIONS = [
 ];
 
 const SETTINGS_TABS = [
-  { id: "layout", content: "Layout", panelID: "settings-layout" },
-  { id: "sort", content: "Sort", panelID: "settings-sort" },
-  { id: "search", content: "Search", panelID: "settings-search" },
-  { id: "look", content: "Look", panelID: "settings-look" },
+  { id: "general", content: "General", panelID: "settings-general" },
+  { id: "panel", content: "Filter panel", panelID: "settings-panel" },
+  { id: "product", content: "Product card", panelID: "settings-product" },
+  { id: "metafields", content: "Metafields", panelID: "settings-metafields" },
   { id: "theme", content: "Theme", panelID: "settings-theme" },
 ] as const;
 
@@ -104,9 +105,11 @@ type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 function parseSettingsTab(value: unknown): SettingsTabId {
   const raw = typeof value === "string" ? value : "";
+  if (raw === "layout" || raw === "look") return "panel";
+  if (raw === "sort" || raw === "search") return "general";
   return SETTINGS_TABS.some((tab) => tab.id === raw)
     ? (raw as SettingsTabId)
-    : "layout";
+    : "general";
 }
 
 function tabPanelStyle(visible: boolean) {
@@ -135,6 +138,10 @@ type SettingsState = {
   inStockOnTop: boolean;
   soldOutToBottom: boolean;
   enableCollectionSearch: boolean;
+  enableFiltersOnSearch: boolean;
+  hideSingleValueFacets: boolean;
+  showMatchingVariantImage: boolean;
+  showRefineBy: boolean;
   showSuggestionsOnEmptyQuery: boolean;
   showSuggestionsOnNoResults: boolean;
   suggestionProductHandles: string[];
@@ -161,6 +168,10 @@ function toSettingsState(settings: {
   inStockOnTop?: boolean;
   soldOutToBottom?: boolean;
   enableCollectionSearch?: boolean;
+  enableFiltersOnSearch?: boolean;
+  hideSingleValueFacets?: boolean;
+  showMatchingVariantImage?: boolean;
+  showRefineBy?: boolean;
   showSuggestionsOnEmptyQuery?: boolean;
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: unknown;
@@ -198,6 +209,10 @@ function toSettingsState(settings: {
     inStockOnTop: Boolean(settings.inStockOnTop),
     soldOutToBottom: Boolean(settings.soldOutToBottom),
     enableCollectionSearch: Boolean(settings.enableCollectionSearch),
+    enableFiltersOnSearch: settings.enableFiltersOnSearch ?? true,
+    hideSingleValueFacets: Boolean(settings.hideSingleValueFacets),
+    showMatchingVariantImage: settings.showMatchingVariantImage ?? true,
+    showRefineBy: settings.showRefineBy ?? true,
     showSuggestionsOnEmptyQuery: Boolean(settings.showSuggestionsOnEmptyQuery),
     showSuggestionsOnNoResults: Boolean(settings.showSuggestionsOnNoResults),
     suggestionProductHandles: normalizeHandleList(
@@ -247,6 +262,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       inStockOnTop: settings.inStockOnTop,
       soldOutToBottom: settings.soldOutToBottom,
       enableCollectionSearch: settings.enableCollectionSearch,
+      enableFiltersOnSearch: settings.enableFiltersOnSearch,
+      hideSingleValueFacets: settings.hideSingleValueFacets,
+      showMatchingVariantImage: settings.showMatchingVariantImage,
+      showRefineBy: settings.showRefineBy,
       showSuggestionsOnEmptyQuery: settings.showSuggestionsOnEmptyQuery,
       showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
       suggestionProductHandles: settings.suggestionProductHandles,
@@ -327,6 +346,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     enableCollectionSearch:
       form.get("enableCollectionSearch") === "true" ||
       form.get("enableCollectionSearch") === "on",
+    enableFiltersOnSearch:
+      form.get("enableFiltersOnSearch") === "true" ||
+      form.get("enableFiltersOnSearch") === "on",
+    hideSingleValueFacets:
+      form.get("hideSingleValueFacets") === "true" ||
+      form.get("hideSingleValueFacets") === "on",
+    showMatchingVariantImage:
+      form.get("showMatchingVariantImage") === "true" ||
+      form.get("showMatchingVariantImage") === "on",
+    showRefineBy:
+      form.get("showRefineBy") === "true" || form.get("showRefineBy") === "on",
     showSuggestionsOnEmptyQuery:
       form.get("showSuggestionsOnEmptyQuery") === "true" ||
       form.get("showSuggestionsOnEmptyQuery") === "on",
@@ -361,7 +391,7 @@ export default function SettingsPage() {
   const selectedTabIndex = SETTINGS_TABS.findIndex(
     (tab) => tab.id === selectedTab,
   );
-  const showPreview = selectedTab === "layout" || selectedTab === "look";
+  const showPreview = selectedTab === "panel";
 
   const saving = isMutationBusy(navigation);
 
@@ -401,6 +431,13 @@ export default function SettingsPage() {
     formData.set("inStockOnTop", String(next.inStockOnTop));
     formData.set("soldOutToBottom", String(next.soldOutToBottom));
     formData.set("enableCollectionSearch", String(next.enableCollectionSearch));
+    formData.set("enableFiltersOnSearch", String(next.enableFiltersOnSearch));
+    formData.set("hideSingleValueFacets", String(next.hideSingleValueFacets));
+    formData.set(
+      "showMatchingVariantImage",
+      String(next.showMatchingVariantImage),
+    );
+    formData.set("showRefineBy", String(next.showRefineBy));
     formData.set(
       "showSuggestionsOnEmptyQuery",
       String(next.showSuggestionsOnEmptyQuery),
@@ -440,7 +477,7 @@ export default function SettingsPage() {
   return (
     <Page
       title="Settings"
-      subtitle="Layout, search, sort, stock rules, and look. Filter option sources (Price, Tags, metafields) are on Filters."
+      subtitle="General, filter panel, product cards, metafields, and theme setup."
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,
@@ -478,539 +515,653 @@ export default function SettingsPage() {
             <Form id="settings-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
               <div
-                id="settings-layout"
+                id="settings-general"
                 role="tabpanel"
-                style={tabPanelStyle(selectedTab === "layout")}
+                style={tabPanelStyle(selectedTab === "general")}
               >
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Filter layout
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Common filter layouts: Vertical (left or right sidebar),
-                    Horizontal (filters above the grid), or Off-canvas (Filter
-                    button + drawer). Place the theme block above the product
-                    grid for Horizontal.
-                  </Text>
-                  <LayoutPicker
-                    value={settings.widgetPosition}
-                    disabled={saving}
-                    onChange={(value: WidgetPosition) =>
-                      setSettings((s) => ({ ...s, widgetPosition: value }))
-                    }
-                  />
-                  <Checkbox
-                    label="Show the number of matching products"
-                    checked={settings.showProductCounts}
-                    disabled={saving}
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        showProductCounts: checked,
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="Collapse filter groups by default"
-                    checked={settings.collapseByDefault}
-                    disabled={saving || settings.widgetPosition === "top"}
-                    helpText="Does not apply to the Horizontal tree style."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        collapseByDefault: checked,
-                      }))
-                    }
-                  />
-                  <Select
-                    label="Out-of-stock products"
-                    options={HIDE_OUT_OF_STOCK_OPTIONS}
-                    value={settings.hideOutOfStock}
-                    disabled={saving}
-                    helpText="Show all, hide sold-out products, or hide them only after a shopper applies a filter. The availability filter still works."
-                    onChange={(value) =>
-                      setSettings((s) => ({
-                        ...s,
-                        hideOutOfStock: parseHideOutOfStock(value),
-                      }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-              </div>
-
-              <div
-                id="settings-sort"
-                role="tabpanel"
-                style={tabPanelStyle(selectedTab === "sort")}
-              >
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Sort By
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Shoppers sort the theme product grid together with active
-                    filters. Featured order comes from the Shopify collection
-                    (sync after changing collection sort). Best-selling and
-                    percent-off sorting are not available yet.
-                  </Text>
-                  <Checkbox
-                    label="Hide the Sort By dropdown"
-                    checked={settings.hideSortDropdown}
-                    disabled={saving}
-                    helpText="Products still use the default sort. Uncheck every option below to hide the dropdown the same way."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        hideSortDropdown: checked,
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="Display in-stock products on top"
-                    checked={settings.inStockOnTop}
-                    disabled={saving}
-                    helpText="Keeps available products first. Combines with the selected Sort By order among in-stock items."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        inStockOnTop: checked,
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="Move sold-out products to the bottom"
-                    checked={settings.soldOutToBottom}
-                    disabled={saving}
-                    helpText="Pushes out-of-stock products last while keeping the selected sort inside each group."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        soldOutToBottom: checked,
-                      }))
-                    }
-                  />
-                  <FormLayout>
-                    {SORT_OPTION_KEYS.map((key) => (
+                <BlockStack gap="400">
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        General
+                      </Text>
                       <Checkbox
-                        key={key}
-                        label={SORT_OPTION_LABELS[key]}
-                        checked={settings.sortOptionsEnabled.includes(key)}
+                        label="Show filters on the search results page"
+                        checked={settings.enableFiltersOnSearch}
                         disabled={saving}
+                        helpText="Still add the Collection filters block on the search template; this toggle shows or hides it."
                         onChange={(checked) =>
-                          setSettings((s) => {
-                            const next = checked
-                              ? s.sortOptionsEnabled.includes(key)
-                                ? s.sortOptionsEnabled
-                                : [...s.sortOptionsEnabled, key]
-                              : s.sortOptionsEnabled.filter(
-                                  (option) => option !== key,
-                                );
-                            const defaultSort = next.includes(s.defaultSort)
-                              ? s.defaultSort
-                              : parseSortOption(next[0] ?? "manual");
-                            return {
-                              ...s,
-                              sortOptionsEnabled: next,
-                              defaultSort,
-                            };
-                          })
+                          setSettings((s) => ({
+                            ...s,
+                            enableFiltersOnSearch: checked,
+                          }))
                         }
                       />
-                    ))}
-                  </FormLayout>
-                  <Select
-                    label="Default sort"
-                    options={(settings.sortOptionsEnabled.length
-                      ? settings.sortOptionsEnabled
-                      : ["manual" as const]
-                    ).map((key) => ({
-                      label: SORT_OPTION_LABELS[key],
-                      value: key,
-                    }))}
-                    value={
-                      settings.sortOptionsEnabled.includes(settings.defaultSort)
-                        ? settings.defaultSort
-                        : (settings.sortOptionsEnabled[0] ?? "manual")
-                    }
-                    disabled={saving || settings.sortOptionsEnabled.length === 0}
-                    helpText="“Featured” follows the Shopify collection sort after catalog sync."
-                    onChange={(value) =>
-                      setSettings((s) => ({
-                        ...s,
-                        defaultSort: parseSortOption(value),
-                      }))
-                    }
-                  />
+                      <Checkbox
+                        label="Allow searching within collection pages"
+                        checked={settings.enableCollectionSearch}
+                        disabled={saving}
+                        helpText="Shows a search bar on collection pages. Matches stay inside that collection plus any active filters — not store-wide."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            enableCollectionSearch: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Show the number of matching products"
+                        checked={settings.showProductCounts}
+                        disabled={saving}
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            showProductCounts: checked,
+                          }))
+                        }
+                      />
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Filter URLs stay as an on-page hash so search engines
+                        do not index duplicate pages.
+                      </Text>
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Product visibility
+                      </Text>
+                      <Select
+                        label="Out-of-stock"
+                        options={HIDE_OUT_OF_STOCK_OPTIONS}
+                        value={settings.hideOutOfStock}
+                        disabled={saving}
+                        helpText="Show all, hide sold-out products, or hide them only after a shopper applies a filter. The availability filter still works."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            hideOutOfStock: parseHideOutOfStock(value),
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Display in-stock products on top"
+                        checked={settings.inStockOnTop}
+                        disabled={saving}
+                        helpText="Keeps available products first. Combines with the selected Sort By order among in-stock items."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            inStockOnTop: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Move sold-out products to the bottom"
+                        checked={settings.soldOutToBottom}
+                        disabled={saving}
+                        helpText="Pushes out-of-stock products last while keeping the selected sort inside each group."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            soldOutToBottom: checked,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Sorting
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Shoppers sort the theme product grid together with
+                        active filters. Featured order comes from the Shopify
+                        collection (sync after changing collection sort).
+                        Best-selling sorting is not available yet.
+                      </Text>
+                      <Checkbox
+                        label="Hide the Sort By dropdown"
+                        checked={settings.hideSortDropdown}
+                        disabled={saving}
+                        helpText="Products still use the default sort. Uncheck every option below to hide the dropdown the same way."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            hideSortDropdown: checked,
+                          }))
+                        }
+                      />
+                      <FormLayout>
+                        {SORT_OPTION_KEYS.map((key) => (
+                          <Checkbox
+                            key={key}
+                            label={SORT_OPTION_LABELS[key]}
+                            checked={settings.sortOptionsEnabled.includes(key)}
+                            disabled={saving}
+                            onChange={(checked) =>
+                              setSettings((s) => {
+                                const next = checked
+                                  ? s.sortOptionsEnabled.includes(key)
+                                    ? s.sortOptionsEnabled
+                                    : [...s.sortOptionsEnabled, key]
+                                  : s.sortOptionsEnabled.filter(
+                                      (option) => option !== key,
+                                    );
+                                const defaultSort = next.includes(s.defaultSort)
+                                  ? s.defaultSort
+                                  : parseSortOption(next[0] ?? "manual");
+                                return {
+                                  ...s,
+                                  sortOptionsEnabled: next,
+                                  defaultSort,
+                                };
+                              })
+                            }
+                          />
+                        ))}
+                      </FormLayout>
+                      <Select
+                        label="Default sort"
+                        options={(settings.sortOptionsEnabled.length
+                          ? settings.sortOptionsEnabled
+                          : ["manual" as const]
+                        ).map((key) => ({
+                          label: SORT_OPTION_LABELS[key],
+                          value: key,
+                        }))}
+                        value={
+                          settings.sortOptionsEnabled.includes(
+                            settings.defaultSort,
+                          )
+                            ? settings.defaultSort
+                            : (settings.sortOptionsEnabled[0] ?? "manual")
+                        }
+                        disabled={
+                          saving || settings.sortOptionsEnabled.length === 0
+                        }
+                        helpText="“Featured” follows the Shopify collection sort after catalog sync."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            defaultSort: parseSortOption(value),
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Search fields
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Field order sets simple relevance: a match in the first
+                        enabled field ranks above a match only in a later
+                        field. No typo or synonym matching. Mapped metafields
+                        (enabled on the Metafields page) are searchable when
+                        Metafields is ticked — for example “cotton” matches a
+                        material metafield.
+                      </Text>
+                      {settings.searchFields.length === 0 ? (
+                        <Banner tone="warning">
+                          <p>
+                            Search will return no products until at least one
+                            field is enabled.
+                          </p>
+                        </Banner>
+                      ) : null}
+                      <FormLayout>
+                        {SEARCH_FIELD_KEYS.map((key) => (
+                          <Checkbox
+                            key={key}
+                            label={SEARCH_FIELD_LABELS[key]}
+                            checked={settings.searchFields.includes(key)}
+                            disabled={saving}
+                            onChange={(checked) =>
+                              setSettings((s) => {
+                                if (checked) {
+                                  if (s.searchFields.includes(key)) return s;
+                                  return {
+                                    ...s,
+                                    searchFields: [...s.searchFields, key],
+                                  };
+                                }
+                                return {
+                                  ...s,
+                                  searchFields: s.searchFields.filter(
+                                    (field) => field !== key,
+                                  ),
+                                };
+                              })
+                            }
+                          />
+                        ))}
+                      </FormLayout>
+                      {settings.searchFields.length > 0 ? (
+                        <DisplayOrderList
+                          keys={settings.searchFields}
+                          disabled={saving}
+                          labels={SEARCH_FIELD_LABELS}
+                          helpText="Drag an enabled field to change search priority. Arrow keys also work when a row is focused."
+                          onChange={(next) =>
+                            setSettings((s) => ({
+                              ...s,
+                              searchFields: normalizeSearchFields(next),
+                            }))
+                          }
+                        />
+                      ) : null}
+                      <Checkbox
+                        label="Show pinned suggestions when the search box is empty"
+                        checked={settings.showSuggestionsOnEmptyQuery}
+                        disabled={saving}
+                        helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            showSuggestionsOnEmptyQuery: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Show pinned suggestions when a search has no results"
+                        checked={settings.showSuggestionsOnNoResults}
+                        disabled={saving}
+                        helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            showSuggestionsOnNoResults: checked,
+                          }))
+                        }
+                      />
+                      <TextField
+                        label="Pinned product handles"
+                        value={settings.suggestionProductHandles.join("\n")}
+                        multiline={4}
+                        autoComplete="off"
+                        disabled={saving}
+                        helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            suggestionProductHandles:
+                              normalizeHandleList(value),
+                          }))
+                        }
+                      />
+                      <TextField
+                        label="Pinned collection handles"
+                        value={settings.suggestionCollectionHandles.join("\n")}
+                        multiline={3}
+                        autoComplete="off"
+                        disabled={saving}
+                        helpText="Optional collection links shown with the same suggestion lists."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            suggestionCollectionHandles:
+                              normalizeHandleList(value),
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
                 </BlockStack>
-              </Card>
               </div>
 
               <div
-                id="settings-search"
+                id="settings-panel"
                 role="tabpanel"
-                style={tabPanelStyle(selectedTab === "search")}
+                style={tabPanelStyle(selectedTab === "panel")}
               >
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Search fields
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Field order sets simple relevance: a match in the first
-                    enabled field ranks above a match only in a later field. No
-                    typo or synonym matching. Mapped metafields (enabled on the
-                    Metafields page) are searchable when Metafields is ticked —
-                    for example “cotton” matches a material metafield.
-                  </Text>
-                  <Checkbox
-                    label="Enable search on collection pages"
-                    checked={settings.enableCollectionSearch}
-                    disabled={saving}
-                    helpText="Shows a search bar on collection pages. Matches stay inside that collection plus any active filters — not store-wide."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        enableCollectionSearch: checked,
-                      }))
-                    }
-                  />
-                  {settings.searchFields.length === 0 ? (
-                    <Banner tone="warning">
-                      <p>
-                        Search will return no products until at least one field
-                        is enabled.
-                      </p>
-                    </Banner>
-                  ) : null}
-                  <FormLayout>
-                    {SEARCH_FIELD_KEYS.map((key) => (
+                <BlockStack gap="400">
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Filter layout
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Common filter layouts: Vertical (left or right
+                        sidebar), Horizontal (filters above the grid), or
+                        Off-canvas (Filter button + drawer). Place the theme
+                        block above the product grid for Horizontal.
+                      </Text>
+                      <LayoutPicker
+                        value={settings.widgetPosition}
+                        disabled={saving}
+                        onChange={(value: WidgetPosition) =>
+                          setSettings((s) => ({ ...s, widgetPosition: value }))
+                        }
+                      />
                       <Checkbox
-                        key={key}
-                        label={SEARCH_FIELD_LABELS[key]}
-                        checked={settings.searchFields.includes(key)}
+                        label="Collapse filter groups by default"
+                        checked={settings.collapseByDefault}
+                        disabled={saving || settings.widgetPosition === "top"}
+                        helpText="Does not apply to the Horizontal tree style."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            collapseByDefault: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Hide filter options when only one value"
+                        checked={settings.hideSingleValueFacets}
                         disabled={saving}
                         onChange={(checked) =>
-                          setSettings((s) => {
-                            if (checked) {
-                              if (s.searchFields.includes(key)) return s;
+                          setSettings((s) => ({
+                            ...s,
+                            hideSingleValueFacets: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Show Refine by chips for applied filters"
+                        checked={settings.showRefineBy}
+                        disabled={saving}
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            showRefineBy: checked,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Widget look
+                      </Text>
+                      <FormLayout>
+                        <TextField
+                          label="Title text"
+                          autoComplete="off"
+                          value={settings.widgetTitle}
+                          disabled={saving}
+                          helpText="Shown at the top of the filter. Leave blank to hide it."
+                          onChange={(value) =>
+                            setSettings((s) => ({ ...s, widgetTitle: value }))
+                          }
+                        />
+                        <Select
+                          label="Title size"
+                          options={TITLE_SIZE_OPTIONS}
+                          value={settings.titleSizeChoice}
+                          disabled={saving}
+                          onChange={(value) =>
+                            setSettings((s) => {
+                              if (value === "custom") {
+                                return { ...s, titleSizeChoice: "custom" };
+                              }
                               return {
                                 ...s,
-                                searchFields: [...s.searchFields, key],
+                                titleSizeChoice: value,
+                                widgetTitleSize: parseWidgetTitleSize(value),
                               };
+                            })
+                          }
+                        />
+                        {settings.titleSizeChoice === "custom" ? (
+                          <TextField
+                            label="Custom title size"
+                            type="number"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            suffix="px"
+                            min={WIDGET_TITLE_SIZE_MIN}
+                            max={WIDGET_TITLE_SIZE_MAX}
+                            value={String(settings.widgetTitleSize)}
+                            disabled={saving}
+                            helpText={`Enter a value from ${WIDGET_TITLE_SIZE_MIN} to ${WIDGET_TITLE_SIZE_MAX} pixels.`}
+                            onChange={(value) =>
+                              setSettings((s) => ({
+                                ...s,
+                                widgetTitleSize: parseWidgetTitleSize(
+                                  value === ""
+                                    ? WIDGET_TITLE_SIZE_MIN
+                                    : value,
+                                ),
+                              }))
                             }
-                            return {
+                          />
+                        ) : null}
+                        <BlockStack gap="200">
+                          <Text as="p" variant="bodyMd">
+                            Title color
+                          </Text>
+                          <InlineStack gap="300" blockAlign="center" wrap>
+                            <input
+                              type="color"
+                              aria-label="Pick title color"
+                              value={toColorInputValue(
+                                settings.widgetTitleColor,
+                              )}
+                              disabled={saving}
+                              onChange={(event) =>
+                                setSettings((s) => ({
+                                  ...s,
+                                  widgetTitleColor: event.target.value,
+                                }))
+                              }
+                              style={{
+                                width: 40,
+                                height: 36,
+                                padding: 0,
+                                border: "1px solid #c9cccf",
+                                borderRadius: 8,
+                                background: "transparent",
+                                cursor: saving ? "not-allowed" : "pointer",
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 160 }}>
+                              <TextField
+                                label="Title color"
+                                labelHidden
+                                autoComplete="off"
+                                value={settings.widgetTitleColor}
+                                disabled={saving}
+                                onChange={(value) =>
+                                  setSettings((s) => ({
+                                    ...s,
+                                    widgetTitleColor: value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </InlineStack>
+                        </BlockStack>
+                        <BlockStack gap="200">
+                          <Text as="p" variant="bodyMd">
+                            Accent color
+                          </Text>
+                          <InlineStack gap="300" blockAlign="center" wrap>
+                            <input
+                              type="color"
+                              aria-label="Pick accent color"
+                              value={toColorInputValue(settings.accentColor)}
+                              disabled={saving}
+                              onChange={(event) =>
+                                setSettings((s) => ({
+                                  ...s,
+                                  accentColor: event.target.value,
+                                }))
+                              }
+                              style={{
+                                width: 40,
+                                height: 36,
+                                padding: 0,
+                                border: "1px solid #c9cccf",
+                                borderRadius: 8,
+                                background: "transparent",
+                                cursor: saving ? "not-allowed" : "pointer",
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 160 }}>
+                              <TextField
+                                label="Accent color"
+                                labelHidden
+                                autoComplete="off"
+                                value={settings.accentColor}
+                                disabled={saving}
+                                onChange={(value) =>
+                                  setSettings((s) => ({
+                                    ...s,
+                                    accentColor: value,
+                                  }))
+                                }
+                                helpText="Used for buttons, selected filters, and the price range slider."
+                              />
+                            </div>
+                          </InlineStack>
+                        </BlockStack>
+                        <Select
+                          label="Font"
+                          options={FONT_OPTIONS}
+                          value={settings.widgetFontMode}
+                          disabled={saving}
+                          helpText="Match the theme uses your theme’s body font so filters look like the rest of the page."
+                          onChange={(value) =>
+                            setSettings((s) => ({
                               ...s,
-                              searchFields: s.searchFields.filter(
-                                (field) => field !== key,
-                              ),
-                            };
-                          })
-                        }
-                      />
-                    ))}
-                  </FormLayout>
-                  {settings.searchFields.length > 0 ? (
-                    <DisplayOrderList
-                      keys={settings.searchFields}
-                      disabled={saving}
-                      labels={SEARCH_FIELD_LABELS}
-                      helpText="Drag an enabled field to change search priority. Arrow keys also work when a row is focused."
-                      onChange={(next) =>
-                        setSettings((s) => ({
-                          ...s,
-                          searchFields: normalizeSearchFields(next),
-                        }))
-                      }
-                    />
-                  ) : null}
-                  <Checkbox
-                    label="Show pinned suggestions when the search box is empty"
-                    checked={settings.showSuggestionsOnEmptyQuery}
-                    disabled={saving}
-                    helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        showSuggestionsOnEmptyQuery: checked,
-                      }))
-                    }
-                  />
-                  <Checkbox
-                    label="Show pinned suggestions when a search has no results"
-                    checked={settings.showSuggestionsOnNoResults}
-                    disabled={saving}
-                    helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
-                    onChange={(checked) =>
-                      setSettings((s) => ({
-                        ...s,
-                        showSuggestionsOnNoResults: checked,
-                      }))
-                    }
-                  />
-                  <TextField
-                    label="Pinned product handles"
-                    value={settings.suggestionProductHandles.join("\n")}
-                    multiline={4}
-                    autoComplete="off"
-                    disabled={saving}
-                    helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
-                    onChange={(value) =>
-                      setSettings((s) => ({
-                        ...s,
-                        suggestionProductHandles: normalizeHandleList(value),
-                      }))
-                    }
-                  />
-                  <TextField
-                    label="Pinned collection handles"
-                    value={settings.suggestionCollectionHandles.join("\n")}
-                    multiline={3}
-                    autoComplete="off"
-                    disabled={saving}
-                    helpText="Optional collection links shown with the same suggestion lists."
-                    onChange={(value) =>
-                      setSettings((s) => ({
-                        ...s,
-                        suggestionCollectionHandles: normalizeHandleList(value),
-                      }))
-                    }
-                  />
+                              widgetFontMode: parseWidgetFontMode(value),
+                            }))
+                          }
+                        />
+                        {settings.widgetFontMode === "custom" ? (
+                          <TextField
+                            label="Custom font family"
+                            autoComplete="off"
+                            value={settings.widgetFontFamily}
+                            disabled={saving}
+                            placeholder='Inter, "Helvetica Neue", sans-serif'
+                            helpText="Use the same CSS font-family stack as your theme."
+                            onChange={(value) =>
+                              setSettings((s) => ({
+                                ...s,
+                                widgetFontFamily: value,
+                              }))
+                            }
+                          />
+                        ) : null}
+                        <Select
+                          label="Corner radius"
+                          options={RADIUS_OPTIONS}
+                          value={settings.radiusChoice}
+                          disabled={saving}
+                          onChange={(value) =>
+                            setSettings((s) => {
+                              if (value === "custom") {
+                                return { ...s, radiusChoice: "custom" };
+                              }
+                              return {
+                                ...s,
+                                radiusChoice: value,
+                                widgetRadius: parseWidgetRadius(value),
+                              };
+                            })
+                          }
+                        />
+                        {settings.radiusChoice === "custom" ? (
+                          <TextField
+                            label="Custom radius"
+                            type="number"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            suffix="px"
+                            min={WIDGET_RADIUS_MIN}
+                            max={WIDGET_RADIUS_MAX}
+                            value={String(settings.widgetRadius)}
+                            disabled={saving}
+                            helpText={`Enter a value from ${WIDGET_RADIUS_MIN} to ${WIDGET_RADIUS_MAX} pixels.`}
+                            onChange={(value) =>
+                              setSettings((s) => ({
+                                ...s,
+                                widgetRadius: parseWidgetRadius(
+                                  value === "" ? WIDGET_RADIUS_MIN : value,
+                                ),
+                              }))
+                            }
+                          />
+                        ) : null}
+                        <Checkbox
+                          label="Show panel shadow"
+                          checked={settings.widgetShadow}
+                          disabled={saving}
+                          onChange={(checked) =>
+                            setSettings((s) => ({
+                              ...s,
+                              widgetShadow: checked,
+                            }))
+                          }
+                          helpText="Turn off for a flat look with no drop shadow."
+                        />
+                      </FormLayout>
+                    </BlockStack>
+                  </Card>
                 </BlockStack>
-              </Card>
               </div>
 
               <div
-                id="settings-look"
+                id="settings-product"
                 role="tabpanel"
-                style={tabPanelStyle(selectedTab === "look")}
+                style={tabPanelStyle(selectedTab === "product")}
               >
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Widget look
-                  </Text>
-                  <FormLayout>
-                    <TextField
-                      label="Title text"
-                      autoComplete="off"
-                      value={settings.widgetTitle}
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">
+                      Product card
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      Findly uses your theme’s product grid. App-built
+                      product cards are not used; Findly keeps your theme
+                      cards.
+                    </Text>
+                    <Checkbox
+                      label="Display image of variants that match the filters"
+                      checked={settings.showMatchingVariantImage}
                       disabled={saving}
-                      helpText="Shown at the top of the filter. Leave blank to hide it."
-                      onChange={(value) =>
-                        setSettings((s) => ({ ...s, widgetTitle: value }))
-                      }
-                    />
-                    <Select
-                      label="Title size"
-                      options={TITLE_SIZE_OPTIONS}
-                      value={settings.titleSizeChoice}
-                      disabled={saving}
-                      onChange={(value) =>
-                        setSettings((s) => {
-                          if (value === "custom") {
-                            return { ...s, titleSizeChoice: "custom" };
-                          }
-                          return {
-                            ...s,
-                            titleSizeChoice: value,
-                            widgetTitleSize: parseWidgetTitleSize(value),
-                          };
-                        })
-                      }
-                    />
-                    {settings.titleSizeChoice === "custom" ? (
-                      <TextField
-                        label="Custom title size"
-                        type="number"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        suffix="px"
-                        min={WIDGET_TITLE_SIZE_MIN}
-                        max={WIDGET_TITLE_SIZE_MAX}
-                        value={String(settings.widgetTitleSize)}
-                        disabled={saving}
-                        helpText={`Enter a value from ${WIDGET_TITLE_SIZE_MIN} to ${WIDGET_TITLE_SIZE_MAX} pixels.`}
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            widgetTitleSize: parseWidgetTitleSize(
-                              value === "" ? WIDGET_TITLE_SIZE_MIN : value,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : null}
-                    <BlockStack gap="200">
-                      <Text as="p" variant="bodyMd">
-                        Title color
-                      </Text>
-                      <InlineStack gap="300" blockAlign="center" wrap>
-                        <input
-                          type="color"
-                          aria-label="Pick title color"
-                          value={toColorInputValue(settings.widgetTitleColor)}
-                          disabled={saving}
-                          onChange={(event) =>
-                            setSettings((s) => ({
-                              ...s,
-                              widgetTitleColor: event.target.value,
-                            }))
-                          }
-                          style={{
-                            width: 40,
-                            height: 36,
-                            padding: 0,
-                            border: "1px solid #c9cccf",
-                            borderRadius: 8,
-                            background: "transparent",
-                            cursor: saving ? "not-allowed" : "pointer",
-                          }}
-                        />
-                        <div style={{ flex: 1, minWidth: 160 }}>
-                          <TextField
-                            label="Title color"
-                            labelHidden
-                            autoComplete="off"
-                            value={settings.widgetTitleColor}
-                            disabled={saving}
-                            onChange={(value) =>
-                              setSettings((s) => ({
-                                ...s,
-                                widgetTitleColor: value,
-                              }))
-                            }
-                          />
-                        </div>
-                      </InlineStack>
-                    </BlockStack>
-                    <BlockStack gap="200">
-                      <Text as="p" variant="bodyMd">
-                        Accent color
-                      </Text>
-                      <InlineStack gap="300" blockAlign="center" wrap>
-                        <input
-                          type="color"
-                          aria-label="Pick accent color"
-                          value={toColorInputValue(settings.accentColor)}
-                          disabled={saving}
-                          onChange={(event) =>
-                            setSettings((s) => ({
-                              ...s,
-                              accentColor: event.target.value,
-                            }))
-                          }
-                          style={{
-                            width: 40,
-                            height: 36,
-                            padding: 0,
-                            border: "1px solid #c9cccf",
-                            borderRadius: 8,
-                            background: "transparent",
-                            cursor: saving ? "not-allowed" : "pointer",
-                          }}
-                        />
-                        <div style={{ flex: 1, minWidth: 160 }}>
-                          <TextField
-                            label="Accent color"
-                            labelHidden
-                            autoComplete="off"
-                            value={settings.accentColor}
-                            disabled={saving}
-                            onChange={(value) =>
-                              setSettings((s) => ({
-                                ...s,
-                                accentColor: value,
-                              }))
-                            }
-                            helpText="Used for buttons, selected filters, and the price range slider."
-                          />
-                        </div>
-                      </InlineStack>
-                    </BlockStack>
-                    <Select
-                      label="Font"
-                      options={FONT_OPTIONS}
-                      value={settings.widgetFontMode}
-                      disabled={saving}
-                      helpText="Match the theme uses your theme’s body font so filters look like the rest of the page."
-                      onChange={(value) =>
+                      helpText="After a Color/Size filter, theme product cards swap to the matching variant image from catalog sync."
+                      onChange={(checked) =>
                         setSettings((s) => ({
                           ...s,
-                          widgetFontMode: parseWidgetFontMode(value),
+                          showMatchingVariantImage: checked,
                         }))
                       }
                     />
-                    {settings.widgetFontMode === "custom" ? (
-                      <TextField
-                        label="Custom font family"
-                        autoComplete="off"
-                        value={settings.widgetFontFamily}
-                        disabled={saving}
-                        placeholder='Inter, "Helvetica Neue", sans-serif'
-                        helpText="Use the same CSS font-family stack as your theme."
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            widgetFontFamily: value,
-                          }))
-                        }
-                      />
-                    ) : null}
-                    <Select
-                      label="Corner radius"
-                      options={RADIUS_OPTIONS}
-                      value={settings.radiusChoice}
-                      disabled={saving}
-                      onChange={(value) =>
-                        setSettings((s) => {
-                          if (value === "custom") {
-                            return { ...s, radiusChoice: "custom" };
-                          }
-                          return {
-                            ...s,
-                            radiusChoice: value,
-                            widgetRadius: parseWidgetRadius(value),
-                          };
-                        })
-                      }
-                    />
-                    {settings.radiusChoice === "custom" ? (
-                      <TextField
-                        label="Custom radius"
-                        type="number"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        suffix="px"
-                        min={WIDGET_RADIUS_MIN}
-                        max={WIDGET_RADIUS_MAX}
-                        value={String(settings.widgetRadius)}
-                        disabled={saving}
-                        helpText={`Enter a value from ${WIDGET_RADIUS_MIN} to ${WIDGET_RADIUS_MAX} pixels.`}
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            widgetRadius: parseWidgetRadius(
-                              value === "" ? WIDGET_RADIUS_MIN : value,
-                            ),
-                          }))
-                        }
-                      />
-                    ) : null}
-                    <Checkbox
-                      label="Show panel shadow"
-                      checked={settings.widgetShadow}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setSettings((s) => ({ ...s, widgetShadow: checked }))
-                      }
-                      helpText="Turn off for a flat look with no drop shadow."
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Card>
+                  </BlockStack>
+                </Card>
+              </div>
+
+              <div
+                id="settings-metafields"
+                role="tabpanel"
+                style={tabPanelStyle(selectedTab === "metafields")}
+              >
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h2" variant="headingMd">
+                      Metafields
+                    </Text>
+                    <Banner tone="info">
+                      <p>
+                        List metafields to search, filter, and display on the
+                        Metafields page.
+                      </p>
+                    </Banner>
+                    <Button url="/app/metafields" variant="primary">
+                      Open metafield mappings
+                    </Button>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Map namespace/key and choose List, Range, or Yes/No.
+                      Enabled mappings then appear in Filters display order.
+                    </Text>
+                  </BlockStack>
+                </Card>
               </div>
             </BlockStack>
           </Form>
@@ -1022,8 +1173,10 @@ export default function SettingsPage() {
               <BlockStack gap="300">
                 <ThemeSetupCard shopDomain={data.shopDomain} />
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Search and Collection filters theme blocks are required for
-                  filters and search to appear on the storefront.
+                  Add the Collection filters block on collection and search
+                  templates, and the Product search block in the header or
+                  search template, so filters and search appear on the
+                  storefront.
                 </Text>
               </BlockStack>
             </div>
@@ -1051,3 +1204,4 @@ export default function SettingsPage() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+

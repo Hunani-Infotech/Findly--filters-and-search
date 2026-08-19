@@ -32,6 +32,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("q") || url.searchParams.get("query") || "";
   const selected = parseSelectedFromSearchParams(url.searchParams);
   const sort = url.searchParams.get("sort");
+  const locale =
+    url.searchParams.get("locale") || url.searchParams.get("locale_code") || "";
 
   const hasCollection = Boolean(collectionId || collectionGid);
   const result =
@@ -41,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           query: searchQuery,
           selected,
           sort,
+          locale,
         })
       : await getCollectionFilterPayload({
           shopDomain,
@@ -49,6 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           selected,
           sort,
           query: searchQuery,
+          locale,
         });
 
   if ("error" in result && result.error) {

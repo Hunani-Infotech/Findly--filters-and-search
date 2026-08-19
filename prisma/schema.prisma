@@ -67,6 +67,9 @@ model Shop {
   memberships           CollectionMembership[]
   collections           Collection[]
   discoveredMetafields  DiscoveredMetafield[]
+  colorSwatches         ColorSwatch[]
+  valueGroups           ValueGroup[]
+  analyticsEvents       AnalyticsEvent[]
 }
 
 /// Merchant app/widget settings (admin Settings screen).
@@ -101,12 +104,22 @@ model AppSettings {
   soldOutToBottom    Boolean  @default(false)
   /// Globo: search bar on collection pages (keyword stays inside the collection)
   enableCollectionSearch Boolean @default(false)
+  /// Globo General: show filter sidebar on the search results page
+  enableFiltersOnSearch Boolean @default(true)
+  /// Globo Filter panel: hide a facet when it has only one value
+  hideSingleValueFacets Boolean @default(false)
+  /// Globo Product card: swap theme card image to the matching variant
+  showMatchingVariantImage Boolean @default(true)
+  /// Globo Filter panel: show applied “Refine by” chips
+  showRefineBy Boolean @default(true)
   /// C9: show pinned products/collections on empty search focus
   showSuggestionsOnEmptyQuery Boolean @default(false)
   /// C9: show pinned products/collections when a query matches nothing
   showSuggestionsOnNoResults Boolean @default(false)
   suggestionProductHandles String[] @default([])
   suggestionCollectionHandles String[] @default([])
+  /// Globo-parity admin pages (recommendations toggles, YMM form, locales) — not storefront engines
+  adminExtras       Json     @default("{}")
   updatedAt         DateTime @updatedAt
 }
 
@@ -144,6 +157,8 @@ model FilterConfig {
   valueSort           Json     @default("{}")
   /// Per RANGE metafield slider bounds: { "mf_custom_length": { "mode": "custom", "min": 0, "max": 100 } }
   rangeBounds         Json     @default("{}")
+  /// Merchant drag order on the Filters list (lower first)
+  sortOrder           Int      @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   treeCollections     FilterTreeCollection[]
@@ -293,6 +308,57 @@ model DiscoveredMetafield {
 
   @@unique([shopId, namespace, key, ownerType])
   @@index([shopId])
+}
+
+/// Merchant swatch overrides for option values (Globo D6). Shop-scoped.
+model ColorSwatch {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  optionKey String
+  value     String
+  /// solid | dual | image
+  kind      String   @default("solid")
+  color1    String   @default("")
+  color2    String   @default("")
+  imageUrl  String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, optionKey, value])
+  @@index([shopId, optionKey])
+}
+
+/// Merge catalog values into one shopper-facing label (Globo D2). Shop-scoped.
+model ValueGroup {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name      String
+  sourceKey String
+  values    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, sourceKey])
+}
+
+/// Storefront search/filter analytics (F4). Shop-scoped; pruned by plan retention.
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// search | filter | click | visit
+  kind        String
+  query       String   @default("")
+  combo       String   @default("")
+  handle      String   @default("")
+  resultCount Int      @default(0)
+  visitor     String   @default("")
+  device      String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([shopId, kind, createdAt])
 }
 
 /// GDPR / compliance webhook audit log (shop-scoped by domain; survives purge).

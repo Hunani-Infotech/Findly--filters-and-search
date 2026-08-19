@@ -6,13 +6,18 @@ import type {
 } from "react-router";
 import { redirect, useFetcher, useLoaderData } from "react-router";
 import {
+  Badge,
   Banner,
   BlockStack,
   Button,
   Card,
+  ChoiceList,
   InlineGrid,
+  InlineStack,
   Layout,
+  List,
   Page,
+  ProgressBar,
   Text,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -122,9 +127,33 @@ export default function BillingPage() {
   const isPro = data.currentPlan === "pro";
   const free = data.plans.free;
   const pro = data.plans.pro;
+  const planLabel = isPro ? "Professional" : "Basic";
+  const subStatus = data.subscription?.status
+    ? data.subscription.status
+    : "None (Free)";
+  const productPct =
+    data.usage.productLimit > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (data.usage.productCount / data.usage.productLimit) * 100,
+          ),
+        )
+      : 0;
 
   return (
-    <Page title="Billing">
+    <Page
+      title="Pricing"
+      secondaryActions={[
+        {
+          content: "Apply discount code",
+          onAction: () =>
+            shopify.toast.show(
+              "Shopify handles discounts on checkout, not in-app",
+            ),
+        },
+      ]}
+    >
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
@@ -155,60 +184,111 @@ export default function BillingPage() {
               </Banner>
             )}
 
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Current usage
-                </Text>
-                <Text as="p">
-                  Plan: {isPro ? pro.name : free.name}
-                </Text>
-                <Text as="p">
-                  Products: {data.usage.productCount}/{data.usage.productLimit}
-                </Text>
-                <Text as="p">
-                  Filters: {data.usage.filterCount}/{data.usage.filterLimit}
-                </Text>
-                <Text as="p" tone="subdued">
-                  Subscription status:{" "}
-                  {data.subscription?.status
-                    ? data.subscription.status
-                    : "None (Free)"}
-                </Text>
-              </BlockStack>
-            </Card>
+            <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Plan details
+                  </Text>
+                  <Text as="p">
+                    {planLabel} ({isPro ? pro.name : free.name})
+                  </Text>
+                  {isPro ? (
+                    <Text as="p" tone="subdued">
+                      Status: {subStatus}. {pro.trialDays}-day trial, then $
+                      {pro.amount.toFixed(2)} {pro.currencyCode} every 30 days.
+                    </Text>
+                  ) : (
+                    <Text as="p" tone="subdued">
+                      Status: {subStatus}. $0/month — no Shopify charge.
+                    </Text>
+                  )}
+                </BlockStack>
+              </Card>
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Currently active products
+                  </Text>
+                  <Text as="p">
+                    {data.usage.productCount} of {data.usage.productLimit}{" "}
+                    products on this plan
+                  </Text>
+                  <ProgressBar progress={productPct} size="small" />
+                  <Text as="p" tone="subdued">
+                    Product cap: {data.usage.productLimit}. Metafield filters:{" "}
+                    {data.usage.filterCount}/{data.usage.filterLimit}.
+                  </Text>
+                </BlockStack>
+              </Card>
+            </InlineGrid>
+
+            <ChoiceList
+              title="Billing cycle"
+              choices={[
+                { label: "Pay monthly", value: "monthly" },
+                {
+                  label: "Pay yearly",
+                  value: "yearly",
+                  disabled: true,
+                  helpText: "Yearly billing is not on Findly yet",
+                },
+              ]}
+              selected={["monthly"]}
+              onChange={() => undefined}
+            />
 
             <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    {free.name}
+                    Basic
                   </Text>
-                  <Text as="p">
-                    $0 — up to {free.productLimit} products and{" "}
-                    {free.filterLimit} metafield filters.
+                  <Text as="p" variant="headingLg">
+                    $0/month
                   </Text>
                   <Text as="p" tone="subdued">
-                    {isPro
-                      ? "Available if you cancel Pro in Shopify billing."
-                      : "You are on the Free plan — no charge. Free does not create a subscription."}
+                    Ideal for individuals &amp; small teams
                   </Text>
-                  {!isPro && (
-                    <Button disabled>Current plan</Button>
-                  )}
+                  <List>
+                    <List.Item>Collection filters (price, availability, vendor, type, tags)</List.Item>
+                    <List.Item>Storefront search via Theme App Extension</List.Item>
+                    <List.Item>Theme App Extension widget (left, right, or top)</List.Item>
+                    <List.Item>
+                      Metafield filters up to {free.filterLimit} mappings
+                    </List.Item>
+                    <List.Item>Up to {free.productLimit} products</List.Item>
+                  </List>
+                  <Button disabled>
+                    {isPro ? "Available on Free" : "Current plan"}
+                  </Button>
                 </BlockStack>
               </Card>
 
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    {pro.name}
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Professional
+                    </Text>
+                    <Badge tone="success">Recommended</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="headingLg">
+                    ${pro.amount.toFixed(2)} / 30 days
                   </Text>
-                  <Text as="p">
-                    ${pro.amount.toFixed(2)} {pro.currencyCode} every 30 days
-                    with a {pro.trialDays}-day trial. Up to {pro.productLimit}{" "}
-                    products and {pro.filterLimit} metafield filters.
+                  <Text as="p" tone="subdued">
+                    Best value for larger catalogs
                   </Text>
+                  <List>
+                    <List.Item>Everything in Basic</List.Item>
+                    <List.Item>
+                      Up to {pro.productLimit} products and {pro.filterLimit}{" "}
+                      metafield filters
+                    </List.Item>
+                    <List.Item>
+                      {pro.trialDays}-day trial, then billed every 30 days
+                    </List.Item>
+                  </List>
                   <Button
                     variant="primary"
                     loading={upgrading}
@@ -224,6 +304,14 @@ export default function BillingPage() {
                 </BlockStack>
               </Card>
             </InlineGrid>
+
+            <Banner tone="info">
+              <p>
+                Compare plans in the two cards above. Professional includes a{" "}
+                {pro.trialDays}-day trial. There is no 30-day money-back
+                guarantee in Findly billing.
+              </p>
+            </Banner>
           </BlockStack>
         </Layout.Section>
       </Layout>

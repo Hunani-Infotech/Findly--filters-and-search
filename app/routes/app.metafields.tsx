@@ -404,7 +404,7 @@ export default function MetafieldsPage() {
       }}
       secondaryActions={[
         { content: "Default filters", url: "/app/collections/default" },
-        { content: "Search fields", url: "/app/settings?tab=search" },
+        { content: "Search fields", url: "/app/settings?tab=general" },
       ]}
     >
       <Layout>

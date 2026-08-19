@@ -24,10 +24,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("shop") || url.searchParams.get("shop_domain") || "";
   const query =
     url.searchParams.get("q") || url.searchParams.get("query") || "";
+  const locale =
+    url.searchParams.get("locale") || url.searchParams.get("locale_code") || "";
 
   const result = await getSearchPayload({
     shopDomain,
     query,
+    locale,
   });
 
   if ("error" in result && result.error) {

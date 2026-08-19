@@ -66,10 +66,18 @@ export default function App() {
             Home
           </a>
           <a href="/app">Filters</a>
-          <a href="/app/metafields">Metafields</a>
+          <a href="/app/search">Search</a>
           <a href="/app/settings">Settings</a>
+          <a href="/app/recommendations">Recommendations</a>
+          <a href="/app/vehicle-finder">Vehicle Finder</a>
+          <a href="/app/translation">Translation</a>
+          <a href="/app/analytics">Analytics</a>
+          <a href="/app/billing">Pricing plans</a>
+          <a href="/app/contact">Contact</a>
+          <a href="/app/metafields">Metafields</a>
+          <a href="/app/swatches">Swatch</a>
+          <a href="/app/groups">Group values</a>
           <a href="/app/sync">Sync</a>
-          <a href="/app/billing">Billing</a>
         </NavMenu>
         <div className="findly-admin-shell">
           <Outlet />

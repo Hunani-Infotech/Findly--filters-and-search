@@ -18,8 +18,19 @@ import {
 import { resolveStorefrontSort, sortProductRows } from "./sort.server";
 import { normalizeSearchFields, normalizeSortOptions, parseSortOption } from "./app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
+import { swatchMapForShop } from "./color-swatches.server";
+import {
+  expandSelectedWithGroups,
+  listValueGroups,
+  mergeFacetValuesWithGroups,
+  sourceKeyForFacet,
+} from "./value-groups.server";
+import { optionKeyFromName } from "./filter-catalog";
 import { getAppSettings } from "./settings.server";
 import { enforcePlanLimits } from "./billing.server";
+import { getAdminNavExtras } from "./admin-nav-extras.server";
+import { resolveWidgetChrome } from "./widget-i18n";
+import { withWidgetChrome } from "./filters.server";
 import {
   enabledMetafieldPaths,
   normalizeSearchQuery,
@@ -125,6 +136,7 @@ export async function getCollectionFilterPayload(input: {
   selected: SelectedFilters;
   sort?: string | null;
   query?: string | null;
+  locale?: string | null;
 }) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
@@ -145,8 +157,17 @@ export async function getCollectionFilterPayload(input: {
 
   const config = await getFilterConfig(shop.id, collectionGid);
   if (!config?.enabled) {
+    const extras = await getAdminNavExtras(shop.id);
+    const resolved = resolveWidgetChrome(extras.i18n, input.locale);
     return {
-      data: { enabled: false, facets: [], products: [], total: 0 },
+      data: {
+        enabled: false,
+        facets: [],
+        products: [],
+        total: 0,
+        locale: resolved.locale,
+        i18n: resolved.chrome,
+      },
       status: 200 as const,
     };
   }
@@ -201,6 +222,7 @@ export async function getCollectionFilterPayload(input: {
     collectionGid,
     sort: input.sort,
     query: collectionQuery || null,
+    locale: input.locale,
   });
 }
 
@@ -213,12 +235,17 @@ async function buildFacetPayload(input: {
   query?: string | null;
   sort?: string | null;
   isSearch?: boolean;
+  locale?: string | null;
 }) {
-  const [mappings, appSettings, limits] = await Promise.all([
+  const [mappings, appSettings, limits, valueGroups, swatches, extras] = await Promise.all([
     getMetafieldMappings(input.shopId),
     getAppSettings(input.shopId),
     enforcePlanLimits(input.shopId),
+    listValueGroups(input.shopId),
+    swatchMapForShop(input.shopId),
+    getAdminNavExtras(input.shopId),
   ]);
+  const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
   const cappedMappings = mappings
     .filter((mapping) => mapping.enabled)
     .slice(0, limits.filterLimit);
@@ -241,6 +268,12 @@ async function buildFacetPayload(input: {
     inStockOnTop: Boolean(appSettings.inStockOnTop),
     soldOutToBottom: Boolean(appSettings.soldOutToBottom),
     enableCollectionSearch: Boolean(appSettings.enableCollectionSearch),
+    enableFiltersOnSearch: Boolean(appSettings.enableFiltersOnSearch ?? true),
+    hideSingleValueFacets: Boolean(appSettings.hideSingleValueFacets),
+    showMatchingVariantImage: Boolean(
+      appSettings.showMatchingVariantImage ?? true,
+    ),
+    showRefineBy: Boolean(appSettings.showRefineBy ?? true),
   };
 
   const resolved = resolveStorefrontSort({
@@ -254,8 +287,21 @@ async function buildFacetPayload(input: {
     facetsFromConfig(input.config, cappedMappings),
     input.rows,
   );
+  const selectedForMatch: SelectedFilters = { ...input.selected };
+  for (const facet of facets) {
+    const current = selectedForMatch[facet.key];
+    if (!current?.length) continue;
+    if ((facet.matchMode ?? "or") === "and") continue;
+    const sourceKey = sourceKeyForFacet(facet);
+    if (!sourceKey) continue;
+    selectedForMatch[facet.key] = expandSelectedWithGroups(
+      current,
+      valueGroups,
+      sourceKey,
+    );
+  }
   const matched = input.rows.filter((product) =>
-    productMatchesFilters(product, facets, input.selected),
+    productMatchesFilters(product, facets, selectedForMatch),
   );
   const filtered = sortProductRows(
     applyHideOutOfStock(
@@ -271,18 +317,38 @@ async function buildFacetPayload(input: {
     },
   );
   const optionGroups = selectedOptionFilterGroups(facets, input.selected);
-  const aggregations = buildFacetAggregations(input.rows, facets, {
-    mode: input.config.priceRangeMode,
-    customMin: input.config.customPriceMin,
-    customMax: input.config.customPriceMax,
-  }, parseValueSort(
-    input.config && "valueSort" in input.config ? input.config.valueSort : {},
-  ), parseRangeBounds(
-    input.config && "rangeBounds" in input.config ? input.config.rangeBounds : {},
-  ));
+  const aggregations = withWidgetChrome(chrome, () =>
+    buildFacetAggregations(input.rows, facets, {
+      mode: input.config.priceRangeMode,
+      customMin: input.config.customPriceMin,
+      customMax: input.config.customPriceMax,
+    }, parseValueSort(
+      input.config && "valueSort" in input.config ? input.config.valueSort : {},
+    ), parseRangeBounds(
+      input.config && "rangeBounds" in input.config ? input.config.rangeBounds : {},
+    )),
+  ).map((facet) => {
+    const sourceKey = sourceKeyForFacet(facet);
+    const values = facet.values
+      ? mergeFacetValuesWithGroups(facet.values, valueGroups, sourceKey)
+      : facet.values;
+    const optionKey = optionKeyFromName(
+      facet.optionName || String(facet.key || "").replace(/^opt_/, ""),
+    );
+    const shopSwatches = swatches[optionKey] || {};
+    return {
+      ...facet,
+      values: values?.map((item) => {
+        const swatch = shopSwatches[item.value] || shopSwatches[item.label];
+        return swatch ? { ...item, swatch } : item;
+      }),
+    };
+  });
 
   const data = {
     enabled: true as const,
+    locale,
+    i18n: chrome,
     settings,
     facets: aggregations,
     products: filtered.map((product) => ({
@@ -293,10 +359,9 @@ async function buildFacetPayload(input: {
       priceMin: product.priceMin,
       priceMax: product.priceMax,
       imageUrl: product.imageUrl,
-      variantImageUrl: matchingVariantImageUrl(
-        product.variantImages ?? [],
-        optionGroups,
-      ),
+      variantImageUrl: settings.showMatchingVariantImage
+        ? matchingVariantImageUrl(product.variantImages ?? [], optionGroups)
+        : "",
     })),
     total: filtered.length,
     sort: resolved.sort,
@@ -312,12 +377,27 @@ export async function getSearchFilterPayload(input: {
   query: string;
   selected: SelectedFilters;
   sort?: string | null;
+  locale?: string | null;
 }) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
+  }
+
+  const appSettings = await getAppSettings(shop.id);
+  if (!Boolean(appSettings.enableFiltersOnSearch ?? true)) {
+    return {
+      data: {
+        enabled: false,
+        facets: [],
+        products: [],
+        total: 0,
+        settings: { enableFiltersOnSearch: false },
+      },
+      status: 200 as const,
+    };
   }
 
   const query = normalizeSearchQuery(input.query);
@@ -347,12 +427,14 @@ export async function getSearchFilterPayload(input: {
     query,
     sort: input.sort,
     isSearch: true,
+    locale: input.locale,
   });
 }
 
 export async function getSearchPayload(input: {
   shopDomain: string;
   query: string;
+  locale?: string | null;
 }) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
@@ -373,8 +455,13 @@ export async function getSearchPayload(input: {
     ? await getPinnedSearchSuggestions(shop.id)
     : { products: [], collections: [] };
 
+  const extras = await getAdminNavExtras(shop.id);
+  const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
+
   const data = {
     query: normalizedQuery,
+    locale,
+    i18n: chrome,
     products: products.map((product) => ({
       id: product.productGid,
       handle: product.handle,

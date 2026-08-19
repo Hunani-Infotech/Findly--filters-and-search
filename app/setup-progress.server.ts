@@ -96,7 +96,7 @@ export async function getSetupProgress(
       title: "Pick filter layout and look",
       description:
         "Vertical, Horizontal, or Off-canvas; product counts; collapse; colors and font.",
-      href: "/app/settings?tab=layout",
+      href: "/app/settings?tab=panel",
       actionLabel: "Open layout",
       status: "complete",
     },
@@ -106,7 +106,7 @@ export async function getSetupProgress(
       title: "Configure search and sort",
       description:
         "Search fields, in-collection search, empty-result pins, Sort By, and out-of-stock rules.",
-      href: "/app/settings?tab=search",
+      href: "/app/settings?tab=general",
       actionLabel: "Open search",
       status: "complete",
     },

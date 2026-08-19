@@ -41,6 +41,74 @@
     }
   }
 
+  function shopDomain() {
+    return (window.Shopify && window.Shopify.shop) || "";
+  }
+
+  function deviceKind() {
+    return window.innerWidth < 750 ? "mobile" : "desktop";
+  }
+
+  function uuidish() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return (
+      String(Date.now()) +
+      "-" +
+      Math.random().toString(16).slice(2) +
+      "-" +
+      Math.random().toString(16).slice(2)
+    );
+  }
+
+  function visitorId() {
+    var key = "findly:vid";
+    try {
+      var existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      var created = uuidish();
+      window.localStorage.setItem(key, created);
+      return created;
+    } catch (err) {
+      return uuidish();
+    }
+  }
+
+  function fireAnalytics(proxyBase, fields) {
+    var url =
+      String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
+      "/analytics?kind=" +
+      encodeURIComponent(fields.kind || "") +
+      "&shop=" +
+      encodeURIComponent(shopDomain());
+    if (fields.q != null && fields.q !== "") {
+      url += "&q=" + encodeURIComponent(fields.q);
+    }
+    if (fields.n != null) url += "&n=" + encodeURIComponent(String(fields.n));
+    if (fields.combo) url += "&combo=" + encodeURIComponent(fields.combo);
+    if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
+    url +=
+      "&v=" +
+      encodeURIComponent(visitorId()) +
+      "&d=" +
+      encodeURIComponent(deviceKind());
+    try {
+      if (typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon(url);
+        return;
+      }
+    } catch (err) {
+      /* fall through */
+    }
+    fetch(url, {
+      method: "GET",
+      keepalive: true,
+      credentials: "same-origin",
+      mode: "no-cors",
+    }).catch(function () {});
+  }
+
   function productUrl(item) {
     if (item && typeof item.url === "string" && item.url) return item.url;
     var handle = item && item.handle ? String(item.handle) : "";
@@ -118,16 +186,69 @@
     this.suggestionsEl = qs(root, "[data-suggestions]");
     this.collectionsEl = qs(root, "[data-suggest-collections]");
     this.suggestHeadingEl = qs(root, "[data-suggest-heading]");
+    this.submitEl = qs(root, "[data-search-submit]");
     this.proxyBase = (root.getAttribute("data-proxy-base") || "/apps/smart-filter").replace(
       /\/$/,
       "",
     );
     this.showImages = String(root.getAttribute("data-show-images") || "true") !== "false";
+    this.locale = root.getAttribute("data-locale") || "";
+    this.i18n = {};
     this._timer = 0;
     this._reqId = 0;
     this._abort = null;
     this._didEmptyFocus = false;
   }
+
+  SearchWidget.prototype.t = function (key, fallback) {
+    var value = this.i18n && this.i18n[key];
+    if (typeof value === "string" && value.trim()) return value;
+    return fallback;
+  };
+
+  SearchWidget.prototype.applyI18n = function (payload) {
+    this.i18n =
+      payload && payload.i18n && typeof payload.i18n === "object"
+        ? payload.i18n
+        : {};
+
+    if (this.emptyEl) {
+      var heading = this.emptyEl.querySelector(
+        ".smart-filter-search__empty-heading, h1, h2, h3, p",
+      );
+      var copy = this.emptyEl.querySelector(".smart-filter-search__empty-copy");
+      if (heading) {
+        heading.textContent = this.t(
+          "search_empty",
+          heading.textContent || "No products found",
+        );
+      }
+      if (copy) {
+        copy.textContent = this.t(
+          "search_empty_copy",
+          copy.textContent || "Your search did not match any products.",
+        );
+      }
+    }
+    if (this.clearQueryEl) {
+      this.clearQueryEl.textContent = this.t(
+        "search_clear",
+        this.clearQueryEl.textContent || "Clear query",
+      );
+    }
+    if (this.submitEl) {
+      this.submitEl.textContent = this.t(
+        "search_submit",
+        this.submitEl.textContent || "Search",
+      );
+    }
+    if (this.suggestHeadingEl) {
+      this.suggestHeadingEl.textContent = this.t(
+        "suggested",
+        this.suggestHeadingEl.textContent || "Suggested",
+      );
+    }
+  };
 
   SearchWidget.prototype.setEmptyVisible = function (visible) {
     if (!this.emptyEl) return;
@@ -173,12 +294,14 @@
       return;
     }
 
+    var self = this;
     var showImages = this.showImages;
     var fragment = document.createDocumentFragment();
 
     items.forEach(function (item) {
       var href = productUrl(item);
       var title = String(item.title || item.handle || "Product");
+      var handle = item && item.handle ? String(item.handle) : "";
       var li = document.createElement("li");
       li.className = "smart-filter-search__item";
       li.setAttribute("role", "listitem");
@@ -186,6 +309,13 @@
       var link = document.createElement("a");
       link.className = "smart-filter-search__link";
       link.href = href || "#";
+      link.addEventListener("click", function () {
+        fireAnalytics(self.proxyBase, {
+          kind: "click",
+          handle: handle,
+          q: self.inputEl ? String(self.inputEl.value || "").trim() : "",
+        });
+      });
 
       if (showImages) {
         var src = productImage(item);
@@ -309,6 +439,12 @@
       return;
     }
 
+    fireAnalytics(this.proxyBase, {
+      kind: "search",
+      q: query,
+      n: products.length,
+    });
+
     if (products.length) {
       this.hideSuggestions();
       this.render(products);
@@ -330,9 +466,12 @@
       typeof AbortController === "function" ? new AbortController() : null;
 
     this.setEmptyVisible(false);
-    setStatus(this.statusEl, MSG_LOADING, false);
+    setStatus(this.statusEl, this.t("search_loading", MSG_LOADING), false);
 
     var url = this.proxyBase + "/search?q=" + encodeURIComponent(query);
+    if (this.locale) {
+      url += "&locale=" + encodeURIComponent(this.locale);
+    }
     var opts = {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -356,11 +495,12 @@
             data = raw ? JSON.parse(raw) : {};
           } catch (parseErr) {
             this.hideSuggestions();
-            setStatus(this.statusEl, MSG_ERROR, true);
+            setStatus(this.statusEl, this.t("search_error", MSG_ERROR), true);
             this.setEmptyVisible(false);
             if (this.resultsEl) this.resultsEl.innerHTML = "";
             return;
           }
+          this.applyI18n(data);
           this.applyPayload(data);
         }.bind(this),
       )
@@ -371,7 +511,7 @@
           this.hideSuggestions();
           this.setEmptyVisible(false);
           if (this.resultsEl) this.resultsEl.innerHTML = "";
-          setStatus(this.statusEl, MSG_ERROR, true);
+          setStatus(this.statusEl, this.t("search_error", MSG_ERROR), true);
         }.bind(this),
       );
   };

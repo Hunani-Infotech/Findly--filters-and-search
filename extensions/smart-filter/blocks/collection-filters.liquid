@@ -6,6 +6,7 @@
   data-proxy-base="/apps/smart-filter"
   data-position="{{ block.settings.position }}"
   data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
+  data-locale="{{ request.locale.iso_code }}"
   {{ block.shopify_attributes }}
 >
   <button

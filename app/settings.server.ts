@@ -41,6 +41,10 @@ export type AppSettingsInput = {
   inStockOnTop?: boolean;
   soldOutToBottom?: boolean;
   enableCollectionSearch?: boolean;
+  enableFiltersOnSearch?: boolean;
+  hideSingleValueFacets?: boolean;
+  showMatchingVariantImage?: boolean;
+  showRefineBy?: boolean;
   showSuggestionsOnEmptyQuery?: boolean;
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: string[] | string;
@@ -105,6 +109,15 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const enableCollectionSearch =
     input.enableCollectionSearch ??
     DEFAULT_APP_SETTINGS.enableCollectionSearch;
+  const enableFiltersOnSearch =
+    input.enableFiltersOnSearch ?? DEFAULT_APP_SETTINGS.enableFiltersOnSearch;
+  const hideSingleValueFacets =
+    input.hideSingleValueFacets ?? DEFAULT_APP_SETTINGS.hideSingleValueFacets;
+  const showMatchingVariantImage =
+    input.showMatchingVariantImage ??
+    DEFAULT_APP_SETTINGS.showMatchingVariantImage;
+  const showRefineBy =
+    input.showRefineBy ?? DEFAULT_APP_SETTINGS.showRefineBy;
   const showSuggestionsOnEmptyQuery =
     input.showSuggestionsOnEmptyQuery ??
     DEFAULT_APP_SETTINGS.showSuggestionsOnEmptyQuery;
@@ -143,6 +156,10 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       inStockOnTop,
       soldOutToBottom,
       enableCollectionSearch,
+      enableFiltersOnSearch,
+      hideSingleValueFacets,
+      showMatchingVariantImage,
+      showRefineBy,
       showSuggestionsOnEmptyQuery,
       showSuggestionsOnNoResults,
       suggestionProductHandles,
@@ -170,6 +187,16 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       ...(input.enableCollectionSearch !== undefined
         ? { enableCollectionSearch }
         : {}),
+      ...(input.enableFiltersOnSearch !== undefined
+        ? { enableFiltersOnSearch }
+        : {}),
+      ...(input.hideSingleValueFacets !== undefined
+        ? { hideSingleValueFacets }
+        : {}),
+      ...(input.showMatchingVariantImage !== undefined
+        ? { showMatchingVariantImage }
+        : {}),
+      ...(input.showRefineBy !== undefined ? { showRefineBy } : {}),
       ...(input.showSuggestionsOnEmptyQuery !== undefined
         ? { showSuggestionsOnEmptyQuery }
         : {}),

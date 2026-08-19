@@ -19,7 +19,7 @@ export async function listFilterTrees(
   return prisma.filterConfig.findMany({
     where: { shopId },
     include: { treeCollections: { select: { collectionGid: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
 }
 
@@ -113,6 +113,7 @@ export async function createFilterTree(
       appliesToSearch: input?.appliesToSearch ?? count === 0,
       collectionGid: "",
       displayOrder: [...DEFAULT_DISPLAY_ORDER],
+      sortOrder: count,
     },
   });
   if (input?.collectionGids?.length) {
@@ -208,6 +209,7 @@ export async function duplicateFilterTree(shopId: string, treeId: string) {
       matchModes: source.matchModes as Prisma.InputJsonValue,
       valueSort: source.valueSort as Prisma.InputJsonValue,
       rangeBounds: source.rangeBounds as Prisma.InputJsonValue,
+      sortOrder: await prisma.filterConfig.count({ where: { shopId } }),
     },
   });
   await replaceTreeCollections(
@@ -232,6 +234,55 @@ export async function deleteFilterTree(shopId: string, treeId: string) {
   return { ok: true as const };
 }
 
+export async function reorderFilterTrees(shopId: string, orderedIds: string[]) {
+  const existing = await prisma.filterConfig.findMany({
+    where: { shopId },
+    select: { id: true },
+  });
+  const allowed = new Set(existing.map((row) => row.id));
+  const ids = orderedIds.filter((id) => allowed.has(id));
+  for (const row of existing) {
+    if (!ids.includes(row.id)) ids.push(row.id);
+  }
+  await prisma.$transaction(
+    ids.map((id, index) =>
+      prisma.filterConfig.update({
+        where: { id },
+        data: { sortOrder: index },
+      }),
+    ),
+  );
+  return { ok: true as const };
+}
+
+export async function exportFilterTreesPayload(shopId: string) {
+  const trees = await listFilterTrees(shopId);
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    trees: trees.map((tree) => ({
+      name: tree.name,
+      enabled: tree.enabled,
+      appliesToSearch: tree.appliesToSearch,
+      collectionGids: tree.treeCollections.map((row) => row.collectionGid),
+      enablePrice: tree.enablePrice,
+      enableSale: tree.enableSale,
+      enableRating: tree.enableRating,
+      enableAvailability: tree.enableAvailability,
+      enableVendor: tree.enableVendor,
+      enableProductType: tree.enableProductType,
+      enableTags: tree.enableTags,
+      enableOptions: tree.enableOptions,
+      displayOrder: tree.displayOrder,
+      displayTypes: tree.displayTypes,
+      matchModes: tree.matchModes,
+      valueSort: tree.valueSort,
+      rangeBounds: tree.rangeBounds,
+      sortOrder: tree.sortOrder ?? 0,
+    })),
+  };
+}
+
 export async function findOrCreateTreeForCollection(
   shopId: string,
   collectionGid: string,
@@ -245,6 +296,7 @@ export async function findOrCreateTreeForCollection(
       collectionGid,
       appliesToSearch: false,
       displayOrder: [...DEFAULT_DISPLAY_ORDER],
+      sortOrder: await prisma.filterConfig.count({ where: { shopId } }),
     },
   });
   await replaceTreeCollections(shopId, tree.id, [collectionGid]);

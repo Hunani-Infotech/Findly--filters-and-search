@@ -17,6 +17,51 @@
         }
       }
     },
+    "vehicle_finder": {
+      "name": "Vehicle finder"
+    },
+    "product_recommendations": {
+      "name": "Product recommendations",
+      "settings": {
+        "heading": {
+          "label": "Heading"
+        },
+        "type": {
+          "label": "Widget type"
+        }
+      }
+    },
+    "product_recommendations": {
+      "name": "Product recommendations",
+      "settings": {
+        "widget_type": {
+          "label": "Widget type",
+          "options": {
+            "frequently_bought_together": "Frequently bought together",
+            "trending_products": "Trending products",
+            "recently_purchased_products": "Recently purchased products",
+            "hand_picked_related_products": "Hand-picked related products",
+            "most_added_products": "Most added products",
+            "best_sellers": "Best sellers",
+            "recently_viewed_products": "Recently viewed products",
+            "most_viewed_products": "Most viewed products",
+            "new_products": "New products"
+          }
+        },
+        "heading": {
+          "label": "Heading"
+        },
+        "count_mobile": {
+          "label": "Products on mobile (0 = shop default)"
+        },
+        "count_tablet": {
+          "label": "Products on tablet (0 = shop default)"
+        },
+        "count_desktop": {
+          "label": "Products on desktop (0 = shop default)"
+        }
+      }
+    },
     "product_search": {
       "name": "Product search",
       "settings": {

@@ -974,12 +974,34 @@ export function applyHideOutOfStock<T extends { available: boolean }>(
   return products.filter((product) => product.available);
 }
 
+let widgetChromeOverride: Partial<Record<string, string>> | null = null;
+
+export function withWidgetChrome<T>(
+  chrome: Partial<Record<string, string>> | null | undefined,
+  fn: () => T,
+): T {
+  const prev = widgetChromeOverride;
+  widgetChromeOverride = chrome ?? null;
+  try {
+    return fn();
+  } finally {
+    widgetChromeOverride = prev;
+  }
+}
+
+function chromeString(key: string, fallback: string) {
+  const value = widgetChromeOverride?.[key];
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
 function labelFor(facet: FacetDef, value: string) {
   if (facet.source === "availability") {
-    return value === "in_stock" ? "In stock" : "Out of stock";
+    return value === "in_stock"
+      ? chromeString("in_stock", "In stock")
+      : chromeString("out_of_stock", "Out of stock");
   }
   if (facet.source === "rating") {
-    return `${ratingStarLabel(value)} and up`;
+    return `${ratingStarLabel(value)} ${chromeString("and_up", "and up")}`;
   }
   if (facet.type === "boolean") {
     return value === BOOLEAN_TRUE ? BOOLEAN_TRUE_LABEL : BOOLEAN_FALSE_LABEL;

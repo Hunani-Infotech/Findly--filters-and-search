@@ -304,6 +304,26 @@
   background: var(--sf-swatch, #d6d3d1);
 }
 
+.smart-filter__swatch.is-dual,
+.smart-filter__swatch.is-dual:hover,
+.smart-filter__swatch.is-dual:has(input:checked),
+.smart-filter__swatch-text.is-dual::before {
+  background: linear-gradient(
+    135deg,
+    var(--sf-swatch) 50%,
+    var(--sf-swatch-2, var(--sf-swatch)) 50%
+  );
+}
+
+.smart-filter__swatch.is-image,
+.smart-filter__swatch.is-image:hover,
+.smart-filter__swatch.is-image:has(input:checked),
+.smart-filter__swatch-text.is-image::before {
+  background-image: var(--sf-swatch-image);
+  background-size: cover;
+  background-position: center;
+}
+
 .smart-filter__swatch input {
   position: absolute;
   inset: 0;

@@ -1,0 +1,47 @@
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import { redirect, useActionData, useLoaderData } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
+import { ensureShopAccess } from "../billing.server";
+import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
+import {
+  createValueGroup,
+  getFilterValueCatalog,
+} from "../value-groups.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const { shop } = await ensureShopAccess(session.shop);
+  const catalog = await getFilterValueCatalog(shop.id);
+  return { catalog };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const { shop } = await ensureShopAccess(session.shop);
+  const form = await request.formData();
+  const input = parseValueGroupForm(form);
+  const result = await createValueGroup(shop.id, input);
+  if ("error" in result) return { error: result.error };
+  return redirect("/app/groups?notice=saved");
+};
+
+export default function NewValueGroupPage() {
+  const { catalog } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  return (
+    <ValueGroupFormPage
+      catalog={catalog}
+      group={null}
+      error={actionData && "error" in actionData ? actionData.error : undefined}
+    />
+  );
+}
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};

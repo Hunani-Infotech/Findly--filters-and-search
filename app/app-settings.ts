@@ -91,12 +91,9 @@ export const HIDE_OUT_OF_STOCK_OPTIONS: {
   label: string;
   value: HideOutOfStockMode;
 }[] = [
-  { label: "Show all products", value: "show" },
-  { label: "Hide out-of-stock products", value: "hide" },
-  {
-    label: "Hide out-of-stock products only after filtering",
-    value: "hide_after_filter",
-  },
+  { label: "Show in default order", value: "show" },
+  { label: "Hide", value: "hide" },
+  { label: "Only hide when filtering", value: "hide_after_filter" },
 ];
 
 export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {
@@ -196,6 +193,10 @@ export const DEFAULT_APP_SETTINGS = {
   inStockOnTop: false,
   soldOutToBottom: false,
   enableCollectionSearch: false,
+  enableFiltersOnSearch: true,
+  hideSingleValueFacets: false,
+  showMatchingVariantImage: true,
+  showRefineBy: true,
   showSuggestionsOnEmptyQuery: false,
   showSuggestionsOnNoResults: false,
   suggestionProductHandles: [] as string[],

@@ -38,6 +38,93 @@
     return root.querySelector(selector);
   }
 
+  function shopDomain() {
+    return (window.Shopify && window.Shopify.shop) || "";
+  }
+
+  function deviceKind() {
+    return window.innerWidth < 750 ? "mobile" : "desktop";
+  }
+
+  function uuidish() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return (
+      String(Date.now()) +
+      "-" +
+      Math.random().toString(16).slice(2) +
+      "-" +
+      Math.random().toString(16).slice(2)
+    );
+  }
+
+  function visitorId() {
+    var key = "findly:vid";
+    try {
+      var existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      var created = uuidish();
+      window.localStorage.setItem(key, created);
+      return created;
+    } catch (err) {
+      return uuidish();
+    }
+  }
+
+  function fireAnalytics(proxyBase, fields) {
+    var url =
+      String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
+      "/analytics?kind=" +
+      encodeURIComponent(fields.kind || "") +
+      "&shop=" +
+      encodeURIComponent(shopDomain());
+    if (fields.q != null && fields.q !== "") {
+      url += "&q=" + encodeURIComponent(fields.q);
+    }
+    if (fields.n != null) url += "&n=" + encodeURIComponent(String(fields.n));
+    if (fields.combo) url += "&combo=" + encodeURIComponent(fields.combo);
+    if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
+    url +=
+      "&v=" +
+      encodeURIComponent(visitorId()) +
+      "&d=" +
+      encodeURIComponent(deviceKind());
+    try {
+      if (typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon(url);
+        return;
+      }
+    } catch (err) {
+      /* fall through */
+    }
+    fetch(url, {
+      method: "GET",
+      keepalive: true,
+      credentials: "same-origin",
+      mode: "no-cors",
+    }).catch(function () {});
+  }
+
+  function activeFilterCombo(selected, price) {
+    var parts = [];
+    var facetCount = 0;
+    Object.keys(selected || {})
+      .sort()
+      .forEach(function (key) {
+        var values = selected[key];
+        if (!values || !values.length) return;
+        facetCount += 1;
+        parts.push(key + "=" + values.join(","));
+      });
+    if (price && (price.min !== "" || price.max !== "")) {
+      facetCount += 1;
+      parts.push("price=" + String(price.min) + "," + String(price.max));
+      parts.sort();
+    }
+    return { facetCount: facetCount, combo: parts.join("|") };
+  }
+
   function setStatus(el, text, isError) {
     if (!el) return;
     el.textContent = text || "";
@@ -69,6 +156,34 @@
     }
     if (/^[a-z]{3,24}$/i.test(raw) && looksLikeCssColor(raw)) return raw;
     return "hsl(" + hashHue(raw) + ", 58%, 52%)";
+  }
+
+  function escapeCssUrl(url) {
+    return String(url || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function applyFacetSwatch(label, item, labelText, value) {
+    var spec = item && item.swatch;
+    if (spec && spec.kind === "image" && spec.imageUrl) {
+      label.style.setProperty(
+        "--sf-swatch-image",
+        'url("' + escapeCssUrl(spec.imageUrl) + '")',
+      );
+      label.className += " is-image";
+      return;
+    }
+    if (spec && spec.kind === "dual" && spec.color1 && spec.color2) {
+      label.style.setProperty("--sf-swatch", spec.color1);
+      label.style.setProperty("--sf-swatch-2", spec.color2);
+      label.className += " is-dual";
+      return;
+    }
+    if (spec && spec.kind === "solid" && spec.color1) {
+      label.style.setProperty("--sf-swatch", spec.color1);
+      return;
+    }
+    var swatch = swatchColor(labelText) || swatchColor(value);
+    if (swatch) label.style.setProperty("--sf-swatch", swatch);
   }
 
   function isColorFacet(facet) {
@@ -542,12 +657,45 @@
     this._reqId = 0;
     this._drawerPrevOverflow = "";
     this._onDrawerKey = this.onDrawerKey.bind(this);
+    this.locale = root.getAttribute("data-locale") || "";
+    this.i18n = {};
     root.classList.add("smart-filter--" + this.position);
     root.setAttribute("data-position", this.position);
     this.bindDrawer();
     this.bindSort();
     this.bindCollectionSearch();
   }
+
+  Widget.prototype.t = function (key, fallback) {
+    var value = this.i18n && this.i18n[key];
+    if (typeof value === "string" && value.trim()) return value;
+    return fallback;
+  };
+
+  Widget.prototype.applyI18n = function (payload) {
+    this.i18n =
+      payload && payload.i18n && typeof payload.i18n === "object"
+        ? payload.i18n
+        : {};
+  };
+
+  Widget.prototype.applyI18nChrome = function () {
+    if (this.i18n.filter && this.titleEl) {
+      this.titleEl.textContent = this.i18n.filter;
+      this.titleEl.hidden = !String(this.i18n.filter).trim();
+    }
+    var toggle = this.root.querySelector("[data-drawer-toggle]");
+    if (toggle && this.i18n.filter) {
+      toggle.setAttribute(
+        "data-title",
+        this.t("filter", "Filter:").replace(/:\s*$/, "").trim(),
+      );
+    }
+  };
+
+  Widget.prototype.productCountLabel = function (n) {
+    return this.t("products", "{n} products").replace("{n}", String(n));
+  };
 
   Widget.prototype.applySettings = function (settings) {
     if (!settings || typeof settings !== "object") return;
@@ -638,6 +786,20 @@
       this.root.setAttribute("data-position", this.position);
     }
 
+    this.enableFiltersOnSearch =
+      settings.enableFiltersOnSearch == null
+        ? true
+        : Boolean(settings.enableFiltersOnSearch);
+    this.hideSingleValueFacets = Boolean(settings.hideSingleValueFacets);
+    this.showMatchingVariantImage =
+      settings.showMatchingVariantImage == null
+        ? true
+        : Boolean(settings.showMatchingVariantImage);
+    this.showRefineBy =
+      settings.showRefineBy == null ? true : Boolean(settings.showRefineBy);
+
+    this.root.hidden = Boolean(this.searchQuery) && this.enableFiltersOnSearch === false;
+
     this.renderSortSelect(settings);
     this.renderCollectionSearch(settings);
   };
@@ -720,7 +882,7 @@
     enabled.forEach(function (key) {
       var option = document.createElement("option");
       option.value = key;
-      option.textContent = SORT_LABELS[key] || key;
+      option.textContent = this.t("sort_" + key, SORT_LABELS[key] || key);
       if (key === this.sortKey) option.selected = true;
       select.appendChild(option);
     }, this);
@@ -763,6 +925,8 @@
       params.set("sort", this.sortKey);
     }
 
+    if (this.locale) params.set("locale", this.locale);
+
     return this.proxyBase + "/filters?" + params.toString();
   };
 
@@ -787,16 +951,18 @@
       if (typeof total === "number") {
         setStatus(
           this.statusEl,
-          total === 0 ? MSG_NO_MATCH : String(total) + " products",
+          total === 0
+            ? this.t("no_match", MSG_NO_MATCH)
+            : this.productCountLabel(total),
           false,
         );
         return;
       }
       if (!handles.length) {
-        setStatus(this.statusEl, MSG_NO_MATCH, false);
+        setStatus(this.statusEl, this.t("no_match", MSG_NO_MATCH), false);
         return;
       }
-      setStatus(this.statusEl, String(handles.length) + " products", false);
+      setStatus(this.statusEl, this.productCountLabel(handles.length), false);
       return;
     }
 
@@ -805,15 +971,15 @@
       (this.searchQuery || this.collectionQuery) &&
       (count === 0 || (typeof total === "number" ? total === 0 : !handles.length))
     ) {
-      setStatus(this.statusEl, MSG_NO_MATCH, false);
+      setStatus(this.statusEl, this.t("no_match", MSG_NO_MATCH), false);
       return;
     }
-    setStatus(this.statusEl, count ? String(count) + " products" : "", false);
+    setStatus(this.statusEl, count ? this.productCountLabel(count) : "", false);
   };
 
   Widget.prototype.fetchFilters = function () {
     var reqId = ++this._reqId;
-    setStatus(this.statusEl, MSG_LOADING, false);
+    setStatus(this.statusEl, this.t("loading", MSG_LOADING), false);
     writeHash(this.selected, this.price, this.sortKey, this.collectionQuery);
 
     return fetch(this.buildProxyUrl(), {
@@ -833,32 +999,46 @@
           if (reqId !== this._reqId) return;
 
           if (data && data.enabled === false) {
+            this.applyI18n(data);
+            this.applySettings(data && data.settings);
+            this.applyI18nChrome();
             this.facets = [];
             if (this.facetsEl) this.facetsEl.innerHTML = "";
             applyProductVisibility(null);
             applyVariantImages([]);
             dispatchUpdate([]);
-            setStatus(this.statusEl, MSG_DISABLED, false);
+            setStatus(this.statusEl, this.t("disabled", MSG_DISABLED), false);
             this.syncDrawerBadge();
             return;
           }
 
+          this.applyI18n(data);
           this.applySettings(data && data.settings);
+          this.applyI18nChrome();
           this.facets = normalizeFacets(data);
           var handles = extractHandles(data);
           this.renderFacets();
           applyProductVisibility(handles);
           applyProductOrder(handles);
-          applyVariantImages(data && data.products);
+          applyVariantImages(
+            this.showMatchingVariantImage === false ? [] : data && data.products,
+          );
           dispatchUpdate(handles);
           this.updateStatus(data, handles);
           this.syncDrawerBadge();
+          var tracked = activeFilterCombo(this.selected, this.price);
+          if (tracked.facetCount >= 2) {
+            fireAnalytics(this.proxyBase, {
+              kind: "filter",
+              combo: tracked.combo,
+            });
+          }
         }.bind(this),
       )
       .catch(
         function () {
           if (reqId !== this._reqId) return;
-          setStatus(this.statusEl, MSG_ERROR, true);
+          setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
           if (this.facetsEl && !this.facetsEl.childElementCount) {
             this.facetsEl.innerHTML = "";
           }
@@ -1054,11 +1234,23 @@
     if (!this.facetsEl) return;
     this.facetsEl.innerHTML = "";
 
-    var chips = this.renderChips();
+    var chips = this.showRefineBy === false ? null : this.renderChips();
     if (chips) this.facetsEl.appendChild(chips);
 
     this.facets.forEach(
       function (facet) {
+        var selectedCount = this.selectedCount(facet);
+        var isPrice =
+          facet.type === "price_range" || facet.displayType === "slider";
+        if (
+          this.hideSingleValueFacets &&
+          !isPrice &&
+          (facet.values || []).length <= 1 &&
+          selectedCount === 0
+        ) {
+          return;
+        }
+
         var wrap = document.createElement("div");
         wrap.className = "smart-filter__facet";
         wrap.setAttribute("data-facet-key", facet.key);
@@ -1066,7 +1258,6 @@
           wrap.classList.add("is-collapsed");
         }
 
-        var selectedCount = this.selectedCount(facet);
         var label = document.createElement("button");
         label.type = "button";
         label.className = "smart-filter__facet-label";
@@ -1113,7 +1304,7 @@
       var clear = document.createElement("button");
       clear.type = "button";
       clear.className = "smart-filter__btn smart-filter__clear";
-      clear.textContent = MSG_CLEAR;
+      clear.textContent = this.t("clear", MSG_CLEAR);
       clear.addEventListener(
         "click",
         function () {
@@ -1132,7 +1323,7 @@
     select.setAttribute("aria-label", facet.label);
     var any = document.createElement("option");
     any.value = "";
-    any.textContent = "Any";
+    any.textContent = this.t("any", "Any");
     select.appendChild(any);
     var selected = this.selected[facet.key] || [];
     (facet.values || []).forEach(function (item) {
@@ -1210,6 +1401,24 @@
               : item.label || item,
         );
         var labelText = String(item.label != null ? item.label : value);
+        if (isAvailability) {
+          var stockKey = String(value).toLowerCase();
+          if (
+            stockKey === "true" ||
+            stockKey === "1" ||
+            stockKey === "in_stock" ||
+            /in stock/i.test(labelText)
+          ) {
+            labelText = this.t("in_stock", labelText);
+          } else if (
+            stockKey === "false" ||
+            stockKey === "0" ||
+            stockKey === "out_of_stock" ||
+            /out of stock/i.test(labelText)
+          ) {
+            labelText = this.t("out_of_stock", labelText);
+          }
+        }
         var count = item.count;
         var empty = typeof count === "number" && count === 0;
 
@@ -1221,8 +1430,7 @@
         if (asSize) label.className += " smart-filter__pill";
         label.title = labelText + (typeof count === "number" ? " (" + count + ")" : "");
 
-        var swatch = asColor ? swatchColor(labelText) || swatchColor(value) : "";
-        if (swatch) label.style.setProperty("--sf-swatch", swatch);
+        if (asColor) applyFacetSwatch(label, item, labelText, value);
 
         var input = document.createElement("input");
         input.type = asRadio ? "radio" : "checkbox";
@@ -1249,7 +1457,10 @@
         if (asRating) {
           var filled = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
           text.className += " smart-filter__stars";
-          text.setAttribute("aria-label", filled + " stars and up");
+          text.setAttribute(
+            "aria-label",
+            filled + " stars " + this.t("and_up", "and up"),
+          );
           for (var s = 1; s <= 5; s += 1) {
             var star = document.createElement("span");
             star.className =
@@ -1376,7 +1587,7 @@
     minField.className = "smart-filter__price-field";
     var minLabel = document.createElement("span");
     minLabel.className = "smart-filter__field-label";
-    minLabel.textContent = MSG_MIN;
+    minLabel.textContent = this.t("min", MSG_MIN);
     var minInput = document.createElement("input");
     minInput.type = "number";
     minInput.inputMode = "decimal";
@@ -1385,7 +1596,7 @@
       minInput.max = String(boundMax);
       minInput.placeholder = String(boundMin);
     } else {
-      minInput.placeholder = MSG_MIN;
+      minInput.placeholder = this.t("min", MSG_MIN);
     }
     minInput.value = current[0] || "";
     minField.appendChild(minLabel);
@@ -1395,7 +1606,7 @@
     maxField.className = "smart-filter__price-field";
     var maxLabel = document.createElement("span");
     maxLabel.className = "smart-filter__field-label";
-    maxLabel.textContent = MSG_MAX;
+    maxLabel.textContent = this.t("max", MSG_MAX);
     var maxInput = document.createElement("input");
     maxInput.type = "number";
     maxInput.inputMode = "decimal";
@@ -1404,7 +1615,7 @@
       maxInput.max = String(boundMax);
       maxInput.placeholder = String(boundMax);
     } else {
-      maxInput.placeholder = MSG_MAX;
+      maxInput.placeholder = this.t("max", MSG_MAX);
     }
     maxInput.value = current[1] || "";
     maxField.appendChild(maxLabel);
@@ -1415,7 +1626,7 @@
     var apply = document.createElement("button");
     apply.type = "button";
     apply.className = "smart-filter__btn smart-filter__btn--primary";
-    apply.textContent = MSG_APPLY;
+    apply.textContent = this.t("apply", MSG_APPLY);
     apply.addEventListener(
       "click",
       function () {
@@ -1437,7 +1648,7 @@
 
   Widget.prototype.init = function () {
     if (!this.collectionId && !this.searchQuery) {
-      setStatus(this.statusEl, MSG_ERROR, true);
+      setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
       return;
     }
     this.restoreFromHash();
