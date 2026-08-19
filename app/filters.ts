@@ -6,6 +6,7 @@ export type FacetSource =
   | "tag"
   | "price"
   | "sale"
+  | "rating"
   | "availability"
   | "metafield"
   | "option";
@@ -60,6 +61,56 @@ export const BOOLEAN_FALSE = "false";
 export const BOOLEAN_TRUE_LABEL = "Yes";
 export const BOOLEAN_FALSE_LABEL = "No";
 
+/** Shopify/Judge.me standard rating plus documented Loox/Stamped averages. */
+export const RATING_METAFIELD_PATHS = [
+  "reviews.rating",
+  "loox.avg_rating",
+  "stamped.reviews_average",
+  "app--2519111--reviews.review_average_rating",
+] as const;
+
+export const RATING_STAR_VALUES = ["5", "4", "3", "2", "1"] as const;
+
+export function parseReviewRating(raw: string | undefined | null): number | null {
+  if (raw == null || raw === "") return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed || trimmed.startsWith("<")) return null;
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        value?: unknown;
+        rating?: unknown;
+      };
+      const inner = parsed.value ?? parsed.rating;
+      const nested =
+        inner != null && typeof inner === "object" && inner && "value" in inner
+          ? Number((inner as { value: unknown }).value)
+          : Number(inner);
+      if (Number.isFinite(nested)) return nested;
+    } catch {
+      return null;
+    }
+  }
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function productReviewRating(product: {
+  metafields?: Record<string, string> | null;
+}): number | null {
+  const bag = product.metafields || {};
+  for (const path of RATING_METAFIELD_PATHS) {
+    const rating = parseReviewRating(bag[path]);
+    if (rating != null) return rating;
+  }
+  return null;
+}
+
+export function ratingStarLabel(stars: string | number): string {
+  const n = Math.max(0, Math.min(5, Math.round(Number(stars) || 0)));
+  return `${"★".repeat(n)}${"☆".repeat(5 - n)}`;
+}
+
 /** Canonical Shopify boolean strings, plus common 1/0/yes/no variants. */
 export function normalizeBooleanMetafieldValue(
   raw: string | undefined | null,
@@ -79,6 +130,7 @@ export const DEFAULT_DISPLAY_ORDER = [
   "availability",
   "price",
   "sale",
+  "rating",
   "vendor",
   "productType",
   "tags",
@@ -228,6 +280,7 @@ export function displayTypeChoicesForKey(
   kind?: string,
 ): FacetDisplayType[] {
   if (isRangeDisplayKey(key, kind)) return ["slider"];
+  if (key === "rating") return ["checkbox"];
   if (
     key === "options" ||
     key.startsWith("opt_") ||
@@ -244,7 +297,10 @@ export function displayTypeForFacet(
   facet: Pick<FacetDef, "key" | "source" | "label" | "type">,
   map: Record<string, FacetDisplayType>,
 ): FacetDisplayType {
-  if (facet.type === "range" || facet.source === "price" || facet.source === "sale") return "slider";
+  if (facet.type === "range" || facet.source === "price" || facet.source === "sale") {
+    return "slider";
+  }
+  if (facet.source === "rating") return "checkbox";
   if (facet.type === "boolean") return map[facet.key] || "checkbox";
   const stored =
     map[facet.key] ||
@@ -449,6 +505,14 @@ export function facetsFromConfig(
       type: "range",
       enabled: config?.enableSale ?? false,
       displayType: "slider",
+    },
+    rating: {
+      key: "rating",
+      source: "rating",
+      label: "Rating",
+      type: "checkbox",
+      enabled: Boolean(config?.enableRating),
+      displayType: "checkbox",
     },
     vendor: {
       key: "vendor",
@@ -827,6 +891,16 @@ export function productMatchesFilters(
         if (Number.isFinite(max) && pct > max) return false;
         break;
       }
+      case "rating": {
+        const rating = productReviewRating(product);
+        if (rating == null) return false;
+        const thresholds = values
+          .map((value) => Number(value))
+          .filter((n) => Number.isFinite(n));
+        if (!thresholds.length) break;
+        if (!thresholds.some((n) => rating >= n)) return false;
+        break;
+      }
       case "option": {
         const optionValues = optionValuesFor(product, facet);
         if (
@@ -903,6 +977,9 @@ export function applyHideOutOfStock<T extends { available: boolean }>(
 function labelFor(facet: FacetDef, value: string) {
   if (facet.source === "availability") {
     return value === "in_stock" ? "In stock" : "Out of stock";
+  }
+  if (facet.source === "rating") {
+    return `${ratingStarLabel(value)} and up`;
   }
   if (facet.type === "boolean") {
     return value === BOOLEAN_TRUE ? BOOLEAN_TRUE_LABEL : BOOLEAN_FALSE_LABEL;
@@ -1098,6 +1175,35 @@ export function buildFacetAggregations(
           min: bounds.min,
           max: bounds.max,
         },
+      });
+      continue;
+    }
+
+    if (facet.source === "rating") {
+      const counts = new Map<string, number>(
+        RATING_STAR_VALUES.map((star) => [star, 0]),
+      );
+      for (const product of products) {
+        const rating = productReviewRating(product);
+        if (rating == null) continue;
+        for (const star of RATING_STAR_VALUES) {
+          if (rating >= Number(star)) {
+            counts.set(star, (counts.get(star) || 0) + 1);
+          }
+        }
+      }
+      result.push({
+        key: facet.key,
+        label: facet.label,
+        type: facet.type,
+        source: facet.source,
+        displayType: "checkbox",
+        matchMode: "or",
+        values: RATING_STAR_VALUES.map((star) => ({
+          value: star,
+          label: labelFor(facet, star),
+          count: counts.get(star) || 0,
+        })),
       });
       continue;
     }

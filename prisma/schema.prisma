@@ -123,6 +123,8 @@ model FilterConfig {
   enablePrice         Boolean  @default(true)
   /// % off slider from variant compare-at vs price (C15); off by default
   enableSale          Boolean  @default(false)
+  /// Review stars from reviews.rating / Judge.me / Loox / Stamped metafields (D5)
+  enableRating        Boolean  @default(false)
   enableAvailability  Boolean  @default(true)
   enableVendor        Boolean  @default(true)
   enableProductType   Boolean  @default(true)
@@ -133,7 +135,7 @@ model FilterConfig {
   customPriceMin      Decimal? @db.Decimal(12, 2)
   customPriceMax      Decimal? @db.Decimal(12, 2)
   /// Ordered filter keys, e.g. ["availability","price","sale","vendor","productType","tags","options"]
-  displayOrder        String[] @default(["availability", "price", "sale", "vendor", "productType", "tags", "options"])
+  displayOrder        String[] @default(["availability", "price", "sale", "rating", "vendor", "productType", "tags", "options"])
   /// Per-facet UI: vendor -> checkbox, productType -> dropdown, options -> swatch, price -> slider, …
   displayTypes        Json     @default("{}")
   /// Per-facet value combine: tags/options/mf_* -> "and" | "or" (default OR)

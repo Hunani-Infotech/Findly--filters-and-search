@@ -42,6 +42,7 @@ type ConfigState = {
   enabled: boolean;
   enablePrice: boolean;
   enableSale: boolean;
+  enableRating: boolean;
   enableAvailability: boolean;
   enableVendor: boolean;
   enableProductType: boolean;
@@ -85,6 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       enabled: config?.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
       enableSale: config?.enableSale ?? false,
+      enableRating: config?.enableRating ?? false,
       enableAvailability: config?.enableAvailability ?? true,
       enableVendor: config?.enableVendor ?? true,
       enableProductType: config?.enableProductType ?? true,
@@ -205,6 +207,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     enabled: bool("enabled"),
     enablePrice: bool("enablePrice"),
     enableSale: bool("enableSale"),
+    enableRating: bool("enableRating"),
     enableAvailability: bool("enableAvailability"),
     enableVendor: bool("enableVendor"),
     enableProductType: bool("enableProductType"),
@@ -254,6 +257,7 @@ export default function ShopDefaultFilterConfigPage() {
     formData.set("enabled", String(config.enabled));
     formData.set("enablePrice", String(config.enablePrice));
     formData.set("enableSale", String(config.enableSale));
+    formData.set("enableRating", String(config.enableRating));
     formData.set("enableAvailability", String(config.enableAvailability));
     formData.set("enableVendor", String(config.enableVendor));
     formData.set("enableProductType", String(config.enableProductType));
@@ -388,6 +392,15 @@ export default function ShopDefaultFilterConfigPage() {
                       disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enableSale: checked }))
+                      }
+                    />
+                    <Checkbox
+                      label="Rating stars"
+                      helpText="Uses Shopify reviews.rating (Judge.me, Loox, Stamped). N stars means that rating and up."
+                      checked={config.enableRating}
+                      disabled={saving}
+                      onChange={(checked) =>
+                        setConfig((c) => ({ ...c, enableRating: checked }))
                       }
                     />
                     <NumericRangeBounds

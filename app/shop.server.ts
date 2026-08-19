@@ -75,6 +75,7 @@ export type FilterConfigInput = {
   enabled?: boolean;
   enablePrice?: boolean;
   enableSale?: boolean;
+  enableRating?: boolean;
   enableAvailability?: boolean;
   enableVendor?: boolean;
   enableProductType?: boolean;
@@ -101,6 +102,7 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
     enabled: input.enabled,
     enablePrice: input.enablePrice,
     enableSale: input.enableSale,
+    enableRating: input.enableRating,
     enableAvailability: input.enableAvailability,
     enableVendor: input.enableVendor,
     enableProductType: input.enableProductType,

@@ -11,6 +11,7 @@ const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",
   price: "Price",
   sale: "% Sale off",
+  rating: "Rating",
   vendor: "Vendor",
   productType: "Product type",
   tags: "Tags",

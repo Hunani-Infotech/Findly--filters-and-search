@@ -45,16 +45,31 @@ export const PRODUCT_NODE_QUERY = `#graphql
           }
         }
       }
-      metafields(first: 50) {
-        edges {
-          node {
-            namespace
-            key
-            value
-          }
-        }
-      }
-      collections(first: 50) {
+            metafields(first: 50) {
+              edges {
+                node {
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
+            reviewsRating: metafield(namespace: "reviews", key: "rating") {
+              namespace
+              key
+              value
+            }
+            looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
+              namespace
+              key
+              value
+            }
+            stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
+              namespace
+              key
+              value
+            }
+            collections(first: 50) {
         edges {
           node {
             id
@@ -134,6 +149,21 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
                     value
                   }
                 }
+              }
+              reviewsRating: metafield(namespace: "reviews", key: "rating") {
+                namespace
+                key
+                value
+              }
+              looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
+                namespace
+                key
+                value
+              }
+              stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
+                namespace
+                key
+                value
               }
               collections {
                 edges {

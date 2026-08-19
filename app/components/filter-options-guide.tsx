@@ -29,9 +29,10 @@ export function FilterOptionsGuide({
         </Text>
         <List type="number">
           <List.Item>
-            Filter options: Price (auto or custom bounds), % Sale off, Availability,
-            Vendor, Product type, Tags, Variant options (Size, Color, and other
-            option names), plus any metafields you enabled as List, Range, or Yes/No.
+            Filter options: Price (auto or custom bounds), % Sale off, Rating
+            stars (Judge.me / Shopify reviews.rating), Availability, Vendor,
+            Product type, Tags, Variant options (Size, Color, and other option
+            names), plus any metafields you enabled as List, Range, or Yes/No.
           </List.Item>
           <List.Item>
             Matching: values inside one option are OR unless you turn on Use

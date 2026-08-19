@@ -41,6 +41,9 @@ type ShopifyProduct = {
       node: ShopifyMetafieldNode;
     }>;
   } | null;
+  reviewsRating?: ShopifyMetafieldNode | null;
+  looxAvgRating?: ShopifyMetafieldNode | null;
+  stampedAvgRating?: ShopifyMetafieldNode | null;
   collections?: {
     edges?: Array<{ node: { id: string } }>;
   } | null;
@@ -210,7 +213,18 @@ export function mapProductToFacet(
     options[opt.name] = opt.values ?? [];
   }
 
-  const metafields = metafieldBagFromEdges(product.metafields?.edges);
+  const metafields = mergeMetafieldBags(
+    metafieldBagFromEdges(product.metafields?.edges),
+    metafieldBagFromEdges(
+      [
+        product.reviewsRating,
+        product.looxAvgRating,
+        product.stampedAvgRating,
+      ]
+        .filter((node): node is ShopifyMetafieldNode => Boolean(node?.namespace && node?.key))
+        .map((node) => ({ node })),
+    ),
+  );
   const variantMetafields = mergeMetafieldBags(
     ...variants.map((variant) => metafieldBagFromEdges(variant.metafields?.edges)),
   );

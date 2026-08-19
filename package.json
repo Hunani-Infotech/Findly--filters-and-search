@@ -50,6 +50,7 @@
     "verify:c14": "node ./scripts/verify-c14.mjs",
     "verify:c15": "node ./scripts/verify-c15.mjs",
     "verify:d1": "node ./scripts/verify-d1.mjs",
+    "verify:d5": "node ./scripts/verify-d5.mjs",
     "share:db": "node ./scripts/share-db.mjs",
     "share:db:connect": "node ./scripts/share-db-connect.mjs"
   },

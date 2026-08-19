@@ -1177,11 +1177,13 @@
     var asSwatchText = displayType === "swatch-text";
     var asRadio = displayType === "radio";
     var asPlainList = displayType === "list";
+    var asRating = facet.source === "rating" || facet.key === "rating";
     list.className =
       "smart-filter__options" +
       (asColor ? " smart-filter__options--swatches" : "") +
       (asSize ? " smart-filter__options--pills" : "") +
       (asBoolean ? " smart-filter__options--boolean" : "") +
+      (asRating ? " smart-filter__options--stars" : "") +
       (asSwatchText ? " smart-filter__options--swatch-text" : "") +
       (asPlainList ? " smart-filter__options--list" : "");
     var selected = this.selected[facet.key] || [];
@@ -1244,7 +1246,20 @@
 
         var text = document.createElement("span");
         text.className = "smart-filter__option-text";
-        text.textContent = labelText;
+        if (asRating) {
+          var filled = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+          text.className += " smart-filter__stars";
+          text.setAttribute("aria-label", filled + " stars and up");
+          for (var s = 1; s <= 5; s += 1) {
+            var star = document.createElement("span");
+            star.className =
+              "smart-filter__star" + (s <= filled ? " is-on" : "");
+            star.textContent = s <= filled ? "★" : "☆";
+            text.appendChild(star);
+          }
+        } else {
+          text.textContent = labelText;
+        }
         label.appendChild(input);
         label.appendChild(text);
 

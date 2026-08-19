@@ -194,6 +194,7 @@ export async function duplicateFilterTree(shopId: string, treeId: string) {
       enabled: source.enabled,
       enablePrice: source.enablePrice,
       enableSale: source.enableSale,
+      enableRating: source.enableRating,
       enableAvailability: source.enableAvailability,
       enableVendor: source.enableVendor,
       enableProductType: source.enableProductType,
