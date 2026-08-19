@@ -5,6 +5,7 @@
 import "tsx/esm";
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
+import { seedFilterConfig } from "./seed-filter-config.mjs";
 
 const SHOP_DOMAIN = "a7-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9007001";
@@ -27,22 +28,15 @@ async function seedShopData() {
     update: { uninstalledAt: null, plan: "free" },
   });
 
-  await prisma.filterConfig.upsert({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
-    },
-    create: {
-      shopId: shop.id,
-      collectionGid: COLLECTION_GID,
-      enabled: true,
-      enablePrice: true,
-      enableAvailability: true,
-      enableVendor: false,
-      enableProductType: false,
-      enableTags: false,
-      enableOptions: false,
-    },
-    update: { enabled: true },
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: COLLECTION_GID,
+    enabled: true,
+    enablePrice: true,
+    enableAvailability: true,
+    enableVendor: false,
+    enableProductType: false,
+    enableTags: false,
+    enableOptions: false,
   });
 
   await prisma.collection.upsert({

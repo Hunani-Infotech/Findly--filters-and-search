@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
+import { seedFilterConfig } from "./seed-filter-config.mjs";
 
 const SHOP_DOMAIN = "c14-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9140014";
@@ -74,25 +75,12 @@ async function seedShopData() {
     update: { uninstalledAt: null, plan: "free" },
   });
 
-  await prisma.filterConfig.upsert({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
-    },
-    create: {
-      shopId: shop.id,
-      collectionGid: COLLECTION_GID,
-      enabled: true,
-      enablePrice: true,
-      rangeBounds: {
-        [LENGTH_KEY]: { mode: "custom", min: 0, max: 100 },
-      },
-    },
-    update: {
-      enabled: true,
-      enablePrice: true,
-      rangeBounds: {
-        [LENGTH_KEY]: { mode: "custom", min: 0, max: 100 },
-      },
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: COLLECTION_GID,
+    enabled: true,
+    enablePrice: true,
+    rangeBounds: {
+      [LENGTH_KEY]: { mode: "custom", min: 0, max: 100 },
     },
   });
 
@@ -270,11 +258,11 @@ try {
   }
   log.info("Length slider filters products");
 
-  const persisted = await prisma.filterConfig.findUnique({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
-    },
+  const persistedJoin = await prisma.filterTreeCollection.findFirst({
+    where: { shopId: shop.id, collectionGid: COLLECTION_GID },
+    include: { tree: true },
   });
+  const persisted = persistedJoin?.tree;
   const bounds =
     persisted?.rangeBounds &&
     typeof persisted.rangeBounds === "object" &&

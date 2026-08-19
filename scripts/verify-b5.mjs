@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
+import { seedFilterConfig } from "./seed-filter-config.mjs";
 
 const SHOP_A = "b5-verify.myshopify.com";
 const SHOP_B = "b5-other.myshopify.com";
@@ -169,26 +170,16 @@ async function seed() {
   };
 
   for (const collectionGid of ["", COL_A]) {
-    await prisma.filterConfig.upsert({
-      where: {
-        shopId_collectionGid: { shopId: shopA.id, collectionGid },
-      },
-      create: { shopId: shopA.id, collectionGid, ...filterFields },
-      update: filterFields,
+    await seedFilterConfig(prisma, shopA.id, {
+      collectionGid,
+      ...filterFields,
     });
   }
 
-  await prisma.filterConfig.upsert({
-    where: {
-      shopId_collectionGid: { shopId: shopA.id, collectionGid: COL_B },
-    },
-    create: {
-      shopId: shopA.id,
-      collectionGid: COL_B,
-      ...filterFields,
-      enabled: false,
-    },
-    update: { ...filterFields, enabled: false },
+  await seedFilterConfig(prisma, shopA.id, {
+    collectionGid: COL_B,
+    ...filterFields,
+    enabled: false,
   });
 
   await prisma.appSettings.upsert({

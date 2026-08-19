@@ -6,6 +6,7 @@ import type {
 } from "react-router";
 import {
   Form,
+  redirect,
   useActionData,
   useLoaderData,
   useNavigate,
@@ -29,68 +30,60 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import { ensureShopAccess } from "../billing.server";
 import { metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
-import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields, hasCollectionAssignment } from "../shop.server";
-import { toCollectionGid } from "../settings.server";
+import { getListFacetValueCatalog, getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
+import {
+  deleteFilterTree,
+  duplicateFilterTree,
+  getFilterTree,
+  updateFilterTree,
+} from "../filter-trees.server";
+import prisma from "../db.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 
+type ConfigState = {
+  name: string;
+  appliesToSearch: boolean;
+  collectionGids: string[];
+  enabled: boolean;
+  enablePrice: boolean;
+  enableSale: boolean;
+  enableAvailability: boolean;
+  enableVendor: boolean;
+  enableProductType: boolean;
+  enableTags: boolean;
+  enableOptions: boolean;
+  priceRangeMode: "auto" | "custom";
+  customPriceMin: string;
+  customPriceMax: string;
+  displayOrder: string[];
+  displayTypes: Record<string, string>;
+  matchModes: Record<string, "or" | "and">;
+  valueSort: ValueSortMap;
+  rangeBounds: RangeBoundFormMap;
+};
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-
-  const id = params.id;
-  if (!id) {
-    throw new Response("Collection id required", { status: 400 });
+  const treeId = params.id;
+  if (!treeId) {
+    throw new Response("Not found", { status: 404 });
   }
-
-  const collectionGid = toCollectionGid(id);
-  const collection = await prisma.collection.findUnique({
-    where: {
-      shopId_collectionGid: {
-        shopId: shop.id,
-        collectionGid,
-      },
-    },
+  const config = await getFilterTree(shop.id, treeId);
+  if (!config) {
+    throw new Response("Not found", { status: 404 });
+  }
+  const collections = await prisma.collection.findMany({
+    where: { shopId: shop.id },
+    orderBy: { title: "asc" },
   });
-
-  if (!collection) {
-    return {
-      notFound: true as const,
-      collectionGid,
-      collection: null,
-      usingDefault: true,
-      config: {
-        enabled: true,
-        enablePrice: true,
-        enableSale: false,
-        enableAvailability: true,
-        enableVendor: true,
-        enableProductType: true,
-        enableTags: true,
-        enableOptions: true,
-        displayOrder: normalizeDisplayOrder(),
-        displayTypes: {},
-        matchModes: {},
-        valueSort: {},
-        rangeBounds: {},
-        ...filterConfigPriceFields(null),
-      },
-      valueCatalog: [] as Array<{ key: string; label: string; values: string[] }>,
-      listMetafields: [] as Array<{ key: string; label: string }>,
-      mappedFacets: [] as Array<{ key: string; label: string; filterType: string }>,
-    };
-  }
-
-  const config = await getFilterConfig(shop.id, collectionGid);
-  const hasSpecific = await hasCollectionAssignment(shop.id, collectionGid);
-
-  const valueCatalog = await getListFacetValueCatalog(shop.id, collectionGid);
+  const valueCatalog = await getListFacetValueCatalog(shop.id, "");
   const mappedFacets = (await getMetafieldMappings(shop.id))
     .filter((mapping) => mapping.enabled)
     .map((mapping) => ({
@@ -107,19 +100,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   );
 
   return {
-    notFound: false as const,
-    collectionGid,
-    collection: {
+    treeId: config.id,
+    collections: collections.map((collection) => ({
+      collectionGid: collection.collectionGid,
       title: collection.title,
       handle: collection.handle,
-      collectionGid: collection.collectionGid,
-    },
-    usingDefault: !hasSpecific,
+    })),
     valueCatalog,
     listMetafields,
     mappedFacets,
     config: {
-      enabled: config?.enabled ?? true,
+      name: config.name,
+      appliesToSearch: config.appliesToSearch,
+      collectionGids: config.treeCollections.map((row) => row.collectionGid),
+      enabled: config.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
       enableSale: config?.enableSale ?? false,
       enableAvailability: config?.enableAvailability ?? true,
@@ -153,14 +147,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-
-  const id = params.id;
-  if (!id) {
-    return { error: "Collection id required" };
+  const treeId = params.id;
+  if (!treeId) {
+    return { error: "Filter tree required" };
   }
-
-  const collectionGid = toCollectionGid(id);
   const form = await request.formData();
+  const intent = String(form.get("intent") || "save");
+
+  if (intent === "duplicate") {
+    const copy = await duplicateFilterTree(shop.id, treeId);
+    if (!copy) return { error: "Could not duplicate this tree." };
+    return redirect(`/app/filters/${copy.id}`);
+  }
+  if (intent === "delete") {
+    const result = await deleteFilterTree(shop.id, treeId);
+    if ("error" in result) return { error: result.error };
+    return redirect("/app");
+  }
 
   const bool = (key: string) => form.get(key) === "true" || form.get(key) === "on";
 
@@ -244,8 +247,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
   }
 
-  await saveFilterConfig(shop.id, {
-    collectionGid,
+  let collectionGids: string[] = [];
+  const gidsRaw = form.get("collectionGids");
+  if (typeof gidsRaw === "string" && gidsRaw) {
+    try {
+      const parsed = JSON.parse(gidsRaw) as unknown;
+      if (Array.isArray(parsed)) {
+        collectionGids = parsed.filter((item): item is string => typeof item === "string");
+      }
+    } catch {
+      collectionGids = [];
+    }
+  }
+
+  await updateFilterTree(shop.id, treeId, {
+    name: String(form.get("name") || "Untitled tree"),
+    appliesToSearch: bool("appliesToSearch"),
+    collectionGids,
     enabled: bool("enabled"),
     enablePrice: bool("enablePrice"),
     enableSale: bool("enableSale"),
@@ -267,26 +285,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return { ok: true };
 };
 
-type ConfigState = {
-  enabled: boolean;
-  enablePrice: boolean;
-  enableSale: boolean;
-  enableAvailability: boolean;
-  enableVendor: boolean;
-  enableProductType: boolean;
-  enableTags: boolean;
-  enableOptions: boolean;
-  priceRangeMode: "auto" | "custom";
-  customPriceMin: string;
-  customPriceMax: string;
-  displayOrder: string[];
-  displayTypes: Record<string, string>;
-  matchModes: Record<string, "or" | "and">;
-  valueSort: ValueSortMap;
-  rangeBounds: RangeBoundFormMap;
-};
-
-export default function CollectionFilterConfigPage() {
+export default function FilterTreeEditorPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -314,6 +313,10 @@ export default function CollectionFilterConfigPage() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData();
+    formData.set("intent", "save");
+    formData.set("name", config.name);
+    formData.set("appliesToSearch", String(config.appliesToSearch));
+    formData.set("collectionGids", JSON.stringify(config.collectionGids));
     formData.set("enabled", String(config.enabled));
     formData.set("enablePrice", String(config.enablePrice));
     formData.set("enableSale", String(config.enableSale));
@@ -333,55 +336,41 @@ export default function CollectionFilterConfigPage() {
     submit(formData, { method: "POST" });
   };
 
-  if (data.notFound || !data.collection) {
-    return (
-      <Page
-        title="Collection not found"
-        backAction={{
-          content: "Collections",
-          onAction: () => navigate("/app"),
-        }}
-      >
-        <Layout>
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title="This collection is not in the local index"
-              action={{
-                content: "Go to Sync",
-                onAction: () => navigate("/app/sync"),
-              }}
-            >
-              <p>
-                Run a full sync, then open Configure again. Looking for{" "}
-                {data.collectionGid}.
-              </p>
-            </Banner>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    );
-  }
-
   return (
     <Page
-      title={data.collection.title}
-      subtitle={
-        data.collection.handle
-          ? `Handle: ${data.collection.handle}`
-          : data.collection.collectionGid
-      }
+      title={config.name || "Filter tree"}
       backAction={{
-        content: "Collections",
+        content: "Filter trees",
         onAction: () => navigate("/app"),
       }}
+      secondaryActions={[
+        {
+          content: "Duplicate",
+          disabled: saving,
+          onAction: () => {
+            const formData = new FormData();
+            formData.set("intent", "duplicate");
+            submit(formData, { method: "POST" });
+          },
+        },
+        {
+          content: "Delete",
+          disabled: saving,
+          destructive: true,
+          onAction: () => {
+            const formData = new FormData();
+            formData.set("intent", "delete");
+            submit(formData, { method: "POST" });
+          },
+        },
+      ]}
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,
         disabled: saving,
         onAction: () => {
           const form = document.getElementById(
-            "collection-filter-form",
+            "default-filter-form",
           ) as HTMLFormElement | null;
           form?.requestSubmit();
         },
@@ -389,9 +378,56 @@ export default function CollectionFilterConfigPage() {
     >
       <Layout>
         <Layout.Section>
-          <Form id="collection-filter-form" method="post" onSubmit={handleSubmit}>
+          <Form id="default-filter-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
-              <FilterOptionsGuide variant="collection" />
+              <FilterOptionsGuide variant="default" />
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Tree name and pages
+                  </Text>
+                  <TextField
+                    label="Name"
+                    value={config.name}
+                    autoComplete="off"
+                    disabled={saving}
+                    onChange={(value) =>
+                      setConfig((c) => ({ ...c, name: value }))
+                    }
+                  />
+                  <Checkbox
+                    label="Use on search results"
+                    helpText="Last-created search tree wins if more than one is checked."
+                    checked={config.appliesToSearch}
+                    disabled={saving}
+                    onChange={(checked) =>
+                      setConfig((c) => ({ ...c, appliesToSearch: checked }))
+                    }
+                  />
+                  <ChoiceList
+                    allowMultiple
+                    title="Collections"
+                    choices={data.collections.map((collection) => ({
+                      label: collection.title,
+                      value: collection.collectionGid,
+                      helpText: collection.handle,
+                    }))}
+                    selected={config.collectionGids}
+                    disabled={saving || data.collections.length === 0}
+                    onChange={(selected) =>
+                      setConfig((c) => ({ ...c, collectionGids: selected }))
+                    }
+                  />
+                  {data.collections.length === 0 ? (
+                    <Text as="p" tone="subdued">
+                      Sync collections to assign this tree to specific pages.
+                      With no collections selected, this tree is the shop
+                      default (last-created default wins).
+                    </Text>
+                  ) : null}
+                </BlockStack>
+              </Card>
 
               <Card>
                 <BlockStack gap="300">
@@ -404,7 +440,7 @@ export default function CollectionFilterConfigPage() {
                   </Text>
                   <FormLayout>
                     <Checkbox
-                      label="Enable filters for this collection"
+                      label="Enable filters by default"
                       checked={config.enabled}
                       disabled={saving}
                       onChange={(checked) =>
@@ -425,7 +461,7 @@ export default function CollectionFilterConfigPage() {
                           title="Price range"
                           choices={[
                             {
-                              label: "From products in this collection",
+                              label: "From products in each collection",
                               value: "auto",
                               helpText:
                                 "Slider min and max come from synced variant prices.",
@@ -675,11 +711,11 @@ export function ErrorBoundary() {
     error instanceof Error
       ? error.message
       : typeof error === "object" && error && "status" in error
-        ? `Could not load this collection (${String((error as { status: unknown }).status)})`
-        : "Could not load this collection";
+        ? `Could not load shop-wide defaults (${String((error as { status: unknown }).status)})`
+        : "Could not load shop-wide defaults";
 
   return (
-    <Page title="Collection filters">
+    <Page title="Shop-wide default filters">
       <Layout>
         <Layout.Section>
           <Banner tone="critical" title="This page did not load">

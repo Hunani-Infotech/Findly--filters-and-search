@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
+import { seedFilterConfig } from "./seed-filter-config.mjs";
 
 const SHOP_DOMAIN = "c10-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9707001";
@@ -86,30 +87,15 @@ async function seedShopData() {
     update: { uninstalledAt: null, plan: "free" },
   });
 
-  await prisma.filterConfig.upsert({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
-    },
-    create: {
-      shopId: shop.id,
-      collectionGid: COLLECTION_GID,
-      enabled: true,
-      enableVendor: true,
-      enableProductType: true,
-      enableTags: true,
-      enablePrice: true,
-      enableOptions: true,
-      displayTypes: DISPLAY_TYPES,
-    },
-    update: {
-      enabled: true,
-      enableVendor: true,
-      enableProductType: true,
-      enableTags: true,
-      enablePrice: true,
-      enableOptions: true,
-      displayTypes: DISPLAY_TYPES,
-    },
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: COLLECTION_GID,
+    enabled: true,
+    enableVendor: true,
+    enableProductType: true,
+    enableTags: true,
+    enablePrice: true,
+    enableOptions: true,
+    displayTypes: DISPLAY_TYPES,
   });
 
   await prisma.collection.upsert({
@@ -303,11 +289,11 @@ try {
   assertDisplayType(weightFacet, "slider", "Weight metafield");
   log.info("Weight metafield displayType=slider");
 
-  const reloaded = await prisma.filterConfig.findUnique({
-    where: {
-      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
-    },
+  const reloadedJoin = await prisma.filterTreeCollection.findFirst({
+    where: { shopId: shop.id, collectionGid: COLLECTION_GID },
+    include: { tree: true },
   });
+  const reloaded = reloadedJoin?.tree;
   const persisted =
     reloaded?.displayTypes &&
     typeof reloaded.displayTypes === "object" &&

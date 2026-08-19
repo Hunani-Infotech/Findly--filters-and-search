@@ -38,8 +38,9 @@ export async function getSetupProgress(
     productCount,
   ] = await Promise.all([
     prisma.syncJob.findUnique({ where: { shopId } }),
-    prisma.filterConfig.findUnique({
-      where: { shopId_collectionGid: { shopId, collectionGid: "" } },
+    prisma.filterConfig.findFirst({
+      where: { shopId, appliesToSearch: true },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.metafieldMapping.count({
       where: { shopId, enabled: true },
@@ -70,7 +71,7 @@ export async function getSetupProgress(
       title: "Choose default filter options",
       description:
         "Turn on Price, Availability, Vendor, Type, Tags, and variant options. Set display type, AND/OR, and value order.",
-      href: "/app/collections/default",
+      href: "/app",
       actionLabel: defaultConfigured ? "Edit defaults" : "Set defaults",
       status: defaultConfigured ? "complete" : "todo",
     },

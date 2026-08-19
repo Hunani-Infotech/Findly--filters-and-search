@@ -1,12 +1,26 @@
 import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
-import { DEFAULT_DISPLAY_ORDER, listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
+import { listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
+import {
+  ensureDefaultFilterTree,
+  findOrCreateDefaultTree,
+  findOrCreateTreeForCollection,
+  hasCollectionAssignment,
+  resolveFilterTreeForCollection,
+  resolveFilterTreeForSearch,
+  replaceTreeCollections,
+} from "./filter-trees.server";
 import {
   normalizeMetafieldOwnerType,
   type MetafieldOwnerTypeValue,
 } from "./metafield-owner";
 
 export { normalizeMetafieldOwnerType, type MetafieldOwnerTypeValue };
+export {
+  hasCollectionAssignment,
+  resolveFilterTreeForCollection,
+  resolveFilterTreeForSearch,
+};
 
 export async function ensureShop(domain: string) {
   const shop = await prisma.shop.upsert({
@@ -22,19 +36,8 @@ export async function ensureShop(domain: string) {
   });
 
   try {
-    await prisma.filterConfig.upsert({
-      where: {
-        shopId_collectionGid: { shopId: shop.id, collectionGid: "" },
-      },
-      create: {
-        shopId: shop.id,
-        collectionGid: "",
-        displayOrder: [...DEFAULT_DISPLAY_ORDER],
-      },
-      update: {},
-    });
+    await ensureDefaultFilterTree(shop.id);
   } catch (error) {
-    // Parallel afterAuth + nested /app loaders can still race Prisma upsert.
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== "P2002"
@@ -52,14 +55,9 @@ export async function getFilterConfig(
 ) {
   const gid = collectionGid || "";
   if (gid) {
-    const specific = await prisma.filterConfig.findUnique({
-      where: { shopId_collectionGid: { shopId, collectionGid: gid } },
-    });
-    if (specific) return specific;
+    return resolveFilterTreeForCollection(shopId, gid);
   }
-  return prisma.filterConfig.findUnique({
-    where: { shopId_collectionGid: { shopId, collectionGid: "" } },
-  });
+  return resolveFilterTreeForSearch(shopId);
 }
 
 export async function getMetafieldMappings(shopId: string) {
@@ -71,6 +69,9 @@ export async function getMetafieldMappings(shopId: string) {
 
 export type FilterConfigInput = {
   collectionGid?: string;
+  name?: string;
+  appliesToSearch?: boolean;
+  collectionGids?: string[];
   enabled?: boolean;
   enablePrice?: boolean;
   enableSale?: boolean;
@@ -92,61 +93,57 @@ export type FilterConfigInput = {
 export async function saveFilterConfig(shopId: string, input: FilterConfigInput) {
   const collectionGid = input.collectionGid ?? "";
   const priceRangeMode = input.priceRangeMode === "custom" ? "custom" : "auto";
-  return prisma.filterConfig.upsert({
-    where: { shopId_collectionGid: { shopId, collectionGid } },
-    create: {
-      shopId,
-      collectionGid,
-      enabled: input.enabled ?? true,
-      enablePrice: input.enablePrice ?? true,
-      enableSale: input.enableSale ?? false,
-      enableAvailability: input.enableAvailability ?? true,
-      enableVendor: input.enableVendor ?? true,
-      enableProductType: input.enableProductType ?? true,
-      enableTags: input.enableTags ?? true,
-      enableOptions: input.enableOptions ?? true,
-      priceRangeMode,
-      customPriceMin: input.customPriceMin ?? null,
-      customPriceMax: input.customPriceMax ?? null,
-      displayOrder: normalizeDisplayOrder(
-        input.displayOrder ?? [...DEFAULT_DISPLAY_ORDER],
-      ),
-      displayTypes: parseDisplayTypes(input.displayTypes),
-      matchModes: parseMatchModes(input.matchModes),
-      valueSort: parseValueSort(input.valueSort),
-      rangeBounds: parseRangeBounds(input.rangeBounds),
-    },
-    update: {
-      enabled: input.enabled,
-      enablePrice: input.enablePrice,
-      enableSale: input.enableSale,
-      enableAvailability: input.enableAvailability,
-      enableVendor: input.enableVendor,
-      enableProductType: input.enableProductType,
-      enableTags: input.enableTags,
-      enableOptions: input.enableOptions,
-      priceRangeMode,
-      customPriceMin: input.customPriceMin ?? null,
-      customPriceMax: input.customPriceMax ?? null,
-      displayOrder: input.displayOrder
-        ? normalizeDisplayOrder(input.displayOrder)
-        : input.displayOrder,
-      displayTypes:
-        input.displayTypes !== undefined
-          ? parseDisplayTypes(input.displayTypes)
-          : undefined,
-      matchModes:
-        input.matchModes !== undefined
-          ? parseMatchModes(input.matchModes)
-          : undefined,
-      valueSort:
-        input.valueSort !== undefined ? parseValueSort(input.valueSort) : undefined,
-      rangeBounds:
-        input.rangeBounds !== undefined
-          ? parseRangeBounds(input.rangeBounds)
-          : undefined,
-    },
+  const tree = collectionGid
+    ? await findOrCreateTreeForCollection(shopId, collectionGid)
+    : await findOrCreateDefaultTree(shopId);
+
+  const data = {
+    enabled: input.enabled,
+    enablePrice: input.enablePrice,
+    enableSale: input.enableSale,
+    enableAvailability: input.enableAvailability,
+    enableVendor: input.enableVendor,
+    enableProductType: input.enableProductType,
+    enableTags: input.enableTags,
+    enableOptions: input.enableOptions,
+    priceRangeMode,
+    customPriceMin: input.customPriceMin ?? null,
+    customPriceMax: input.customPriceMax ?? null,
+    displayOrder: input.displayOrder
+      ? normalizeDisplayOrder(input.displayOrder)
+      : undefined,
+    displayTypes:
+      input.displayTypes !== undefined
+        ? parseDisplayTypes(input.displayTypes)
+        : undefined,
+    matchModes:
+      input.matchModes !== undefined
+        ? parseMatchModes(input.matchModes)
+        : undefined,
+    valueSort:
+      input.valueSort !== undefined ? parseValueSort(input.valueSort) : undefined,
+    rangeBounds:
+      input.rangeBounds !== undefined
+        ? parseRangeBounds(input.rangeBounds)
+        : undefined,
+    ...(input.name !== undefined ? { name: input.name.trim() || tree.name } : {}),
+    ...(input.appliesToSearch !== undefined
+      ? { appliesToSearch: input.appliesToSearch }
+      : collectionGid
+        ? {}
+        : { appliesToSearch: true }),
+  };
+
+  const updated = await prisma.filterConfig.update({
+    where: { id: tree.id },
+    data,
   });
+
+  if (input.collectionGids) {
+    await replaceTreeCollections(shopId, tree.id, input.collectionGids);
+  }
+
+  return updated;
 }
 
 export async function saveMetafieldMappings(

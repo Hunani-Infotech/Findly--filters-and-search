@@ -11,6 +11,7 @@ const required = [
   "Session",
   "Shop",
   "FilterConfig",
+  "FilterTreeCollection",
   "MetafieldMapping",
   "SyncJob",
   "Subscription",

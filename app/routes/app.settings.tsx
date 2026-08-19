@@ -441,7 +441,6 @@ export default function SettingsPage() {
     <Page
       title="Settings"
       subtitle="Layout, search, sort, stock rules, and look. Filter option sources (Price, Tags, metafields) are on Filters."
-      fullWidth
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,

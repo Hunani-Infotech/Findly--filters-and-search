@@ -1,9 +1,25 @@
-/* Embedded admin iframe: keep last fields off the bottom edge. */
+/* Embedded admin iframe: center the page and keep last fields off the bottom edge. */
 .findly-admin-shell {
   box-sizing: border-box;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
   padding-bottom: 4rem;
+}
+
+.findly-admin-shell .Polaris-Page,
+.findly-admin-shell .Polaris-Page--fullWidth {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 62.375rem;
 }
 
 .findly-admin-shell > *:last-child {
   margin-bottom: 0;
+}
+
+@media (max-width: 47.99em) {
+  .findly-admin-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
 }

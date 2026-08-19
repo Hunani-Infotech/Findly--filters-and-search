@@ -110,13 +110,15 @@ model AppSettings {
   updatedAt         DateTime @updatedAt
 }
 
-/// Per-collection filter toggles + display order.
+/// Named filter tree (Globo Filter Tree). Last-created wins when collections overlap.
 model FilterConfig {
   id                  String   @id @default(cuid())
   shopId              String
   shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  /// Shopify collection GID; use empty string for shop-wide default
+  name                String   @default("Default")
+  /// Legacy single-collection pointer; assignments also live in FilterTreeCollection
   collectionGid       String   @default("")
+  appliesToSearch     Boolean  @default(false)
   enabled             Boolean  @default(true)
   enablePrice         Boolean  @default(true)
   /// % off slider from variant compare-at vs price (C15); off by default
@@ -140,10 +142,24 @@ model FilterConfig {
   valueSort           Json     @default("{}")
   /// Per RANGE metafield slider bounds: { "mf_custom_length": { "mode": "custom", "min": 0, "max": 100 } }
   rangeBounds         Json     @default("{}")
+  createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  treeCollections     FilterTreeCollection[]
 
-  @@unique([shopId, collectionGid])
-  @@index([shopId])
+  @@index([shopId, createdAt])
+  @@index([shopId, appliesToSearch])
+}
+
+/// Collections this filter tree applies to (many trees may overlap; newest createdAt wins).
+model FilterTreeCollection {
+  id            String       @id @default(cuid())
+  shopId        String
+  treeId        String
+  collectionGid String
+  tree          FilterConfig @relation(fields: [treeId], references: [id], onDelete: Cascade)
+
+  @@unique([treeId, collectionGid])
+  @@index([shopId, collectionGid])
 }
 
 /// Merchant-selected metafields that become storefront filters.
