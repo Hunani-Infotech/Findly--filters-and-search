@@ -293,32 +293,32 @@ export function FilterOptionsTable({
                     {row.label}
                   </Button>
                   <SourceCell row={row} />
-                  <div onClick={(event) => event.stopPropagation()}>
-                    {lockedSlider || choices.length <= 1 ? (
-                      <Text as="span">
-                        {FACET_DISPLAY_TYPE_LABELS[selectedType]}
-                      </Text>
-                    ) : (
-                      <select
-                        className="findly-filter-option-table__type"
-                        aria-label={`${row.label} display type`}
-                        disabled={disabled}
-                        value={selectedType}
-                        onChange={(event) =>
-                          onDisplayTypesChange({
-                            ...types,
-                            [row.key]: event.target.value as FacetDisplayType,
-                          })
-                        }
-                      >
-                        {choices.map((value) => (
-                          <option key={value} value={value}>
-                            {FACET_DISPLAY_TYPE_LABELS[value]}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
+                  {lockedSlider || choices.length <= 1 ? (
+                    <Text as="span">
+                      {FACET_DISPLAY_TYPE_LABELS[selectedType]}
+                    </Text>
+                  ) : (
+                    <select
+                      className="findly-filter-option-table__type"
+                      aria-label={`${row.label} display type`}
+                      disabled={disabled}
+                      value={selectedType}
+                      onClick={(event) => event.stopPropagation()}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onChange={(event) =>
+                        onDisplayTypesChange({
+                          ...types,
+                          [row.key]: event.target.value as FacetDisplayType,
+                        })
+                      }
+                    >
+                      {choices.map((value) => (
+                        <option key={value} value={value}>
+                          {FACET_DISPLAY_TYPE_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <InlineStack gap="200" wrap={false}>
                     <Button
                       variant="plain"

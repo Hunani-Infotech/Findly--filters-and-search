@@ -70,7 +70,7 @@ export async function uploadShopImage(
   admin: GraphqlAdmin,
   file: { filename: string; mimeType: string; bytes: Buffer },
 ): Promise<{ url: string } | { error: string }> {
-  const filename = file.filename.replace(/[^\w.\-]+/g, "_").slice(0, 80) || "swatch.png";
+  const filename = file.filename.replace(/[^\w.-]+/g, "_").slice(0, 80) || "swatch.png";
   const mimeType = file.mimeType || "image/png";
   const staged = await admin.graphql(
     `#graphql

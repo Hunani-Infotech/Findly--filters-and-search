@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -273,6 +273,29 @@ export default function RecommendationsPage() {
   const [mobileCount, setMobileCount] = useState(String(data.recs.counts.mobile));
   const [tabletCount, setTabletCount] = useState(String(data.recs.counts.tablet));
   const [desktopCount, setDesktopCount] = useState(String(data.recs.counts.desktop));
+  const [loaderRecs, setLoaderRecs] = useState(data.recs);
+  const [loaderRecOn, setLoaderRecOn] = useState(data.recOn);
+  const [appliedFetcher, setAppliedFetcher] = useState<typeof fetcher.data>(undefined);
+  const lastToastData = useRef<typeof fetcher.data>(undefined);
+
+  if (data.recs !== loaderRecs || data.recOn !== loaderRecOn) {
+    setLoaderRecs(data.recs);
+    setLoaderRecOn(data.recOn);
+    setRecs(data.recs);
+    setRecOn(data.recOn);
+    setMobileCount(String(data.recs.counts.mobile));
+    setTabletCount(String(data.recs.counts.tablet));
+    setDesktopCount(String(data.recs.counts.desktop));
+  }
+
+  if (fetcher.data && fetcher.data !== appliedFetcher && "ok" in fetcher.data && fetcher.data.ok) {
+    setAppliedFetcher(fetcher.data);
+    setRecs(fetcher.data.recs);
+    setRecOn(fetcher.data.recOn);
+    setMobileCount(String(fetcher.data.recs.counts.mobile));
+    setTabletCount(String(fetcher.data.recs.counts.tablet));
+    setDesktopCount(String(fetcher.data.recs.counts.desktop));
+  }
 
   const saving =
     ["loading", "submitting"].includes(fetcher.state) &&
@@ -283,20 +306,10 @@ export default function RecommendationsPage() {
       : "";
 
   useEffect(() => {
-    setRecs(data.recs);
-    setRecOn(data.recOn);
-    setMobileCount(String(data.recs.counts.mobile));
-    setTabletCount(String(data.recs.counts.tablet));
-    setDesktopCount(String(data.recs.counts.desktop));
-  }, [data.recs, data.recOn]);
-
-  useEffect(() => {
-    if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
-      setRecs(fetcher.data.recs);
-      setRecOn(fetcher.data.recOn);
-      setMobileCount(String(fetcher.data.recs.counts.mobile));
-      setTabletCount(String(fetcher.data.recs.counts.tablet));
-      setDesktopCount(String(fetcher.data.recs.counts.desktop));
+    const result = fetcher.data;
+    if (!result || lastToastData.current === result) return;
+    lastToastData.current = result;
+    if ("ok" in result && result.ok) {
       const messages: Record<string, string> = {
         recOn: "Recommendations saved",
         saveCounts: "Breakpoint counts saved",
@@ -304,10 +317,10 @@ export default function RecommendationsPage() {
         savePicks: "Merchandised list saved",
         deleteRelated: "Related mapping deleted",
       };
-      shopify.toast.show(messages[fetcher.data.intent] ?? "Recommendations saved");
+      shopify.toast.show(messages[result.intent] ?? "Recommendations saved");
     }
-    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
-      shopify.toast.show(String(fetcher.data.error), { isError: true });
+    if ("error" in result && result.error) {
+      shopify.toast.show(String(result.error), { isError: true });
     }
   }, [fetcher.data, shopify]);
 
@@ -584,7 +597,7 @@ export default function RecommendationsPage() {
                       variant="plain"
                       onClick={() => selectRelatedSource(source)}
                     >
-                      {source} ({recs.related[source]?.length ?? 0})
+                      {`${source} (${recs.related[source]?.length ?? 0})`}
                     </Button>
                     <Button
                       tone="critical"

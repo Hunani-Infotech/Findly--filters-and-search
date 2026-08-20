@@ -160,7 +160,7 @@ export function addFilterOptionKeys(
   flags: EnableFlags,
 ): { visibleKeys: string[]; flags: EnableFlags } {
   const nextFlags = { ...flags };
-  let nextVisible = [...visibleKeys];
+  const nextVisible = [...visibleKeys];
 
   if (row.enableKey && row.enableKey !== "enableOptions") {
     nextFlags[row.enableKey] = true;

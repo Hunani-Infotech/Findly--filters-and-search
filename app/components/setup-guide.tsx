@@ -39,7 +39,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
               onClick={() => navigate(next.href)}
               loading={isNavigatingTo(navigation, next.href)}
             >
-              {next.number}. {next.actionLabel}
+              {`${next.number}. ${next.actionLabel}`}
             </Button>
             <Text as="p" variant="bodySm" tone="subdued">
               {progress.completeCount} of {progress.steps.length} steps ready

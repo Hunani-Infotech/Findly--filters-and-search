@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -336,30 +336,46 @@ export default function TranslationPage() {
   );
   const [addCode, setAddCode] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [addOpenedFor, setAddOpenedFor] = useState(false);
+  const [seenResult, setSeenResult] = useState<string | null>(null);
+  const toastSeen = useRef<string | null>(null);
 
   const availableLocales = useMemo(() => {
     const used = new Set(langs.map((lang) => lang.code));
     return ADDABLE_LOCALES.filter((locale) => !used.has(locale.code));
   }, [langs]);
 
-  useEffect(() => {
-    if (!addOpen) return;
+  if (addOpen && !addOpenedFor) {
+    setAddOpenedFor(true);
     setAddCode(availableLocales[0]?.code ?? "");
-  }, [addOpen, availableLocales]);
+  }
+  if (!addOpen && addOpenedFor) setAddOpenedFor(false);
+
+  if (fetcher.state === "idle" && fetcher.data) {
+    const key = JSON.stringify(fetcher.data);
+    if (seenResult !== key) {
+      setSeenResult(key);
+      if ("ok" in fetcher.data && fetcher.data.ok) {
+        setAddOpen(false);
+        setEditLang(null);
+        setImportOpen(false);
+        setImportFile(null);
+      }
+    }
+  }
 
   useEffect(() => {
     const data = fetcher.data;
     if (!data || fetcher.state !== "idle") return;
+    const key = JSON.stringify(data);
+    if (toastSeen.current === key) return;
+    toastSeen.current = key;
     if ("error" in data && data.error) {
       shopify.toast.show(data.error, { isError: true });
       return;
     }
     if ("ok" in data && data.ok) {
       shopify.toast.show(data.toast);
-      setAddOpen(false);
-      setEditLang(null);
-      setImportOpen(false);
-      setImportFile(null);
     }
   }, [fetcher.data, fetcher.state, shopify]);
 
@@ -438,7 +454,10 @@ export default function TranslationPage() {
       backAction={{ content: "Filters", onAction: () => navigate("/app") }}
       primaryAction={{
         content: "Add language",
-        onAction: () => setAddOpen(true),
+        onAction: () => {
+          setAddOpen(true);
+          setAddCode(availableLocales[0]?.code ?? "");
+        },
         disabled: availableLocales.length === 0,
       }}
       secondaryActions={[

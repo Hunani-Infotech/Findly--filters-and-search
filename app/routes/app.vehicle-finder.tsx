@@ -126,23 +126,40 @@ export default function VehicleFinderPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [ymm, setYmm] = useState<VehicleFinderAdmin>(data.ymm);
   const ymmRef = useRef(ymm);
-  ymmRef.current = ymm;
+  const toastSeen = useRef<string | null>(null);
+  const [seenResult, setSeenResult] = useState<string | null>(null);
 
   const saving =
     ["loading", "submitting"].includes(fetcher.state) &&
     fetcher.formMethod === "POST";
 
   useEffect(() => {
-    if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
+    ymmRef.current = ymm;
+  }, [ymm]);
+
+  if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
+    const key = JSON.stringify(fetcher.data);
+    if (seenResult !== key) {
+      setSeenResult(key);
       setYmm(fetcher.data.ymm);
-      if (fetcher.data.intent === "csv") {
-        shopify.toast.show(`${fetcher.data.count} vehicle rows uploaded`);
+    }
+  }
+
+  useEffect(() => {
+    const result = fetcher.data;
+    if (!result) return;
+    const key = JSON.stringify(result);
+    if (toastSeen.current === key) return;
+    toastSeen.current = key;
+    if ("ok" in result && result.ok) {
+      if (result.intent === "csv") {
+        shopify.toast.show(`${result.count} vehicle rows uploaded`);
       } else {
         shopify.toast.show("Vehicle Finder saved");
       }
     }
-    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
-      shopify.toast.show(String(fetcher.data.error), { isError: true });
+    if ("error" in result && result.error) {
+      shopify.toast.show(String(result.error), { isError: true });
     }
   }, [fetcher.data, shopify]);
 

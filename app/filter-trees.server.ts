@@ -1,6 +1,6 @@
 import type { FilterConfig, Prisma } from "@prisma/client";
 import prisma from "./db.server";
-import { DEFAULT_DISPLAY_ORDER, normalizeDisplayOrder } from "./filters.server";
+import { DEFAULT_DISPLAY_ORDER } from "./filters.server";
 import { withGloboAdminOptionKeys } from "./filter-option-rows";
 
 export type FilterTreeWithCollections = FilterConfig & {

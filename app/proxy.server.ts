@@ -405,7 +405,7 @@ export async function getSearchFilterPayload(input: {
   }
 
   const appSettings = await getAppSettings(shop.id);
-  if (!Boolean(appSettings.enableFiltersOnSearch ?? true)) {
+  if (!(appSettings.enableFiltersOnSearch ?? true)) {
     return {
       data: {
         enabled: false,

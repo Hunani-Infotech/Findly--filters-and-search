@@ -188,9 +188,11 @@ function ColorHexField({
   onCommit: (next: string) => void;
 }) {
   const [hex, setHex] = useState(value);
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     setHex(value);
-  }, [value]);
+  }
 
   return (
     <InlineStack gap="200" blockAlign="end" wrap={false}>
@@ -367,7 +369,6 @@ export default function SwatchOptionPage() {
     fetcher.state === "submitting" ||
     fetcher.state === "loading";
   const toastSeen = useRef<string | null>(null);
-  const uploadApplied = useRef<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
@@ -375,52 +376,74 @@ export default function SwatchOptionPage() {
   const [drafts, setDrafts] = useState(rows);
   const [dirty, setDirty] = useState(false);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
+  const [seenRows, setSeenRows] = useState(rows);
+  const [seenResult, setSeenResult] = useState<string | null>(null);
+  const [seenUpload, setSeenUpload] = useState<string | null>(null);
 
-  useEffect(() => {
+  if (rows !== seenRows) {
+    setSeenRows(rows);
     if (!dirty) setDrafts(rows);
-  }, [rows, dirty]);
+  }
+
+  const data = actionData ?? (fetcher.state === "idle" ? fetcher.data : undefined);
+  if (data) {
+    const key = JSON.stringify(data);
+    if (seenResult !== key) {
+      setSeenResult(key);
+      if ("intent" in data && (data.intent === "saveAll" || data.intent === "import")) {
+        setDirty(false);
+      }
+    }
+  }
+
+  if (
+    fetcher.state === "idle" &&
+    fetcher.data &&
+    "intent" in fetcher.data &&
+    fetcher.data.intent === "upload"
+  ) {
+    const stamp = JSON.stringify(fetcher.data);
+    if (seenUpload !== stamp) {
+      setSeenUpload(stamp);
+      setUploadingValue(null);
+      if (
+        !("error" in fetcher.data && fetcher.data.error) &&
+        "url" in fetcher.data &&
+        fetcher.data.url
+      ) {
+        const value = "value" in fetcher.data ? String(fetcher.data.value || "") : "";
+        const imageUrl = fetcher.data.url;
+        setDrafts(
+          drafts.map((row) =>
+            row.value === value ? { ...row, imageUrl } : row,
+          ),
+        );
+        setDirty(true);
+      }
+    }
+  }
 
   useEffect(() => {
-    const data = actionData ?? (fetcher.state === "idle" ? fetcher.data : undefined);
-    if (!data) return;
-    const key = JSON.stringify(data);
+    const toastData =
+      actionData ?? (fetcher.state === "idle" ? fetcher.data : undefined);
+    if (!toastData) return;
+    const key = JSON.stringify(toastData);
     if (toastSeen.current === key) return;
     toastSeen.current = key;
-    if ("error" in data && data.error) {
-      shopify.toast.show(data.error, { isError: true });
+    if ("error" in toastData && toastData.error) {
+      shopify.toast.show(toastData.error, { isError: true });
       return;
     }
-    if ("intent" in data && data.intent === "saveAll") {
-      setDirty(false);
+    if ("intent" in toastData && toastData.intent === "saveAll") {
       shopify.toast.show("Saved");
     }
-    if ("intent" in data && data.intent === "import") {
-      setDirty(false);
-      const imported = "imported" in data ? data.imported : 0;
+    if ("intent" in toastData && toastData.intent === "import") {
+      const imported = "imported" in toastData ? toastData.imported : 0;
       shopify.toast.show(
         imported === 1 ? "Imported 1 swatch" : `Imported ${imported} swatches`,
       );
     }
   }, [actionData, fetcher.data, fetcher.state, shopify]);
-
-  useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) return;
-    const data = fetcher.data;
-    if (!("intent" in data) || data.intent !== "upload") return;
-    const stamp = JSON.stringify(data);
-    if (uploadApplied.current === stamp) return;
-    uploadApplied.current = stamp;
-    setUploadingValue(null);
-    if ("error" in data && data.error) return;
-    if (!("url" in data) || !data.url) return;
-    const value = "value" in data ? String(data.value || "") : "";
-    setDrafts((prev) =>
-      prev.map((row) =>
-        row.value === value ? { ...row, imageUrl: data.url } : row,
-      ),
-    );
-    setDirty(true);
-  }, [fetcher.data, fetcher.state]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

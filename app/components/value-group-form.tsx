@@ -74,12 +74,12 @@ export function ValueGroupFormPage({
     value: source.key,
   }));
 
-  const catalogValues = catalog.values[sourceKey] || [];
   const valueList = useMemo(() => {
+    const catalogValues = catalog.values[sourceKey] || [];
     const seen = new Set(catalogValues);
     const extras = selected.filter((value) => !seen.has(value));
     return extras.length ? [...catalogValues, ...extras] : catalogValues;
-  }, [catalogValues, selected]);
+  }, [catalog.values, sourceKey, selected]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();

@@ -199,13 +199,16 @@ export default function Index() {
   const creating = isMutationBusy(navigation);
   const exporting = exportFetcher.state !== "idle";
   const [query, setQuery] = useState("");
-  const [order, setOrder] = useState(() => trees.map((tree) => tree.id));
+  const treeIds = trees.map((tree) => tree.id);
+  const treeIdKey = treeIds.join("\0");
+  const [order, setOrder] = useState(treeIds);
+  const [orderSource, setOrderSource] = useState(treeIdKey);
+  if (treeIdKey !== orderSource) {
+    setOrderSource(treeIdKey);
+    setOrder(treeIds);
+  }
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const lastExportKey = useRef<string | null>(null);
-
-  useEffect(() => {
-    setOrder(trees.map((tree) => tree.id));
-  }, [trees]);
 
   useEffect(() => {
     const result = exportFetcher.data;

@@ -366,28 +366,26 @@ export default function FilterTreeEditorPage() {
   }
 
   const saving = isMutationBusy(navigation);
-  const flags = {
-    enablePrice: config.enablePrice,
-    enableSale: config.enableSale,
-    enableRating: config.enableRating,
-    enableAvailability: config.enableAvailability,
-    enableVendor: config.enableVendor,
-    enableProductType: config.enableProductType,
-    enableTags: config.enableTags,
-    enableOptions: config.enableOptions,
-  };
   const rows = useMemo(
     () =>
       applyFacetSettingLabels(
         buildVisibleFilterRows(
           config.displayOrder,
-          flags,
+          {
+            enablePrice: config.enablePrice,
+            enableSale: config.enableSale,
+            enableRating: config.enableRating,
+            enableAvailability: config.enableAvailability,
+            enableVendor: config.enableVendor,
+            enableProductType: config.enableProductType,
+            enableTags: config.enableTags,
+            enableOptions: config.enableOptions,
+          },
           data.catalogOptions,
           data.mappedFacets,
         ),
         data.facetSettings,
       ),
-    // flags fields are listed so we don't depend on a new object identity
     [
       config.displayOrder,
       config.enablePrice,
