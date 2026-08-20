@@ -1,6 +1,7 @@
 import type { FilterConfig, Prisma } from "@prisma/client";
 import prisma from "./db.server";
 import { DEFAULT_DISPLAY_ORDER, normalizeDisplayOrder } from "./filters.server";
+import { withGloboAdminOptionKeys } from "./filter-option-rows";
 
 export type FilterTreeWithCollections = FilterConfig & {
   treeCollections: Array<{ collectionGid: string }>;
@@ -109,10 +110,13 @@ export async function createFilterTree(
   const tree = await prisma.filterConfig.create({
     data: {
       shopId,
-      name: input?.name?.trim() || (count === 0 ? "Default" : `Filter tree ${count + 1}`),
+      name:
+        input?.name?.trim() ||
+        (count === 0 ? "Default" : ""),
       appliesToSearch: input?.appliesToSearch ?? count === 0,
       collectionGid: "",
-      displayOrder: [...DEFAULT_DISPLAY_ORDER],
+      enableSale: true,
+      displayOrder: withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]),
       sortOrder: count,
     },
   });

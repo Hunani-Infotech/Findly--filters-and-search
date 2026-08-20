@@ -6,7 +6,6 @@ import {
   Button,
   InlineStack,
   Popover,
-  Select,
   Text,
 } from "@shopify/polaris";
 import {
@@ -211,7 +210,17 @@ export function FilterOptionsTable({
                   ? "metafield"
                   : row.key === "tags"
                     ? "tag"
-                    : (row.key as FacetSource);
+                    : row.key === "price"
+                      ? "price"
+                      : row.key === "sale"
+                        ? "sale"
+                        : row.key === "rating"
+                          ? "rating"
+                          : row.key === "availability"
+                            ? "availability"
+                            : row.key === "productType"
+                              ? "productType"
+                              : "vendor";
             const selectedType = lockedSlider
               ? "slider"
               : displayTypeForFacet(
@@ -234,7 +243,7 @@ export function FilterOptionsTable({
                   onDrop={handleDrop}
                   style={{
                     opacity: dragging ? 0.55 : 1,
-                    borderStyle: dragging ? "dashed" : "solid",
+                    outline: dragging ? "1px dashed #c9cccf" : undefined,
                   }}
                 >
                   <button
@@ -258,25 +267,29 @@ export function FilterOptionsTable({
                   </Text>
                   <SourceCell row={row} />
                   <div onClick={(event) => event.stopPropagation()}>
-                    {lockedSlider ? (
-                      <Text as="span">Slider</Text>
+                    {lockedSlider || choices.length <= 1 ? (
+                      <Text as="span">
+                        {FACET_DISPLAY_TYPE_LABELS[selectedType]}
+                      </Text>
                     ) : (
-                      <Select
-                        label="Display type"
-                        labelHidden
+                      <select
+                        className="findly-filter-option-table__type"
+                        aria-label={`${row.label} display type`}
                         disabled={disabled}
-                        options={choices.map((value) => ({
-                          label: FACET_DISPLAY_TYPE_LABELS[value],
-                          value,
-                        }))}
                         value={selectedType}
-                        onChange={(value) =>
+                        onChange={(event) =>
                           onDisplayTypesChange({
                             ...types,
-                            [row.key]: value as FacetDisplayType,
+                            [row.key]: event.target.value as FacetDisplayType,
                           })
                         }
-                      />
+                      >
+                        {choices.map((value) => (
+                          <option key={value} value={value}>
+                            {FACET_DISPLAY_TYPE_LABELS[value]}
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
                   <Button

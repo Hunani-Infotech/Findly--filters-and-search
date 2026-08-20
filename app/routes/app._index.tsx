@@ -412,7 +412,7 @@ export default function Index() {
                             }}
                           >
                             <Text as="span" variant="bodyMd" fontWeight="semibold">
-                              {tree.name}
+                              {tree.name.trim() || "Untitled"}
                             </Text>
                           </button>
                           {appliesToMarkup(tree)}

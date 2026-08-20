@@ -17,10 +17,21 @@ export type FilterOptionDef = {
   key: string;
   label: string;
   source: string;
-  enableKey: BuiltinEnableKey;
+  enableKey?: BuiltinEnableKey;
 };
 
+export const GLOBO_ADMIN_OPTION_KEYS = [
+  "collection",
+  "category",
+  "readyToShip",
+  "location",
+] as const;
+
+export type GloboAdminOptionKey = (typeof GLOBO_ADMIN_OPTION_KEYS)[number];
+
 export const FILTER_OPTION_DEFS: FilterOptionDef[] = [
+  { key: "collection", label: "Collection", source: "Collection" },
+  { key: "category", label: "Category", source: "Category" },
   { key: "vendor", label: "Vendor", source: "Vendor", enableKey: "enableVendor" },
   {
     key: "productType",
@@ -42,6 +53,8 @@ export const FILTER_OPTION_DEFS: FilterOptionDef[] = [
     enableKey: "enableAvailability",
   },
   { key: "tags", label: "Tag", source: "Tag", enableKey: "enableTags" },
+  { key: "readyToShip", label: "Ready To Ship", source: "Ready to ship" },
+  { key: "location", label: "Location", source: "Location" },
   { key: "rating", label: "Rating", source: "Rating", enableKey: "enableRating" },
 ];
 
@@ -49,12 +62,57 @@ export type FilterOptionRow = {
   key: string;
   label: string;
   source: string;
-  sourceKind: "builtin" | "option" | "metafield";
+  sourceKind: "builtin" | "admin" | "option" | "metafield";
   enableKey?: BuiltinEnableKey;
   filterType?: string;
 };
 
 type EnableFlags = Record<BuiltinEnableKey, boolean>;
+
+export function isGloboAdminOptionKey(key: string): key is GloboAdminOptionKey {
+  return (GLOBO_ADMIN_OPTION_KEYS as readonly string[]).includes(key);
+}
+
+export function withGloboAdminOptionKeys(order: string[]): string[] {
+  const seenAdmin = new Set<string>();
+  const next: string[] = [];
+  for (const key of order) {
+    if (isGloboAdminOptionKey(key)) {
+      if (seenAdmin.has(key)) continue;
+      seenAdmin.add(key);
+    }
+    next.push(key);
+  }
+  if (GLOBO_ADMIN_OPTION_KEYS.some((key) => next.includes(key))) {
+    return next;
+  }
+
+  const preferred = [
+    "collection",
+    "category",
+    "vendor",
+    "productType",
+    "price",
+    "sale",
+    "availability",
+    "tags",
+    "readyToShip",
+    "location",
+  ];
+  const seen = new Set<string>();
+  const rebuilt: string[] = [];
+  for (const key of preferred) {
+    rebuilt.push(key);
+    seen.add(key);
+    if (key === "tags") seen.add("tag");
+  }
+  for (const key of next) {
+    if (seen.has(key) || (key === "tag" && seen.has("tags"))) continue;
+    rebuilt.push(key);
+    seen.add(key);
+  }
+  return rebuilt;
+}
 
 export function builtinDefForKey(key: string) {
   if (key === "tag") return FILTER_OPTION_DEFS.find((def) => def.key === "tags");
@@ -65,13 +123,29 @@ export function isOptionRowKey(key: string) {
   return key === "options" || key.startsWith("opt_");
 }
 
+function sourceKindForDef(def: FilterOptionDef): FilterOptionRow["sourceKind"] {
+  return def.enableKey ? "builtin" : "admin";
+}
+
+function isDefVisible(
+  def: FilterOptionDef,
+  flags: EnableFlags,
+  order: string[],
+) {
+  if (!def.enableKey || def.key === "sale") {
+    return order.includes(def.key);
+  }
+  return flags[def.enableKey];
+}
+
 export function buildVisibleFilterRows(
   displayOrder: string[],
   flags: EnableFlags,
   catalogOptions: Array<{ key: string; label: string }>,
   mappedFacets: Array<{ key: string; label: string; filterType: string }>,
 ): FilterOptionRow[] {
-  const explicitOpts = displayOrder.filter((key) => key.startsWith("opt_"));
+  const order = displayOrder;
+  const explicitOpts = order.filter((key) => key.startsWith("opt_"));
   const optionRows: FilterOptionRow[] = [];
   if (flags.enableOptions) {
     if (explicitOpts.length) {
@@ -109,7 +183,7 @@ export function buildVisibleFilterRows(
 
   const rows: FilterOptionRow[] = [];
   let optionsInserted = false;
-  for (const key of displayOrder) {
+  for (const key of order) {
     if (isOptionRowKey(key)) {
       if (!optionsInserted) {
         rows.push(...optionRows);
@@ -119,8 +193,8 @@ export function buildVisibleFilterRows(
     }
     const def = builtinDefForKey(key);
     if (def) {
-      if (flags[def.enableKey]) {
-        rows.push({ ...def, sourceKind: "builtin" });
+      if (isDefVisible(def, flags, order)) {
+        rows.push({ ...def, sourceKind: sourceKindForDef(def) });
       }
       continue;
     }
@@ -159,8 +233,16 @@ export function availableFilterOptions(
   const visible = new Set(visibleKeys);
   const available: FilterOptionRow[] = [];
   for (const def of FILTER_OPTION_DEFS) {
-    if (!flags[def.enableKey]) {
-      available.push({ ...def, sourceKind: "builtin" });
+    if (visible.has(def.key) || (def.key === "tags" && visible.has("tag"))) {
+      continue;
+    }
+    if (
+      !def.enableKey ||
+      def.key === "sale" ||
+      def.key === "rating" ||
+      !flags[def.enableKey]
+    ) {
+      available.push({ ...def, sourceKind: sourceKindForDef(def) });
     }
   }
   if (flags.enableOptions) {
@@ -219,6 +301,7 @@ export function persistDisplayOrder(
     if (isOptionRowKey(key) && visibleKeys.some((item) => isOptionRowKey(item))) {
       return false;
     }
+    if (isGloboAdminOptionKey(key) || key === "sale") return false;
     return true;
   });
   return [...visibleKeys, ...leftover];

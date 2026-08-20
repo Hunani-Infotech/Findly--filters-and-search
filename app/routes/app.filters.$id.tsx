@@ -37,6 +37,7 @@ import {
   deleteFilterTree,
   duplicateFilterTree,
   getFilterTree,
+  listFilterTrees,
   updateFilterTree,
 } from "../filter-trees.server";
 import prisma from "../db.server";
@@ -51,6 +52,7 @@ import {
   builtinDefForKey,
   isOptionRowKey,
   persistDisplayOrder,
+  withGloboAdminOptionKeys,
   type BuiltinEnableKey,
   type FilterOptionRow,
 } from "../filter-option-rows";
@@ -58,6 +60,7 @@ import {
 type ConfigState = {
   name: string;
   appliesToSearch: boolean;
+  appliesToAllProducts: boolean;
   collectionGids: string[];
   enabled: boolean;
   enablePrice: boolean;
@@ -89,10 +92,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!config) {
     throw new Response("Not found", { status: 404 });
   }
-  const collections = await prisma.collection.findMany({
-    where: { shopId: shop.id },
-    orderBy: { title: "asc" },
-  });
+  const [collections, otherTrees] = await Promise.all([
+    prisma.collection.findMany({
+      where: { shopId: shop.id },
+      orderBy: { title: "asc" },
+    }),
+    listFilterTrees(shop.id),
+  ]);
+  const usedElsewhere: Record<string, boolean> = {};
+  let allCollectionsUsedElsewhere = false;
+  for (const tree of otherTrees) {
+    if (tree.id === config.id) continue;
+    if (tree.treeCollections.length === 0 && !tree.collectionGid) {
+      allCollectionsUsedElsewhere = true;
+    }
+    for (const row of tree.treeCollections) {
+      usedElsewhere[row.collectionGid] = true;
+    }
+    if (tree.collectionGid) {
+      usedElsewhere[tree.collectionGid] = true;
+    }
+  }
   const valueCatalog = await getListFacetValueCatalog(shop.id, "");
   const optionProducts = await prisma.productFacet.findMany({
     where: { shopId: shop.id, status: "ACTIVE" },
@@ -126,6 +146,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       title: collection.title,
       handle: collection.handle,
     })),
+    usedElsewhere,
+    allCollectionsUsedElsewhere,
     valueCatalog,
     catalogOptions,
     listMetafields,
@@ -133,6 +155,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     config: {
       name: config.name,
       appliesToSearch: config.appliesToSearch,
+      appliesToAllProducts: false,
       collectionGids: config.treeCollections.map((row) => row.collectionGid),
       enabled: config.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
@@ -143,10 +166,21 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       enableProductType: config?.enableProductType ?? true,
       enableTags: config?.enableTags ?? true,
       enableOptions: config?.enableOptions ?? true,
-      displayOrder: withMappedFacetKeys(
-        config?.displayOrder,
-        mappedFacets.map((facet) => facet.key),
-      ),
+      displayOrder: (() => {
+        const mapped = withGloboAdminOptionKeys(
+          withMappedFacetKeys(
+            config?.displayOrder,
+            mappedFacets.map((facet) => facet.key),
+          ),
+        );
+        const stored = Array.isArray(config?.displayOrder)
+          ? config.displayOrder
+          : [];
+        if (config?.enableSale || stored.includes("sale") || stored.length === 0) {
+          return mapped;
+        }
+        return mapped.filter((key) => key !== "sale");
+      })(),
       displayTypes: parseDisplayTypes(
         config && "displayTypes" in config ? config.displayTypes : {},
       ),
@@ -196,6 +230,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const parsed = JSON.parse(orderRaw) as string[];
       if (Array.isArray(parsed) && parsed.length) {
         displayOrder = normalizeDisplayOrder(parsed);
+        if (!parsed.includes("sale")) {
+          displayOrder = displayOrder.filter((key) => key !== "sale");
+        }
       }
     } catch {
       // keep default
@@ -381,13 +418,18 @@ export default function FilterTreeEditorPage() {
 
   const handleRemove = (key: string) => {
     const def = builtinDefForKey(key);
-    if (def && def.enableKey !== "enableOptions") {
+    if (
+      def?.enableKey &&
+      def.enableKey !== "enableOptions" &&
+      def.key !== "sale"
+    ) {
       patchEnable(def.enableKey, false);
       return;
     }
     const remaining = rows.map((row) => row.key).filter((item) => item !== key);
     setConfig((current) => ({
       ...current,
+      enableSale: remaining.includes("sale"),
       enableOptions: remaining.some(isOptionRowKey),
       displayOrder: persistDisplayOrder(remaining, current.displayOrder),
     }));
@@ -400,7 +442,10 @@ export default function FilterTreeEditorPage() {
         [row.enableKey as BuiltinEnableKey]: true,
         displayOrder: current.displayOrder.includes(row.key)
           ? current.displayOrder
-          : [...current.displayOrder, row.key],
+          : persistDisplayOrder(
+              [...rows.map((item) => item.key), row.key],
+              current.displayOrder,
+            ),
       }));
       return;
     }
@@ -427,7 +472,13 @@ export default function FilterTreeEditorPage() {
     setConfig((current) =>
       current.displayOrder.includes(row.key)
         ? current
-        : { ...current, displayOrder: [...current.displayOrder, row.key] },
+        : {
+            ...current,
+            displayOrder: persistDisplayOrder(
+              [...rows.map((item) => item.key), row.key],
+              current.displayOrder,
+            ),
+          },
     );
   };
 
@@ -440,7 +491,7 @@ export default function FilterTreeEditorPage() {
     formData.set("collectionGids", JSON.stringify(config.collectionGids));
     formData.set("enabled", String(config.enabled));
     formData.set("enablePrice", String(config.enablePrice));
-    formData.set("enableSale", String(config.enableSale));
+    formData.set("enableSale", String(rows.some((row) => row.key === "sale")));
     formData.set("enableRating", String(config.enableRating));
     formData.set("enableAvailability", String(config.enableAvailability));
     formData.set("enableVendor", String(config.enableVendor));
@@ -450,7 +501,12 @@ export default function FilterTreeEditorPage() {
     formData.set("priceRangeMode", config.priceRangeMode);
     formData.set("customPriceMin", config.customPriceMin);
     formData.set("customPriceMax", config.customPriceMax);
-    formData.set("displayOrder", JSON.stringify(config.displayOrder));
+    formData.set("displayOrder", JSON.stringify(
+      persistDisplayOrder(
+        rows.map((row) => row.key),
+        config.displayOrder,
+      ),
+    ));
     formData.set("displayTypes", JSON.stringify(config.displayTypes));
     formData.set("matchModes", JSON.stringify(config.matchModes));
     formData.set("valueSort", JSON.stringify(config.valueSort));
@@ -523,16 +579,19 @@ export default function FilterTreeEditorPage() {
                     onAppliesToSearchChange={(appliesToSearch) =>
                       setConfig((c) => ({ ...c, appliesToSearch }))
                     }
-                    disabled={saving}
-                  />
-                  <Checkbox
-                    label="Active"
-                    helpText="Disabled filters stay saved but are not used on the storefront."
-                    checked={config.enabled}
-                    disabled={saving}
-                    onChange={(checked) =>
-                      setConfig((c) => ({ ...c, enabled: checked }))
+                    appliesToAllProducts={config.appliesToAllProducts}
+                    onAppliesToAllProductsChange={(appliesToAllProducts) =>
+                      setConfig((c) => ({ ...c, appliesToAllProducts }))
                     }
+                    allCollections={config.collectionGids.length === 0}
+                    onAllCollectionsChange={(next) => {
+                      if (next) {
+                        setConfig((c) => ({ ...c, collectionGids: [] }));
+                      }
+                    }}
+                    usedElsewhere={data.usedElsewhere}
+                    allCollectionsUsedElsewhere={data.allCollectionsUsedElsewhere}
+                    disabled={saving}
                   />
                 </BlockStack>
               </Card>
