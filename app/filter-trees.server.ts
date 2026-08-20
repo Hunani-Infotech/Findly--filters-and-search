@@ -167,11 +167,13 @@ export async function updateFilterTree(
     enabled?: boolean;
     appliesToSearch?: boolean;
     collectionGids?: string[];
+    facetSettings?: Prisma.InputJsonValue;
   } & Partial<Prisma.FilterConfigUpdateInput>,
 ) {
   const existing = await getFilterTree(shopId, treeId);
   if (!existing) return null;
-  const { collectionGids, name, appliesToSearch, enabled, ...rest } = input;
+  const { collectionGids, name, appliesToSearch, enabled, facetSettings, ...rest } =
+    input;
   await prisma.filterConfig.update({
     where: { id: treeId },
     data: {
@@ -179,6 +181,7 @@ export async function updateFilterTree(
       ...(name !== undefined ? { name: name.trim() || existing.name } : {}),
       ...(appliesToSearch !== undefined ? { appliesToSearch } : {}),
       ...(enabled !== undefined ? { enabled } : {}),
+      ...(facetSettings !== undefined ? { facetSettings } : {}),
     },
   });
   if (collectionGids) {
@@ -213,6 +216,7 @@ export async function duplicateFilterTree(shopId: string, treeId: string) {
       matchModes: source.matchModes as Prisma.InputJsonValue,
       valueSort: source.valueSort as Prisma.InputJsonValue,
       rangeBounds: source.rangeBounds as Prisma.InputJsonValue,
+      facetSettings: source.facetSettings as Prisma.InputJsonValue,
       sortOrder: await prisma.filterConfig.count({ where: { shopId } }),
     },
   });

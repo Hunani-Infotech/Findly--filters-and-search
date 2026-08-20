@@ -2,6 +2,7 @@ import {
   displayTypeChoicesForKey,
   type FacetDisplayType,
 } from "./filters";
+import type { FacetSettingsMap } from "./facet-settings";
 
 export type BuiltinEnableKey =
   | "enablePrice"
@@ -67,7 +68,143 @@ export type FilterOptionRow = {
   filterType?: string;
 };
 
-type EnableFlags = Record<BuiltinEnableKey, boolean>;
+export type EnableFlags = Record<BuiltinEnableKey, boolean>;
+
+export const VALUE_PICKER_SKIP_KEYS = new Set([
+  "price",
+  "sale",
+  "rating",
+  "availability",
+  "collection",
+  "category",
+  "readyToShip",
+  "location",
+]);
+
+export function facetSupportsValuePicker(key: string, filterType?: string) {
+  if (VALUE_PICKER_SKIP_KEYS.has(key)) return false;
+  if (filterType === "RANGE" || filterType === "BOOLEAN") return false;
+  return true;
+}
+
+export function enableFlagsFromConfig(config: {
+  enablePrice?: boolean | null;
+  enableSale?: boolean | null;
+  enableRating?: boolean | null;
+  enableAvailability?: boolean | null;
+  enableVendor?: boolean | null;
+  enableProductType?: boolean | null;
+  enableTags?: boolean | null;
+  enableOptions?: boolean | null;
+}): EnableFlags {
+  return {
+    enablePrice: config.enablePrice ?? true,
+    enableSale: config.enableSale ?? false,
+    enableRating: config.enableRating ?? false,
+    enableAvailability: config.enableAvailability ?? true,
+    enableVendor: config.enableVendor ?? true,
+    enableProductType: config.enableProductType ?? true,
+    enableTags: config.enableTags ?? true,
+    enableOptions: config.enableOptions ?? true,
+  };
+}
+
+export function resolveFilterOptionRow(
+  key: string,
+  catalogOptions: Array<{ key: string; label: string }>,
+  mappedFacets: Array<{ key: string; label: string; filterType: string }>,
+): FilterOptionRow | null {
+  const def = builtinDefForKey(key);
+  if (def) return { ...def, sourceKind: sourceKindForDef(def) };
+  const option = catalogOptions.find((row) => row.key === key);
+  if (option || key === "options") {
+    return {
+      key,
+      label: option?.label ?? "Variant options",
+      source: option?.label ?? "options",
+      sourceKind: "option",
+      enableKey: "enableOptions",
+    };
+  }
+  const mapped = mappedFacets.find((facet) => facet.key === key);
+  if (mapped) {
+    return {
+      key: mapped.key,
+      label: mapped.label,
+      source: mapped.label,
+      sourceKind: "metafield",
+      filterType: mapped.filterType,
+    };
+  }
+  return null;
+}
+
+export function catalogValuesForKey(
+  catalog: Array<{ key: string; values: string[] }>,
+  key: string,
+): string[] {
+  const exact = catalog.find((item) => item.key === key);
+  if (exact) return exact.values;
+  if (key === "tags") {
+    return catalog.find((item) => item.key === "tag")?.values ?? [];
+  }
+  if (key === "tag") {
+    return catalog.find((item) => item.key === "tags")?.values ?? [];
+  }
+  return [];
+}
+
+export function addFilterOptionKeys(
+  row: FilterOptionRow,
+  visibleKeys: string[],
+  flags: EnableFlags,
+): { visibleKeys: string[]; flags: EnableFlags } {
+  const nextFlags = { ...flags };
+  let nextVisible = [...visibleKeys];
+
+  if (row.enableKey && row.enableKey !== "enableOptions") {
+    nextFlags[row.enableKey] = true;
+    if (!nextVisible.includes(row.key)) nextVisible.push(row.key);
+    return { visibleKeys: nextVisible, flags: nextFlags };
+  }
+
+  if (row.sourceKind === "option") {
+    nextFlags.enableOptions = true;
+    const withoutOptions = nextVisible.filter((item) => !isOptionRowKey(item));
+    const currentOpts = nextVisible.filter(
+      (item) => isOptionRowKey(item) && item !== "options",
+    );
+    const nextOpts = currentOpts.includes(row.key)
+      ? currentOpts
+      : [...currentOpts, row.key];
+    const insertAt = nextVisible.findIndex(isOptionRowKey);
+    const rebuilt = [...withoutOptions];
+    if (insertAt >= 0) rebuilt.splice(Math.min(insertAt, rebuilt.length), 0, ...nextOpts);
+    else rebuilt.push(...nextOpts);
+    return { visibleKeys: rebuilt, flags: nextFlags };
+  }
+
+  if (!nextVisible.includes(row.key)) nextVisible.push(row.key);
+  return { visibleKeys: nextVisible, flags: nextFlags };
+}
+
+export function removeFilterOptionKeys(
+  key: string,
+  visibleKeys: string[],
+  flags: EnableFlags,
+): { visibleKeys: string[]; flags: EnableFlags } {
+  const remaining = visibleKeys.filter((item) => item !== key);
+  const nextFlags = { ...flags };
+  const def = builtinDefForKey(key);
+  if (def?.enableKey && def.enableKey !== "enableOptions") {
+    nextFlags[def.enableKey] = false;
+  }
+  if (key === "sale") nextFlags.enableSale = remaining.includes("sale");
+  if (isOptionRowKey(key)) {
+    nextFlags.enableOptions = remaining.some(isOptionRowKey);
+  }
+  return { visibleKeys: remaining, flags: nextFlags };
+}
 
 export function isGloboAdminOptionKey(key: string): key is GloboAdminOptionKey {
   return (GLOBO_ADMIN_OPTION_KEYS as readonly string[]).includes(key);
@@ -222,6 +359,16 @@ export function buildVisibleFilterRows(
     }
   }
   return rows;
+}
+
+export function applyFacetSettingLabels(
+  rows: FilterOptionRow[],
+  settings: FacetSettingsMap,
+): FilterOptionRow[] {
+  return rows.map((row) => ({
+    ...row,
+    label: settings[row.key]?.label || row.label,
+  }));
 }
 
 export function availableFilterOptions(

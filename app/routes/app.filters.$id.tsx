@@ -12,6 +12,7 @@ import {
   useNavigate,
   useNavigation,
   useRouteError,
+  useSearchParams,
   useSubmit,
 } from "react-router";
 import {
@@ -32,6 +33,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { catalogOptionRows, metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { parseFacetSettings } from "../facet-settings";
 import { getListFacetValueCatalog, getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
 import {
   deleteFilterTree,
@@ -47,14 +49,13 @@ import { FilterOptionsTable } from "../components/filter-options-table";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import {
-  availableFilterOptions,
+  applyFacetSettingLabels,
   buildVisibleFilterRows,
   builtinDefForKey,
   isOptionRowKey,
   persistDisplayOrder,
   withGloboAdminOptionKeys,
   type BuiltinEnableKey,
-  type FilterOptionRow,
 } from "../filter-option-rows";
 
 type ConfigState = {
@@ -138,6 +139,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const listMetafields = mappedFacets.filter(
     (mapping) => mapping.filterType === "LIST",
   );
+  const facetSettings = parseFacetSettings(
+    config && "facetSettings" in config ? config.facetSettings : {},
+  );
 
   return {
     treeId: config.id,
@@ -152,6 +156,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     catalogOptions,
     listMetafields,
     mappedFacets,
+    facetSettings,
     config: {
       name: config.name,
       appliesToSearch: config.appliesToSearch,
@@ -351,6 +356,7 @@ export default function FilterTreeEditorPage() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const submit = useSubmit();
+  const [searchParams, setSearchParams] = useSearchParams();
   const shopify = useAppBridge();
   const [config, setConfig] = useState<ConfigState>(data.config);
   const [loaderConfig, setLoaderConfig] = useState(data.config);
@@ -372,11 +378,14 @@ export default function FilterTreeEditorPage() {
   };
   const rows = useMemo(
     () =>
-      buildVisibleFilterRows(
-        config.displayOrder,
-        flags,
-        data.catalogOptions,
-        data.mappedFacets,
+      applyFacetSettingLabels(
+        buildVisibleFilterRows(
+          config.displayOrder,
+          flags,
+          data.catalogOptions,
+          data.mappedFacets,
+        ),
+        data.facetSettings,
       ),
     // flags fields are listed so we don't depend on a new object identity
     [
@@ -391,13 +400,8 @@ export default function FilterTreeEditorPage() {
       config.enableOptions,
       data.catalogOptions,
       data.mappedFacets,
+      data.facetSettings,
     ],
-  );
-  const available = availableFilterOptions(
-    rows.map((row) => row.key),
-    flags,
-    data.catalogOptions,
-    data.mappedFacets,
   );
   const untitled =
     !config.name.trim() ||
@@ -412,6 +416,17 @@ export default function FilterTreeEditorPage() {
       shopify.toast.show(actionData.error, { isError: true });
     }
   }, [actionData, shopify]);
+
+  useEffect(() => {
+    const notice = searchParams.get("notice");
+    if (notice !== "saved" && notice !== "deleted") return;
+    shopify.toast.show(
+      notice === "deleted" ? "Filter option removed" : "Filter config saved",
+    );
+    const next = new URLSearchParams(searchParams);
+    next.delete("notice");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, shopify]);
 
   const patchEnable = (key: BuiltinEnableKey, value: boolean) =>
     setConfig((current) => ({ ...current, [key]: value }));
@@ -433,53 +448,6 @@ export default function FilterTreeEditorPage() {
       enableOptions: remaining.some(isOptionRowKey),
       displayOrder: persistDisplayOrder(remaining, current.displayOrder),
     }));
-  };
-
-  const handleAdd = (row: FilterOptionRow) => {
-    if (row.enableKey && row.enableKey !== "enableOptions") {
-      setConfig((current) => ({
-        ...current,
-        [row.enableKey as BuiltinEnableKey]: true,
-        displayOrder: current.displayOrder.includes(row.key)
-          ? current.displayOrder
-          : persistDisplayOrder(
-              [...rows.map((item) => item.key), row.key],
-              current.displayOrder,
-            ),
-      }));
-      return;
-    }
-    if (row.sourceKind === "option") {
-      const visible = rows.map((item) => item.key);
-      const withoutOptions = visible.filter((item) => !isOptionRowKey(item));
-      const currentOpts = visible.filter(
-        (item) => isOptionRowKey(item) && item !== "options",
-      );
-      const nextOpts = currentOpts.includes(row.key)
-        ? currentOpts
-        : [...currentOpts, row.key];
-      const insertAt = visible.findIndex(isOptionRowKey);
-      const nextVisible = [...withoutOptions];
-      if (insertAt >= 0) nextVisible.splice(insertAt, 0, ...nextOpts);
-      else nextVisible.push(...nextOpts);
-      setConfig((current) => ({
-        ...current,
-        enableOptions: true,
-        displayOrder: persistDisplayOrder(nextVisible, current.displayOrder),
-      }));
-      return;
-    }
-    setConfig((current) =>
-      current.displayOrder.includes(row.key)
-        ? current
-        : {
-            ...current,
-            displayOrder: persistDisplayOrder(
-              [...rows.map((item) => item.key), row.key],
-              current.displayOrder,
-            ),
-          },
-    );
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -605,7 +573,15 @@ export default function FilterTreeEditorPage() {
                     rows={rows}
                     displayTypes={config.displayTypes}
                     disabled={saving}
-                    available={available}
+                    treeId={data.treeId}
+                    onAddOption={() =>
+                      navigate(`/app/filters/${data.treeId}/options/new`)
+                    }
+                    onEditOption={(key) =>
+                      navigate(
+                        `/app/filters/${data.treeId}/options/${encodeURIComponent(key)}`,
+                      )
+                    }
                     onReorder={(nextKeys) =>
                       setConfig((c) => ({
                         ...c,
@@ -616,7 +592,6 @@ export default function FilterTreeEditorPage() {
                       }))
                     }
                     onRemove={handleRemove}
-                    onAdd={handleAdd}
                     onDisplayTypesChange={(displayTypes) =>
                       setConfig((c) => ({ ...c, displayTypes }))
                     }

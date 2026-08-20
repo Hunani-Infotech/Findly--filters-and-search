@@ -1,11 +1,10 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router";
 import {
-  ActionList,
   Badge,
   BlockStack,
   Button,
   InlineStack,
-  Popover,
   Text,
 } from "@shopify/polaris";
 import {
@@ -24,11 +23,14 @@ type FilterOptionsTableProps = {
   rows: FilterOptionRow[];
   displayTypes: Record<string, string>;
   disabled?: boolean;
-  available: FilterOptionRow[];
+  available?: FilterOptionRow[];
   onReorder: (nextKeys: string[]) => void;
   onRemove: (key: string) => void;
-  onAdd: (row: FilterOptionRow) => void;
+  onAdd?: (row: FilterOptionRow) => void;
   onDisplayTypesChange: (next: Record<string, FacetDisplayType>) => void;
+  treeId?: string;
+  onEditOption?: (key: string) => void;
+  onAddOption?: () => void;
 };
 
 function DragHandle() {
@@ -89,18 +91,39 @@ export function FilterOptionsTable({
   rows,
   displayTypes,
   disabled = false,
-  available,
   onReorder,
   onRemove,
-  onAdd,
   onDisplayTypesChange,
+  treeId,
+  onEditOption,
+  onAddOption,
 }: FilterOptionsTableProps) {
+  const navigate = useNavigate();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
   const ghostRef = useRef<HTMLElement | null>(null);
   const keys = rows.map((row) => row.key);
   const types = parseDisplayTypes(displayTypes);
+
+  const openEdit = (key: string) => {
+    if (onEditOption) {
+      onEditOption(key);
+      return;
+    }
+    if (treeId) {
+      navigate(`/app/filters/${treeId}/options/${encodeURIComponent(key)}`);
+    }
+  };
+
+  const openAdd = () => {
+    if (onAddOption) {
+      onAddOption();
+      return;
+    }
+    if (treeId) {
+      navigate(`/app/filters/${treeId}/options/new`);
+    }
+  };
 
   const clearGhost = () => {
     ghostRef.current?.remove();
@@ -262,9 +285,13 @@ export function FilterOptionsTable({
                   >
                     <DragHandle />
                   </button>
-                  <Text as="span" fontWeight="semibold">
+                  <Button
+                    variant="plain"
+                    disabled={disabled}
+                    onClick={() => openEdit(row.key)}
+                  >
                     {row.label}
-                  </Text>
+                  </Button>
                   <SourceCell row={row} />
                   <div onClick={(event) => event.stopPropagation()}>
                     {lockedSlider || choices.length <= 1 ? (
@@ -292,14 +319,23 @@ export function FilterOptionsTable({
                       </select>
                     )}
                   </div>
-                  <Button
-                    variant="plain"
-                    tone="critical"
-                    disabled={disabled}
-                    onClick={() => onRemove(row.key)}
-                  >
-                    Remove
-                  </Button>
+                  <InlineStack gap="200" wrap={false}>
+                    <Button
+                      variant="plain"
+                      disabled={disabled}
+                      onClick={() => openEdit(row.key)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="plain"
+                      tone="critical"
+                      disabled={disabled}
+                      onClick={() => onRemove(row.key)}
+                    >
+                      Remove
+                    </Button>
+                  </InlineStack>
                 </div>
               </div>
             );
@@ -311,30 +347,9 @@ export function FilterOptionsTable({
           <div className="findly-filter-option-table__line" aria-hidden="true" />
         ) : null}
       </div>
-      <Popover
-        active={addOpen}
-        autofocusTarget="first-node"
-        onClose={() => setAddOpen(false)}
-        activator={
-          <Button
-            disabled={disabled || available.length === 0}
-            onClick={() => setAddOpen((open) => !open)}
-          >
-            Add option
-          </Button>
-        }
-      >
-        <ActionList
-          actionRole="menuitem"
-          items={available.map((row) => ({
-            content: row.sourceKind === "option" ? `${row.label} (Option)` : row.label,
-            onAction: () => {
-              onAdd(row);
-              setAddOpen(false);
-            },
-          }))}
-        />
-      </Popover>
+      <Button disabled={disabled} onClick={openAdd}>
+        Add option
+      </Button>
     </BlockStack>
   );
 }

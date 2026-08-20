@@ -157,6 +157,8 @@ model FilterConfig {
   valueSort           Json     @default("{}")
   /// Per RANGE metafield slider bounds: { "mf_custom_length": { "mode": "custom", "min": 0, "max": 100 } }
   rangeBounds         Json     @default("{}")
+  /// Per-option nested editor: label, valueMode all|manual|prefix, prefix, selectedValues
+  facetSettings       Json     @default("{}")
   /// Merchant drag order on the Filters list (lower first)
   sortOrder           Int      @default(0)
   createdAt           DateTime @default(now())

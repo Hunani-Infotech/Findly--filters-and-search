@@ -15,6 +15,7 @@ import {
   type ProductFacetRow,
   type SelectedFilters,
 } from "./filters.server";
+import { applyFacetValueFilter, applyFacetValueLabel, parseFacetSettings } from "./facet-settings";
 import { resolveStorefrontSort, sortProductRows } from "./sort.server";
 import { normalizeSearchFields, normalizeSortOptions, parseSortOption } from "./app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
@@ -283,10 +284,16 @@ async function buildFacetPayload(input: {
     isSearch: input.isSearch,
   });
 
+  const facetSettings = parseFacetSettings(
+    input.config && "facetSettings" in input.config ? input.config.facetSettings : {},
+  );
   const facets = expandFacetsWithOptions(
     facetsFromConfig(input.config, cappedMappings),
     input.rows,
-  );
+  ).map((facet) => {
+    const custom = facetSettings[facet.key]?.label;
+    return custom ? { ...facet, label: custom } : facet;
+  });
   const selectedForMatch: SelectedFilters = { ...input.selected };
   for (const facet of facets) {
     const current = selectedForMatch[facet.key];
@@ -338,10 +345,21 @@ async function buildFacetPayload(input: {
     const shopSwatches = swatches[optionKey] || {};
     return {
       ...facet,
-      values: values?.map((item) => {
-        const swatch = shopSwatches[item.value] || shopSwatches[item.label];
-        return swatch ? { ...item, swatch } : item;
-      }),
+      label: facetSettings[facet.key]?.label || facet.label,
+      values: values
+        ?.filter((item) =>
+          applyFacetValueFilter(facet.key, [item.value], facetSettings).includes(
+            item.value,
+          ),
+        )
+        .map((item) => {
+          const labeled = {
+            ...item,
+            label: applyFacetValueLabel(facet.key, item.label, facetSettings),
+          };
+          const swatch = shopSwatches[item.value] || shopSwatches[labeled.label];
+          return swatch ? { ...labeled, swatch } : labeled;
+        }),
     };
   });
 
