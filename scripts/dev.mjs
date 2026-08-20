@@ -195,9 +195,19 @@ try {
 }
 
 log.info("[dev] Starting sync worker…");
-spawnTracked(process.execPath, ["--import", "tsx", "app/workers/index.ts"], {
-  tag: "worker",
-});
+spawnTracked(
+  process.execPath,
+  [
+    "--watch",
+    "--watch-path=app",
+    "--import",
+    "tsx",
+    "app/workers/index.ts",
+  ],
+  {
+    tag: "worker",
+  },
+);
 
 log.info("[dev] Starting Shopify app…");
 spawnTracked(

@@ -13,6 +13,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { isMutationBusy } from "./admin-loading";
+import { useConfirmDelete } from "./confirm-delete-modal";
 
 export type ValueGroupCatalog = {
   sources: { key: string; label: string }[];
@@ -58,6 +59,7 @@ export function ValueGroupFormPage({
   const navigate = useNavigate();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const { ask, dialog } = useConfirmDelete();
   const saving = isMutationBusy(navigation);
   const isEdit = Boolean(group);
 
@@ -122,9 +124,14 @@ export function ValueGroupFormPage({
     submit(formData, { method: "POST" });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!isEdit) return;
-    if (!window.confirm("Delete this group?")) return;
+    const ok = await ask({
+      title: "Delete this group?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     const formData = new FormData();
     formData.set("intent", "delete");
     submit(formData, { method: "POST" });
@@ -226,6 +233,7 @@ export function ValueGroupFormPage({
           </Card>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
   );
 }

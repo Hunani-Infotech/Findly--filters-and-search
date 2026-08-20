@@ -32,6 +32,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { ThemeSetupCard } from "../components/theme-setup-card";
 import {
   LayoutPicker,
@@ -352,6 +353,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const [settings, setSettings] = useState<SettingsState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);
   const [selectedTab, setSelectedTab] = useState<SettingsTabId>(data.tab);
@@ -417,14 +419,14 @@ export default function SettingsPage() {
     submitSettings(settings);
   };
 
-  const handleReset = () => {
-    if (
-      !window.confirm(
-        "Reset widget look, search fields, and filter display settings to the defaults?",
-      )
-    ) {
-      return;
-    }
+  const handleReset = async () => {
+    const ok = await ask({
+      title: "Reset settings to defaults?",
+      message:
+        "Widget look, search fields, and filter display settings will be restored to the defaults.",
+      confirmLabel: "Reset",
+    });
+    if (!ok) return;
     setSettings(toSettingsState({ ...DEFAULT_APP_SETTINGS }));
     submitSettings(toSettingsState({ ...DEFAULT_APP_SETTINGS }), "reset");
   };
@@ -1048,6 +1050,7 @@ export default function SettingsPage() {
         </Layout.Section>
         ) : null}
       </Layout>
+      {dialog}
     </Page>
   );
 }

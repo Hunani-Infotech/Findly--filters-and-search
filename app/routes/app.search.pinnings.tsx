@@ -26,6 +26,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { parsePinnings } from "../instant-search";
 import { getAppSettings, saveSearchSettings } from "../settings.server";
 
@@ -81,6 +82,7 @@ export default function SearchPinningsPage() {
   const navigation = useNavigation();
   const submit = useSubmit();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const [rows, setRows] = useState<PinningDraft[]>(data.rows);
   const [loaderRows, setLoaderRows] = useState(data.rows);
   if (data.rows !== loaderRows) {
@@ -151,11 +153,18 @@ export default function SearchPinningsPage() {
                         variant="plain"
                         tone="critical"
                         disabled={saving}
-                        onClick={() =>
+                        onClick={async () => {
+                          const ok = await ask({
+                            title: "Remove this pinning?",
+                            message:
+                              "This pinning will be dropped when you save.",
+                            confirmLabel: "Remove",
+                          });
+                          if (!ok) return;
                           setRows((current) =>
                             current.filter((item) => item.id !== row.id),
-                          )
-                        }
+                          );
+                        }}
                       >
                         Remove
                       </Button>
@@ -210,6 +219,7 @@ export default function SearchPinningsPage() {
           </Form>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
   );
 }

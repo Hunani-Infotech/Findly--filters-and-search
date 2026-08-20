@@ -4,6 +4,7 @@ import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
+  BULK_PRODUCTS_QUERY,
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_LIST_QUERY,
   CURRENT_BULK_OPERATION_QUERY,
@@ -194,7 +195,10 @@ export async function startFullSync(shopDomain: string) {
       log.error("Collection list sync failed", error);
     }
 
-    const response = await admin.graphql(BULK_PRODUCTS_MUTATION);
+    log.info("[sync] starting bulk product query (nested variant id)");
+    const response = await admin.graphql(BULK_PRODUCTS_MUTATION, {
+      variables: { query: BULK_PRODUCTS_QUERY },
+    });
     const json = await response.json();
     const payload = json.data?.bulkOperationRunQuery;
     const userErrors = payload?.userErrors ?? [];

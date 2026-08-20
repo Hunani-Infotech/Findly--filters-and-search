@@ -1107,6 +1107,9 @@
   background: #f1f1f1;
   border-radius: 10px;
   margin-bottom: 8px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .findly-i18n-tab {
@@ -1118,6 +1121,7 @@
   font: 13px/20px inherit;
   color: #202223;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .findly-i18n-tab--active {
@@ -1126,15 +1130,21 @@
 }
 
 .findly-i18n-table {
+  display: block;
   width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  color: #202223;
+  box-sizing: border-box;
 }
 
 .findly-i18n-table__head,
 .findly-i18n-table__row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) 28px minmax(220px, 1.4fr);
+  grid-template-columns: minmax(140px, 1.1fr) 28px minmax(160px, 1.4fr);
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .findly-i18n-table__head {
@@ -1156,12 +1166,15 @@
 
 .findly-i18n-input {
   width: 100%;
+  min-width: 0;
   min-height: 36px;
   padding: 7px 12px;
   border: 1px solid #c9cccf;
   border-radius: 8px;
   font: 13px/20px inherit;
   background: #fff;
+  color: #202223;
+  box-sizing: border-box;
 }
 
 .findly-i18n-input:focus {

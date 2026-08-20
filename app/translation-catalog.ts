@@ -37,6 +37,21 @@ export const TRANSLATION_FIELDS: Record<
       reference: "Sorry, there are no products in this collection",
       defaultValue: "Sorry, there are no products in this collection",
     },
+    { key: "product.quick_view", reference: "Quick view", defaultValue: "Quick view" },
+    { key: "product.from", reference: "From", defaultValue: "From" },
+    {
+      key: "product.choose_options",
+      reference: "Choose options",
+      defaultValue: "Choose options",
+    },
+    { key: "product.reviews", reference: "Reviews", defaultValue: "Reviews" },
+    { key: "product.new", reference: "New", defaultValue: "New" },
+    { key: "product.save", reference: "Save", defaultValue: "Save" },
+    {
+      key: "product.view_details",
+      reference: "View details",
+      defaultValue: "View details",
+    },
   ],
   search: [
     { key: "search.recent_searches", reference: "Recent searches", defaultValue: "" },
@@ -87,6 +102,28 @@ export const TRANSLATION_FIELDS: Record<
       reference: "Zero character keywords suggestions title",
       defaultValue: "",
     },
+    { key: "search_loading", reference: "Searching", defaultValue: "Searching…" },
+    {
+      key: "search_error",
+      reference: "Search error",
+      defaultValue: "Search could not be loaded. Please try again.",
+    },
+    {
+      key: "search_empty",
+      reference: "No products found",
+      defaultValue: "No products found",
+    },
+    {
+      key: "search_empty_copy",
+      reference: "Empty search copy",
+      defaultValue: "Your search did not match any products.",
+    },
+    { key: "search_clear", reference: "Clear query", defaultValue: "Clear query" },
+    { key: "search_submit", reference: "Search button", defaultValue: "Search" },
+    { key: "suggested", reference: "Suggested heading", defaultValue: "Suggested" },
+    { key: "search.view_all", reference: "View all", defaultValue: "View all" },
+    { key: "search.did_you_mean", reference: "Did you mean", defaultValue: "Did you mean" },
+    { key: "search.articles", reference: "Articles", defaultValue: "Articles" },
   ],
   filter: [
     { key: "filter", reference: "Filter By", defaultValue: "Filter By" },
@@ -114,6 +151,38 @@ export const TRANSLATION_FIELDS: Record<
     },
     { key: "filter.show_more", reference: "Show more", defaultValue: "Show more" },
     { key: "filter.show_less", reference: "Show less", defaultValue: "Show less" },
+    { key: "apply", reference: "Apply", defaultValue: "Apply" },
+    { key: "min", reference: "Min", defaultValue: "Min" },
+    { key: "max", reference: "Max", defaultValue: "Max" },
+    { key: "any", reference: "Any", defaultValue: "Any" },
+    {
+      key: "loading",
+      reference: "Loading filters",
+      defaultValue: "Loading filters…",
+    },
+    {
+      key: "error",
+      reference: "Filters error",
+      defaultValue: "Filters could not be loaded. Please try again.",
+    },
+    {
+      key: "no_match",
+      reference: "No matching products",
+      defaultValue: "No matching products.",
+    },
+    {
+      key: "disabled",
+      reference: "Filters disabled",
+      defaultValue: "Filters are not enabled for this collection.",
+    },
+    {
+      key: "products",
+      reference: "Product count ({n} placeholder)",
+      defaultValue: "{n} products",
+    },
+    { key: "and_up", reference: "Rating suffix (and up)", defaultValue: "and up" },
+    { key: "filter.filters", reference: "Filters", defaultValue: "Filters" },
+    { key: "filter.selected", reference: "Selected", defaultValue: "Selected" },
   ],
   sort: [
     { key: "sort.sort_by", reference: "Sort By", defaultValue: "Sort By" },
@@ -191,6 +260,17 @@ export const TRANSLATION_FIELDS: Record<
       reference: "% Sale off",
       defaultValue: "% Sale off",
     },
+    {
+      key: "sort.rating_desc",
+      reference: "Rating, high to low",
+      defaultValue: "Rating, high to low",
+    },
+    {
+      key: "sort.created_desc",
+      reference: "Created: Newest first",
+      defaultValue: "Created: Newest first",
+    },
+    { key: "sort.discount", reference: "Discount", defaultValue: "Discount" },
   ],
   ymm: [
     {
@@ -213,6 +293,21 @@ export const TRANSLATION_FIELDS: Record<
       reference: "Search button text",
       defaultValue: "Search",
     },
+    { key: "ymm.year", reference: "Year", defaultValue: "Year" },
+    { key: "ymm.make", reference: "Make", defaultValue: "Make" },
+    { key: "ymm.model", reference: "Model", defaultValue: "Model" },
+    { key: "ymm.reset", reference: "Reset", defaultValue: "Reset" },
+    { key: "ymm.clear", reference: "Clear", defaultValue: "Clear" },
+    {
+      key: "ymm.please_select",
+      reference: "Please select",
+      defaultValue: "Please select",
+    },
+    {
+      key: "ymm.no_results",
+      reference: "No matching vehicles",
+      defaultValue: "No matching products",
+    },
   ],
 };
 
@@ -227,6 +322,11 @@ export const BUILTIN_LABEL_FIELDS: TranslationField[] = [
   { key: "label.tag", reference: "Tag", defaultValue: "" },
   { key: "label.ready_to_ship", reference: "Ready To Ship", defaultValue: "" },
   { key: "label.location", reference: "Location", defaultValue: "" },
+  { key: "label.color", reference: "Color", defaultValue: "" },
+  { key: "label.size", reference: "Size", defaultValue: "" },
+  { key: "label.material", reference: "Material", defaultValue: "" },
+  { key: "label.brand", reference: "Brand", defaultValue: "" },
+  { key: "label.rating", reference: "Rating", defaultValue: "" },
 ];
 
 export function parseTranslationTab(raw: string | null): TranslationTabId {

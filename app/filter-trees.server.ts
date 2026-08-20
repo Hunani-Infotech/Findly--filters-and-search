@@ -98,6 +98,33 @@ export async function hasCollectionAssignment(
   return Boolean(legacy);
 }
 
+export function isAbandonedDraftName(name: string) {
+  const trimmed = name.trim().toLowerCase();
+  return !trimmed || trimmed === "untitled" || trimmed === "untitled tree";
+}
+
+export function defaultFilterTreeDisplayOrder() {
+  return withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]);
+}
+
+/** Drop filters that were created by Add Filter then abandoned (never named). */
+export async function deleteAbandonedDraftTrees(shopId: string) {
+  const trees = await prisma.filterConfig.findMany({
+    where: { shopId },
+    select: { id: true, name: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (trees.length <= 1) return;
+  const drafts = trees.filter((tree) => isAbandonedDraftName(tree.name));
+  if (!drafts.length) return;
+  const kept = trees.length - drafts.length;
+  const toDelete = kept >= 1 ? drafts : drafts.slice(1);
+  if (!toDelete.length) return;
+  await prisma.filterConfig.deleteMany({
+    where: { shopId, id: { in: toDelete.map((tree) => tree.id) } },
+  });
+}
+
 export async function createFilterTree(
   shopId: string,
   input?: {

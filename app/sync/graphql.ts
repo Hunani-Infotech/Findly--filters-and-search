@@ -104,48 +104,32 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
   }
 `;
 
-export const BULK_PRODUCTS_MUTATION = `#graphql
-  mutation BulkProductsRun {
-    bulkOperationRunQuery(
-      query: """
-      {
-        products {
+export const BULK_PRODUCTS_QUERY = `
+{
+  products {
+    edges {
+      node {
+        id
+        handle
+        title
+        vendor
+        productType
+        tags
+        status
+        createdAt
+        publishedAt
+        featuredImage { url }
+        options { name values }
+        variants {
           edges {
             node {
               id
-              handle
-              title
-              vendor
-              productType
-              tags
-              status
-              createdAt
-              publishedAt
-              featuredImage { url }
-              options { name values }
-              variants {
-                edges {
-                  node {
-                    id
-                    sku
-                    price
-                    compareAtPrice
-                    availableForSale
-                    image { url }
-                    selectedOptions { name value }
-                    metafields {
-                      edges {
-                        node {
-                          id
-                          namespace
-                          key
-                          value
-                        }
-                      }
-                    }
-                  }
-                }
-              }
+              sku
+              price
+              compareAtPrice
+              availableForSale
+              image { url }
+              selectedOptions { name value }
               metafields {
                 edges {
                   node {
@@ -156,34 +140,50 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
                   }
                 }
               }
-              reviewsRating: metafield(namespace: "reviews", key: "rating") {
-                namespace
-                key
-                value
-              }
-              looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
-                namespace
-                key
-                value
-              }
-              stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
-                namespace
-                key
-                value
-              }
-              collections {
-                edges {
-                  node {
-                    id
-                  }
-                }
-              }
+            }
+          }
+        }
+        metafields {
+          edges {
+            node {
+              id
+              namespace
+              key
+              value
+            }
+          }
+        }
+        reviewsRating: metafield(namespace: "reviews", key: "rating") {
+          namespace
+          key
+          value
+        }
+        looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
+          namespace
+          key
+          value
+        }
+        stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
+          namespace
+          key
+          value
+        }
+        collections {
+          edges {
+            node {
+              id
             }
           }
         }
       }
-      """
-    ) {
+    }
+  }
+}
+`.trim();
+
+export const BULK_PRODUCTS_MUTATION = `#graphql
+  mutation BulkProductsRun($query: String!) {
+    bulkOperationRunQuery(query: $query) {
       bulkOperation {
         id
         status

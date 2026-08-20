@@ -39,6 +39,8 @@ import {
 } from "../facet-settings";
 import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
 import {
+  createFilterTree,
+  defaultFilterTreeDisplayOrder,
   deleteFilterTree,
   duplicateFilterTree,
   getFilterTree,
@@ -46,6 +48,8 @@ import {
   updateFilterTree,
 } from "../filter-trees.server";
 import prisma from "../db.server";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
+import { withEmbeddedParams, withEmbeddedParamsFromRequest } from "../admin-path";
 import { isMutationBusy } from "../components/admin-loading";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
@@ -91,8 +95,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!treeId) {
     throw new Response("Not found", { status: 404 });
   }
-  const config = await getFilterTree(shop.id, treeId);
-  if (!config) {
+  const isNew = treeId === "new";
+  const config = isNew ? null : await getFilterTree(shop.id, treeId);
+  if (!isNew && !config) {
     throw new Response("Not found", { status: 404 });
   }
   const [collections, otherTrees] = await Promise.all([
@@ -105,7 +110,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const usedElsewhere: Record<string, boolean> = {};
   let allCollectionsUsedElsewhere = false;
   for (const tree of otherTrees) {
-    if (tree.id === config.id) continue;
+    if (config && tree.id === config.id) continue;
     if (tree.treeCollections.length === 0 && !tree.collectionGid) {
       allCollectionsUsedElsewhere = true;
     }
@@ -142,7 +147,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   );
 
   return {
-    treeId: config.id,
+    treeId: config?.id ?? "",
+    isNew,
     collections: collections.map((collection) => ({
       collectionGid: collection.collectionGid,
       title: collection.title,
@@ -153,54 +159,77 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     catalogOptions,
     mappedFacets,
     facetSettings,
-    config: {
-      name: config.name,
-      appliesToSearch: config.appliesToSearch,
-      appliesToAllProducts: false,
-      collectionGids: config.treeCollections.map((row) => row.collectionGid),
-      excludeCollectionGids: parseExcludeCollectionGids(
-        config && "facetSettings" in config ? config.facetSettings : {},
-      ),
-      enabled: config.enabled ?? true,
-      enablePrice: config?.enablePrice ?? true,
-      enableSale: config?.enableSale ?? false,
-      enableRating: config?.enableRating ?? false,
-      enableAvailability: config?.enableAvailability ?? true,
-      enableVendor: config?.enableVendor ?? true,
-      enableProductType: config?.enableProductType ?? true,
-      enableTags: config?.enableTags ?? true,
-      enableOptions: config?.enableOptions ?? true,
-      displayOrder: (() => {
-        const mapped = withGloboAdminOptionKeys(
-          withMappedFacetKeys(
-            config?.displayOrder,
-            mappedFacets.map((facet) => facet.key),
+    config: config
+      ? {
+          name: config.name,
+          appliesToSearch: config.appliesToSearch,
+          appliesToAllProducts: false,
+          collectionGids: config.treeCollections.map((row) => row.collectionGid),
+          excludeCollectionGids: parseExcludeCollectionGids(
+            config && "facetSettings" in config ? config.facetSettings : {},
           ),
-        );
-        const stored = Array.isArray(config?.displayOrder)
-          ? config.displayOrder
-          : [];
-        if (config?.enableSale || stored.includes("sale") || stored.length === 0) {
-          return mapped;
+          enabled: config.enabled ?? true,
+          enablePrice: config?.enablePrice ?? true,
+          enableSale: config?.enableSale ?? false,
+          enableRating: config?.enableRating ?? false,
+          enableAvailability: config?.enableAvailability ?? true,
+          enableVendor: config?.enableVendor ?? true,
+          enableProductType: config?.enableProductType ?? true,
+          enableTags: config?.enableTags ?? true,
+          enableOptions: config?.enableOptions ?? true,
+          displayOrder: (() => {
+            const mapped = withGloboAdminOptionKeys(
+              withMappedFacetKeys(
+                config?.displayOrder,
+                mappedFacets.map((facet) => facet.key),
+              ),
+            );
+            const stored = Array.isArray(config?.displayOrder)
+              ? config.displayOrder
+              : [];
+            if (config?.enableSale || stored.includes("sale") || stored.length === 0) {
+              return mapped;
+            }
+            return mapped.filter((key) => key !== "sale");
+          })(),
+          displayTypes: parseDisplayTypes(
+            config && "displayTypes" in config ? config.displayTypes : {},
+          ),
+          matchModes: parseMatchModes(
+            config && "matchModes" in config ? config.matchModes : {},
+          ),
+          valueSort: parseValueSort(
+            config && "valueSort" in config ? config.valueSort : {},
+          ),
+          rangeBounds: rangeBoundsToForm(
+            parseRangeBounds(
+              config && "rangeBounds" in config ? config.rangeBounds : {},
+            ),
+          ),
+          ...filterConfigPriceFields(config),
         }
-        return mapped.filter((key) => key !== "sale");
-      })(),
-      displayTypes: parseDisplayTypes(
-        config && "displayTypes" in config ? config.displayTypes : {},
-      ),
-      matchModes: parseMatchModes(
-        config && "matchModes" in config ? config.matchModes : {},
-      ),
-      valueSort: parseValueSort(
-        config && "valueSort" in config ? config.valueSort : {},
-      ),
-      rangeBounds: rangeBoundsToForm(
-        parseRangeBounds(
-          config && "rangeBounds" in config ? config.rangeBounds : {},
-        ),
-      ),
-      ...filterConfigPriceFields(config),
-    },
+      : {
+          name: "",
+          appliesToSearch: false,
+          appliesToAllProducts: false,
+          collectionGids: [] as string[],
+          excludeCollectionGids: [] as string[],
+          enabled: true,
+          enablePrice: true,
+          enableSale: true,
+          enableRating: false,
+          enableAvailability: true,
+          enableVendor: true,
+          enableProductType: true,
+          enableTags: true,
+          enableOptions: true,
+          displayOrder: defaultFilterTreeDisplayOrder(),
+          displayTypes: parseDisplayTypes({}),
+          matchModes: parseMatchModes({}),
+          valueSort: parseValueSort({}),
+          rangeBounds: rangeBoundsToForm(parseRangeBounds({})),
+          ...filterConfigPriceFields(null),
+        },
   };
 };
 
@@ -211,18 +240,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!treeId) {
     return { error: "Filter tree required" };
   }
+  const isNew = treeId === "new";
   const form = await request.formData();
   const intent = String(form.get("intent") || "save");
 
   if (intent === "duplicate") {
+    if (isNew) return { error: "Save this filter first." };
     const copy = await duplicateFilterTree(shop.id, treeId);
     if (!copy) return { error: "Could not duplicate this tree." };
-    return redirect(`/app/filters/${copy.id}`);
+    return redirect(
+      withEmbeddedParamsFromRequest(request, `/app/filters/${copy.id}`),
+    );
   }
   if (intent === "delete") {
+    if (isNew) {
+      return redirect(withEmbeddedParamsFromRequest(request, "/app"));
+    }
     const result = await deleteFilterTree(shop.id, treeId);
     if ("error" in result) return { error: result.error };
-    return redirect("/app");
+    return redirect(withEmbeddedParamsFromRequest(request, "/app"));
   }
 
   const bool = (key: string) => form.get(key) === "true" || form.get(key) === "on";
@@ -323,9 +359,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
   }
 
-  const existing = await getFilterTree(shop.id, treeId);
-  if (!existing) {
+  const existing = isNew ? null : await getFilterTree(shop.id, treeId);
+  if (!isNew && !existing) {
     return { error: "Filter tree not found." };
+  }
+  const name = String(form.get("name") || "").trim();
+  if (isNew && !name) {
+    return { error: "Enter a filter name." };
   }
   const rawFacetSettings =
     existing && "facetSettings" in existing ? existing.facetSettings : {};
@@ -344,8 +384,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
   }
 
-  await updateFilterTree(shop.id, treeId, {
-    name: String(form.get("name") || "Untitled tree"),
+  const savedName = name || existing?.name || "Untitled tree";
+  const persistId = isNew
+    ? (
+        await createFilterTree(shop.id, {
+          name: savedName,
+          appliesToSearch: bool("appliesToSearch"),
+          collectionGids,
+        })
+      ).id
+    : treeId;
+
+  await updateFilterTree(shop.id, persistId, {
+    name: savedName,
     appliesToSearch: bool("appliesToSearch"),
     collectionGids,
     facetSettings: withExcludeCollectionGids(
@@ -373,8 +424,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   });
 
   const url = new URL(request.url);
-  if (url.searchParams.get("new") === "1") {
-    return redirect(`/app/filters/${treeId}`);
+  if (isNew || url.searchParams.get("new") === "1") {
+    return redirect(
+      withEmbeddedParamsFromRequest(request, `/app/filters/${persistId}`),
+    );
   }
   return { ok: true };
 };
@@ -387,6 +440,7 @@ export default function FilterTreeEditorPage() {
   const submit = useSubmit();
   const [searchParams, setSearchParams] = useSearchParams();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const [config, setConfig] = useState<ConfigState>(data.config);
   const [loaderConfig, setLoaderConfig] = useState(data.config);
   if (data.config !== loaderConfig) {
@@ -430,7 +484,7 @@ export default function FilterTreeEditorPage() {
       data.facetSettings,
     ],
   );
-  const isAddMode = searchParams.get("new") === "1";
+  const isAddMode = data.isNew || searchParams.get("new") === "1";
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -455,7 +509,13 @@ export default function FilterTreeEditorPage() {
   const patchEnable = (key: BuiltinEnableKey, value: boolean) =>
     setConfig((current) => ({ ...current, [key]: value }));
 
-  const handleRemove = (key: string) => {
+  const handleRemove = async (key: string) => {
+    const ok = await ask({
+      title: "Remove this filter option?",
+      message: "You can add it again later from this page.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     const def = builtinDefForKey(key);
     if (
       def?.enableKey &&
@@ -520,7 +580,7 @@ export default function FilterTreeEditorPage() {
       title={pageTitle}
       backAction={{
         content: "Filters",
-        onAction: () => navigate("/app"),
+        onAction: () => navigate(withEmbeddedParams("/app", searchParams)),
       }}
       secondaryActions={
         isEditMode
@@ -538,7 +598,13 @@ export default function FilterTreeEditorPage() {
                 content: "Delete",
                 disabled: saving,
                 destructive: true,
-                onAction: () => {
+                onAction: async () => {
+                  const ok = await ask({
+                    title: "Delete this filter?",
+                    message: "This cannot be undone.",
+                    confirmLabel: "Delete",
+                  });
+                  if (!ok) return;
                   const formData = new FormData();
                   formData.set("intent", "delete");
                   submit(formData, { method: "POST" });
@@ -561,104 +627,102 @@ export default function FilterTreeEditorPage() {
     >
       <Layout>
         <Layout.Section>
+          <BlockStack gap="400">
           <Form id="default-filter-form" method="post" onSubmit={handleSubmit}>
-            <BlockStack gap="400">
-              <Card>
-                <BlockStack gap="300">
-                  <TextField
-                    label="Name"
-                    value={config.name}
-                    autoComplete="off"
+            <Card>
+              <BlockStack gap="300">
+                <TextField
+                  label="Name"
+                  value={config.name}
+                  autoComplete="off"
+                  disabled={saving}
+                  onChange={(value) =>
+                    setConfig((c) => ({ ...c, name: value }))
+                  }
+                />
+                <CollectionAppliesTo
+                  collections={data.collections}
+                  selected={config.collectionGids}
+                  onChange={(collectionGids) =>
+                    setConfig((c) => ({ ...c, collectionGids }))
+                  }
+                  appliesToSearch={config.appliesToSearch}
+                  onAppliesToSearchChange={(appliesToSearch) =>
+                    setConfig((c) => ({ ...c, appliesToSearch }))
+                  }
+                  appliesToAllProducts={config.appliesToAllProducts}
+                  onAppliesToAllProductsChange={(appliesToAllProducts) =>
+                    setConfig((c) => ({ ...c, appliesToAllProducts }))
+                  }
+                  allCollections={config.collectionGids.length === 0}
+                  onAllCollectionsChange={(next) => {
+                    if (next) {
+                      setConfig((c) => ({ ...c, collectionGids: [] }));
+                    }
+                  }}
+                  usedElsewhere={data.usedElsewhere}
+                  allCollectionsUsedElsewhere={data.allCollectionsUsedElsewhere}
+                  disabled={saving}
+                  showExclude={!isAddMode}
+                  showAllCollectionsChip={!isAddMode}
+                  excluded={config.excludeCollectionGids}
+                  onExcludedChange={(excludeCollectionGids) =>
+                    setConfig((c) => ({ ...c, excludeCollectionGids }))
+                  }
+                />
+              </BlockStack>
+            </Card>
+          </Form>
+          <Card>
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Filter options
+                </Text>
+                {isEditMode ? (
+                  <Button
+                    submit={false}
                     disabled={saving}
-                    onChange={(value) =>
-                      setConfig((c) => ({ ...c, name: value }))
-                    }
-                  />
-                  <CollectionAppliesTo
-                    collections={data.collections}
-                    selected={config.collectionGids}
-                    onChange={(collectionGids) =>
-                      setConfig((c) => ({ ...c, collectionGids }))
-                    }
-                    appliesToSearch={config.appliesToSearch}
-                    onAppliesToSearchChange={(appliesToSearch) =>
-                      setConfig((c) => ({ ...c, appliesToSearch }))
-                    }
-                    appliesToAllProducts={config.appliesToAllProducts}
-                    onAppliesToAllProductsChange={(appliesToAllProducts) =>
-                      setConfig((c) => ({ ...c, appliesToAllProducts }))
-                    }
-                    allCollections={config.collectionGids.length === 0}
-                    onAllCollectionsChange={(next) => {
-                      if (next) {
-                        setConfig((c) => ({ ...c, collectionGids: [] }));
-                      }
-                    }}
-                    usedElsewhere={data.usedElsewhere}
-                    allCollectionsUsedElsewhere={data.allCollectionsUsedElsewhere}
-                    disabled={saving}
-                    showExclude={!isAddMode}
-                    showAllCollectionsChip={!isAddMode}
-                    excluded={config.excludeCollectionGids}
-                    onExcludedChange={(excludeCollectionGids) =>
-                      setConfig((c) => ({ ...c, excludeCollectionGids }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">
-                      Filter options
-                    </Text>
-                    {isEditMode ? (
-                      <Button
-                        disabled={saving}
-                        onClick={() =>
-                          navigate(`/app/filters/${data.treeId}/options/new`)
-                        }
-                      >
-                        + Add filter option
-                      </Button>
-                    ) : null}
-                  </InlineStack>
-                  <FilterOptionsTable
-                    rows={rows}
-                    displayTypes={config.displayTypes}
-                    disabled={saving}
-                    treeId={data.treeId}
-                    allowEdit={isEditMode}
-                    showAddButton={isEditMode}
-                    onAddOption={() =>
-                      navigate(`/app/filters/${data.treeId}/options/new`)
-                    }
-                    onEditOption={(key) =>
+                    onClick={() =>
                       navigate(
-                        `/app/filters/${data.treeId}/options/${encodeURIComponent(key)}`,
+                        withEmbeddedParams(
+                          `/app/filters/${data.treeId}/options/new`,
+                          searchParams,
+                        ),
                       )
                     }
-                    onReorder={(nextKeys) =>
-                      setConfig((c) => ({
-                        ...c,
-                        displayOrder: persistDisplayOrder(
-                          nextKeys,
-                          c.displayOrder,
-                        ),
-                      }))
-                    }
-                    onRemove={handleRemove}
-                    onDisplayTypesChange={(displayTypes) =>
-                      setConfig((c) => ({ ...c, displayTypes }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
+                  >
+                    + Add filter option
+                  </Button>
+                ) : null}
+              </InlineStack>
+              <FilterOptionsTable
+                rows={rows}
+                displayTypes={config.displayTypes}
+                disabled={saving}
+                treeId={data.treeId}
+                allowEdit={isEditMode}
+                showAddButton={isEditMode}
+                onReorder={(nextKeys) =>
+                  setConfig((c) => ({
+                    ...c,
+                    displayOrder: persistDisplayOrder(
+                      nextKeys,
+                      c.displayOrder,
+                    ),
+                  }))
+                }
+                onRemove={handleRemove}
+                onDisplayTypesChange={(displayTypes) =>
+                  setConfig((c) => ({ ...c, displayTypes }))
+                }
+              />
             </BlockStack>
-          </Form>
+          </Card>
+          </BlockStack>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
   );
 }

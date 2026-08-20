@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   Badge,
   BlockStack,
@@ -14,6 +14,7 @@ import {
   type FacetDisplayType,
   type FacetSource,
 } from "../filters";
+import { withEmbeddedParams } from "../admin-path";
 import {
   displayChoicesForRow,
   type FilterOptionRow,
@@ -103,6 +104,7 @@ export function FilterOptionsTable({
   showAddButton = true,
 }: FilterOptionsTableProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const ghostRef = useRef<HTMLElement | null>(null);
@@ -116,7 +118,12 @@ export function FilterOptionsTable({
       return;
     }
     if (treeId) {
-      navigate(`/app/filters/${treeId}/options/${encodeURIComponent(key)}`);
+      navigate(
+        withEmbeddedParams(
+          `/app/filters/${treeId}/options/${encodeURIComponent(key)}`,
+          searchParams,
+        ),
+      );
     }
   };
 
@@ -126,7 +133,9 @@ export function FilterOptionsTable({
       return;
     }
     if (treeId) {
-      navigate(`/app/filters/${treeId}/options/new`);
+      navigate(
+        withEmbeddedParams(`/app/filters/${treeId}/options/new`, searchParams),
+      );
     }
   };
 
@@ -293,6 +302,7 @@ export function FilterOptionsTable({
                   {allowEdit ? (
                     <Button
                       variant="plain"
+                      submit={false}
                       disabled={disabled}
                       onClick={() => openEdit(row.key)}
                     >
@@ -334,6 +344,7 @@ export function FilterOptionsTable({
                     {allowEdit ? (
                       <Button
                         variant="plain"
+                        submit={false}
                         disabled={disabled}
                         onClick={() => openEdit(row.key)}
                       >
@@ -343,6 +354,7 @@ export function FilterOptionsTable({
                     <Button
                       variant="plain"
                       tone="critical"
+                      submit={false}
                       disabled={disabled}
                       onClick={() => onRemove(row.key)}
                     >
@@ -361,7 +373,7 @@ export function FilterOptionsTable({
         ) : null}
       </div>
       {showAddButton ? (
-        <Button disabled={disabled} onClick={openAdd}>
+        <Button submit={false} disabled={disabled} onClick={openAdd}>
           + Add filter option
         </Button>
       ) : null}

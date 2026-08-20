@@ -5,11 +5,11 @@ import type {
 } from "react-router";
 import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { withEmbeddedParamsFromRequest } from "../admin-path";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { FilterOptionEditorPage } from "../components/filter-option-editor";
 import {
-  deleteFilterOption,
   loadFilterOptionEditorPage,
   saveFilterOption,
 } from "../filter-option-editor.server";
@@ -18,9 +18,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const treeId = params.id;
-  const key = params.key ? decodeURIComponent(params.key) : "";
-  if (!treeId || !key) throw new Response("Not found", { status: 404 });
-  const page = await loadFilterOptionEditorPage(shop.id, treeId, "edit", key);
+  if (!treeId) throw new Response("Not found", { status: 404 });
+  const page = await loadFilterOptionEditorPage(shop.id, treeId, "add");
   if (page === "not_found") throw new Response("Not found", { status: 404 });
   return {
     ...page,
@@ -32,21 +31,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const treeId = params.id;
-  const key = params.key ? decodeURIComponent(params.key) : "";
   if (!treeId) return { error: "Filter tree required" };
   const form = await request.formData();
-  const intent = String(form.get("intent") || "save");
-  if (intent === "delete") {
-    const result = await deleteFilterOption(shop.id, treeId, key);
-    if ("error" in result) return { error: result.error };
-    return redirect(`/app/filters/${treeId}?notice=deleted`);
-  }
-  const result = await saveFilterOption(shop.id, treeId, "edit", form);
+  const result = await saveFilterOption(shop.id, treeId, "add", form);
   if ("error" in result) return { error: result.error };
-  return redirect(`/app/filters/${treeId}?notice=saved`);
+  return redirect(
+    withEmbeddedParamsFromRequest(
+      request,
+      `/app/filters/${treeId}?notice=saved`,
+    ),
+  );
 };
 
-export default function EditFilterOptionPage() {
+export default function AddFilterOptionPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   return (

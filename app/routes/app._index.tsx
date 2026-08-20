@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type DragEvent,
+} from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
 import {
   redirect,
@@ -38,8 +45,10 @@ import { ensureShopAccess } from "../billing.server";
 import { ensureShop } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
+import { withEmbeddedParamsFromRequest } from "../admin-path";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
-  createFilterTree,
+  deleteAbandonedDraftTrees,
   deleteFilterTrees,
   duplicateFilterTrees,
   exportFilterTreesPayload,
@@ -171,6 +180,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await ensureShop(session.shop);
   await ensureShopAccess(session.shop);
+  await deleteAbandonedDraftTrees(shop.id);
 
   const [trees, collections] = await Promise.all([
     listFilterTrees(shop.id),
@@ -209,8 +219,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const ids = parseIdList(form.get("ids"));
 
   if (intent === "create") {
-    const tree = await createFilterTree(shop.id);
-    return redirect(`/app/filters/${tree.id}?new=1`);
+    return redirect(
+      withEmbeddedParamsFromRequest(request, "/app/filters/new"),
+    );
   }
 
   if (intent === "export") {
@@ -253,6 +264,7 @@ export default function Index() {
   const exportFetcher = useFetcher<typeof action>();
   const bulkFetcher = useFetcher<typeof action>();
   const reorderFetcher = useFetcher<typeof action>();
+  const { ask, dialog } = useConfirmDelete();
   const { trees } = data;
   const creating = isMutationBusy(navigation);
   const exporting = exportFetcher.state !== "idle";
@@ -269,13 +281,19 @@ export default function Index() {
     setSelectedIds((current) => current.filter((id) => treeIds.includes(id)));
   }
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [promoOpen, setPromoOpen] = useState(false);
+  const storedPromoOpen = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storage", onChange);
+      return () => window.removeEventListener("storage", onChange);
+    },
+    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
+    () => false,
+  );
+  const [promoHidden, setPromoHidden] = useState(false);
+  const promoOpen = !promoHidden && storedPromoOpen;
   const lastExportKey = useRef<string | null>(null);
   const lastBulkKey = useRef<unknown>(null);
-
-  useEffect(() => {
-    setPromoOpen(window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1");
-  }, []);
+  const [clearedBulkResult, setClearedBulkResult] = useState<unknown>(null);
 
   useEffect(() => {
     const result = exportFetcher.data;
@@ -292,6 +310,19 @@ export default function Index() {
     lastExportKey.current = key;
     downloadJson("findly-filters.json", result.payload);
   }, [exportFetcher.data]);
+
+  const bulkResult =
+    bulkFetcher.state === "idle" ? bulkFetcher.data : undefined;
+  if (
+    bulkResult &&
+    clearedBulkResult !== bulkResult &&
+    "ok" in bulkResult &&
+    bulkResult.ok &&
+    "intent" in bulkResult
+  ) {
+    setClearedBulkResult(bulkResult);
+    setSelectedIds([]);
+  }
 
   useEffect(() => {
     const result = bulkFetcher.data;
@@ -312,7 +343,6 @@ export default function Index() {
     } else if (result.intent === "delete") {
       shopify.toast.show("Filters deleted");
     }
-    setSelectedIds([]);
   }, [bulkFetcher.data, bulkFetcher.state, shopify]);
 
   const treesById = useMemo(
@@ -389,17 +419,17 @@ export default function Index() {
     });
   };
 
-  const submitBulk = (intent: "enable" | "disable" | "duplicate" | "delete") => {
+  const submitBulk = async (intent: "enable" | "disable" | "duplicate" | "delete") => {
     if (!selectedIds.length || bulkBusy) return;
-    if (
-      intent === "delete" &&
-      !window.confirm(
-        selectedIds.length === 1
+    if (intent === "delete") {
+      const ok = await ask({
+        title: selectedIds.length === 1
           ? "Delete this filter?"
           : `Delete ${selectedIds.length} filters?`,
-      )
-    ) {
-      return;
+        message: "This cannot be undone.",
+        confirmLabel: "Delete",
+      });
+      if (!ok) return;
     }
     const formData = new FormData();
     formData.set("intent", intent);
@@ -603,7 +633,7 @@ export default function Index() {
                   className="findly-swatch-promo__close"
                   aria-label="Dismiss"
                   onClick={() => {
-                    setPromoOpen(false);
+                    setPromoHidden(true);
                     window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
                   }}
                 >
@@ -646,6 +676,7 @@ export default function Index() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
   );
 }

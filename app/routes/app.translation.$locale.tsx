@@ -12,6 +12,7 @@ import { ensureShopAccess } from "../billing.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
+  type AdminLocaleRow,
 } from "../admin-nav-extras.server";
 import { listColorOptionKeys } from "../color-swatches.server";
 import { mergeWidgetChrome } from "../widget-i18n";
@@ -25,7 +26,12 @@ import {
   type TranslationField,
 } from "../translation-catalog";
 
-function mergeLocaleStrings(stored: Record<string, string> | undefined) {
+/** Set true to restore Custom tab "+ Add field". */
+const ALLOW_CUSTOM_FIELDS = false;
+
+function mergeLocaleStrings(
+  stored: Record<string, string> | undefined,
+): Record<string, string> {
   return {
     ...defaultCatalogStrings(),
     ...mergeWidgetChrome(stored),
@@ -33,14 +39,56 @@ function mergeLocaleStrings(stored: Record<string, string> | undefined) {
   };
 }
 
+function decodeLocaleParam(raw: string | undefined) {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return value;
+  }
+}
+
+function localeKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function findLang(langs: AdminLocaleRow[], decoded: string) {
+  const needle = localeKey(decoded);
+  if (!needle) return undefined;
+  return langs.find(
+    (row) =>
+      localeKey(row.code) === needle || localeKey(row.name) === needle,
+  );
+}
+
+function resolveLang(langs: AdminLocaleRow[], decoded: string) {
+  const match = findLang(langs, decoded);
+  if (match) return match;
+  if (langs.length === 0) return null;
+  return findLang(langs, "en") ?? langs[0]!;
+}
+
+function mapForLocale<T>(
+  map: Record<string, T> | undefined,
+  code: string,
+): T | undefined {
+  if (!map) return undefined;
+  if (Object.prototype.hasOwnProperty.call(map, code)) return map[code];
+  const needle = localeKey(code);
+  const key = Object.keys(map).find((entry) => localeKey(entry) === needle);
+  return key ? map[key] : undefined;
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
-  const code = String(params.locale || "").trim();
-  const lang = extras.langs.find((row) => row.code === code);
+  const decoded = decodeLocaleParam(params.locale);
+  const lang = resolveLang(extras.langs, decoded);
   if (!lang) return redirect("/app/translation");
 
+  const code = lang.code;
   const options = await listColorOptionKeys(shop.id);
   const seen = new Set(BUILTIN_LABEL_FIELDS.map((field) => field.reference.toLowerCase()));
   const labelFields: TranslationField[] = [...BUILTIN_LABEL_FIELDS];
@@ -57,9 +105,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   return {
     lang,
-    strings: mergeLocaleStrings(extras.i18n[code]),
+    strings: mergeLocaleStrings(mapForLocale(extras.i18n, code)),
     labelFields,
-    customFields: extras.translationCustom?.[code] || [],
+    customFields: mapForLocale(extras.translationCustom, code) || [],
   };
 };
 
@@ -67,16 +115,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
-  const code = String(params.locale || "").trim();
-  const lang = extras.langs.find((row) => row.code === code);
+  const decoded = decodeLocaleParam(params.locale);
+  const lang = resolveLang(extras.langs, decoded);
   if (!lang) return { error: "Language not found." };
 
+  const code = lang.code;
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
 
   if (intent === "addCustom") {
+    if (!ALLOW_CUSTOM_FIELDS) {
+      return { error: "Creating custom fields is disabled for now." };
+    }
     const next = extras.translationCustom ? { ...extras.translationCustom } : {};
-    const rows = [...(next[code] || [])];
+    const rows = [...(mapForLocale(next, code) || [])];
     rows.push({ id: crypto.randomUUID(), reference: "Custom field" });
     next[code] = rows;
     extras.translationCustom = next;
@@ -91,7 +143,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     } catch {
       return { error: "Invalid strings JSON." };
     }
-    const next: Record<string, string> = { ...(extras.i18n[code] || {}) };
+    const next: Record<string, string> = { ...(mapForLocale(extras.i18n, code) || {}) };
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
         if (typeof value === "string") next[key] = value;
@@ -113,7 +165,7 @@ export default function TranslationLocalePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTranslationTab(searchParams.get("tab"));
   const snapshot = JSON.stringify(strings);
-  const [drafts, setDrafts] = useState(strings);
+  const [drafts, setDrafts] = useState<Record<string, string>>(strings);
   const [seen, setSeen] = useState(snapshot);
   if (snapshot !== seen) {
     setSeen(snapshot);
@@ -219,7 +271,7 @@ export default function TranslationLocalePage() {
                 </div>
               ))}
             </div>
-            {tab === "custom" ? (
+            {tab === "custom" && ALLOW_CUSTOM_FIELDS ? (
               <button
                 type="button"
                 className="findly-i18n-add"

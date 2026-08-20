@@ -26,6 +26,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { UnderConstructionGate } from "../components/under-construction";
 import {
   getAdminNavExtras,
@@ -261,6 +262,7 @@ export default function RecommendationsPage() {
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const [tabIndex, setTabIndex] = useState(0);
   const [recs, setRecs] = useState<RecsConfig>(data.recs);
   const [recOn, setRecOn] = useState<Record<string, boolean>>(data.recOn);
@@ -347,7 +349,15 @@ export default function RecommendationsPage() {
 
   const themeEditorUrl = `https://${data.shopDomain}/admin/themes/current/editor?context=apps`;
 
-  const toggleWidget = (id: string, nextOn: boolean) => {
+  const toggleWidget = async (id: string, nextOn: boolean) => {
+    if (!nextOn) {
+      const ok = await ask({
+        title: "Turn off this recommendation widget?",
+        message: "The widget will stop showing on the storefront.",
+        confirmLabel: "Turn off",
+      });
+      if (!ok) return;
+    }
     setRecOn((prev) => ({ ...prev, [id]: nextOn }));
     const formData = new FormData();
     formData.set("intent", "recOn");
@@ -379,7 +389,13 @@ export default function RecommendationsPage() {
     );
   };
 
-  const deleteRelated = (source: string) => {
+  const deleteRelated = async (source: string) => {
+    const ok = await ask({
+      title: "Delete this recommendation mapping?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     fetcher.submit({ intent: "deleteRelated", source }, { method: "POST" });
   };
 
@@ -650,6 +666,7 @@ export default function RecommendationsPage() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+      {dialog}
     </Page>
     </UnderConstructionGate>
   );

@@ -1,5 +1,11 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Form, useNavigate, useNavigation, useSubmit } from "react-router";
+import {
+  Form,
+  useNavigate,
+  useNavigation,
+  useSearchParams,
+  useSubmit,
+} from "react-router";
 import {
   BlockStack,
   Box,
@@ -16,6 +22,8 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { withEmbeddedParams } from "../admin-path";
+import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
 import type { FilterOptionEditorData } from "../filter-option-editor.server";
 import {
@@ -42,10 +50,15 @@ export function FilterOptionEditorPage({
 }) {
   const navigate = useNavigate();
   const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
   const submit = useSubmit();
+  const { ask, dialog } = useConfirmDelete();
   const saving = isMutationBusy(navigation);
   const isEdit = data.mode === "edit";
-  const backUrl = `/app/filters/${data.treeId}`;
+  const backUrl = withEmbeddedParams(
+    `/app/filters/${data.treeId}`,
+    searchParams,
+  );
   const shopDomain = data.shopDomain || FALLBACK_SHOP_DOMAIN;
 
   const [key, setKey] = useState(data.optionKey);
@@ -177,7 +190,13 @@ export function FilterOptionEditorPage({
     submit(formData, { method: "POST" });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    const ok = await ask({
+      title: "Delete this filter option?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     const formData = new FormData();
     formData.set("intent", "delete");
     formData.set("key", key);
@@ -202,7 +221,6 @@ export function FilterOptionEditorPage({
       title={isEdit ? "Edit filter option" : "Add filter option"}
       backAction={{
         content: "Filter",
-        url: backUrl,
         onAction: () => navigate(backUrl),
       }}
       secondaryActions={
@@ -556,6 +574,7 @@ export function FilterOptionEditorPage({
           </Card>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
   );
 }

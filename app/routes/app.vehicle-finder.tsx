@@ -22,6 +22,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { UnderConstructionGate } from "../components/under-construction";
 import { getAdminNavExtras, saveAdminNavExtras } from "../admin-nav-extras.server";
 import {
@@ -124,6 +125,7 @@ export default function VehicleFinderPage() {
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [ymm, setYmm] = useState<VehicleFinderAdmin>(data.ymm);
   const ymmRef = useRef(ymm);
@@ -199,8 +201,14 @@ export default function VehicleFinderPage() {
     patch({ fields: [...ymm.fields, createField(ymm.fields.length)] }, true);
   };
 
-  const removeField = (index: number) => {
+  const removeField = async (index: number) => {
     if (ymm.fields.length <= 1) return;
+    const ok = await ask({
+      title: "Remove this field?",
+      message: "This field and its values will be removed.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     patch(
       { fields: ymm.fields.filter((_, i) => i !== index) },
       true,
@@ -228,7 +236,13 @@ export default function VehicleFinderPage() {
     URL.revokeObjectURL(url);
   };
 
-  const uploadCsv = (file: File) => {
+  const uploadCsv = async (file: File) => {
+    const ok = await ask({
+      title: "Replace Year-Make-Model data?",
+      message: "Uploading a CSV replaces the existing rows.",
+      confirmLabel: "Replace",
+    });
+    if (!ok) return;
     const reader = new FileReader();
     reader.onload = () => {
       const formData = new FormData();
@@ -391,7 +405,7 @@ export default function VehicleFinderPage() {
                     const file = event.target.files?.[0];
                     event.target.value = "";
                     if (!file) return;
-                    uploadCsv(file);
+                    void uploadCsv(file);
                   }}
                 />
                 {ymm.rows.length > 0 ? (
@@ -478,7 +492,7 @@ export default function VehicleFinderPage() {
                       <Button
                         tone="critical"
                         disabled={saving || ymm.fields.length <= 1}
-                        onClick={() => removeField(index)}
+                        onClick={() => void removeField(index)}
                       >
                         Remove
                       </Button>
@@ -556,6 +570,7 @@ export default function VehicleFinderPage() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+      {dialog}
     </Page>
     </UnderConstructionGate>
   );

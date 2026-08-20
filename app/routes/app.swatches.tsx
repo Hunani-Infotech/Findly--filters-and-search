@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -28,6 +34,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
+import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { SwatchImagePicker } from "../components/swatch-image-picker";
 import { hexFromColorName, isSwatchFilled } from "../color-autofill";
 import {
@@ -320,6 +327,7 @@ export default function SwatchesPage() {
   const submit = useSubmit();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+  const { ask, dialog } = useConfirmDelete();
   const busy =
     isMutationBusy(navigation) ||
     fetcher.state === "submitting" ||
@@ -334,10 +342,22 @@ export default function SwatchesPage() {
   const [drafts, setDrafts] = useState(rows);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
   const [imageValue, setImageValue] = useState<string | null>(null);
-  const [promoOpen, setPromoOpen] = useState(false);
+  const storedPromoOpen = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storage", onChange);
+      return () => window.removeEventListener("storage", onChange);
+    },
+    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
+    () => false,
+  );
+  const [promoHidden, setPromoHidden] = useState(false);
+  const promoOpen = storedPromoOpen && !promoHidden;
   const [seenRows, setSeenRows] = useState(rows);
   const [seenOption, setSeenOption] = useState(optionKey);
   const [seenUpload, setSeenUpload] = useState<string | null>(null);
+  const [pendingUploadSave, setPendingUploadSave] = useState<SwatchRow | null>(
+    null,
+  );
   const [gallery, setGallery] = useState(shopFiles);
   const [seenFiles, setSeenFiles] = useState(shopFiles);
 
@@ -371,51 +391,60 @@ export default function SwatchesPage() {
     );
   };
 
-  useEffect(() => {
-    setPromoOpen(window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1");
-  }, []);
-
-  useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) return;
-    if (!("intent" in fetcher.data) || fetcher.data.intent !== "upload") return;
-    const stamp = JSON.stringify(fetcher.data);
-    if (seenUpload === stamp) return;
+  const uploadData =
+    fetcher.state === "idle" &&
+    fetcher.data &&
+    "intent" in fetcher.data &&
+    fetcher.data.intent === "upload"
+      ? fetcher.data
+      : null;
+  const stamp = uploadData ? JSON.stringify(uploadData) : null;
+  if (stamp && stamp !== seenUpload) {
     setSeenUpload(stamp);
     setUploadingValue(null);
-    if ("error" in fetcher.data && fetcher.data.error) return;
-    if (!("url" in fetcher.data) || !fetcher.data.url) return;
-    const value =
-      "value" in fetcher.data ? String(fetcher.data.value || "") : "";
-    const imageUrl = fetcher.data.url;
-    const saved: SwatchRow = {
-      optionKey,
-      value,
-      kind: "image",
-      color1: "",
-      color2: "",
-      imageUrl,
-    };
-    setDrafts((prev) =>
-      prev.map((row) => (row.value === value ? { ...row, ...saved } : row)),
-    );
-    persistRow(saved);
-    const data = fetcher.data;
-    setGallery((prev) => {
-      if (prev.some((file) => file.url === imageUrl)) return prev;
-      return [
-        {
-          id: ("id" in data && data.id) || imageUrl,
-          alt: ("alt" in data && data.alt) || "Uploaded image",
-          url: imageUrl,
-        },
-        ...prev,
-      ];
-    });
-    setImageValue(null);
+    if (
+      uploadData &&
+      !("error" in uploadData && uploadData.error) &&
+      "url" in uploadData &&
+      uploadData.url
+    ) {
+      const value =
+        "value" in uploadData ? String(uploadData.value || "") : "";
+      const imageUrl = uploadData.url;
+      const saved: SwatchRow = {
+        optionKey,
+        value,
+        kind: "image",
+        color1: "",
+        color2: "",
+        imageUrl,
+      };
+      setDrafts((prev) =>
+        prev.map((row) => (row.value === value ? { ...row, ...saved } : row)),
+      );
+      setGallery((prev) => {
+        if (prev.some((file) => file.url === imageUrl)) return prev;
+        return [
+          {
+            id: ("id" in uploadData && uploadData.id) || imageUrl,
+            alt: ("alt" in uploadData && uploadData.alt) || "Uploaded image",
+            url: imageUrl,
+          },
+          ...prev,
+        ];
+      });
+      setImageValue(null);
+      setPendingUploadSave(saved);
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingUploadSave) return;
+    persistRow(pendingUploadSave);
     shopify.toast.show("Image uploaded");
-    // persistRow is stable enough for this upload handshake.
+    // persistRow is recreated each render; the pending row is the handshake.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetcher.data, fetcher.state]);
+  }, [pendingUploadSave]);
 
   useEffect(() => {
     const toastData =
@@ -503,7 +532,7 @@ export default function SwatchesPage() {
   };
 
   const dismissPromo = () => {
-    setPromoOpen(false);
+    setPromoHidden(true);
     window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
   };
 
@@ -532,6 +561,7 @@ export default function SwatchesPage() {
             </BlockStack>
           </Layout.Section>
         </Layout>
+        {dialog}
       </Page>
     );
   }
@@ -667,7 +697,17 @@ export default function SwatchesPage() {
                 type="button"
                 className="findly-swatch-clear"
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
+                  const ok = await ask({
+                    title:
+                      selected.length === 1
+                        ? "Clear this swatch?"
+                        : `Clear ${selected.length} swatches?`,
+                    message:
+                      "Saved colors and images for these values will be removed.",
+                    confirmLabel: "Clear",
+                  });
+                  if (!ok) return;
                   selected.forEach((value) => {
                     setDrafts((prev) =>
                       prev.map((item) =>
@@ -810,7 +850,14 @@ export default function SwatchesPage() {
                       type="button"
                       className="findly-swatch-clear"
                       disabled={busy}
-                      onClick={() => {
+                      onClick={async () => {
+                        const ok = await ask({
+                          title: "Clear this swatch?",
+                          message:
+                            "Saved colors and images for these values will be removed.",
+                          confirmLabel: "Clear",
+                        });
+                        if (!ok) return;
                         const cleared = {
                           ...row,
                           kind: "solid" as const,
@@ -891,6 +938,7 @@ export default function SwatchesPage() {
       />
       ) : null}
       </BlockStack>
+      {dialog}
     </Page>
   );
 }
