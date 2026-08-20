@@ -36,15 +36,9 @@ export function ConfirmDeleteModal({
       }}
       secondaryActions={[{ content: cancelLabel, onAction: onClose }]}
     >
-      {message ? (
-        <Modal.Section>
-          {typeof message === "string" ? <Text as="p">{message}</Text> : message}
-        </Modal.Section>
-      ) : (
-        <Modal.Section>
-          <Text as="p">This cannot be undone.</Text>
-        </Modal.Section>
-      )}
+      <Modal.Section>
+        <Text as="p">{message || "This cannot be undone."}</Text>
+      </Modal.Section>
     </Modal>
   );
 }
