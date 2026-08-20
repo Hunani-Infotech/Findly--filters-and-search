@@ -11,23 +11,31 @@ const windowsEngine = path.join(
   "query_engine-windows.dll.node",
 );
 
-function runPrisma(args) {
+function runPrisma(args, { capture = false } = {}) {
   const result = spawnSync(process.execPath, [prismaCli, ...args], {
-    stdio: "inherit",
+    stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
     env: process.env,
+    encoding: "utf8",
   });
-  return result.status ?? 1;
+  return {
+    status: result.status ?? 1,
+    output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
+  };
 }
 
-const generateStatus = runPrisma(["generate"]);
-if (generateStatus !== 0) {
-  const engineLocked = process.platform === "win32" && existsSync(windowsEngine);
+const generate = runPrisma(["generate"], { capture: true });
+if (generate.status !== 0) {
+  const engineLocked =
+    process.platform === "win32" &&
+    existsSync(windowsEngine) &&
+    /EPERM|operation not permitted/i.test(generate.output);
   if (!engineLocked) {
-    process.exit(generateStatus);
+    process.stderr.write(generate.output);
+    process.exit(generate.status);
   }
   log.warn(
     "[predev] prisma generate skipped — query engine is locked (usually npm run worker). Reusing the existing Prisma client.",
   );
 }
 
-process.exit(runPrisma(["migrate", "deploy"]));
+process.exit(runPrisma(["migrate", "deploy"]).status);

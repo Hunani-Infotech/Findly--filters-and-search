@@ -74,10 +74,6 @@ export default function App() {
           <a href="/app/analytics">Analytics</a>
           <a href="/app/billing">Pricing plans</a>
           <a href="/app/contact">Contact</a>
-          <a href="/app/metafields">Metafields</a>
-          <a href="/app/swatches">Swatch</a>
-          <a href="/app/groups">Group values</a>
-          <a href="/app/sync">Sync</a>
         </NavMenu>
         <div className="findly-admin-shell">
           <Outlet />

@@ -28,17 +28,6 @@
     "product_recommendations": {
       "name": "Product recommendations",
       "settings": {
-        "heading": {
-          "label": "Heading"
-        },
-        "type": {
-          "label": "Widget type"
-        }
-      }
-    },
-    "product_recommendations": {
-      "name": "Product recommendations",
-      "settings": {
         "widget_type": {
           "label": "Widget type",
           "options": {
