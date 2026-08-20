@@ -22,6 +22,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
       variants(first: 100) {
         edges {
           node {
+            id
             sku
             price
             compareAtPrice
@@ -36,6 +37,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             metafields(first: 30) {
               edges {
                 node {
+                  id
                   namespace
                   key
                   value
@@ -48,6 +50,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             metafields(first: 50) {
               edges {
                 node {
+                  id
                   namespace
                   key
                   value
@@ -123,6 +126,7 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
               variants {
                 edges {
                   node {
+                    id
                     sku
                     price
                     compareAtPrice
@@ -132,6 +136,7 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
                     metafields {
                       edges {
                         node {
+                          id
                           namespace
                           key
                           value
@@ -144,6 +149,7 @@ export const BULK_PRODUCTS_MUTATION = `#graphql
               metafields {
                 edges {
                   node {
+                    id
                     namespace
                     key
                     value
