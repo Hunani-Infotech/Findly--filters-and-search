@@ -34,6 +34,13 @@ export function ThemeSetupCard({ shopDomain }: { shopDomain: string }) {
             app block to the header or search template.
           </List.Item>
           <List.Item>
+            Open Theme settings → App embeds and enable{" "}
+            <Text as="span" fontWeight="semibold">
+              Instant search
+            </Text>{" "}
+            so the dropdown hooks the theme search bar.
+          </List.Item>
+          <List.Item>
             Save the theme, then preview a collection on a phone-width window
             (375px) to confirm the off-canvas Filter button.
           </List.Item>

@@ -52,6 +52,7 @@
     "verify:d1": "node ./scripts/verify-d1.mjs",
     "verify:d5": "node ./scripts/verify-d5.mjs",
     "verify:d12": "node ./scripts/verify-d12.mjs",
+    "verify:e1": "node ./scripts/verify-e1.mjs",
     "verify:f1": "node ./scripts/verify-f1.mjs",
     "verify:f3": "node ./scripts/verify-f3.mjs",
     "verify:f4": "node ./scripts/verify-f4.mjs",

@@ -112,7 +112,7 @@ export async function createFilterTree(
       shopId,
       name:
         input?.name?.trim() ||
-        (count === 0 ? "Default" : ""),
+        (count === 0 ? "Default Filter" : ""),
       appliesToSearch: input?.appliesToSearch ?? count === 0,
       collectionGid: "",
       enableSale: true,
@@ -132,7 +132,7 @@ export async function ensureDefaultFilterTree(shopId: string) {
     select: { id: true },
   });
   if (existing) return;
-  await createFilterTree(shopId, { name: "Default", appliesToSearch: true });
+  await createFilterTree(shopId, { name: "Default Filter", appliesToSearch: true });
 }
 
 export async function replaceTreeCollections(
@@ -320,5 +320,50 @@ export async function findOrCreateDefaultTree(shopId: string) {
   if (search) return search;
   const unassigned = newest(await unassignedTrees(shopId));
   if (unassigned) return unassigned;
-  return createFilterTree(shopId, { name: "Default", appliesToSearch: true });
+  return createFilterTree(shopId, { name: "Default Filter", appliesToSearch: true });
+}
+
+function uniqueIds(ids: string[]) {
+  return [...new Set(ids.filter((id) => Boolean(id)))];
+}
+
+export async function setFilterTreesEnabled(
+  shopId: string,
+  ids: string[],
+  enabled: boolean,
+) {
+  const unique = uniqueIds(ids);
+  if (!unique.length) return { updated: 0 };
+  const result = await prisma.filterConfig.updateMany({
+    where: { shopId, id: { in: unique } },
+    data: { enabled },
+  });
+  return { updated: result.count };
+}
+
+export async function duplicateFilterTrees(shopId: string, ids: string[]) {
+  let duplicated = 0;
+  for (const id of uniqueIds(ids)) {
+    const copy = await duplicateFilterTree(shopId, id);
+    if (copy) duplicated += 1;
+  }
+  return { duplicated };
+}
+
+export async function deleteFilterTrees(shopId: string, ids: string[]) {
+  let deleted = 0;
+  for (const id of uniqueIds(ids)) {
+    const result = await deleteFilterTree(shopId, id);
+    if ("ok" in result) {
+      deleted += 1;
+      continue;
+    }
+    if (result.error === "Keep at least one filter tree.") {
+      return {
+        error: "Keep at least one filter." as const,
+        deleted,
+      };
+    }
+  }
+  return { deleted };
 }

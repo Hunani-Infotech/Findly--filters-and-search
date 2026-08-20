@@ -1,70 +1,524 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import {
-  Badge,
-  Banner,
-  BlockStack,
-  Card,
-  IndexTable,
-  Layout,
-  Link,
-  Page,
-  Text,
-} from "@shopify/polaris";
+  useActionData,
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useNavigation,
+  useSearchParams,
+  useSubmit,
+} from "react-router";
+import { Banner, BlockStack, Layout, Link, Page, Text } from "@shopify/polaris";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ExportIcon,
+  ImportIcon,
+  MagicIcon,
+  SearchIcon,
+  XSmallIcon,
+} from "@shopify/polaris-icons";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { listColorOptionKeys } from "../color-swatches.server";
+import { isMutationBusy } from "../components/admin-loading";
+import { SwatchImagePicker } from "../components/swatch-image-picker";
+import { hexFromColorName, isSwatchFilled } from "../color-autofill";
+import {
+  clearSwatch,
+  importSwatches,
+  listColorOptionKeys,
+  listSwatchesForOption,
+  upsertSwatch,
+  type SwatchKind,
+  type SwatchRow,
+} from "../color-swatches.server";
+import { listShopImages, uploadShopImage } from "../shopify-files.server";
+
+const PAGE_SIZE = 10;
+const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
+/** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
+const SHOW_IMAGE_SWATCHES = false;
+
+function parseKind(value: unknown): SwatchKind {
+  return value === "dual" || value === "image" ? value : "solid";
+}
+
+function toColorInput(hex: string) {
+  const raw = hex.trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw;
+  if (/^#[0-9a-f]{3}$/i.test(raw)) {
+    const r = raw[1];
+    const g = raw[2];
+    const b = raw[3];
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return "#ffffff";
+}
+
+function parseSwatchRows(raw: unknown, optionKey: string): SwatchRow[] {
+  if (!Array.isArray(raw)) return [];
+  const rows: SwatchRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const value = String(row.value || "").trim();
+    if (!value) continue;
+    rows.push({
+      optionKey: String(row.optionKey || optionKey).trim() || optionKey,
+      value,
+      kind: parseKind(row.kind),
+      color1: String(row.color1 || ""),
+      color2: String(row.color2 || ""),
+      imageUrl: String(row.imageUrl || ""),
+    });
+  }
+  return rows;
+}
+
+function downloadJson(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function pickOptionKey(
+  options: { optionKey: string }[],
+  requested: string,
+) {
+  if (requested && options.some((option) => option.optionKey === requested)) {
+    return requested;
+  }
+  return options[0]?.optionKey || "";
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
+  const url = new URL(request.url);
   const options = await listColorOptionKeys(shop.id);
-  return { options };
+  const optionKey = pickOptionKey(
+    options,
+    String(url.searchParams.get("option") || "").trim(),
+  );
+  const data = optionKey
+    ? await listSwatchesForOption(shop.id, optionKey)
+    : { label: "", rows: [] as SwatchRow[] };
+  let shopFiles: Awaited<ReturnType<typeof listShopImages>> = [];
+  let filesError = "";
+  if (optionKey) {
+    try {
+      shopFiles = await listShopImages(admin);
+    } catch (error) {
+      filesError =
+        error instanceof Error
+          ? error.message
+          : "Could not load Shopify files. Check read_files scope.";
+    }
+  }
+  return {
+    optionKey,
+    label: data.label,
+    rows: data.rows,
+    options,
+    shopFiles,
+    filesError,
+  };
 };
 
-export default function SwatchesIndexPage() {
-  const { options } = useLoaderData<typeof loader>();
-  const navigate = useNavigate();
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+  const { shop } = await ensureShopAccess(session.shop);
+  const form = await request.formData();
+  const optionKey = String(form.get("optionKey") || "").trim();
+  const intent = String(form.get("intent") || "");
 
-  const rowMarkup = options.map((option, index) => (
-    <IndexTable.Row
-      id={option.optionKey}
-      key={option.optionKey}
-      position={index}
-      onClick={() =>
-        navigate(`/app/swatches/${encodeURIComponent(option.optionKey)}`)
-      }
-    >
-      <IndexTable.Cell>
-        <Text as="span" fontWeight="semibold">
-          {option.label}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" tone="subdued">
-          {option.valueCount} {option.valueCount === 1 ? "value" : "values"}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {option.missing > 0 ? (
-          <Badge tone="warning">{`${option.missing} missing`}</Badge>
-        ) : (
-          <Badge tone="success">Complete</Badge>
-        )}
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
+  if (intent === "clear") {
+    const value = String(form.get("value") || "");
+    await clearSwatch(shop.id, optionKey, value);
+    return { ok: true as const, intent };
+  }
+
+  if (intent === "upsert") {
+    const rows = parseSwatchRows(
+      [
+        {
+          optionKey,
+          value: String(form.get("value") || ""),
+          kind: String(form.get("kind") || ""),
+          color1: String(form.get("color1") || ""),
+          color2: String(form.get("color2") || ""),
+          imageUrl: String(form.get("imageUrl") || ""),
+        },
+      ],
+      optionKey,
+    );
+    if (!rows[0]) return { error: "Invalid swatch payload." };
+    await upsertSwatch(shop.id, rows[0]);
+    return { ok: true as const, intent };
+  }
+
+  if (intent === "saveAll") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(String(form.get("rows") || "[]"));
+    } catch {
+      return { error: "Invalid swatch payload." };
+    }
+    const rows = parseSwatchRows(parsed, optionKey);
+    for (const row of rows) {
+      await upsertSwatch(shop.id, row);
+    }
+    return { ok: true as const, intent };
+  }
+
+  if (intent === "import") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(String(form.get("payload") || ""));
+    } catch {
+      return { error: "Invalid JSON file." };
+    }
+    const result = await importSwatches(shop.id, parsed, optionKey);
+    if ("error" in result && result.error) {
+      return { error: result.error };
+    }
+    return { ok: true as const, intent, imported: result.imported };
+  }
+
+  if (intent === "upload") {
+    const value = String(form.get("value") || "");
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Choose an image file." };
+    }
+    const result = await uploadShopImage(admin, {
+      filename: file.name,
+      mimeType: file.type || "image/png",
+      bytes: Buffer.from(await file.arrayBuffer()),
+    });
+    if ("error" in result) return { error: result.error, intent };
+    return {
+      ok: true as const,
+      intent,
+      url: result.url,
+      value,
+      id: result.id,
+      alt: result.alt,
+    };
+  }
+
+  return { error: "Unknown action." };
+};
+
+function normalizeHexOnBlur(raw: string) {
+  const trimmed = raw.trim();
+  if (/^[0-9a-f]{6}$/i.test(trimmed)) return `#${trimmed}`;
+  return trimmed;
+}
+
+function ColorHexField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (next: string) => void;
+}) {
+  const [hex, setHex] = useState(value);
+  const [seenValue, setSeenValue] = useState(value);
+  if (value !== seenValue) {
+    setSeenValue(value);
+    setHex(value);
+  }
+  const filled = Boolean(value.trim());
+  return (
+    <div className="findly-swatch-hex">
+      <label
+        className={
+          filled
+            ? "findly-swatch-hex__chip"
+            : "findly-swatch-hex__chip findly-swatch-hex__chip--empty"
+        }
+      >
+        <input
+          type="color"
+          aria-label={label}
+          value={toColorInput(hex || value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setHex(next);
+            onCommit(next);
+          }}
+        />
+      </label>
+      <input
+        type="text"
+        className="findly-swatch-hex__input"
+        placeholder="#hex"
+        aria-label={`${label} hex`}
+        value={hex}
+        onChange={(event) => setHex(event.target.value)}
+        onBlur={() => {
+          const next = normalizeHexOnBlur(hex);
+          setHex(next);
+          onCommit(next);
+        }}
+      />
+    </div>
+  );
+}
+
+function ValuePreview({ row }: { row: SwatchRow }) {
+  const color1 = row.color1.trim();
+  const color2 = row.color2.trim();
+  const imageUrl = row.imageUrl.trim();
+  const classNames = ["findly-swatch-preview"];
+  let style: { background?: string; backgroundImage?: string } | undefined;
+
+  if (row.kind === "image" && imageUrl) {
+    classNames.push("findly-swatch-preview--image");
+    style = { backgroundImage: `url(${imageUrl})` };
+  } else if (row.kind === "dual" && color1 && color2) {
+    classNames.push("findly-swatch-preview--dual");
+    style = {
+      background: `linear-gradient(135deg, ${color1} 50%, ${color2} 50%)`,
+    };
+  } else if ((row.kind === "solid" || row.kind === "dual") && color1) {
+    style = { background: color1 };
+  } else {
+    classNames.push("findly-swatch-preview--empty");
+  }
 
   return (
-    <Page
-      title="Swatch"
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
-    >
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            {options.length === 0 ? (
+    <span className={classNames.join(" ")} style={style} aria-hidden />
+  );
+}
+
+export default function SwatchesPage() {
+  const { optionKey, label, rows, options, shopFiles, filesError } =
+    useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigate = useNavigate();
+  const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
+  const submit = useSubmit();
+  const fetcher = useFetcher<typeof action>();
+  const shopify = useAppBridge();
+  const busy =
+    isMutationBusy(navigation) ||
+    fetcher.state === "submitting" ||
+    fetcher.state === "loading";
+  const toastSeen = useRef<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<"all" | "missing">("all");
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState(rows);
+  const [uploadingValue, setUploadingValue] = useState<string | null>(null);
+  const [imageValue, setImageValue] = useState<string | null>(null);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [seenRows, setSeenRows] = useState(rows);
+  const [seenOption, setSeenOption] = useState(optionKey);
+  const [seenUpload, setSeenUpload] = useState<string | null>(null);
+  const [gallery, setGallery] = useState(shopFiles);
+  const [seenFiles, setSeenFiles] = useState(shopFiles);
+
+  if (rows !== seenRows || optionKey !== seenOption) {
+    setSeenRows(rows);
+    setSeenOption(optionKey);
+    setDrafts(rows);
+    setQuery("");
+    setPage(0);
+    setSelected([]);
+    setImageValue(null);
+  }
+
+  if (shopFiles !== seenFiles) {
+    setSeenFiles(shopFiles);
+    setGallery(shopFiles);
+  }
+
+  const persistRow = (row: SwatchRow) => {
+    fetcher.submit(
+      {
+        intent: "upsert",
+        optionKey: row.optionKey || optionKey,
+        value: row.value,
+        kind: row.kind,
+        color1: row.color1,
+        color2: row.color2,
+        imageUrl: row.imageUrl,
+      },
+      { method: "post" },
+    );
+  };
+
+  useEffect(() => {
+    setPromoOpen(window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1");
+  }, []);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) return;
+    if (!("intent" in fetcher.data) || fetcher.data.intent !== "upload") return;
+    const stamp = JSON.stringify(fetcher.data);
+    if (seenUpload === stamp) return;
+    setSeenUpload(stamp);
+    setUploadingValue(null);
+    if ("error" in fetcher.data && fetcher.data.error) return;
+    if (!("url" in fetcher.data) || !fetcher.data.url) return;
+    const value =
+      "value" in fetcher.data ? String(fetcher.data.value || "") : "";
+    const imageUrl = fetcher.data.url;
+    const saved: SwatchRow = {
+      optionKey,
+      value,
+      kind: "image",
+      color1: "",
+      color2: "",
+      imageUrl,
+    };
+    setDrafts((prev) =>
+      prev.map((row) => (row.value === value ? { ...row, ...saved } : row)),
+    );
+    persistRow(saved);
+    const data = fetcher.data;
+    setGallery((prev) => {
+      if (prev.some((file) => file.url === imageUrl)) return prev;
+      return [
+        {
+          id: ("id" in data && data.id) || imageUrl,
+          alt: ("alt" in data && data.alt) || "Uploaded image",
+          url: imageUrl,
+        },
+        ...prev,
+      ];
+    });
+    setImageValue(null);
+    shopify.toast.show("Image uploaded");
+    // persistRow is stable enough for this upload handshake.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.data, fetcher.state]);
+
+  useEffect(() => {
+    const toastData =
+      actionData ?? (fetcher.state === "idle" ? fetcher.data : undefined);
+    if (!toastData) return;
+    const key = JSON.stringify(toastData);
+    if (toastSeen.current === key) return;
+    toastSeen.current = key;
+    if ("error" in toastData && toastData.error) {
+      shopify.toast.show(toastData.error, { isError: true });
+      return;
+    }
+    if ("intent" in toastData && toastData.intent === "saveAll") {
+      shopify.toast.show("Saved");
+    }
+    if ("intent" in toastData && toastData.intent === "import") {
+      const imported = "imported" in toastData ? toastData.imported : 0;
+      shopify.toast.show(
+        imported === 1 ? "Imported 1 swatch" : `Imported ${imported} swatches`,
+      );
+    }
+  }, [actionData, fetcher.data, fetcher.state, shopify]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return drafts.filter((row) => {
+      if (q && !row.value.toLowerCase().includes(q)) return false;
+      if (status === "missing" && isSwatchFilled(row)) return false;
+      return true;
+    });
+  }, [drafts, query, status]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(
+    safePage * PAGE_SIZE,
+    safePage * PAGE_SIZE + PAGE_SIZE,
+  );
+
+  const patchRow = (value: string, next: Partial<SwatchRow>) => {
+    let saved: SwatchRow | null = null;
+    setDrafts((prev) =>
+      prev.map((row) => {
+        if (row.value !== value) return row;
+        saved = { ...row, ...next };
+        return saved;
+      }),
+    );
+    if (saved) persistRow(saved);
+  };
+
+  const autofillDrafts = () => {
+    let filled = 0;
+    const next = drafts.map((row) => {
+      if (isSwatchFilled(row)) return row;
+      const hex = hexFromColorName(row.value);
+      if (!hex) return row;
+      filled += 1;
+      return {
+        ...row,
+        kind: "solid" as const,
+        color1: hex,
+        color2: "",
+        imageUrl: "",
+      };
+    });
+    setDrafts(next);
+    if (filled > 0) {
+      submit(
+        {
+          intent: "saveAll",
+          optionKey,
+          rows: JSON.stringify(next),
+        },
+        { method: "post" },
+      );
+      shopify.toast.show(
+        filled === 1 ? "Filled 1 color." : `Filled ${filled} colors.`,
+      );
+      return;
+    }
+    shopify.toast.show("No matching color names to fill. Pick colors.", {
+      isError: true,
+    });
+  };
+
+  const dismissPromo = () => {
+    setPromoOpen(false);
+    window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
+  };
+
+  const encoded = encodeURIComponent(optionKey || "swatches");
+  const imageRow = drafts.find((row) => row.value === imageValue) || null;
+
+  if (options.length === 0) {
+    return (
+      <Page
+        title="Swatch"
+        backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      >
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
               <Banner tone="info" title="No color options yet">
                 <p>
                   Run a{" "}
@@ -72,30 +526,387 @@ export default function SwatchesIndexPage() {
                     product sync
                   </Link>{" "}
                   so Findly can list variant option names (Color, Finish, and
-                  similar). Then open this page again to assign swatches.
+                  similar). Swatches appear on this page after that sync.
                 </p>
               </Banner>
-            ) : (
-              <Card padding="0">
-                <IndexTable
-                  resourceName={{ singular: "option", plural: "options" }}
-                  itemCount={options.length}
-                  selectable={false}
-                  headings={[
-                    { title: "Option" },
-                    { title: "Values" },
-                    { title: "Status" },
-                  ]}
-                >
-                  {rowMarkup}
-                </IndexTable>
-              </Card>
-            )}
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
+
+  return (
+    <Page
+      title="Swatch"
+      fullWidth
+      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      secondaryActions={[
+        {
+          content: "Auto-fill with AI",
+          icon: MagicIcon,
+          disabled: busy,
+          onAction: autofillDrafts,
+        },
+        {
+          content: "Import",
+          icon: ImportIcon,
+          disabled: busy,
+          onAction: () => importInput.current?.click(),
+        },
+        {
+          content: "Export",
+          icon: ExportIcon,
+          onAction: () =>
+            downloadJson(`findly-swatches-${encoded}.json`, drafts),
+        },
+      ]}
+    >
+      <input
+        ref={importInput}
+        type="file"
+        accept="application/json"
+        hidden
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          const payload = await file.text();
+          submit(
+            { intent: "import", optionKey, payload },
+            { method: "post" },
+          );
+        }}
+      />
+      <BlockStack gap="400">
+      {promoOpen ? (
+        <div className="findly-swatch-promo">
+          <span className="findly-swatch-promo__icon" aria-hidden />
+          <p className="findly-swatch-promo__body">
+            Make separate products feel like real variants. Connect colors,
+            styles, and related products in one product experience.
+          </p>
+          <div className="findly-swatch-promo__actions">
+            <button type="button" onClick={dismissPromo}>
+              Start for free
+            </button>
+          </div>
+          <button
+            type="button"
+            className="findly-swatch-promo__close"
+            aria-label="Dismiss"
+            onClick={dismissPromo}
+          >
+            <XSmallIcon width={16} height={16} />
+          </button>
+        </div>
+      ) : null}
+      <div className="findly-swatch-workspace">
+        <div className="findly-swatch-options">
+          {options.map((option) => {
+            const active = option.optionKey === optionKey;
+            return (
+              <button
+                key={option.optionKey}
+                type="button"
+                className={
+                  active
+                    ? "findly-swatch-option findly-swatch-option--selected"
+                    : "findly-swatch-option"
+                }
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("option", option.optionKey);
+                  navigate(`/app/swatches?${next.toString()}`);
+                }}
+              >
+                <span className="findly-swatch-option__label">
+                  {option.label}
+                </span>
+                {option.missing > 0 ? (
+                  <span className="findly-swatch-option__badge">
+                    {option.missing} missing
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <div className="findly-swatch-main">
+          <div className="findly-swatch-toolbar">
+            <div className="findly-swatch-search">
+              <span className="findly-swatch-search__icon" aria-hidden>
+                <SearchIcon width={16} height={16} />
+              </span>
+              <input
+                type="search"
+                value={query}
+                placeholder="Search..."
+                aria-label="Search values"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <select
+              aria-label="Status"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value === "missing" ? "missing" : "all");
+                setPage(0);
+              }}
+            >
+              <option value="all">All</option>
+              <option value="missing">Missing</option>
+            </select>
+          </div>
+          {selected.length > 0 ? (
+            <div style={{ margin: "8px 0" }}>
+              <button
+                type="button"
+                className="findly-swatch-clear"
+                disabled={busy}
+                onClick={() => {
+                  selected.forEach((value) => {
+                    setDrafts((prev) =>
+                      prev.map((item) =>
+                        item.value === value
+                          ? {
+                              ...item,
+                              kind: "solid",
+                              color1: "",
+                              color2: "",
+                              imageUrl: "",
+                            }
+                          : item,
+                      ),
+                    );
+                    fetcher.submit(
+                      { intent: "clear", optionKey, value },
+                      { method: "post" },
+                    );
+                  });
+                  setSelected([]);
+                }}
+              >
+                Clear selected
+              </button>
+            </div>
+          ) : null}
+          {paged.length === 0 ? (
+            <div style={{ padding: "24px 8px" }}>
+              <Text as="p" tone="subdued">
+                {drafts.length === 0
+                  ? `No values found for ${label || "this option"}. Sync products, then try again.`
+                  : "No values match this search."}
+              </Text>
+            </div>
+          ) : (
+            <div className="findly-swatch-table">
+              <div className="findly-swatch-table__head">
+                <span />
+                <span>Value</span>
+                <span>Type</span>
+                <span>{SHOW_IMAGE_SWATCHES ? "Color & Image" : "Color"}</span>
+              </div>
+              {paged.map((row) => (
+                <div className="findly-swatch-table__row" key={row.value}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${row.value}`}
+                    checked={selected.includes(row.value)}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setSelected((prev) =>
+                        event.target.checked
+                          ? [...prev, row.value]
+                          : prev.filter((value) => value !== row.value),
+                      )
+                    }
+                  />
+                  <span className="findly-swatch-table__value">
+                    <ValuePreview row={row} />
+                    {row.value}
+                  </span>
+                  <div className="findly-swatch-type">
+                    {(
+                      (
+                        SHOW_IMAGE_SWATCHES
+                          ? [
+                              ["solid", "1 color"],
+                              ["dual", "2 colors"],
+                              ["image", "Image"],
+                            ]
+                          : [
+                              ["solid", "1 color"],
+                              ["dual", "2 colors"],
+                            ]
+                      ) as ReadonlyArray<readonly [SwatchKind, string]>
+                    ).map(([kind, caption]) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        className={
+                          (row.kind === kind ||
+                            (!SHOW_IMAGE_SWATCHES &&
+                              kind === "solid" &&
+                              row.kind === "image"))
+                            ? "findly-swatch-type__btn findly-swatch-type__btn--active"
+                            : "findly-swatch-type__btn"
+                        }
+                        disabled={busy}
+                        onClick={() => patchRow(row.value, { kind })}
+                      >
+                        {caption}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="findly-swatch-slots">
+                    {SHOW_IMAGE_SWATCHES && row.kind === "image" ? (
+                      <button
+                        type="button"
+                        className={
+                          row.imageUrl
+                            ? "findly-swatch-slot findly-swatch-slot--image findly-swatch-slot--thumb"
+                            : "findly-swatch-slot findly-swatch-slot--empty findly-swatch-slot--thumb"
+                        }
+                        aria-label={`Choose image for ${row.value}`}
+                        disabled={busy}
+                        onClick={() => setImageValue(row.value)}
+                        style={
+                          row.imageUrl
+                            ? { backgroundImage: `url(${row.imageUrl})` }
+                            : undefined
+                        }
+                      />
+                    ) : row.kind === "dual" ? (
+                      <>
+                        <ColorHexField
+                          label={`${row.value} color`}
+                          value={row.color1}
+                          onCommit={(color1) =>
+                            patchRow(row.value, { color1 })
+                          }
+                        />
+                        <ColorHexField
+                          label={`${row.value} second color`}
+                          value={row.color2}
+                          onCommit={(color2) =>
+                            patchRow(row.value, { color2 })
+                          }
+                        />
+                      </>
+                    ) : (
+                      <ColorHexField
+                        label={`${row.value} color`}
+                        value={row.color1}
+                        onCommit={(color1) =>
+                          patchRow(row.value, { color1 })
+                        }
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="findly-swatch-clear"
+                      disabled={busy}
+                      onClick={() => {
+                        const cleared = {
+                          ...row,
+                          kind: "solid" as const,
+                          color1: "",
+                          color2: "",
+                          imageUrl: "",
+                        };
+                        setDrafts((prev) =>
+                          prev.map((item) =>
+                            item.value === row.value ? cleared : item,
+                          ),
+                        );
+                        fetcher.submit(
+                          { intent: "clear", optionKey, value: row.value },
+                          { method: "post" },
+                        );
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="findly-swatch-pager">
+            <button
+              type="button"
+              aria-label="Previous page"
+              disabled={safePage <= 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              <ChevronLeftIcon width={14} height={14} />
+            </button>
+            <button
+              type="button"
+              aria-label="Next page"
+              disabled={safePage >= pageCount - 1}
+              onClick={() =>
+                setPage((current) => Math.min(pageCount - 1, current + 1))
+              }
+            >
+              <ChevronRightIcon width={14} height={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+      {SHOW_IMAGE_SWATCHES ? (
+      <SwatchImagePicker
+        imageUrl={imageRow?.imageUrl || ""}
+        disabled={busy}
+        uploading={uploadingValue === imageValue}
+        shopFiles={gallery}
+        filesError={filesError}
+        hideTrigger
+        open={Boolean(imageValue)}
+        onOpenChange={(next) => {
+          if (!next) setImageValue(null);
+        }}
+        onUrlChange={(imageUrl) => {
+          if (!imageValue) return;
+          patchRow(imageValue, { kind: "image", imageUrl });
+          setImageValue(null);
+        }}
+        onPickComputerFile={(file) => {
+          if (!imageValue) return;
+          setUploadingValue(imageValue);
+          const form = new FormData();
+          form.set("intent", "upload");
+          form.set("optionKey", optionKey);
+          form.set("value", imageValue);
+          form.set("file", file);
+          fetcher.submit(form, {
+            method: "post",
+            encType: "multipart/form-data",
+          });
+        }}
+      />
+      ) : null}
+      </BlockStack>
     </Page>
   );
+}
+
+export function shouldRevalidate({
+  formData,
+  defaultShouldRevalidate,
+}: {
+  formData?: FormData;
+  defaultShouldRevalidate: boolean;
+}) {
+  const intent = formData?.get("intent");
+  if (intent === "upload" || intent === "upsert" || intent === "clear") {
+    return false;
+  }
+  return defaultShouldRevalidate;
 }
 
 export const headers: HeadersFunction = (headersArgs) => {

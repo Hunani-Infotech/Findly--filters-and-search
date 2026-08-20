@@ -22,7 +22,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!treeId || !key) throw new Response("Not found", { status: 404 });
   const page = await loadFilterOptionEditorPage(shop.id, treeId, "edit", key);
   if (page === "not_found") throw new Response("Not found", { status: 404 });
-  return page;
+  return {
+    ...page,
+    shopDomain: session.shop || "findly-test-store.myshopify.com",
+  };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {

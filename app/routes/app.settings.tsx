@@ -8,6 +8,7 @@ import {
   Form,
   useActionData,
   useLoaderData,
+  useNavigate,
   useNavigation,
   useSubmit,
 } from "react-router";
@@ -31,7 +32,6 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
-import { DisplayOrderList } from "../components/display-order-list";
 import { ThemeSetupCard } from "../components/theme-setup-card";
 import {
   LayoutPicker,
@@ -41,9 +41,6 @@ import {
   HIDE_OUT_OF_STOCK_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
-  SUGGESTION_LIST_MAX,
-  SEARCH_FIELD_KEYS,
-  SEARCH_FIELD_LABELS,
   SORT_OPTION_KEYS,
   SORT_OPTION_LABELS,
   WIDGET_RADIUS_MAX,
@@ -286,19 +283,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const widgetPosition = parseWidgetPosition(form.get("widgetPosition"));
 
-  let searchFields = [...DEFAULT_SEARCH_FIELDS];
-  const searchFieldsRaw = form.get("searchFields");
-  if (typeof searchFieldsRaw === "string" && searchFieldsRaw) {
-    try {
-      const parsed = JSON.parse(searchFieldsRaw) as unknown;
-      if (Array.isArray(parsed)) {
-        searchFields = normalizeSearchFields(parsed);
-      }
-    } catch {
-      // keep default
-    }
-  }
-
   let sortOptionsEnabled = [...DEFAULT_APP_SETTINGS.sortOptionsEnabled];
   const sortOptionsRaw = form.get("sortOptionsEnabled");
   if (typeof sortOptionsRaw === "string" && sortOptionsRaw) {
@@ -332,7 +316,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     widgetTitleColor: String(
       form.get("widgetTitleColor") || DEFAULT_APP_SETTINGS.widgetTitleColor,
     ),
-    searchFields,
     sortOptionsEnabled,
     defaultSort: parseSortOption(form.get("defaultSort")),
     hideSortDropdown:
@@ -357,18 +340,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("showMatchingVariantImage") === "on",
     showRefineBy:
       form.get("showRefineBy") === "true" || form.get("showRefineBy") === "on",
-    showSuggestionsOnEmptyQuery:
-      form.get("showSuggestionsOnEmptyQuery") === "true" ||
-      form.get("showSuggestionsOnEmptyQuery") === "on",
-    showSuggestionsOnNoResults:
-      form.get("showSuggestionsOnNoResults") === "true" ||
-      form.get("showSuggestionsOnNoResults") === "on",
-    suggestionProductHandles: normalizeHandleList(
-      form.get("suggestionProductHandles"),
-    ),
-    suggestionCollectionHandles: normalizeHandleList(
-      form.get("suggestionCollectionHandles"),
-    ),
   });
 
   return { ok: true };
@@ -378,6 +349,7 @@ export default function SettingsPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
   const [settings, setSettings] = useState<SettingsState>(data.settings);
@@ -424,7 +396,6 @@ export default function SettingsPage() {
     formData.set("widgetTitle", next.widgetTitle);
     formData.set("widgetTitleSize", String(next.widgetTitleSize));
     formData.set("widgetTitleColor", next.widgetTitleColor);
-    formData.set("searchFields", JSON.stringify(next.searchFields));
     formData.set("sortOptionsEnabled", JSON.stringify(next.sortOptionsEnabled));
     formData.set("defaultSort", next.defaultSort);
     formData.set("hideSortDropdown", String(next.hideSortDropdown));
@@ -438,22 +409,6 @@ export default function SettingsPage() {
       String(next.showMatchingVariantImage),
     );
     formData.set("showRefineBy", String(next.showRefineBy));
-    formData.set(
-      "showSuggestionsOnEmptyQuery",
-      String(next.showSuggestionsOnEmptyQuery),
-    );
-    formData.set(
-      "showSuggestionsOnNoResults",
-      String(next.showSuggestionsOnNoResults),
-    );
-    formData.set(
-      "suggestionProductHandles",
-      next.suggestionProductHandles.join("\n"),
-    );
-    formData.set(
-      "suggestionCollectionHandles",
-      next.suggestionCollectionHandles.join("\n"),
-    );
     submit(formData, { method: "POST" });
   };
 
@@ -478,6 +433,7 @@ export default function SettingsPage() {
     <Page
       title="Settings"
       subtitle="General, filter panel, product cards, metafields, and theme setup."
+      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,
@@ -694,119 +650,14 @@ export default function SettingsPage() {
                   <Card>
                     <BlockStack gap="300">
                       <Text as="h2" variant="headingMd">
-                        Search fields
+                        Search
                       </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Field order sets simple relevance: a match in the first
-                        enabled field ranks above a match only in a later
-                        field. No typo or synonym matching. Mapped metafields
-                        (enabled on the Metafields page) are searchable when
-                        Metafields is ticked — for example “cotton” matches a
-                        material metafield.
+                      <Text as="p" variant="bodyMd">
+                        Search settings live under Search
                       </Text>
-                      {settings.searchFields.length === 0 ? (
-                        <Banner tone="warning">
-                          <p>
-                            Search will return no products until at least one
-                            field is enabled.
-                          </p>
-                        </Banner>
-                      ) : null}
-                      <FormLayout>
-                        {SEARCH_FIELD_KEYS.map((key) => (
-                          <Checkbox
-                            key={key}
-                            label={SEARCH_FIELD_LABELS[key]}
-                            checked={settings.searchFields.includes(key)}
-                            disabled={saving}
-                            onChange={(checked) =>
-                              setSettings((s) => {
-                                if (checked) {
-                                  if (s.searchFields.includes(key)) return s;
-                                  return {
-                                    ...s,
-                                    searchFields: [...s.searchFields, key],
-                                  };
-                                }
-                                return {
-                                  ...s,
-                                  searchFields: s.searchFields.filter(
-                                    (field) => field !== key,
-                                  ),
-                                };
-                              })
-                            }
-                          />
-                        ))}
-                      </FormLayout>
-                      {settings.searchFields.length > 0 ? (
-                        <DisplayOrderList
-                          keys={settings.searchFields}
-                          disabled={saving}
-                          labels={SEARCH_FIELD_LABELS}
-                          helpText="Drag an enabled field to change search priority. Arrow keys also work when a row is focused."
-                          onChange={(next) =>
-                            setSettings((s) => ({
-                              ...s,
-                              searchFields: normalizeSearchFields(next),
-                            }))
-                          }
-                        />
-                      ) : null}
-                      <Checkbox
-                        label="Show pinned suggestions when the search box is empty"
-                        checked={settings.showSuggestionsOnEmptyQuery}
-                        disabled={saving}
-                        helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            showSuggestionsOnEmptyQuery: checked,
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Show pinned suggestions when a search has no results"
-                        checked={settings.showSuggestionsOnNoResults}
-                        disabled={saving}
-                        helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            showSuggestionsOnNoResults: checked,
-                          }))
-                        }
-                      />
-                      <TextField
-                        label="Pinned product handles"
-                        value={settings.suggestionProductHandles.join("\n")}
-                        multiline={4}
-                        autoComplete="off"
-                        disabled={saving}
-                        helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            suggestionProductHandles:
-                              normalizeHandleList(value),
-                          }))
-                        }
-                      />
-                      <TextField
-                        label="Pinned collection handles"
-                        value={settings.suggestionCollectionHandles.join("\n")}
-                        multiline={3}
-                        autoComplete="off"
-                        disabled={saving}
-                        helpText="Optional collection links shown with the same suggestion lists."
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            suggestionCollectionHandles:
-                              normalizeHandleList(value),
-                          }))
-                        }
-                      />
+                      <Button onClick={() => navigate("/app/search")}>
+                        Open Search
+                      </Button>
                     </BlockStack>
                   </Card>
                 </BlockStack>

@@ -4,6 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
+import type { Prisma } from "@prisma/client";
 import {
   Form,
   redirect,
@@ -18,10 +19,8 @@ import {
 import {
   Banner,
   BlockStack,
+  Button,
   Card,
-  Checkbox,
-  ChoiceList,
-  FormLayout,
   InlineStack,
   Layout,
   Page,
@@ -33,8 +32,12 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { catalogOptionRows, metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
-import { parseFacetSettings } from "../facet-settings";
-import { getListFacetValueCatalog, getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
+import {
+  parseExcludeCollectionGids,
+  parseFacetSettings,
+  withExcludeCollectionGids,
+} from "../facet-settings";
+import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
 import {
   deleteFilterTree,
   duplicateFilterTree,
@@ -46,8 +49,6 @@ import prisma from "../db.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
-import { FacetValueSortEditor } from "../components/facet-value-sort";
-import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import {
   applyFacetSettingLabels,
   buildVisibleFilterRows,
@@ -80,6 +81,7 @@ type ConfigState = {
   matchModes: Record<string, "or" | "and">;
   valueSort: ValueSortMap;
   rangeBounds: RangeBoundFormMap;
+  excludeCollectionGids: string[];
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -114,7 +116,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       usedElsewhere[tree.collectionGid] = true;
     }
   }
-  const valueCatalog = await getListFacetValueCatalog(shop.id, "");
   const optionProducts = await prisma.productFacet.findMany({
     where: { shopId: shop.id, status: "ACTIVE" },
     take: 500,
@@ -136,9 +137,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       label: mapping.displayLabel || mapping.key,
       filterType: mapping.filterType,
     }));
-  const listMetafields = mappedFacets.filter(
-    (mapping) => mapping.filterType === "LIST",
-  );
   const facetSettings = parseFacetSettings(
     config && "facetSettings" in config ? config.facetSettings : {},
   );
@@ -152,9 +150,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     })),
     usedElsewhere,
     allCollectionsUsedElsewhere,
-    valueCatalog,
     catalogOptions,
-    listMetafields,
     mappedFacets,
     facetSettings,
     config: {
@@ -162,6 +158,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       appliesToSearch: config.appliesToSearch,
       appliesToAllProducts: false,
       collectionGids: config.treeCollections.map((row) => row.collectionGid),
+      excludeCollectionGids: parseExcludeCollectionGids(
+        config && "facetSettings" in config ? config.facetSettings : {},
+      ),
       enabled: config.enabled ?? true,
       enablePrice: config?.enablePrice ?? true,
       enableSale: config?.enableSale ?? false,
@@ -324,10 +323,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
   }
 
+  const existing = await getFilterTree(shop.id, treeId);
+  if (!existing) {
+    return { error: "Filter tree not found." };
+  }
+  const rawFacetSettings =
+    existing && "facetSettings" in existing ? existing.facetSettings : {};
+  let excludeCollectionGids = parseExcludeCollectionGids(rawFacetSettings);
+  const excludeRaw = form.get("excludeCollectionGids");
+  if (typeof excludeRaw === "string") {
+    try {
+      const parsed = JSON.parse(excludeRaw || "[]") as unknown;
+      if (Array.isArray(parsed)) {
+        excludeCollectionGids = parsed.filter(
+          (item): item is string => typeof item === "string" && item.length > 0,
+        );
+      }
+    } catch {
+      // keep existing excludes
+    }
+  }
+
   await updateFilterTree(shop.id, treeId, {
     name: String(form.get("name") || "Untitled tree"),
     appliesToSearch: bool("appliesToSearch"),
     collectionGids,
+    facetSettings: withExcludeCollectionGids(
+      parseFacetSettings(rawFacetSettings),
+      excludeCollectionGids,
+      rawFacetSettings,
+    ) as Prisma.InputJsonValue,
     enabled: bool("enabled"),
     enablePrice: bool("enablePrice"),
     enableSale: bool("enableSale"),
@@ -347,6 +372,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     rangeBounds,
   });
 
+  const url = new URL(request.url);
+  if (url.searchParams.get("new") === "1") {
+    return redirect(`/app/filters/${treeId}`);
+  }
   return { ok: true };
 };
 
@@ -401,10 +430,7 @@ export default function FilterTreeEditorPage() {
       data.facetSettings,
     ],
   );
-  const untitled =
-    !config.name.trim() ||
-    /^filter tree \d+$/i.test(config.name.trim()) ||
-    config.name.trim() === "Untitled tree";
+  const isAddMode = searchParams.get("new") === "1";
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -455,6 +481,12 @@ export default function FilterTreeEditorPage() {
     formData.set("name", config.name);
     formData.set("appliesToSearch", String(config.appliesToSearch));
     formData.set("collectionGids", JSON.stringify(config.collectionGids));
+    if (searchParams.get("new") !== "1") {
+      formData.set(
+        "excludeCollectionGids",
+        JSON.stringify(config.excludeCollectionGids),
+      );
+    }
     formData.set("enabled", String(config.enabled));
     formData.set("enablePrice", String(config.enablePrice));
     formData.set("enableSale", String(rows.some((row) => row.key === "sale")));
@@ -480,36 +512,43 @@ export default function FilterTreeEditorPage() {
     submit(formData, { method: "POST" });
   };
 
+  const isEditMode = !isAddMode;
+  const pageTitle = isAddMode ? "Add filter" : "Edit filter";
+
   return (
     <Page
-      title={untitled ? "Add filter" : config.name}
+      title={pageTitle}
       backAction={{
         content: "Filters",
         onAction: () => navigate("/app"),
       }}
-      secondaryActions={[
-        {
-          content: "Duplicate",
-          disabled: saving,
-          onAction: () => {
-            const formData = new FormData();
-            formData.set("intent", "duplicate");
-            submit(formData, { method: "POST" });
-          },
-        },
-        {
-          content: "Delete",
-          disabled: saving,
-          destructive: true,
-          onAction: () => {
-            const formData = new FormData();
-            formData.set("intent", "delete");
-            submit(formData, { method: "POST" });
-          },
-        },
-      ]}
+      secondaryActions={
+        isEditMode
+          ? [
+              {
+                content: "Duplicate",
+                disabled: saving,
+                onAction: () => {
+                  const formData = new FormData();
+                  formData.set("intent", "duplicate");
+                  submit(formData, { method: "POST" });
+                },
+              },
+              {
+                content: "Delete",
+                disabled: saving,
+                destructive: true,
+                onAction: () => {
+                  const formData = new FormData();
+                  formData.set("intent", "delete");
+                  submit(formData, { method: "POST" });
+                },
+              },
+            ]
+          : undefined
+      }
       primaryAction={{
-        content: saving ? "Saving…" : "Save",
+        content: saving ? "Saving…" : isEditMode ? "Next step" : "Save",
         loading: saving,
         disabled: saving,
         onAction: () => {
@@ -558,20 +597,40 @@ export default function FilterTreeEditorPage() {
                     usedElsewhere={data.usedElsewhere}
                     allCollectionsUsedElsewhere={data.allCollectionsUsedElsewhere}
                     disabled={saving}
+                    showExclude={!isAddMode}
+                    showAllCollectionsChip={!isAddMode}
+                    excluded={config.excludeCollectionGids}
+                    onExcludedChange={(excludeCollectionGids) =>
+                      setConfig((c) => ({ ...c, excludeCollectionGids }))
+                    }
                   />
                 </BlockStack>
               </Card>
 
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Filter options
-                  </Text>
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingMd">
+                      Filter options
+                    </Text>
+                    {isEditMode ? (
+                      <Button
+                        disabled={saving}
+                        onClick={() =>
+                          navigate(`/app/filters/${data.treeId}/options/new`)
+                        }
+                      >
+                        + Add filter option
+                      </Button>
+                    ) : null}
+                  </InlineStack>
                   <FilterOptionsTable
                     rows={rows}
                     displayTypes={config.displayTypes}
                     disabled={saving}
                     treeId={data.treeId}
+                    allowEdit={isEditMode}
+                    showAddButton={isEditMode}
                     onAddOption={() =>
                       navigate(`/app/filters/${data.treeId}/options/new`)
                     }
@@ -592,159 +651,6 @@ export default function FilterTreeEditorPage() {
                     onRemove={handleRemove}
                     onDisplayTypesChange={(displayTypes) =>
                       setConfig((c) => ({ ...c, displayTypes }))
-                    }
-                  />
-                  {config.enablePrice ? (
-                    <BlockStack gap="200">
-                      <ChoiceList
-                        title="Price range"
-                        choices={[
-                          {
-                            label: "From products in each collection",
-                            value: "auto",
-                            helpText:
-                              "Slider min and max come from synced variant prices.",
-                          },
-                          {
-                            label: "Custom min / max",
-                            value: "custom",
-                            helpText:
-                              "You set the slider bounds. Shoppers can still filter inside that range.",
-                          },
-                        ]}
-                        selected={[config.priceRangeMode]}
-                        disabled={saving}
-                        onChange={(selected) =>
-                          setConfig((c) => ({
-                            ...c,
-                            priceRangeMode:
-                              selected[0] === "custom" ? "custom" : "auto",
-                          }))
-                        }
-                      />
-                      {config.priceRangeMode === "custom" ? (
-                        <InlineStack gap="300" wrap>
-                          <TextField
-                            label="Custom min"
-                            type="number"
-                            autoComplete="off"
-                            value={config.customPriceMin}
-                            disabled={saving}
-                            onChange={(value) =>
-                              setConfig((c) => ({
-                                ...c,
-                                customPriceMin: value,
-                              }))
-                            }
-                          />
-                          <TextField
-                            label="Custom max"
-                            type="number"
-                            autoComplete="off"
-                            value={config.customPriceMax}
-                            disabled={saving}
-                            onChange={(value) =>
-                              setConfig((c) => ({
-                                ...c,
-                                customPriceMax: value,
-                              }))
-                            }
-                          />
-                        </InlineStack>
-                      ) : null}
-                    </BlockStack>
-                  ) : null}
-                  <NumericRangeBounds
-                    fields={(data.mappedFacets ?? []).filter(
-                      (facet) => facet.filterType === "RANGE",
-                    )}
-                    value={config.rangeBounds}
-                    disabled={saving}
-                    onChange={(rangeBounds) =>
-                      setConfig((c) => ({ ...c, rangeBounds }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Matching (AND vs OR)
-                  </Text>
-                  <Banner tone="info">
-                    <p>
-                      By default, values inside one filter are OR (Red or Blue).
-                      Different filters still combine with AND (Color and Size).
-                      Tick Use AND condition so a product must match every
-                      selected value in that filter (tags, options, or list
-                      metafields).
-                    </p>
-                  </Banner>
-                  <FormLayout>
-                    <Checkbox
-                      label="Use AND condition for Tags"
-                      helpText="Product must have every selected tag."
-                      checked={config.matchModes.tags === "and"}
-                      disabled={saving || !config.enableTags}
-                      onChange={(checked) =>
-                        setConfig((c) => ({
-                          ...c,
-                          matchModes: {
-                            ...c.matchModes,
-                            tags: checked ? "and" : "or",
-                          },
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      label="Use AND condition for Variant options"
-                      helpText="Product must include every selected option value (for example Red and Blue variants)."
-                      checked={config.matchModes.options === "and"}
-                      disabled={saving || !config.enableOptions}
-                      onChange={(checked) =>
-                        setConfig((c) => ({
-                          ...c,
-                          matchModes: {
-                            ...c.matchModes,
-                            options: checked ? "and" : "or",
-                          },
-                        }))
-                      }
-                    />
-                    {(data.listMetafields ?? []).map((field) => (
-                      <Checkbox
-                        key={field.key}
-                        label={`Use AND condition for ${field.label}`}
-                        helpText="List metafield must contain every selected value."
-                        checked={config.matchModes[field.key] === "and"}
-                        disabled={saving}
-                        onChange={(checked) =>
-                          setConfig((c) => ({
-                            ...c,
-                            matchModes: {
-                              ...c.matchModes,
-                              [field.key]: checked ? "and" : "or",
-                            },
-                          }))
-                        }
-                      />
-                    ))}
-                  </FormLayout>
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Filter value order
-                  </Text>
-                  <FacetValueSortEditor
-                    catalog={data.valueCatalog}
-                    valueSort={config.valueSort}
-                    disabled={saving}
-                    onChange={(valueSort) =>
-                      setConfig((c) => ({ ...c, valueSort }))
                     }
                   />
                 </BlockStack>

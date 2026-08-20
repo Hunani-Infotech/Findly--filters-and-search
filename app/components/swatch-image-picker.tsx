@@ -3,11 +3,9 @@ import {
   Banner,
   BlockStack,
   Button,
-  InlineStack,
   Modal,
   Text,
   TextField,
-  Thumbnail,
 } from "@shopify/polaris";
 
 export type SwatchShopFile = {
@@ -24,6 +22,9 @@ export function SwatchImagePicker({
   filesError,
   onUrlChange,
   onPickComputerFile,
+  hideTrigger = false,
+  open,
+  onOpenChange,
 }: {
   imageUrl: string;
   disabled: boolean;
@@ -32,34 +33,30 @@ export function SwatchImagePicker({
   filesError: string;
   onUrlChange: (url: string) => void;
   onPickComputerFile: (file: File) => void;
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const [filesOpen, setFilesOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const filesOpen = open ?? internalOpen;
+  const setFilesOpen = (next: boolean) => {
+    onOpenChange?.(next);
+    if (open === undefined) setInternalOpen(next);
+  };
+
+  const openFilePicker = () => fileInput.current?.click();
 
   return (
     <BlockStack gap="300">
-      <TextField
-        label="Image URL (optional fallback)"
-        autoComplete="off"
-        value={imageUrl}
-        disabled={disabled}
-        onChange={onUrlChange}
-      />
-      <InlineStack gap="200" wrap>
-        <Button
-          disabled={disabled || uploading}
-          loading={uploading}
-          onClick={() => fileInput.current?.click()}
-        >
-          Choose from computer
-        </Button>
+      {hideTrigger ? null : (
         <Button
           disabled={disabled || uploading}
           onClick={() => setFilesOpen(true)}
         >
-          Shopify files
+          Choose image
         </Button>
-      </InlineStack>
+      )}
       <input
         ref={fileInput}
         type="file"
@@ -74,7 +71,13 @@ export function SwatchImagePicker({
       <Modal
         open={filesOpen}
         onClose={() => setFilesOpen(false)}
-        title="Shopify files"
+        title="Choose image"
+        primaryAction={{
+          content: "Upload from computer",
+          disabled: disabled || uploading,
+          loading: uploading,
+          onAction: openFilePicker,
+        }}
         secondaryActions={[
           { content: "Close", onAction: () => setFilesOpen(false) },
         ]}
@@ -86,42 +89,48 @@ export function SwatchImagePicker({
                 <p>{filesError}</p>
               </Banner>
             ) : null}
+            {uploading ? <Text as="p">Uploading…</Text> : null}
+            <div className="findly-swatch-thumbs">
+              <button
+                type="button"
+                className="findly-swatch-thumb findly-swatch-thumb--upload"
+                disabled={disabled || uploading}
+                onClick={openFilePicker}
+              >
+                Upload
+              </button>
+              {shopFiles.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  className={
+                    file.url === imageUrl
+                      ? "findly-swatch-thumb findly-swatch-thumb--selected"
+                      : "findly-swatch-thumb"
+                  }
+                  onClick={() => {
+                    onUrlChange(file.url);
+                    setFilesOpen(false);
+                  }}
+                >
+                  <img src={file.url} alt={file.alt || "Swatch image"} />
+                </button>
+              ))}
+            </div>
             {shopFiles.length === 0 && !filesError ? (
-              <Text as="p">No images found in Shopify files.</Text>
-            ) : (
-              <BlockStack gap="200">
-                {shopFiles.map((file) => (
-                  <button
-                    key={file.id}
-                    type="button"
-                    onClick={() => {
-                      onUrlChange(file.url);
-                      setFilesOpen(false);
-                    }}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      padding: 8,
-                      border: "1px solid #c9cccf",
-                      borderRadius: 8,
-                      background: "#fff",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <InlineStack gap="300" blockAlign="center" wrap={false}>
-                      <Thumbnail
-                        source={file.url}
-                        alt={file.alt || "Shop file"}
-                        size="small"
-                      />
-                      <Text as="span" variant="bodyMd" truncate>
-                        {file.alt || file.url}
-                      </Text>
-                    </InlineStack>
-                  </button>
-                ))}
-              </BlockStack>
+              <Text as="p">
+                Upload an image from your computer. It will show here as a
+                thumbnail you can reuse.
+              </Text>
+            ) : null}
+            {hideTrigger ? null : (
+              <TextField
+                label="Image URL"
+                autoComplete="off"
+                value={imageUrl}
+                disabled={disabled}
+                onChange={onUrlChange}
+              />
             )}
           </BlockStack>
         </Modal.Section>

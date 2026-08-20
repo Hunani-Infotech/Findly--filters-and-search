@@ -18,6 +18,11 @@ import {
   type SortOptionKey,
   type WidgetPosition,
 } from "./app-settings";
+import {
+  DEFAULT_SEARCH_EXTRAS,
+  parseSearchExtras,
+  type SearchExtras,
+} from "./instant-search";
 
 export { DEFAULT_APP_SETTINGS };
 
@@ -49,7 +54,29 @@ export type AppSettingsInput = {
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: string[] | string;
   suggestionCollectionHandles?: string[] | string;
+  searchExtras?: SearchExtras | Record<string, unknown>;
 };
+
+function extrasFromRow(row: object): unknown {
+  return (row as { searchExtras?: unknown }).searchExtras;
+}
+
+async function loadSearchExtrasColumn(shopId: string, row: object) {
+  const fromRow = extrasFromRow(row);
+  if (fromRow !== undefined) return parseSearchExtras(fromRow);
+  const extraRows = await prisma.$queryRaw<Array<{ searchExtras: unknown }>>`
+    SELECT "searchExtras" FROM "AppSettings" WHERE "shopId" = ${shopId}
+  `;
+  return parseSearchExtras(extraRows[0]?.searchExtras);
+}
+
+async function persistSearchExtrasColumn(shopId: string, extras: SearchExtras) {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "AppSettings" SET "searchExtras" = $1::jsonb WHERE "shopId" = $2`,
+    JSON.stringify(extras),
+    shopId,
+  );
+}
 
 export async function getAppSettings(shopId: string) {
   const row = await prisma.appSettings.upsert({
@@ -69,6 +96,7 @@ export async function getAppSettings(shopId: string) {
     suggestionCollectionHandles: normalizeHandleList(
       row.suggestionCollectionHandles,
     ),
+    searchExtras: await loadSearchExtrasColumn(shopId, row),
   };
 }
 
@@ -132,8 +160,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     input.suggestionCollectionHandles ??
       DEFAULT_APP_SETTINGS.suggestionCollectionHandles,
   );
+  const searchExtras = parseSearchExtras(
+    input.searchExtras ?? DEFAULT_SEARCH_EXTRAS,
+  );
 
-  return prisma.appSettings.upsert({
+  const row = await prisma.appSettings.upsert({
     where: { shopId },
     create: {
       shopId,
@@ -211,6 +242,64 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
         : {}),
     },
   });
+  if (input.searchExtras !== undefined) {
+    await persistSearchExtrasColumn(shopId, searchExtras);
+  }
+  return row;
+}
+
+export async function saveSearchSettings(
+  shopId: string,
+  input: {
+    searchFields?: SearchFieldKey[] | string[];
+    showSuggestionsOnEmptyQuery?: boolean;
+    showSuggestionsOnNoResults?: boolean;
+    suggestionProductHandles?: string[] | string;
+    suggestionCollectionHandles?: string[] | string;
+    searchExtras?: SearchExtras | Record<string, unknown>;
+  },
+) {
+  await getAppSettings(shopId);
+  const data: {
+    searchFields?: string[];
+    showSuggestionsOnEmptyQuery?: boolean;
+    showSuggestionsOnNoResults?: boolean;
+    suggestionProductHandles?: string[];
+    suggestionCollectionHandles?: string[];
+  } = {};
+  if (input.searchFields !== undefined) {
+    data.searchFields = normalizeSearchFields(input.searchFields);
+  }
+  if (input.showSuggestionsOnEmptyQuery !== undefined) {
+    data.showSuggestionsOnEmptyQuery = input.showSuggestionsOnEmptyQuery;
+  }
+  if (input.showSuggestionsOnNoResults !== undefined) {
+    data.showSuggestionsOnNoResults = input.showSuggestionsOnNoResults;
+  }
+  if (input.suggestionProductHandles !== undefined) {
+    data.suggestionProductHandles = normalizeHandleList(
+      input.suggestionProductHandles,
+    );
+  }
+  if (input.suggestionCollectionHandles !== undefined) {
+    data.suggestionCollectionHandles = normalizeHandleList(
+      input.suggestionCollectionHandles,
+    );
+  }
+  const row =
+    Object.keys(data).length > 0
+      ? await prisma.appSettings.update({
+          where: { shopId },
+          data,
+        })
+      : await prisma.appSettings.findUniqueOrThrow({ where: { shopId } });
+  if (input.searchExtras !== undefined) {
+    await persistSearchExtrasColumn(
+      shopId,
+      parseSearchExtras(input.searchExtras),
+    );
+  }
+  return row;
 }
 
 export function collectionNumericId(collectionGid: string) {

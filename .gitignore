@@ -31,6 +31,9 @@ pnpm-lock.yaml
 
 # Local Postgres/Redis data and downloaded binaries (never commit)
 .local/
+
+# Local Globo screenshots / research dumps (never commit)
+.local-globo-research/
 npmdev.log
 
 # Cursor skills on this PC only — not shared via git

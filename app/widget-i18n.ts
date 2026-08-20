@@ -96,7 +96,7 @@ export const WIDGET_I18N_LABELS: Record<WidgetI18nKey, string> = {
   suggested: "Suggested heading",
 };
 
-export type WidgetI18nMap = Record<string, Partial<Record<WidgetI18nKey, string>>>;
+export type WidgetI18nMap = Record<string, Record<string, string>>;
 
 export function parseWidgetI18nMap(raw: unknown): WidgetI18nMap {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -105,10 +105,9 @@ export function parseWidgetI18nMap(raw: unknown): WidgetI18nMap {
     if (!locale.trim() || !strings || typeof strings !== "object" || Array.isArray(strings)) {
       continue;
     }
-    const row: Partial<Record<WidgetI18nKey, string>> = {};
-    for (const key of WIDGET_I18N_KEYS) {
-      const value = (strings as Record<string, unknown>)[key];
-      if (typeof value === "string" && value.trim()) row[key] = value;
+    const row: Record<string, string> = {};
+    for (const [key, value] of Object.entries(strings as Record<string, unknown>)) {
+      if (typeof value === "string") row[key] = value;
     }
     out[locale] = row;
   }
@@ -140,7 +139,7 @@ export function matchWidgetLocale(
 }
 
 export function mergeWidgetChrome(
-  overrides?: Partial<Record<WidgetI18nKey, string>> | null,
+  overrides?: Record<string, string> | null,
 ): Record<WidgetI18nKey, string> {
   const merged = { ...DEFAULT_WIDGET_I18N };
   if (!overrides) return merged;

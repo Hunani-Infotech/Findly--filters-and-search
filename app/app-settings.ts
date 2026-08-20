@@ -3,9 +3,10 @@ export const SEARCH_FIELD_KEYS = [
   "vendor",
   "productType",
   "tags",
-  "sku",
   "options",
+  "sku",
   "metafields",
+  "collectionTitle",
 ] as const;
 
 export type SearchFieldKey = (typeof SEARCH_FIELD_KEYS)[number];
@@ -22,10 +23,11 @@ export const SEARCH_FIELD_LABELS: Record<SearchFieldKey, string> = {
   title: "Title",
   vendor: "Vendor",
   productType: "Product type",
-  tags: "Tags",
+  tags: "Product tag",
+  options: "Product option",
   sku: "SKU",
-  options: "Options",
-  metafields: "Metafields (mapped)",
+  metafields: "Metafield",
+  collectionTitle: "Collection title",
 };
 
 /** Unique allowed keys, preserving merchant order. Empty array = no fields enabled. */

@@ -161,7 +161,7 @@ export default function ValueGroupsPage() {
     <Page
       title="Group values"
       backAction={{
-        content: "Home",
+        content: "Filters",
         onAction: () => navigate("/app"),
       }}
       primaryAction={{
@@ -193,7 +193,8 @@ export default function ValueGroupsPage() {
       />
       <Layout>
         <Layout.Section>
-          {groups.length === 0 ? (
+          <BlockStack gap="400">
+            {groups.length === 0 ? (
             <Card>
               <BlockStack gap="300">
                 <Text as="p">
@@ -221,6 +222,7 @@ export default function ValueGroupsPage() {
               </IndexTable>
             </Card>
           )}
+          </BlockStack>
         </Layout.Section>
       </Layout>
     </Page>

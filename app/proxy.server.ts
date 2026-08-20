@@ -35,11 +35,17 @@ import { withWidgetChrome } from "./filters.server";
 import {
   enabledMetafieldPaths,
   normalizeSearchQuery,
-  productMatchesKeyword,
   getPinnedSearchSuggestions,
+  popularQuerySuggestions,
+  productMatchesKeyword,
+  searchCollections,
   searchProductFacets,
   searchProducts,
 } from "./search.server";
+import {
+  normalizeSearchQueryKey,
+  parseSearchExtras,
+} from "./instant-search";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
 export function verifyAppProxySignature(url: URL): boolean {
@@ -449,10 +455,34 @@ export async function getSearchFilterPayload(input: {
   });
 }
 
+export async function getInstantSearchWidgetPayload(input: {
+  shopDomain: string;
+}) {
+  const shop = await prisma.shop.findUnique({
+    where: { domain: input.shopDomain },
+  });
+  if (!shop) {
+    return { error: "Shop not synced", status: 404 as const };
+  }
+  const settings = await getAppSettings(shop.id);
+  const extras = parseSearchExtras(settings.searchExtras);
+  return {
+    data: {
+      instant: extras.instant,
+      fuzzyTextSearch: extras.fuzzyTextSearch,
+      showSuggestionsOnEmptyQuery: settings.showSuggestionsOnEmptyQuery,
+      showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
+      minChars: 2,
+    },
+    status: 200 as const,
+  };
+}
+
 export async function getSearchPayload(input: {
   shopDomain: string;
   query: string;
   locale?: string | null;
+  take?: number;
 }) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
@@ -461,9 +491,21 @@ export async function getSearchPayload(input: {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const products = await searchProducts(shop.id, input.query);
   const settings = await getAppSettings(shop.id);
+  const extras = parseSearchExtras(settings.searchExtras);
   const normalizedQuery = normalizeSearchQuery(input.query);
+  const queryKey = normalizeSearchQueryKey(normalizedQuery);
+  const redirect = extras.redirects.find((row) => row.query === queryKey);
+
+  const take = Math.min(Math.max(input.take ?? 24, 1), 48);
+  const products = await searchProducts(shop.id, input.query, { take });
+
+  const fields = normalizeSearchFields(settings.searchFields);
+  const liveCollections =
+    extras.instant.showCollections || fields.includes("collectionTitle")
+      ? await searchCollections(shop.id, input.query, { take: 6 })
+      : [];
+
   const wantSuggestions =
     (!normalizedQuery && settings.showSuggestionsOnEmptyQuery) ||
     (Boolean(normalizedQuery) &&
@@ -473,13 +515,26 @@ export async function getSearchPayload(input: {
     ? await getPinnedSearchSuggestions(shop.id)
     : { products: [], collections: [] };
 
-  const extras = await getAdminNavExtras(shop.id);
-  const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
+  const collectionMap = new Map<string, (typeof liveCollections)[number]>();
+  for (const row of [...liveCollections, ...pinned.collections]) {
+    if (!collectionMap.has(row.handle)) collectionMap.set(row.handle, row);
+  }
+
+  const queries = popularQuerySuggestions(
+    input.query,
+    extras.popularSearchTerms,
+    6,
+  );
+
+  const extrasNav = await getAdminNavExtras(shop.id);
+  const { locale, chrome } = resolveWidgetChrome(extrasNav.i18n, input.locale);
 
   const data = {
     query: normalizedQuery,
     locale,
     i18n: chrome,
+    instant: extras.instant,
+    redirect: redirect?.url ?? null,
     products: products.map((product) => ({
       id: product.productGid,
       handle: product.handle,
@@ -493,6 +548,9 @@ export async function getSearchPayload(input: {
       url: `/products/${product.handle}`,
     })),
     total: products.length,
+    queries,
+    pages: [] as Array<{ title: string; url: string }>,
+    articles: [] as Array<{ title: string; url: string }>,
     suggestions: pinned.products.map((product) => ({
       id: product.productGid,
       handle: product.handle,
@@ -505,7 +563,7 @@ export async function getSearchPayload(input: {
       imageUrl: product.imageUrl,
       url: `/products/${product.handle}`,
     })),
-    collections: pinned.collections,
+    collections: [...collectionMap.values()],
   };
 
   return { data, status: 200 as const };

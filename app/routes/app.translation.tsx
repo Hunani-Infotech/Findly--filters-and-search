@@ -19,7 +19,6 @@ import {
   Page,
   Select,
   Text,
-  TextField,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -329,11 +328,6 @@ export default function TranslationPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [editLang, setEditLang] = useState<AdminLocaleRow | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editStrings, setEditStrings] = useState<Record<WidgetI18nKey, string>>(
-    DEFAULT_WIDGET_I18N,
-  );
   const [addCode, setAddCode] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [addOpenedFor, setAddOpenedFor] = useState(false);
@@ -357,7 +351,6 @@ export default function TranslationPage() {
       setSeenResult(key);
       if ("ok" in fetcher.data && fetcher.data.ok) {
         setAddOpen(false);
-        setEditLang(null);
         setImportOpen(false);
         setImportFile(null);
       }
@@ -378,12 +371,6 @@ export default function TranslationPage() {
       shopify.toast.show(data.toast);
     }
   }, [fetcher.data, fetcher.state, shopify]);
-
-  const openEdit = (lang: AdminLocaleRow) => {
-    setEditLang(lang);
-    setEditName(lang.name);
-    setEditStrings(mergeWidgetChrome(i18n[lang.code]));
-  };
 
   const submitImportFile = (file: File) => {
     const name = file.name.toLowerCase();
@@ -411,7 +398,12 @@ export default function TranslationPage() {
     <IndexTable.Row id={lang.code} key={lang.code} position={index}>
       <IndexTable.Cell>
         <InlineStack gap="200" blockAlign="center" wrap={false}>
-          <Button variant="plain" onClick={() => openEdit(lang)}>
+          <Button
+            variant="plain"
+            onClick={() =>
+              navigate(`/app/translation/${encodeURIComponent(lang.code)}`)
+            }
+          >
             {lang.name}
           </Button>
           {lang.isDefault ? <Badge>Default</Badge> : null}
@@ -426,7 +418,12 @@ export default function TranslationPage() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         <InlineStack gap="200" wrap={false}>
-          <Button variant="plain" onClick={() => openEdit(lang)}>
+          <Button
+            variant="plain"
+            onClick={() =>
+              navigate(`/app/translation/${encodeURIComponent(lang.code)}`)
+            }
+          >
             Edit
           </Button>
           <Button
@@ -525,61 +522,6 @@ export default function TranslationPage() {
               onChange={setAddCode}
             />
           )}
-        </Modal.Section>
-      </Modal>
-
-      <Modal
-        open={Boolean(editLang)}
-        onClose={() => setEditLang(null)}
-        title={editLang ? `Edit ${editLang.name}` : "Edit language"}
-        size="large"
-        primaryAction={{
-          content: "Save",
-          disabled: busy || !editLang,
-          onAction: () => {
-            if (!editLang) return;
-            const payload: Record<string, string> = {
-              intent: "saveStrings",
-              code: editLang.code,
-              name: editName,
-            };
-            for (const key of WIDGET_I18N_KEYS) {
-              payload[key] = editStrings[key] ?? "";
-            }
-            fetcher.submit(payload, { method: "post" });
-          },
-        }}
-        secondaryActions={[
-          { content: "Cancel", onAction: () => setEditLang(null) },
-        ]}
-      >
-        <Modal.Section>
-          <BlockStack gap="300">
-            <TextField
-              label="Language name"
-              value={editName}
-              onChange={setEditName}
-              autoComplete="off"
-            />
-            {WIDGET_I18N_KEYS.map((key) => (
-              <TextField
-                key={key}
-                label={WIDGET_I18N_LABELS[key]}
-                value={editStrings[key]}
-                onChange={(value) =>
-                  setEditStrings((current) => ({ ...current, [key]: value }))
-                }
-                autoComplete="off"
-                multiline={
-                  key === "error" ||
-                  key === "search_error" ||
-                  key === "search_empty_copy"
-                    ? 2
-                    : false
-                }
-              />
-            ))}
-          </BlockStack>
         </Modal.Section>
       </Modal>
 

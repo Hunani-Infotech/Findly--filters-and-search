@@ -43,7 +43,7 @@ function assertStaticMarkers() {
     fail("filter-trees.server.ts missing resolve/duplicate");
   }
   const indexPage = readRepo("app", "routes", "app._index.tsx");
-  if (!indexPage.includes("Create filter tree") || !indexPage.includes("listFilterTrees")) {
+  if (!indexPage.includes("+ Add Filter") || !indexPage.includes("listFilterTrees")) {
     fail("home is missing filter tree list / create");
   }
   const editor = readRepo("app", "routes", "app.filters.$id.tsx");

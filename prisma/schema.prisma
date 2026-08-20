@@ -118,6 +118,8 @@ model AppSettings {
   showSuggestionsOnNoResults Boolean @default(false)
   suggestionProductHandles String[] @default([])
   suggestionCollectionHandles String[] @default([])
+  /// Instant search + Search Settings extras (fuzzy, popular terms, pinnings, synonyms, redirects)
+  searchExtras      Json     @default("{}")
   /// Globo-parity admin pages (recommendations toggles, YMM form, locales) — not storefront engines
   adminExtras       Json     @default("{}")
   updatedAt         DateTime @updatedAt

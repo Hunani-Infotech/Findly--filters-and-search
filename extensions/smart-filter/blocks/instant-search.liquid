@@ -1,0 +1,17 @@
+<div
+  class="findly-instant"
+  data-proxy-base="/apps/smart-filter"
+  data-locale="{{ request.locale.iso_code }}"
+  hidden
+  {{ block.shopify_attributes }}
+></div>
+
+{% schema %}
+{
+  "name": "t:blocks.instant_search.name",
+  "target": "body",
+  "stylesheet": "instant-search.css",
+  "javascript": "instant-search.js",
+  "settings": []
+}
+{% endschema %}

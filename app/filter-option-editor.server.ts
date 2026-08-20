@@ -1,10 +1,18 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "./db.server";
 import {
+  defaultUrlHandle,
+  facetSettingsWithTreeMeta,
   parseFacetSettings,
   type FacetSetting,
   type FacetSettingsMap,
+  type FacetShowMoreMode,
+  type FacetTextTransform,
   type FacetValueMode,
+  type FacetValueSortMode,
+  FACET_SHOW_MORE_MODES,
+  FACET_TEXT_TRANSFORMS,
+  FACET_VALUE_SORT_MODES,
 } from "./facet-settings";
 import {
   addFilterOptionKeys,
@@ -30,7 +38,9 @@ import {
 import {
   displayTypeChoicesForKey,
   FACET_DISPLAY_TYPE_LABELS,
+  parseMatchModes,
   type FacetDisplayType,
+  type FacetMatchMode,
 } from "./filters";
 import { getListFacetValueCatalog, getMetafieldMappings } from "./shop.server";
 
@@ -62,7 +72,54 @@ export type FilterOptionEditorData = {
   selectedValues: string[];
   catalogValues: string[];
   showValues: boolean;
+  shopDomain: string;
+  urlHandle: string;
+  collectionTree: boolean;
+  valueSortMode: FacetValueSortMode;
+  collapseByDefault: boolean;
+  enableValueSearch: boolean;
+  showMore: FacetShowMoreMode;
+  textTransform: FacetTextTransform;
+  autoRemovePrefixes: string;
+  tooltip: string;
+  matchMode: FacetMatchMode;
 };
+
+const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
+
+function editorExtras(
+  key: string,
+  label: string,
+  setting: FacetSetting,
+  matchMode: FacetMatchMode,
+): Pick<
+  FilterOptionEditorData,
+  | "shopDomain"
+  | "urlHandle"
+  | "collectionTree"
+  | "valueSortMode"
+  | "collapseByDefault"
+  | "enableValueSearch"
+  | "showMore"
+  | "textTransform"
+  | "autoRemovePrefixes"
+  | "tooltip"
+  | "matchMode"
+> {
+  return {
+    shopDomain: FALLBACK_SHOP_DOMAIN,
+    urlHandle: setting.urlHandle || defaultUrlHandle(label, key),
+    collectionTree: Boolean(setting.collectionTree),
+    valueSortMode: setting.valueSortMode || "az",
+    collapseByDefault: setting.collapseByDefault !== false,
+    enableValueSearch: Boolean(setting.enableValueSearch),
+    showMore: setting.showMore || "scrollbar",
+    textTransform: setting.textTransform || "capitalize",
+    autoRemovePrefixes: setting.autoRemovePrefixes || "",
+    tooltip: setting.tooltip || "",
+    matchMode,
+  };
+}
 
 type MappedFacet = { key: string; label: string; filterType: string };
 
@@ -186,20 +243,25 @@ export async function loadFilterOptionEditorPage(
   const displayTypes = parseDisplayTypes(
     config && "displayTypes" in config ? config.displayTypes : {},
   );
+  const matchModes = parseMatchModes(
+    config && "matchModes" in config ? config.matchModes : {},
+  );
 
   if (mode === "add") {
     const sources = available.map((row) =>
       sourceChoice(row, displayTypes, valueCatalog),
     );
     const first = sources[0];
+    const addKey = first?.value || "";
+    const addLabel = first?.defaultLabel || "";
     return {
       mode,
       treeId,
-      optionKey: first?.value || "",
+      optionKey: addKey,
       sourceLabel: first?.label || "",
       sourceDisabled: false,
       sources,
-      label: first?.defaultLabel || "",
+      label: addLabel,
       displayType: first?.displayType || "checkbox",
       displayTypeChoices: first?.displayTypeChoices || choiceLabels(["checkbox"]),
       valueMode: "all",
@@ -208,6 +270,7 @@ export async function loadFilterOptionEditorPage(
       selectedValues: [],
       catalogValues: first?.catalogValues || [],
       showValues: first?.showValues || false,
+      ...editorExtras(addKey, addLabel, {}, "or"),
     };
   }
 
@@ -220,6 +283,7 @@ export async function loadFilterOptionEditorPage(
   const extras = (setting.selectedValues || []).filter(
     (value) => !choice.catalogValues.includes(value),
   );
+  const label = setting.label || row.label;
 
   return {
     mode,
@@ -228,7 +292,7 @@ export async function loadFilterOptionEditorPage(
     sourceLabel: row.source,
     sourceDisabled: true,
     sources: [choice],
-    label: setting.label || row.label,
+    label,
     displayType: choice.displayType,
     displayTypeChoices: choice.displayTypeChoices,
     valueMode: setting.valueMode || "all",
@@ -237,7 +301,20 @@ export async function loadFilterOptionEditorPage(
     selectedValues: setting.selectedValues || [],
     catalogValues: [...choice.catalogValues, ...extras],
     showValues: choice.showValues,
+    ...editorExtras(
+      key,
+      label,
+      setting,
+      matchModes[key] === "and" ? "and" : "or",
+    ),
   };
+}
+
+function parseBool(form: FormData, name: string, fallback = false) {
+  const raw = form.get(name);
+  if (raw === "true" || raw === "on") return true;
+  if (raw === "false") return false;
+  return fallback;
 }
 
 export function parseFilterOptionForm(form: FormData) {
@@ -258,15 +335,48 @@ export function parseFilterOptionForm(form: FormData) {
       selectedValues = [];
     }
   }
+  const sortRaw = String(form.get("valueSortMode") || "az");
+  const valueSortMode: FacetValueSortMode = (
+    FACET_VALUE_SORT_MODES as readonly string[]
+  ).includes(sortRaw)
+    ? (sortRaw as FacetValueSortMode)
+    : "az";
+  const showMoreRaw = String(form.get("showMore") || "scrollbar");
+  const showMore: FacetShowMoreMode = (
+    FACET_SHOW_MORE_MODES as readonly string[]
+  ).includes(showMoreRaw)
+    ? (showMoreRaw as FacetShowMoreMode)
+    : "scrollbar";
+  const transformRaw = String(form.get("textTransform") || "capitalize");
+  const textTransform: FacetTextTransform = (
+    FACET_TEXT_TRANSFORMS as readonly string[]
+  ).includes(transformRaw)
+    ? (transformRaw as FacetTextTransform)
+    : "capitalize";
+  const matchRaw = String(form.get("matchMode") || "or");
+  const matchMode: FacetMatchMode = matchRaw === "and" ? "and" : "or";
+  const key = String(form.get("key") || "").trim();
+  const label = String(form.get("label") || "").trim();
+  const handleRaw = String(form.get("urlHandle") || "").trim();
   return {
-    key: String(form.get("key") || "").trim(),
-    label: String(form.get("label") || "").trim(),
+    key,
+    label,
     displayType: String(form.get("displayType") || "").trim(),
     valueMode,
     prefix: String(form.get("prefix") || ""),
     removePrefix:
       form.get("removePrefix") === "true" || form.get("removePrefix") === "on",
     selectedValues,
+    urlHandle: handleRaw || defaultUrlHandle(label, key),
+    collectionTree: parseBool(form, "collectionTree"),
+    valueSortMode,
+    collapseByDefault: parseBool(form, "collapseByDefault", true),
+    enableValueSearch: parseBool(form, "enableValueSearch"),
+    showMore,
+    textTransform,
+    autoRemovePrefixes: String(form.get("autoRemovePrefixes") || ""),
+    tooltip: String(form.get("tooltip") || "").slice(0, 150),
+    matchMode,
   };
 }
 
@@ -278,14 +388,40 @@ function nextFacetSetting(
   const setting: FacetSetting = { ...existing };
   if (input.label) setting.label = input.label;
   else delete setting.label;
-  if (!showValues) {
+  setting.urlHandle = input.urlHandle;
+  setting.collapseByDefault = input.collapseByDefault;
+  setting.enableValueSearch = input.enableValueSearch;
+  setting.showMore = input.showMore;
+  setting.textTransform = input.textTransform;
+  if (input.autoRemovePrefixes.trim()) {
+    setting.autoRemovePrefixes = input.autoRemovePrefixes;
+  } else {
+    delete setting.autoRemovePrefixes;
+  }
+  if (input.tooltip.trim()) setting.tooltip = input.tooltip.slice(0, 150);
+  else delete setting.tooltip;
+  if (input.key === "collection") {
+    setting.collectionTree = input.collectionTree;
+  } else {
+    delete setting.collectionTree;
+  }
+  const persistValues = showValues || input.key === "collection";
+  if (!persistValues) {
     delete setting.valueMode;
+    delete setting.prefix;
+    delete setting.removePrefix;
+    delete setting.selectedValues;
+    delete setting.valueSortMode;
+    return setting;
+  }
+  setting.valueSortMode = input.valueSortMode;
+  setting.valueMode = input.valueMode;
+  if (!showValues) {
     delete setting.prefix;
     delete setting.removePrefix;
     delete setting.selectedValues;
     return setting;
   }
-  setting.valueMode = input.valueMode;
   if (input.valueMode === "prefix") {
     setting.prefix = input.prefix;
     setting.removePrefix = input.removePrefix;
@@ -352,9 +488,9 @@ export async function saveFilterOption(
     nextVisible = added.visibleKeys;
   }
 
-  const settings = parseFacetSettings(
-    config && "facetSettings" in config ? config.facetSettings : {},
-  );
+  const rawFacetSettings =
+    config && "facetSettings" in config ? config.facetSettings : {};
+  const settings = parseFacetSettings(rawFacetSettings);
   const showValues = facetSupportsValuePicker(row.key, row.filterType);
   settings[row.key] = nextFacetSetting(settings[row.key] || {}, input, showValues);
 
@@ -367,11 +503,20 @@ export async function saveFilterOption(
     : allowed[0];
   if (nextType) displayTypes[row.key] = nextType;
 
+  const matchModes = parseMatchModes(
+    config && "matchModes" in config ? config.matchModes : {},
+  );
+  matchModes[row.key] = input.matchMode;
+
   await updateFilterTree(shopId, treeId, {
     ...nextFlags,
     displayOrder: persistDisplayOrder(nextVisible, displayOrder),
     displayTypes: displayTypes as Prisma.InputJsonValue,
-    facetSettings: settings as Prisma.InputJsonValue,
+    matchModes: matchModes as Prisma.InputJsonValue,
+    facetSettings: facetSettingsWithTreeMeta(
+      settings,
+      rawFacetSettings,
+    ) as Prisma.InputJsonValue,
   });
 
   return { ok: true as const };
@@ -400,9 +545,9 @@ export async function deleteFilterOption(
     rows.map((row) => row.key),
     flags,
   );
-  const settings = parseFacetSettings(
-    config && "facetSettings" in config ? config.facetSettings : {},
-  );
+  const rawFacetSettings =
+    config && "facetSettings" in config ? config.facetSettings : {};
+  const settings = parseFacetSettings(rawFacetSettings);
   delete settings[key];
   const displayTypes = parseDisplayTypes(
     config && "displayTypes" in config ? config.displayTypes : {},
@@ -413,7 +558,10 @@ export async function deleteFilterOption(
     ...removed.flags,
     displayOrder: persistDisplayOrder(removed.visibleKeys, displayOrder),
     displayTypes: displayTypes as Prisma.InputJsonValue,
-    facetSettings: settings as Prisma.InputJsonValue,
+    facetSettings: facetSettingsWithTreeMeta(
+      settings,
+      rawFacetSettings,
+    ) as Prisma.InputJsonValue,
   });
 
   return { ok: true as const };

@@ -31,6 +31,8 @@ type FilterOptionsTableProps = {
   treeId?: string;
   onEditOption?: (key: string) => void;
   onAddOption?: () => void;
+  allowEdit?: boolean;
+  showAddButton?: boolean;
 };
 
 function DragHandle() {
@@ -97,6 +99,8 @@ export function FilterOptionsTable({
   treeId,
   onEditOption,
   onAddOption,
+  allowEdit = true,
+  showAddButton = true,
 }: FilterOptionsTableProps) {
   const navigate = useNavigate();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -106,6 +110,7 @@ export function FilterOptionsTable({
   const types = parseDisplayTypes(displayTypes);
 
   const openEdit = (key: string) => {
+    if (!allowEdit || disabled) return;
     if (onEditOption) {
       onEditOption(key);
       return;
@@ -285,15 +290,21 @@ export function FilterOptionsTable({
                   >
                     <DragHandle />
                   </button>
-                  <Button
-                    variant="plain"
-                    disabled={disabled}
-                    onClick={() => openEdit(row.key)}
-                  >
-                    {row.label}
-                  </Button>
+                  {allowEdit ? (
+                    <Button
+                      variant="plain"
+                      disabled={disabled}
+                      onClick={() => openEdit(row.key)}
+                    >
+                      {row.label}
+                    </Button>
+                  ) : (
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      {row.label}
+                    </Text>
+                  )}
                   <SourceCell row={row} />
-                  {lockedSlider || choices.length <= 1 ? (
+                  {lockedSlider || choices.length <= 1 || !allowEdit ? (
                     <Text as="span">
                       {FACET_DISPLAY_TYPE_LABELS[selectedType]}
                     </Text>
@@ -320,13 +331,15 @@ export function FilterOptionsTable({
                     </select>
                   )}
                   <InlineStack gap="200" wrap={false}>
-                    <Button
-                      variant="plain"
-                      disabled={disabled}
-                      onClick={() => openEdit(row.key)}
-                    >
-                      Edit
-                    </Button>
+                    {allowEdit ? (
+                      <Button
+                        variant="plain"
+                        disabled={disabled}
+                        onClick={() => openEdit(row.key)}
+                      >
+                        Edit
+                      </Button>
+                    ) : null}
                     <Button
                       variant="plain"
                       tone="critical"
@@ -347,9 +360,11 @@ export function FilterOptionsTable({
           <div className="findly-filter-option-table__line" aria-hidden="true" />
         ) : null}
       </div>
-      <Button disabled={disabled} onClick={openAdd}>
-        Add option
-      </Button>
+      {showAddButton ? (
+        <Button disabled={disabled} onClick={openAdd}>
+          + Add filter option
+        </Button>
+      ) : null}
     </BlockStack>
   );
 }

@@ -40,7 +40,7 @@ export async function listShopImages(
     }`,
     {
       variables: {
-        first: 24,
+        first: 48,
         query: query.trim() || "media_type:IMAGE",
       },
     },
@@ -69,7 +69,7 @@ export async function listShopImages(
 export async function uploadShopImage(
   admin: GraphqlAdmin,
   file: { filename: string; mimeType: string; bytes: Buffer },
-): Promise<{ url: string } | { error: string }> {
+): Promise<{ url: string; id: string; alt: string } | { error: string }> {
   const filename = file.filename.replace(/[^\w.-]+/g, "_").slice(0, 80) || "swatch.png";
   const mimeType = file.mimeType || "image/png";
   const staged = await admin.graphql(
@@ -202,5 +202,5 @@ export async function uploadShopImage(
         "File uploaded, but Shopify has not published a URL yet. Approve read_files/write_files and try again.",
     };
   }
-  return { url };
+  return { url, id: fileId || "", alt: filename };
 }

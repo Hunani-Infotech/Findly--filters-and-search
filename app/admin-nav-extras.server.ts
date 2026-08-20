@@ -25,12 +25,18 @@ export type ContactDraft = {
   message: string;
 };
 
+export type TranslationCustomField = {
+  id: string;
+  reference: string;
+};
+
 export type AdminNavExtras = {
   recOn: Record<string, boolean>;
   recs: RecsConfig;
   ymm: VehicleFinderAdmin;
   langs: AdminLocaleRow[];
   i18n: WidgetI18nMap;
+  translationCustom?: Record<string, TranslationCustomField[]>;
   contactDraft?: ContactDraft;
 };
 
@@ -44,6 +50,22 @@ const DEFAULT_ADMIN_EXTRAS: AdminNavExtras = {
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
+function parseTranslationCustom(raw: unknown): Record<string, TranslationCustomField[]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, TranslationCustomField[]> = {};
+  for (const [locale, rows] of Object.entries(raw as Record<string, unknown>)) {
+    if (!locale.trim() || !Array.isArray(rows)) continue;
+    out[locale] = rows
+      .filter((row): row is Record<string, unknown> => Boolean(row && typeof row === "object"))
+      .map((row) => ({
+        id: typeof row.id === "string" ? row.id : "",
+        reference: typeof row.reference === "string" ? row.reference : "Custom field",
+      }))
+      .filter((row) => row.id);
+  }
+  return out;
 }
 
 export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
@@ -77,9 +99,10 @@ export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
           message: typeof draftRaw.message === "string" ? draftRaw.message : "",
         };
   const i18n = parseWidgetI18nMap(o.i18n);
+  const translationCustom = parseTranslationCustom(o.translationCustom);
   return contactDraft
-    ? { recOn, recs, ymm, langs, i18n, contactDraft }
-    : { recOn, recs, ymm, langs, i18n };
+    ? { recOn, recs, ymm, langs, i18n, translationCustom, contactDraft }
+    : { recOn, recs, ymm, langs, i18n, translationCustom };
 }
 
 export async function getAdminNavExtras(shopId: string): Promise<AdminNavExtras> {

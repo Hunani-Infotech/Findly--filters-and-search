@@ -17,6 +17,10 @@ function parseKind(value: unknown): SwatchKind {
   return value === "dual" || value === "image" ? value : "solid";
 }
 
+function isColorOptionName(name: string) {
+  return /colou?r|hue|shade|finish|tone/i.test(String(name || "").trim());
+}
+
 export async function listColorOptionKeys(shopId: string) {
   const products = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
@@ -30,9 +34,7 @@ export async function listColorOptionKeys(shopId: string) {
         ? (product.options as Record<string, string[]>)
         : {};
     for (const [name, list] of Object.entries(options)) {
-      if (!/colou?r|hue|shade|finish|tone/i.test(name) && keys.size) {
-        // still include every option so merchants can swatch Size if they want? Globo shows "color". Include all option names.
-      }
+      if (!isColorOptionName(name)) continue;
       const optionKey = optionKeyFromName(name);
       const entry = keys.get(optionKey) ?? {
         optionKey,

@@ -2,11 +2,14 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Form, useNavigate, useNavigation, useSubmit } from "react-router";
 import {
   BlockStack,
+  Box,
+  Button,
   Card,
   Checkbox,
   ChoiceList,
   FormLayout,
   InlineGrid,
+  InlineStack,
   Layout,
   Page,
   Select,
@@ -15,8 +18,20 @@ import {
 } from "@shopify/polaris";
 import { isMutationBusy } from "./admin-loading";
 import type { FilterOptionEditorData } from "../filter-option-editor.server";
-import { FACET_DISPLAY_TYPE_LABELS, type FacetDisplayType } from "../filters";
-import type { FacetValueMode } from "../facet-settings";
+import {
+  FACET_DISPLAY_TYPE_LABELS,
+  type FacetDisplayType,
+  type FacetMatchMode,
+} from "../filters";
+import {
+  defaultUrlHandle,
+  type FacetShowMoreMode,
+  type FacetTextTransform,
+  type FacetValueMode,
+  type FacetValueSortMode,
+} from "../facet-settings";
+
+const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
 
 export function FilterOptionEditorPage({
   data,
@@ -31,6 +46,7 @@ export function FilterOptionEditorPage({
   const saving = isMutationBusy(navigation);
   const isEdit = data.mode === "edit";
   const backUrl = `/app/filters/${data.treeId}`;
+  const shopDomain = data.shopDomain || FALLBACK_SHOP_DOMAIN;
 
   const [key, setKey] = useState(data.optionKey);
   const [label, setLabel] = useState(data.label);
@@ -41,6 +57,28 @@ export function FilterOptionEditorPage({
   const [selectedValues, setSelectedValues] = useState<string[]>(
     data.selectedValues,
   );
+  const [urlHandle, setUrlHandle] = useState(data.urlHandle);
+  const [handleTouched, setHandleTouched] = useState(data.mode === "edit");
+  const [showHandleField, setShowHandleField] = useState(false);
+  const [collectionTree, setCollectionTree] = useState(data.collectionTree);
+  const [valueSortMode, setValueSortMode] = useState<FacetValueSortMode>(
+    data.valueSortMode,
+  );
+  const [collapseByDefault, setCollapseByDefault] = useState(
+    data.collapseByDefault,
+  );
+  const [enableValueSearch, setEnableValueSearch] = useState(
+    data.enableValueSearch,
+  );
+  const [showMore, setShowMore] = useState<FacetShowMoreMode>(data.showMore);
+  const [textTransform, setTextTransform] = useState<FacetTextTransform>(
+    data.textTransform,
+  );
+  const [autoRemovePrefixes, setAutoRemovePrefixes] = useState(
+    data.autoRemovePrefixes,
+  );
+  const [tooltip, setTooltip] = useState(data.tooltip);
+  const [matchMode, setMatchMode] = useState<FacetMatchMode>(data.matchMode);
 
   const sourceOptions = data.sources.length
     ? data.sources.map((source) => ({
@@ -52,6 +90,8 @@ export function FilterOptionEditorPage({
   const selectedSource =
     data.sources.find((source) => source.value === key) || data.sources[0];
   const showValues = Boolean(key) && (selectedSource?.showValues ?? data.showValues);
+  const isCollection = key === "collection";
+  const persistValueControls = showValues || isCollection;
   const typeChoices =
     selectedSource?.displayTypeChoices || data.displayTypeChoices;
   const typeOptions = typeChoices.map((choice) => ({
@@ -71,17 +111,39 @@ export function FilterOptionEditorPage({
   const left = valueList.slice(0, mid);
   const right = valueList.slice(mid);
 
+  const resolvedHandle =
+    urlHandle || defaultUrlHandle(label, key) || key || "collection";
+  const exampleValue = catalogValues[0] || "Blue";
+  const exampleUrl = `https://${shopDomain}?${resolvedHandle}=${encodeURIComponent(exampleValue)}`;
+
+  const handleLabelChange = (next: string) => {
+    setLabel(next);
+    if (!handleTouched) setUrlHandle(defaultUrlHandle(next, key));
+  };
+
   const handleSourceChange = (next: string) => {
     setKey(next);
     const source = data.sources.find((item) => item.value === next);
+    const nextLabel = source?.defaultLabel || "";
     if (source) {
-      setLabel(source.defaultLabel);
+      setLabel(nextLabel);
       setDisplayType(source.displayType);
     }
     setSelectedValues([]);
     setValueMode("all");
     setPrefix("");
     setRemovePrefix(false);
+    setHandleTouched(false);
+    setUrlHandle(defaultUrlHandle(nextLabel, next));
+    setCollectionTree(false);
+    setValueSortMode("az");
+    setCollapseByDefault(true);
+    setEnableValueSearch(false);
+    setShowMore("scrollbar");
+    setTextTransform("capitalize");
+    setAutoRemovePrefixes("");
+    setTooltip("");
+    setMatchMode("or");
   };
 
   const toggleValue = (value: string, checked: boolean) => {
@@ -102,6 +164,16 @@ export function FilterOptionEditorPage({
     formData.set("prefix", prefix);
     formData.set("removePrefix", String(removePrefix));
     formData.set("selectedValues", JSON.stringify(selectedValues));
+    formData.set("urlHandle", resolvedHandle);
+    formData.set("collectionTree", String(collectionTree));
+    formData.set("valueSortMode", valueSortMode);
+    formData.set("collapseByDefault", String(collapseByDefault));
+    formData.set("enableValueSearch", String(enableValueSearch));
+    formData.set("showMore", showMore);
+    formData.set("textTransform", textTransform);
+    formData.set("autoRemovePrefixes", autoRemovePrefixes);
+    formData.set("tooltip", tooltip);
+    formData.set("matchMode", matchMode);
     submit(formData, { method: "POST" });
   };
 
@@ -112,9 +184,22 @@ export function FilterOptionEditorPage({
     submit(formData, { method: "POST" });
   };
 
+  const previewValues = (catalogValues.length
+    ? catalogValues
+    : ["Blue", "Red"]
+  ).slice(0, 4);
+  const previewLabel = (label || "Collection").toUpperCase();
+  const previewValueStyle: { textTransform: "none" | "capitalize" | "uppercase" | "lowercase" } =
+    textTransform === "none" ||
+    textTransform === "capitalize" ||
+    textTransform === "uppercase" ||
+    textTransform === "lowercase"
+      ? { textTransform }
+      : { textTransform: "none" };
+
   return (
     <Page
-      title={isEdit ? label || data.label || "Edit filter option" : "Add filter option"}
+      title={isEdit ? "Edit filter option" : "Add filter option"}
       backAction={{
         content: "Filter",
         url: backUrl,
@@ -146,36 +231,64 @@ export function FilterOptionEditorPage({
     >
       <Layout>
         <Layout.Section>
-          <Card>
-            <Form id="filter-option-form" method="post" onSubmit={handleSubmit}>
-              <BlockStack gap="400">
-                {error ? (
-                  <Text as="p" tone="critical">
-                    {error}
-                  </Text>
-                ) : null}
-                {!isEdit && data.sources.length === 0 ? (
-                  <Text as="p" tone="subdued">
-                    Every available source is already on this filter. Go back
-                    and edit an existing option, or map a new metafield.
-                  </Text>
-                ) : null}
-                <FormLayout>
-                  <Select
-                    label="Source"
-                    options={sourceOptions}
-                    value={key}
-                    disabled={saving || data.sourceDisabled || !data.sources.length}
-                    onChange={handleSourceChange}
-                  />
-                  <TextField
-                    label="Label"
-                    helpText="Shopper-facing name in the filter sidebar."
-                    value={label}
-                    onChange={setLabel}
-                    autoComplete="off"
-                    disabled={saving}
-                  />
+          <Form id="filter-option-form" method="post" onSubmit={handleSubmit}>
+            <BlockStack gap="400">
+              {error ? (
+                <Text as="p" tone="critical">
+                  {error}
+                </Text>
+              ) : null}
+              {!isEdit && data.sources.length === 0 ? (
+                <Text as="p" tone="subdued">
+                  Every available source is already on this filter. Go back
+                  and edit an existing option, or map a new metafield.
+                </Text>
+              ) : null}
+              <Card>
+                <BlockStack gap="400">
+                  <FormLayout>
+                    <Select
+                      label="Source"
+                      options={sourceOptions}
+                      value={key}
+                      disabled={saving || data.sourceDisabled || !data.sources.length}
+                      onChange={handleSourceChange}
+                    />
+                    <TextField
+                      label="Label"
+                      value={label}
+                      onChange={handleLabelChange}
+                      autoComplete="off"
+                      disabled={saving}
+                    />
+                  </FormLayout>
+                  <BlockStack gap="100">
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      Example: {exampleUrl}
+                    </Text>
+                    <Box>
+                      <Button
+                        variant="plain"
+                        disabled={saving}
+                        onClick={() => setShowHandleField((open) => !open)}
+                      >
+                        Edit URL handle.
+                      </Button>
+                    </Box>
+                    {showHandleField ? (
+                      <TextField
+                        label="URL handle"
+                        labelHidden
+                        value={urlHandle}
+                        onChange={(next) => {
+                          setHandleTouched(true);
+                          setUrlHandle(next);
+                        }}
+                        autoComplete="off"
+                        disabled={saving}
+                      />
+                    ) : null}
+                  </BlockStack>
                   <Select
                     label="Display type"
                     options={
@@ -189,36 +302,63 @@ export function FilterOptionEditorPage({
                       setDisplayType(next as FacetDisplayType)
                     }
                   />
-                </FormLayout>
-                {showValues ? (
-                  <BlockStack gap="300">
-                    <ChoiceList
-                      title="Values"
-                      choices={[
-                        {
-                          label: "All values",
-                          value: "all",
-                          helpText: "Show every catalog value for this source.",
-                        },
-                        {
-                          label: "Manual selection",
-                          value: "manual",
-                          helpText: "Pick which values appear on the storefront.",
-                        },
-                        {
-                          label: "By value prefix",
-                          value: "prefix",
-                          helpText:
-                            "Only values that start with a prefix, e.g. Color_.",
-                        },
-                      ]}
-                      selected={[valueMode]}
+                  {isCollection ? (
+                    <Checkbox
+                      label="Build a collection tree with multi-level sub-collections"
+                      checked={collectionTree}
                       disabled={saving}
-                      onChange={(selected) =>
-                        setValueMode((selected[0] as FacetValueMode) || "all")
-                      }
+                      onChange={setCollectionTree}
                     />
-                    {valueMode === "manual" ? (
+                  ) : null}
+                </BlockStack>
+              </Card>
+              {persistValueControls ? (
+                <Card>
+                  <BlockStack gap="400">
+                    <InlineStack gap="400" wrap>
+                      <Box minWidth="220px">
+                        <Select
+                          label="Type"
+                          labelHidden
+                          options={[
+                            { label: "Type: Use all values", value: "all" },
+                            {
+                              label: "Type: Manual selection",
+                              value: "manual",
+                            },
+                            {
+                              label: "Type: By value prefix",
+                              value: "prefix",
+                            },
+                          ]}
+                          value={valueMode}
+                          disabled={saving}
+                          onChange={(next) =>
+                            setValueMode((next as FacetValueMode) || "all")
+                          }
+                        />
+                      </Box>
+                      <Box minWidth="220px">
+                        <Select
+                          label="Sort"
+                          labelHidden
+                          options={[
+                            { label: "Sort: A-Z", value: "az" },
+                            { label: "Sort: Z-A", value: "za" },
+                            { label: "Sort: Product count", value: "count" },
+                            { label: "Sort: Manual", value: "manual" },
+                          ]}
+                          value={valueSortMode}
+                          disabled={saving}
+                          onChange={(next) =>
+                            setValueSortMode(
+                              (next as FacetValueSortMode) || "az",
+                            )
+                          }
+                        />
+                      </Box>
+                    </InlineStack>
+                    {showValues && valueMode === "manual" ? (
                       valueList.length === 0 ? (
                         <Text as="p" tone="subdued">
                           No catalog values yet. Sync products, then select
@@ -255,7 +395,7 @@ export function FilterOptionEditorPage({
                         </InlineGrid>
                       )
                     ) : null}
-                    {valueMode === "prefix" ? (
+                    {showValues && valueMode === "prefix" ? (
                       <BlockStack gap="200">
                         <TextField
                           label="Value prefix"
@@ -275,15 +415,144 @@ export function FilterOptionEditorPage({
                       </BlockStack>
                     ) : null}
                   </BlockStack>
-                ) : (
+                </Card>
+              ) : (
+                <Card>
                   <Text as="p" tone="subdued">
                     This source does not use a value list. Shoppers see the
                     control for this option (slider, availability, collection,
                     and similar) without picking individual values here.
                   </Text>
-                )}
-              </BlockStack>
-            </Form>
+                </Card>
+              )}
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">
+                    Display options
+                  </Text>
+                  <Checkbox
+                    label="Collapse filter by default"
+                    checked={collapseByDefault}
+                    disabled={saving}
+                    onChange={setCollapseByDefault}
+                  />
+                  <Checkbox
+                    label="Enable search within values"
+                    checked={enableValueSearch}
+                    disabled={saving}
+                    onChange={setEnableValueSearch}
+                  />
+                  <ChoiceList
+                    title="Show more options"
+                    choices={[
+                      { label: "Scrollbar", value: "scrollbar" },
+                      { label: "Show more button", value: "button" },
+                      { label: "Show all values", value: "all" },
+                    ]}
+                    selected={[showMore]}
+                    disabled={saving}
+                    onChange={(selected) =>
+                      setShowMore((selected[0] as FacetShowMoreMode) || "scrollbar")
+                    }
+                  />
+                </BlockStack>
+              </Card>
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">
+                    Advanced settings
+                  </Text>
+                  <ChoiceList
+                    title="Logic"
+                    choices={[
+                      {
+                        label: "OR condition",
+                        value: "or",
+                        helpText:
+                          "Displays products that match any of the selected values",
+                      },
+                      {
+                        label: "AND condition",
+                        value: "and",
+                        helpText:
+                          "Only the products that have all selected values matched",
+                      },
+                    ]}
+                    selected={[matchMode]}
+                    disabled={saving}
+                    onChange={(selected) =>
+                      setMatchMode((selected[0] as FacetMatchMode) || "or")
+                    }
+                  />
+                  <ChoiceList
+                    title="Option value text transform"
+                    choices={[
+                      { label: "Use global setting", value: "global" },
+                      { label: "None", value: "none" },
+                      { label: "Capitalize", value: "capitalize" },
+                      { label: "Uppercase", value: "uppercase" },
+                      { label: "Lowercase", value: "lowercase" },
+                    ]}
+                    selected={[textTransform]}
+                    disabled={saving}
+                    onChange={(selected) =>
+                      setTextTransform(
+                        (selected[0] as FacetTextTransform) || "capitalize",
+                      )
+                    }
+                  />
+                  <TextField
+                    label="Automatically remove value prefixes"
+                    placeholder="e.g. Color_, Material_"
+                    value={autoRemovePrefixes}
+                    onChange={setAutoRemovePrefixes}
+                    autoComplete="off"
+                    disabled={saving}
+                  />
+                  <TextField
+                    label="Tooltip content"
+                    value={tooltip}
+                    onChange={(next) => setTooltip(next.slice(0, 150))}
+                    multiline={3}
+                    maxLength={150}
+                    showCharacterCount
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText={`${tooltip.length}/150`}
+                  />
+                </BlockStack>
+              </Card>
+            </BlockStack>
+          </Form>
+        </Layout.Section>
+        <Layout.Section variant="oneThird">
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                Preview
+              </Text>
+              <div className="findly-option-preview">
+                <div className="findly-option-preview__header">
+                  <span className="findly-option-preview__caret" aria-hidden />
+                  <span className="findly-option-preview__title">
+                    {previewLabel}
+                  </span>
+                </div>
+                {!collapseByDefault ? (
+                  <div className="findly-option-preview__values">
+                    {previewValues.map((value) => (
+                      <label
+                        key={value}
+                        className="findly-option-preview__value"
+                      >
+                        <input type="checkbox" readOnly tabIndex={-1} />
+                        <span style={previewValueStyle}>{value}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>
