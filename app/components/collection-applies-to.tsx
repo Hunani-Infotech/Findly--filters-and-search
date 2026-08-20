@@ -1,16 +1,20 @@
+import { useMemo, useState } from "react";
 import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
-import { BlockStack, InlineStack, Tag } from "@shopify/polaris";
+  Badge,
+  BlockStack,
+  Combobox,
+  Icon,
+  InlineStack,
+  Listbox,
+  Tag,
+} from "@shopify/polaris";
+import { SearchIcon } from "@shopify/polaris-icons";
 
 export const ALL_COLLECTIONS_VALUE = "__all_collections__";
 export const ALL_PRODUCTS_VALUE = "__all_products__";
 export const SEARCH_PAGE_VALUE = "__search__";
+
+const EMPTY_VALUE = "__empty__";
 
 export type CollectionChoice = {
   collectionGid: string;
@@ -59,11 +63,7 @@ export function CollectionAppliesTo({
   allCollectionsUsedElsewhere = false,
   disabled = false,
 }: CollectionAppliesToProps) {
-  const listId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
 
   const allCollectionsChecked = selected.length === 0 || allCollections;
 
@@ -101,34 +101,6 @@ export function CollectionAppliesTo({
     return [...special, ...collectionRows];
   }, [allCollectionsUsedElsewhere, collections, query, usedElsewhere]);
 
-  useEffect(() => {
-    if (activeIndex >= rows.length) {
-      setActiveIndex(0);
-    }
-  }, [activeIndex, rows.length]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   const isChecked = (value: string) => {
     if (value === ALL_COLLECTIONS_VALUE) return allCollectionsChecked;
     if (value === ALL_PRODUCTS_VALUE) return appliesToAllProducts;
@@ -137,7 +109,7 @@ export function CollectionAppliesTo({
   };
 
   const toggleRow = (value: string) => {
-    if (disabled) return;
+    if (disabled || value === EMPTY_VALUE) return;
 
     if (value === ALL_COLLECTIONS_VALUE) {
       onAllCollectionsChange(true);
@@ -172,119 +144,66 @@ export function CollectionAppliesTo({
     )
     .filter((collection): collection is CollectionChoice => Boolean(collection));
 
-  const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      setOpen(false);
-      return;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setOpen(true);
-      setActiveIndex((index) =>
-        rows.length ? (index + 1) % rows.length : 0,
-      );
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setOpen(true);
-      setActiveIndex((index) =>
-        rows.length ? (index - 1 + rows.length) % rows.length : 0,
-      );
-      return;
-    }
-    if (event.key === "Enter" && open && rows[activeIndex]) {
-      event.preventDefault();
-      toggleRow(rows[activeIndex].value);
-    }
-  };
+  const emptyLabel =
+    collections.length === 0
+      ? "Sync collections to assign this filter."
+      : "No collections match that search.";
 
   return (
     <BlockStack gap="200">
-      <div className="findly-applies-to" ref={rootRef}>
-        <label className="findly-applies-to__label" htmlFor="findly-applies-to-search">
-          Applies to
-        </label>
-        <div className="findly-applies-to__control">
-          <span className="findly-applies-to__icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-              <path
-                d="M10.5 10.5L14 14"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
-          <input
-            id="findly-applies-to-search"
-            className="findly-applies-to__field"
-            type="text"
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={open}
-            aria-controls={listId}
+      <Combobox
+        allowMultiple
+        maxHeight="320px"
+        onClose={() => setQuery("")}
+        activator={
+          <Combobox.TextField
+            label="Applies to"
+            prefix={<Icon source={SearchIcon} />}
             value={query}
             placeholder="Search for collections"
             autoComplete="off"
             disabled={disabled}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setOpen(true);
-              setActiveIndex(0);
-            }}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
-            onKeyDown={onFieldKeyDown}
+            onChange={setQuery}
           />
-          {open ? (
-            <div className="findly-applies-to__panel" id={listId} role="listbox">
-              {rows.length === 0 ? (
-                <div className="findly-applies-to__empty">
-                  {collections.length === 0
-                    ? "Sync collections to assign this filter."
-                    : "No collections match that search."}
-                </div>
-              ) : (
-                rows.map((row, index) => {
-                  const checked = isChecked(row.value);
-                  return (
-                    <button
-                      key={row.value}
-                      type="button"
-                      role="option"
-                      aria-selected={checked}
-                      className="findly-applies-to__row"
-                      data-active={index === activeIndex ? "true" : "false"}
-                      disabled={disabled}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => toggleRow(row.value)}
-                    >
-                      <span className="findly-applies-to__row-main">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          readOnly
-                          tabIndex={-1}
-                        />
+        }
+      >
+        <Listbox onSelect={toggleRow} accessibilityLabel="Applies to">
+          {rows.length === 0 ? (
+            <Listbox.Option value={EMPTY_VALUE} disabled>
+              {emptyLabel}
+            </Listbox.Option>
+          ) : (
+            rows.map((row) => {
+              const checked = isChecked(row.value);
+              return (
+                <Listbox.Option
+                  key={row.value}
+                  value={row.value}
+                  selected={checked}
+                  accessibilityLabel={row.label}
+                >
+                  <Listbox.TextOption selected={checked} disabled={disabled}>
+                    {row.badge ? (
+                      <InlineStack gap="200" blockAlign="center" wrap={false}>
                         <span>{row.label}</span>
-                      </span>
-                      {row.badge ? (
-                        <span className="findly-applies-to__badge">
-                          Applied in other filter
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      {selectedCollections.length || appliesToSearch || appliesToAllProducts ? (
+                        <Badge size="small">Applied in other filter</Badge>
+                      </InlineStack>
+                    ) : (
+                      row.label
+                    )}
+                  </Listbox.TextOption>
+                </Listbox.Option>
+              );
+            })
+          )}
+        </Listbox>
+      </Combobox>
+      {allCollectionsChecked ||
+      selectedCollections.length ||
+      appliesToSearch ||
+      appliesToAllProducts ? (
         <InlineStack gap="200" wrap>
+          {allCollectionsChecked ? <Tag>All Collections</Tag> : null}
           {selectedCollections.map((collection) => (
             <Tag
               key={collection.collectionGid}
