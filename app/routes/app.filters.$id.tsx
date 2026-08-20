@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -31,7 +31,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { catalogOptionRows, metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
 import { getListFacetValueCatalog, getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
 import {
   deleteFilterTree,
@@ -41,10 +41,19 @@ import {
 } from "../filter-trees.server";
 import prisma from "../db.server";
 import { isMutationBusy } from "../components/admin-loading";
-import { DisplayOrderList } from "../components/display-order-list";
+import { CollectionAppliesTo } from "../components/collection-applies-to";
+import { FilterOptionsTable } from "../components/filter-options-table";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
-import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
+import {
+  availableFilterOptions,
+  buildVisibleFilterRows,
+  builtinDefForKey,
+  isOptionRowKey,
+  persistDisplayOrder,
+  type BuiltinEnableKey,
+  type FilterOptionRow,
+} from "../filter-option-rows";
 
 type ConfigState = {
   name: string;
@@ -85,6 +94,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     orderBy: { title: "asc" },
   });
   const valueCatalog = await getListFacetValueCatalog(shop.id, "");
+  const optionProducts = await prisma.productFacet.findMany({
+    where: { shopId: shop.id, status: "ACTIVE" },
+    take: 500,
+    select: { options: true },
+  });
+  const catalogOptions = catalogOptionRows(
+    optionProducts.map((product) => ({
+      options: (product.options as Record<string, string[]>) || {},
+    })),
+  );
   const mappedFacets = (await getMetafieldMappings(shop.id))
     .filter((mapping) => mapping.enabled)
     .map((mapping) => ({
@@ -108,6 +127,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       handle: collection.handle,
     })),
     valueCatalog,
+    catalogOptions,
     listMetafields,
     mappedFacets,
     config: {
@@ -303,6 +323,49 @@ export default function FilterTreeEditorPage() {
   }
 
   const saving = isMutationBusy(navigation);
+  const flags = {
+    enablePrice: config.enablePrice,
+    enableSale: config.enableSale,
+    enableRating: config.enableRating,
+    enableAvailability: config.enableAvailability,
+    enableVendor: config.enableVendor,
+    enableProductType: config.enableProductType,
+    enableTags: config.enableTags,
+    enableOptions: config.enableOptions,
+  };
+  const rows = useMemo(
+    () =>
+      buildVisibleFilterRows(
+        config.displayOrder,
+        flags,
+        data.catalogOptions,
+        data.mappedFacets,
+      ),
+    // flags fields are listed so we don't depend on a new object identity
+    [
+      config.displayOrder,
+      config.enablePrice,
+      config.enableSale,
+      config.enableRating,
+      config.enableAvailability,
+      config.enableVendor,
+      config.enableProductType,
+      config.enableTags,
+      config.enableOptions,
+      data.catalogOptions,
+      data.mappedFacets,
+    ],
+  );
+  const available = availableFilterOptions(
+    rows.map((row) => row.key),
+    flags,
+    data.catalogOptions,
+    data.mappedFacets,
+  );
+  const untitled =
+    !config.name.trim() ||
+    /^filter tree \d+$/i.test(config.name.trim()) ||
+    config.name.trim() === "Untitled tree";
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -312,6 +375,61 @@ export default function FilterTreeEditorPage() {
       shopify.toast.show(actionData.error, { isError: true });
     }
   }, [actionData, shopify]);
+
+  const patchEnable = (key: BuiltinEnableKey, value: boolean) =>
+    setConfig((current) => ({ ...current, [key]: value }));
+
+  const handleRemove = (key: string) => {
+    const def = builtinDefForKey(key);
+    if (def && def.enableKey !== "enableOptions") {
+      patchEnable(def.enableKey, false);
+      return;
+    }
+    const remaining = rows.map((row) => row.key).filter((item) => item !== key);
+    setConfig((current) => ({
+      ...current,
+      enableOptions: remaining.some(isOptionRowKey),
+      displayOrder: persistDisplayOrder(remaining, current.displayOrder),
+    }));
+  };
+
+  const handleAdd = (row: FilterOptionRow) => {
+    if (row.enableKey && row.enableKey !== "enableOptions") {
+      setConfig((current) => ({
+        ...current,
+        [row.enableKey as BuiltinEnableKey]: true,
+        displayOrder: current.displayOrder.includes(row.key)
+          ? current.displayOrder
+          : [...current.displayOrder, row.key],
+      }));
+      return;
+    }
+    if (row.sourceKind === "option") {
+      const visible = rows.map((item) => item.key);
+      const withoutOptions = visible.filter((item) => !isOptionRowKey(item));
+      const currentOpts = visible.filter(
+        (item) => isOptionRowKey(item) && item !== "options",
+      );
+      const nextOpts = currentOpts.includes(row.key)
+        ? currentOpts
+        : [...currentOpts, row.key];
+      const insertAt = visible.findIndex(isOptionRowKey);
+      const nextVisible = [...withoutOptions];
+      if (insertAt >= 0) nextVisible.splice(insertAt, 0, ...nextOpts);
+      else nextVisible.push(...nextOpts);
+      setConfig((current) => ({
+        ...current,
+        enableOptions: true,
+        displayOrder: persistDisplayOrder(nextVisible, current.displayOrder),
+      }));
+      return;
+    }
+    setConfig((current) =>
+      current.displayOrder.includes(row.key)
+        ? current
+        : { ...current, displayOrder: [...current.displayOrder, row.key] },
+    );
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -342,9 +460,9 @@ export default function FilterTreeEditorPage() {
 
   return (
     <Page
-      title={config.name || "Filter tree"}
+      title={untitled ? "Add filter" : config.name}
       backAction={{
-        content: "Filter trees",
+        content: "Filters",
         onAction: () => navigate("/app"),
       }}
       secondaryActions={[
@@ -384,13 +502,8 @@ export default function FilterTreeEditorPage() {
         <Layout.Section>
           <Form id="default-filter-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
-              <FilterOptionsGuide variant="default" />
-
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Tree name and pages
-                  </Text>
                   <TextField
                     label="Name"
                     value={config.name}
@@ -400,207 +513,132 @@ export default function FilterTreeEditorPage() {
                       setConfig((c) => ({ ...c, name: value }))
                     }
                   />
+                  <CollectionAppliesTo
+                    collections={data.collections}
+                    selected={config.collectionGids}
+                    onChange={(collectionGids) =>
+                      setConfig((c) => ({ ...c, collectionGids }))
+                    }
+                    appliesToSearch={config.appliesToSearch}
+                    onAppliesToSearchChange={(appliesToSearch) =>
+                      setConfig((c) => ({ ...c, appliesToSearch }))
+                    }
+                    disabled={saving}
+                  />
                   <Checkbox
-                    label="Use on search results"
-                    helpText="Last-created search tree wins if more than one is checked."
-                    checked={config.appliesToSearch}
+                    label="Active"
+                    helpText="Disabled filters stay saved but are not used on the storefront."
+                    checked={config.enabled}
                     disabled={saving}
                     onChange={(checked) =>
-                      setConfig((c) => ({ ...c, appliesToSearch: checked }))
+                      setConfig((c) => ({ ...c, enabled: checked }))
                     }
                   />
-                  <ChoiceList
-                    allowMultiple
-                    title="Collections"
-                    choices={data.collections.map((collection) => ({
-                      label: collection.title,
-                      value: collection.collectionGid,
-                      helpText: collection.handle,
-                    }))}
-                    selected={config.collectionGids}
-                    disabled={saving || data.collections.length === 0}
-                    onChange={(selected) =>
-                      setConfig((c) => ({ ...c, collectionGids: selected }))
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Filter options
+                  </Text>
+                  <FilterOptionsTable
+                    rows={rows}
+                    displayTypes={config.displayTypes}
+                    disabled={saving}
+                    available={available}
+                    onReorder={(nextKeys) =>
+                      setConfig((c) => ({
+                        ...c,
+                        displayOrder: persistDisplayOrder(
+                          nextKeys,
+                          c.displayOrder,
+                        ),
+                      }))
+                    }
+                    onRemove={handleRemove}
+                    onAdd={handleAdd}
+                    onDisplayTypesChange={(displayTypes) =>
+                      setConfig((c) => ({ ...c, displayTypes }))
                     }
                   />
-                  {data.collections.length === 0 ? (
-                    <Text as="p" tone="subdued">
-                      Sync collections to assign this tree to specific pages.
-                      With no collections selected, this tree is the shop
-                      default (last-created default wins).
-                    </Text>
+                  {config.enablePrice ? (
+                    <BlockStack gap="200">
+                      <ChoiceList
+                        title="Price range"
+                        choices={[
+                          {
+                            label: "From products in each collection",
+                            value: "auto",
+                            helpText:
+                              "Slider min and max come from synced variant prices.",
+                          },
+                          {
+                            label: "Custom min / max",
+                            value: "custom",
+                            helpText:
+                              "You set the slider bounds. Shoppers can still filter inside that range.",
+                          },
+                        ]}
+                        selected={[config.priceRangeMode]}
+                        disabled={saving}
+                        onChange={(selected) =>
+                          setConfig((c) => ({
+                            ...c,
+                            priceRangeMode:
+                              selected[0] === "custom" ? "custom" : "auto",
+                          }))
+                        }
+                      />
+                      {config.priceRangeMode === "custom" ? (
+                        <InlineStack gap="300" wrap>
+                          <TextField
+                            label="Custom min"
+                            type="number"
+                            autoComplete="off"
+                            value={config.customPriceMin}
+                            disabled={saving}
+                            onChange={(value) =>
+                              setConfig((c) => ({
+                                ...c,
+                                customPriceMin: value,
+                              }))
+                            }
+                          />
+                          <TextField
+                            label="Custom max"
+                            type="number"
+                            autoComplete="off"
+                            value={config.customPriceMax}
+                            disabled={saving}
+                            onChange={(value) =>
+                              setConfig((c) => ({
+                                ...c,
+                                customPriceMax: value,
+                              }))
+                            }
+                          />
+                        </InlineStack>
+                      ) : null}
+                    </BlockStack>
                   ) : null}
+                  <NumericRangeBounds
+                    fields={(data.mappedFacets ?? []).filter(
+                      (facet) => facet.filterType === "RANGE",
+                    )}
+                    value={config.rangeBounds}
+                    disabled={saving}
+                    onChange={(rangeBounds) =>
+                      setConfig((c) => ({ ...c, rangeBounds }))
+                    }
+                  />
                 </BlockStack>
               </Card>
 
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    1. Filter options
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Turn on the options shoppers should see. Mapped metafields
-                    appear automatically after you enable them on Metafields.
-                  </Text>
-                  <FormLayout>
-                    <Checkbox
-                      label="Enable filters by default"
-                      checked={config.enabled}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enabled: checked }))
-                      }
-                    />
-                    <Checkbox
-                      label="Price"
-                      checked={config.enablePrice}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enablePrice: checked }))
-                      }
-                    />
-                    {config.enablePrice ? (
-                      <BlockStack gap="200">
-                        <ChoiceList
-                          title="Price range"
-                          choices={[
-                            {
-                              label: "From products in each collection",
-                              value: "auto",
-                              helpText:
-                                "Slider min and max come from synced variant prices.",
-                            },
-                            {
-                              label: "Custom min / max",
-                              value: "custom",
-                              helpText:
-                                "You set the slider bounds. Shoppers can still filter inside that range.",
-                            },
-                          ]}
-                          selected={[config.priceRangeMode]}
-                          disabled={saving}
-                          onChange={(selected) =>
-                            setConfig((c) => ({
-                              ...c,
-                              priceRangeMode:
-                                selected[0] === "custom" ? "custom" : "auto",
-                            }))
-                          }
-                        />
-                        {config.priceRangeMode === "custom" ? (
-                          <InlineStack gap="300" wrap>
-                            <TextField
-                              label="Custom min"
-                              type="number"
-                              autoComplete="off"
-                              value={config.customPriceMin}
-                              disabled={saving}
-                              onChange={(value) =>
-                                setConfig((c) => ({
-                                  ...c,
-                                  customPriceMin: value,
-                                }))
-                              }
-                            />
-                            <TextField
-                              label="Custom max"
-                              type="number"
-                              autoComplete="off"
-                              value={config.customPriceMax}
-                              disabled={saving}
-                              onChange={(value) =>
-                                setConfig((c) => ({
-                                  ...c,
-                                  customPriceMax: value,
-                                }))
-                              }
-                            />
-                          </InlineStack>
-                        ) : null}
-                      </BlockStack>
-                    ) : null}
-                    <Checkbox
-                      label="% Sale off"
-                      helpText="Slider uses real variant compare-at vs price. Turn on after catalog sync."
-                      checked={config.enableSale}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enableSale: checked }))
-                      }
-                    />
-                    <Checkbox
-                      label="Rating stars"
-                      helpText="Uses Shopify reviews.rating (Judge.me, Loox, Stamped). N stars means that rating and up."
-                      checked={config.enableRating}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enableRating: checked }))
-                      }
-                    />
-                    <NumericRangeBounds
-                      fields={(data.mappedFacets ?? []).filter(
-                        (facet) => facet.filterType === "RANGE",
-                      )}
-                      value={config.rangeBounds}
-                      disabled={saving}
-                      onChange={(rangeBounds) =>
-                        setConfig((c) => ({ ...c, rangeBounds }))
-                      }
-                    />
-                    <Checkbox
-                      label="Availability"
-                      checked={config.enableAvailability}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({
-                          ...c,
-                          enableAvailability: checked,
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      label="Vendor"
-                      checked={config.enableVendor}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enableVendor: checked }))
-                      }
-                    />
-                    <Checkbox
-                      label="Product type"
-                      checked={config.enableProductType}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({
-                          ...c,
-                          enableProductType: checked,
-                        }))
-                      }
-                    />
-                    <Checkbox
-                      label="Tags"
-                      checked={config.enableTags}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enableTags: checked }))
-                      }
-                    />
-                    <Checkbox
-                      label="Variant options (Size, Color, etc.)"
-                      checked={config.enableOptions}
-                      disabled={saving}
-                      onChange={(checked) =>
-                        setConfig((c) => ({ ...c, enableOptions: checked }))
-                      }
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    2. Matching (AND vs OR)
+                    Matching (AND vs OR)
                   </Text>
                   <Banner tone="info">
                     <p>
@@ -667,38 +705,7 @@ export default function FilterTreeEditorPage() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    3. Display type and order
-                  </Text>
-                  <DisplayOrderList
-                    keys={config.displayOrder}
-                    disabled={saving}
-                    displayTypes={config.displayTypes}
-                    labels={Object.fromEntries(
-                      (data.mappedFacets ?? []).map((facet) => [
-                        facet.key,
-                        facet.label,
-                      ]),
-                    )}
-                    facetKinds={Object.fromEntries(
-                      (data.mappedFacets ?? []).map((facet) => [
-                        facet.key,
-                        facet.filterType,
-                      ]),
-                    )}
-                    onChange={(displayOrder) =>
-                      setConfig((c) => ({ ...c, displayOrder }))
-                    }
-                    onDisplayTypesChange={(displayTypes) =>
-                      setConfig((c) => ({ ...c, displayTypes }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    4. Filter value order
+                    Filter value order
                   </Text>
                   <FacetValueSortEditor
                     catalog={data.valueCatalog}

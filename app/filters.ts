@@ -192,7 +192,9 @@ export function metafieldValuesForProduct(
 
 export function normalizeDisplayOrder(order?: string[] | null) {
   const next = order?.length ? [...order] : [...DEFAULT_DISPLAY_ORDER];
+  const hasExplicitOptions = next.some((key) => key.startsWith("opt_"));
   for (const key of DEFAULT_DISPLAY_ORDER) {
+    if (key === "options" && hasExplicitOptions) continue;
     if (!next.includes(key) && !next.includes(key === "tags" ? "tag" : key)) {
       next.push(key);
     }
@@ -567,6 +569,24 @@ export function facetsFromConfig(
 
   const ordered: FacetDef[] = [];
   for (const key of order) {
+    if (key.startsWith("opt_")) {
+      if (ordered.some((item) => item.key === key)) continue;
+      const label = key.replace(/^opt_/, "").replace(/_/g, " ");
+      ordered.push({
+        key,
+        source: "option",
+        label,
+        type: "checkbox",
+        enabled: config?.enableOptions ?? true,
+        optionName: label,
+        displayType: displayTypeForFacet(
+          { key, source: "option", label, type: "checkbox" },
+          displayTypes,
+        ),
+        matchMode: matchModeForFacet({ key, source: "option" }, matchModes),
+      });
+      continue;
+    }
     const facet = builtIns[key] ?? builtIns[key === "tag" ? "tags" : key];
     if (facet && !ordered.some((item) => item.key === facet.key)) {
       ordered.push(facet);
@@ -574,6 +594,12 @@ export function facetsFromConfig(
   }
 
   for (const facet of Object.values(builtIns)) {
+    if (
+      facet.key === "options" &&
+      ordered.some((item) => item.key.startsWith("opt_"))
+    ) {
+      continue;
+    }
     if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
   }
 
@@ -742,6 +768,68 @@ function isUselessOption(name: string, values: string[]) {
   return meaningful.length === 0;
 }
 
+export function optionFacetsFromProducts(
+  products: Array<{ options?: Record<string, string[]> | null }>,
+  template?: Pick<FacetDef, "displayType" | "matchMode">,
+  displayTypes: Record<string, FacetDisplayType> = {},
+): FacetDef[] {
+  const byLabel = new Map<
+    string,
+    { names: Set<string>; values: Set<string> }
+  >();
+  for (const product of products) {
+    for (const [name, values] of Object.entries(product.options || {})) {
+      if (!name || isUselessOption(name, values || [])) continue;
+      const label = canonicalOptionLabel(name);
+      const group = byLabel.get(label) ?? {
+        names: new Set<string>(),
+        values: new Set<string>(),
+      };
+      group.names.add(name);
+      for (const value of values || []) {
+        if (value) group.values.add(value);
+      }
+      byLabel.set(label, group);
+    }
+  }
+
+  return [...byLabel.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, group]) => {
+      const names = [...group.names].sort();
+      const key = optionFacetKey(label);
+      return {
+        key,
+        source: "option" as const,
+        label,
+        type: "checkbox" as const,
+        enabled: true,
+        optionName: names[0],
+        optionNames: names,
+        displayType: displayTypeForFacet(
+          { key, source: "option", label, type: "checkbox" },
+          {
+            ...displayTypes,
+            ...(template?.displayType ? { options: template.displayType } : {}),
+          },
+        ),
+        matchMode: matchModeForFacet(
+          { key, source: "option" },
+          template?.matchMode === "and" ? { options: "and" } : {},
+        ),
+      };
+    });
+}
+
+export function catalogOptionRows(
+  products: Array<{ options?: Record<string, string[]> | null }>,
+): Array<{ key: string; label: string }> {
+  return optionFacetsFromProducts(products).map((facet) => ({
+    key: facet.key,
+    label: facet.label,
+  }));
+}
+
 function optionValuesFor(
   product: ProductFacetRow,
   facet: FacetDef,
@@ -768,71 +856,49 @@ export function expandFacetsWithOptions(
   const placeholder = facets.find(
     (facet) => facet.key === "options" || (facet.source === "option" && !facet.optionName),
   );
-  if (!placeholder?.enabled) {
-    return facets.filter(
-      (facet) =>
-        facet.key !== "options" &&
-        !(facet.source === "option" && !facet.optionName),
-    );
+  const explicit = facets.filter(
+    (facet) => facet.key.startsWith("opt_") && facet.enabled,
+  );
+  const displayTypes: Record<string, FacetDisplayType> = {};
+  for (const facet of facets) {
+    if (facet.displayType) displayTypes[facet.key] = facet.displayType;
   }
+  const catalog = optionFacetsFromProducts(products, placeholder, displayTypes);
+  const byKey = new Map(catalog.map((facet) => [facet.key, facet]));
 
-  const byLabel = new Map<
-    string,
-    { names: Set<string>; values: Set<string> }
-  >();
-  for (const product of products) {
-    for (const [name, values] of Object.entries(product.options || {})) {
-      if (!name || isUselessOption(name, values || [])) continue;
-      const label = canonicalOptionLabel(name);
-      const group = byLabel.get(label) ?? {
-        names: new Set<string>(),
-        values: new Set<string>(),
-      };
-      group.names.add(name);
-      for (const value of values || []) {
-        if (value) group.values.add(value);
-      }
-      byLabel.set(label, group);
-    }
-  }
-
-  const optionFacets: FacetDef[] = [...byLabel.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([label, group]) => {
-      const names = [...group.names].sort();
-      const key = optionFacetKey(label);
-      return {
-        key,
-        source: "option" as const,
-        label,
-        type: "checkbox" as const,
+  let selectedOptions: FacetDef[] = [];
+  if (explicit.length) {
+    for (const facet of explicit) {
+      const fromCatalog = byKey.get(facet.key);
+      if (!fromCatalog) continue;
+      selectedOptions.push({
+        ...fromCatalog,
+        displayType: facet.displayType || fromCatalog.displayType,
+        matchMode: facet.matchMode || fromCatalog.matchMode,
         enabled: true,
-        optionName: names[0],
-        optionNames: names,
-        displayType: displayTypeForFacet(
-          { key, source: "option", label, type: "checkbox" },
-          placeholder.displayType
-            ? { options: placeholder.displayType }
-            : {},
-        ),
-        matchMode: matchModeForFacet(
-          { key, source: "option" },
-          placeholder.matchMode === "and" ? { options: "and" } : {},
-        ),
-      };
-    });
+      });
+    }
+  } else if (placeholder?.enabled) {
+    selectedOptions = catalog;
+  }
 
   const result: FacetDef[] = [];
   let inserted = false;
   for (const facet of facets) {
-    if (facet.key === "options" || (facet.source === "option" && !facet.optionName)) {
-      result.push(...optionFacets);
-      inserted = true;
-    } else {
-      result.push(facet);
+    const isOptionSlot =
+      facet.key === "options" ||
+      facet.key.startsWith("opt_") ||
+      (facet.source === "option" && !facet.optionName);
+    if (isOptionSlot) {
+      if (!inserted) {
+        result.push(...selectedOptions);
+        inserted = true;
+      }
+      continue;
     }
+    result.push(facet);
   }
-  if (!inserted) result.push(...optionFacets);
+  if (!inserted) result.push(...selectedOptions);
   return result;
 }
 
@@ -1164,6 +1230,8 @@ export function buildFacetAggregations(
     displayType?: FacetDisplayType;
     matchMode?: FacetMatchMode;
     valueSortMode?: ValueSortMode;
+    optionName?: string;
+    optionNames?: string[];
     values?: Array<{ value: string; label: string; count: number }>;
     range?: { min: number | null; max: number | null };
   }> = [];
@@ -1319,6 +1387,8 @@ export function buildFacetAggregations(
       displayType: facet.displayType ?? "checkbox",
       matchMode: facet.matchMode ?? "or",
       valueSortMode: sort.mode,
+      optionName: facet.optionName,
+      optionNames: facet.optionNames,
       values,
     });
   }
