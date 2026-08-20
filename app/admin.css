@@ -122,3 +122,8 @@
   }
 }
 
+.findly-under-construction__icon {
+  display: flex;
+  justify-content: center;
+}
+

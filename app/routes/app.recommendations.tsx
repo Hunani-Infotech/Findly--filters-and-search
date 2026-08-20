@@ -26,6 +26,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { UnderConstructionGate } from "../components/under-construction";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
@@ -404,6 +405,7 @@ export default function RecommendationsPage() {
   };
 
   return (
+    <UnderConstructionGate feature="Recommendations">
     <Page
       title="Recommendations"
       subtitle="Enable widget to increment your customer cart sizes."
@@ -649,6 +651,7 @@ export default function RecommendationsPage() {
         </Modal.Section>
       </Modal>
     </Page>
+    </UnderConstructionGate>
   );
 }
 

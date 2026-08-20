@@ -22,6 +22,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { UnderConstructionGate } from "../components/under-construction";
 import { getAdminNavExtras, saveAdminNavExtras } from "../admin-nav-extras.server";
 import {
   DEFAULT_YMM_FIELDS,
@@ -253,6 +254,7 @@ export default function VehicleFinderPage() {
   };
 
   return (
+    <UnderConstructionGate feature="Vehicle Finder">
     <Page
       title="Vehicle Finder"
       subtitle="Upload a spreadsheet to map vehicles to products. Configure the form fields below."
@@ -555,6 +557,7 @@ export default function VehicleFinderPage() {
         </Layout.Section>
       </Layout>
     </Page>
+    </UnderConstructionGate>
   );
 }
 
