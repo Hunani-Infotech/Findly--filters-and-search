@@ -50,7 +50,9 @@ async function graphqlJson(
   try {
     const res = await admin.graphql(query);
     const json = (await res.json()) as GraphqlJson;
-    if (shouldSwallowGraphqlErrors(json)) return {};
+    if (shouldSwallowGraphqlErrors(json)) {
+      return json.data ? { data: json.data } : {};
+    }
     return json;
   } catch {
     return {};

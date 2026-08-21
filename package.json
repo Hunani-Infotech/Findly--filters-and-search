@@ -65,6 +65,7 @@
     "verify:f2": "node ./scripts/verify-f2.mjs",
     "verify:f3": "node ./scripts/verify-f3.mjs",
     "verify:f4": "node ./scripts/verify-f4.mjs",
+    "verify:f5": "node ./scripts/verify-f5.mjs",
     "verify:f6": "node ./scripts/verify-f6.mjs",
     "share:db": "node ./scripts/share-db.mjs",
     "share:db:connect": "node ./scripts/share-db-connect.mjs"

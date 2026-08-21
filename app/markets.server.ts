@@ -152,27 +152,20 @@ export const MARKETS_LIST_QUERY = `#graphql
         id
         name
         status
-        enabled
         primary
         currencySettings {
           baseCurrency {
             currencyCode
           }
         }
-        regions(first: 25) {
-          nodes {
-            name
-            ... on MarketRegionCountry {
-              code
-            }
-          }
-        }
         conditions {
           regionsCondition {
-            regions {
-              name
-              ... on MarketRegionCountry {
-                code
+            regions(first: 25) {
+              nodes {
+                name
+                ... on MarketRegionCountry {
+                  code
+                }
               }
             }
           }
@@ -212,17 +205,22 @@ export function parseMarketCountryCodes(payload: unknown): string[] {
       status?: string | null;
       regions?: { nodes?: Array<{ code?: string | null }> };
       conditions?: {
-        regionsCondition?: { regions?: Array<{ code?: string | null }> };
+        regionsCondition?: {
+          regions?:
+            | Array<{ code?: string | null }>
+            | { nodes?: Array<{ code?: string | null }> };
+        };
       };
     };
     if (market.enabled === false) continue;
     if (market.status && String(market.status).toUpperCase() === "DRAFT") {
       continue;
     }
-    const regions = [
-      ...(market.regions?.nodes ?? []),
-      ...(market.conditions?.regionsCondition?.regions ?? []),
-    ];
+    const conditionRegions = market.conditions?.regionsCondition?.regions;
+    const conditionList = Array.isArray(conditionRegions)
+      ? conditionRegions
+      : (conditionRegions?.nodes ?? []);
+    const regions = [...(market.regions?.nodes ?? []), ...conditionList];
     for (const region of regions) {
       const code = String(region?.code || "")
         .trim()

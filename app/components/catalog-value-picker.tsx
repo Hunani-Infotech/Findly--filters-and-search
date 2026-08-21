@@ -49,14 +49,15 @@ export function CatalogValuePicker({
 }) {
   const server = Boolean(onPageChange && totalProp != null);
   const [query, setQuery] = useState(queryProp ?? "");
+  const [seenQueryProp, setSeenQueryProp] = useState(queryProp);
   const [page, setPage] = useState(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  useEffect(() => {
-    if (queryProp == null) return;
+  if (queryProp != null && queryProp !== seenQueryProp) {
+    setSeenQueryProp(queryProp);
     setQuery(queryProp);
-  }, [queryProp]);
+  }
 
   useEffect(() => {
     return () => {

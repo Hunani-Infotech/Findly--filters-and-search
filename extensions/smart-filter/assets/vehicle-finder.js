@@ -127,7 +127,9 @@
       } else if (window.jdgm && typeof window.jdgm.preLoader === "function") {
         window.jdgm.preLoader();
       }
-    } catch (errJdgm) {}
+    } catch (errJdgm) {
+      /* optional partner widget */
+    }
 
     try {
       var heroButtons = document.querySelectorAll(".wishlist-hero-custom-button");
@@ -140,7 +142,9 @@
           }),
         );
       }
-    } catch (errHero) {}
+    } catch (errHero) {
+      /* optional partner widget */
+    }
 
     try {
       if (
@@ -150,30 +154,40 @@
       ) {
         window.frcp.wishlist.attachOnCollection();
       }
-    } catch (errFrcp) {}
+    } catch (errFrcp) {
+      /* optional partner widget */
+    }
 
     try {
       if (window._swat && typeof window._swat.initializeActionButtons === "function") {
         window._swat.initializeActionButtons();
       }
-    } catch (errSwym) {}
+    } catch (errSwym) {
+      /* optional partner widget */
+    }
 
     try {
       // Shopify Translate & Adapt needs no JS because we hide/show locale-rendered theme cards.
       if (window.Weglot && typeof window.Weglot.refresh === "function") {
         window.Weglot.refresh();
       }
-    } catch (errWeglot) {}
+    } catch (errWeglot) {
+      /* optional partner widget */
+    }
 
     try {
       if (window.Currency && typeof window.Currency.convertAll === "function") {
-        Currency.convertAll(
-          Currency.currentCurrency ||
-            (window.Shopify && Shopify.currency && Shopify.currency.active) ||
+        window.Currency.convertAll(
+          window.Currency.currentCurrency ||
+            (window.Shopify &&
+              window.Shopify.currency &&
+              window.Shopify.currency.active) ||
             "USD",
         );
       }
-    } catch (errCurrency) {}
+    } catch (errCurrency) {
+      /* optional currency converter */
+    }
   }
 
   function dispatchPartnerRenderEvents(handles) {
