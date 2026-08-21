@@ -44,6 +44,7 @@ type ConfigState = {
   enablePrice: boolean;
   enableSale: boolean;
   enableRating: boolean;
+  enableLocation: boolean;
   enableAvailability: boolean;
   enableVendor: boolean;
   enableProductType: boolean;
@@ -78,6 +79,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       enablePrice: config?.enablePrice ?? true,
       enableSale: config?.enableSale ?? false,
       enableRating: config?.enableRating ?? false,
+      enableLocation: config?.enableLocation ?? false,
       enableAvailability: config?.enableAvailability ?? true,
       enableVendor: config?.enableVendor ?? true,
       enableProductType: config?.enableProductType ?? true,
@@ -199,6 +201,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     enablePrice: bool("enablePrice"),
     enableSale: bool("enableSale"),
     enableRating: bool("enableRating"),
+    enableLocation: bool("enableLocation"),
     enableAvailability: bool("enableAvailability"),
     enableVendor: bool("enableVendor"),
     enableProductType: bool("enableProductType"),
@@ -249,6 +252,7 @@ export default function ShopDefaultFilterConfigPage() {
     formData.set("enablePrice", String(config.enablePrice));
     formData.set("enableSale", String(config.enableSale));
     formData.set("enableRating", String(config.enableRating));
+    formData.set("enableLocation", String(config.enableLocation));
     formData.set("enableAvailability", String(config.enableAvailability));
     formData.set("enableVendor", String(config.enableVendor));
     formData.set("enableProductType", String(config.enableProductType));
@@ -392,6 +396,15 @@ export default function ShopDefaultFilterConfigPage() {
                       disabled={saving}
                       onChange={(checked) =>
                         setConfig((c) => ({ ...c, enableRating: checked }))
+                      }
+                    />
+                    <Checkbox
+                      label="Inventory locations"
+                      helpText="Shows location names where a product has available stock. Re-sync the catalog after changing Shopify locations."
+                      checked={config.enableLocation}
+                      disabled={saving}
+                      onChange={(checked) =>
+                        setConfig((c) => ({ ...c, enableLocation: checked }))
                       }
                     />
                     <NumericRangeBounds

@@ -38,6 +38,8 @@
   border: 1px solid #c9cccf;
   border-radius: 12px;
   cursor: pointer;
+  height: 100%;
+  min-width: 0;
 }
 
 .layoutCard:hover {
@@ -63,6 +65,7 @@
   display: grid;
   gap: 6px;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .layoutThumbLeft {
@@ -120,6 +123,7 @@
   font-weight: 500;
   color: #202223;
   line-height: 1.2;
+  min-height: 20px;
 }
 
 .layoutRadio {
@@ -156,6 +160,7 @@
   font-size: 13px;
   line-height: 1.45;
   min-width: 0;
+  width: 100%;
 }
 
 .preview .title {

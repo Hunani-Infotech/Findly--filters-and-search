@@ -85,6 +85,22 @@
   font-weight: 600;
 }
 
+.findly-instant .findly-instant__spell {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--fi-muted);
+}
+
+.findly-instant .findly-instant__spell-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--fi-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .findly-instant__products {
   display: grid;
   grid-template-columns: 1fr;

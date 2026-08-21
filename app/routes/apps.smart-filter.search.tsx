@@ -29,10 +29,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const widget = url.searchParams.get("widget") === "1";
   const takeRaw = Number(url.searchParams.get("limit"));
   const take = Number.isFinite(takeRaw) ? takeRaw : undefined;
+  const country = url.searchParams.get("country");
+  const currency = url.searchParams.get("currency");
+  const companyLocationId =
+    url.searchParams.get("companyLocationId") ||
+    url.searchParams.get("company_location");
 
   if (widget && !query.trim()) {
     const bootstrap = await getInstantSearchWidgetPayload({
       shopDomain,
+      country,
+      currency,
+      companyLocationId,
     });
     if ("error" in bootstrap && bootstrap.error) {
       return new Response(JSON.stringify({ error: bootstrap.error }), {
@@ -54,6 +62,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     query,
     locale,
     take,
+    country,
+    currency,
+    companyLocationId,
   });
 
   if ("error" in result && result.error) {

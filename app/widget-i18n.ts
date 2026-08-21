@@ -28,6 +28,9 @@ export const WIDGET_I18N_KEYS = [
   "search_clear",
   "search_submit",
   "suggested",
+  "did_you_mean",
+  "load_more",
+  "loading_more",
 ] as const;
 
 export type WidgetI18nKey = (typeof WIDGET_I18N_KEYS)[number];
@@ -62,6 +65,9 @@ export const DEFAULT_WIDGET_I18N: Record<WidgetI18nKey, string> = {
   search_clear: "Clear query",
   search_submit: "Search",
   suggested: "Suggested",
+  did_you_mean: "Did you mean",
+  load_more: "Load more",
+  loading_more: "Loading more…",
 };
 
 export const WIDGET_I18N_LABELS: Record<WidgetI18nKey, string> = {
@@ -94,6 +100,9 @@ export const WIDGET_I18N_LABELS: Record<WidgetI18nKey, string> = {
   search_clear: "Clear query",
   search_submit: "Search button",
   suggested: "Suggested heading",
+  did_you_mean: "Did you mean",
+  load_more: "Load more button",
+  loading_more: "Loading more",
 };
 
 export type WidgetI18nMap = Record<string, Record<string, string>>;

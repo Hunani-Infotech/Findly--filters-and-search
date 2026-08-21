@@ -10,7 +10,7 @@ import { ensureShopAccess } from "../billing.server";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   deleteValueGroup,
-  getFilterValueCatalog,
+  getCatalogValuesPage,
   getValueGroup,
   updateValueGroup,
 } from "../value-groups.server";
@@ -21,12 +21,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id;
   if (!id) return redirect("/app/groups");
 
-  const [catalog, group] = await Promise.all([
-    getFilterValueCatalog(shop.id),
-    getValueGroup(shop.id, id),
-  ]);
+  const group = await getValueGroup(shop.id, id);
   if (!group) return redirect("/app/groups");
 
+  const catalog = await getCatalogValuesPage(shop.id, group.sourceKey);
   return {
     catalog,
     group: {

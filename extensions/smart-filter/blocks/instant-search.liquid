@@ -2,6 +2,9 @@
   class="findly-instant"
   data-proxy-base="/apps/smart-filter"
   data-locale="{{ request.locale.iso_code }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-currency="{{ cart.currency.iso_code }}"
+  data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
   hidden
   {{ block.shopify_attributes }}
 ></div>

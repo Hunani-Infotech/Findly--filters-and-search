@@ -4,6 +4,7 @@ import prisma from "./db.server";
 import {
   applyHideOutOfStock,
   buildFacetAggregations,
+  excludeHiddenTaggedProducts,
   expandFacetsWithOptions,
   facetsFromConfig,
   matchingVariantImageUrl,
@@ -16,8 +17,18 @@ import {
   type SelectedFilters,
 } from "./filters.server";
 import { applyFacetValueFilter, applyFacetValueLabel, parseFacetSettings } from "./facet-settings";
-import { resolveStorefrontSort, sortProductRows } from "./sort.server";
-import { normalizeSearchFields, normalizeSortOptions, parseSortOption } from "./app-settings";
+import {
+  listMetafieldSortOptions,
+  resolveStorefrontSort,
+  sortProductRows,
+} from "./sort.server";
+import {
+  normalizeHideProductTags,
+  normalizeSearchFields,
+  normalizeSortOptions,
+  parsePaginationStyle,
+  parseSortOption,
+} from "./app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
 import { mappingAppliesToFilter } from "./metafield-applies";
 import { swatchMapForShop } from "./color-swatches.server";
@@ -28,11 +39,25 @@ import {
   sourceKeyForFacet,
 } from "./value-groups.server";
 import { optionKeyFromName } from "./filter-catalog";
+import {
+  expandProductsAsVariants,
+  parseStoredVariants,
+  shopifyNumericId,
+  variantCardKey,
+} from "./variants-as-products";
 import { getAppSettings } from "./settings.server";
+import { sanitizeCustomCss, sanitizeProductListLiquid, scopeCustomCss } from "./widget-code";
 import { enforcePlanLimits } from "./billing.server";
 import { getAdminNavExtras } from "./admin-nav-extras.server";
 import { resolveWidgetChrome } from "./widget-i18n";
 import { withWidgetChrome } from "./filters.server";
+import {
+  COLLECTION_FACET_KEY,
+  nestCollectionValues,
+  parseCollectionParents,
+  withCollectionMeta,
+  type ShopCollection,
+} from "./collection-facet";
 import {
   enabledMetafieldPaths,
   normalizeSearchQuery,
@@ -40,13 +65,17 @@ import {
   popularQuerySuggestions,
   productMatchesKeyword,
   searchCollections,
+  searchPages,
+  searchArticles,
   searchProductFacets,
-  searchProducts,
+  searchProductsWithMeta,
 } from "./search.server";
 import {
   normalizeSearchQueryKey,
   parseSearchExtras,
+  stripStopWordsFromQuery,
 } from "./instant-search";
+import { applyMarketPricesToRow, parseMarketContext } from "./markets.server";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
 export function verifyAppProxySignature(url: URL): boolean {
@@ -79,6 +108,72 @@ export function verifyAppProxySignature(url: URL): boolean {
   }
 }
 
+export const FILTER_PAGE_SIZE_MAX = 48;
+
+/** 1-based page; invalid values become 1. */
+export function parseFilterPage(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.floor(n);
+}
+
+/**
+ * Omitted, empty, or 0 → no paging (return all matches).
+ * Otherwise clamp to 1–48.
+ */
+export function parseFilterPageSize(value: unknown): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.min(FILTER_PAGE_SIZE_MAX, Math.max(1, Math.floor(n)));
+}
+
+function sliceFilterProducts<T>(
+  products: T[],
+  page: number | undefined,
+  pageSize: number | undefined,
+): {
+  products: T[];
+  total: number;
+  page?: number;
+  pageSize?: number;
+  hasNext?: boolean;
+} {
+  const total = products.length;
+  if (pageSize == null || pageSize <= 0) {
+    return { products, total };
+  }
+  const size = Math.min(FILTER_PAGE_SIZE_MAX, Math.max(1, Math.floor(pageSize)));
+  const p = Math.max(1, Math.floor(page ?? 1));
+  const start = (p - 1) * size;
+  const sliced = products.slice(start, start + size);
+  return {
+    products: sliced,
+    total,
+    page: p,
+    pageSize: size,
+    hasNext: start + size < total,
+  };
+}
+
+type MarketRequestFields = {
+  country?: string | null;
+  currency?: string | null;
+  companyLocationId?: string | null;
+  company_location?: string | null;
+};
+
+function payloadCurrency(
+  context: { currency?: string | null },
+  rows: Array<{ currency?: string }>,
+): string | undefined {
+  if (context.currency) return context.currency;
+  for (const row of rows) {
+    if (row.currency) return row.currency;
+  }
+  return undefined;
+}
+
 function toRow(p: {
   productGid: string;
   handle: string;
@@ -93,9 +188,11 @@ function toRow(p: {
   compareAtMax?: { toNumber?: () => number } | number | string | null;
   salePct?: { toNumber?: () => number } | number | string | null;
   available: boolean;
+  inventoryLocations?: unknown;
   status?: string | null;
   imageUrl: string | null;
   variantImages?: unknown;
+  variants?: unknown;
   metafields: unknown;
   variantMetafields?: unknown;
   publishedAt?: Date | null;
@@ -127,14 +224,56 @@ function toRow(p: {
         : num(p.compareAtMax),
     salePct: p.salePct == null || p.salePct === "" ? 0 : num(p.salePct),
     available: p.available,
+    inventoryLocations: Array.isArray(p.inventoryLocations)
+      ? p.inventoryLocations.filter((n) => typeof n === "string" && n)
+      : [],
     status: p.status || "ACTIVE",
     imageUrl: p.imageUrl,
     variantImages: parseVariantImages(p.variantImages),
+    variants: parseStoredVariants(p.variants),
     metafields: (p.metafields as Record<string, string>) || {},
     variantMetafields: (p.variantMetafields as Record<string, string>) || {},
     publishedAt: p.publishedAt ?? null,
     sortPosition: 0,
+    collectionGids: [],
   };
+}
+
+async function loadShopCollections(shopId: string): Promise<ShopCollection[]> {
+  const rows = await prisma.collection.findMany({
+    where: { shopId },
+    select: { collectionGid: true, title: true, handle: true },
+    orderBy: { title: "asc" },
+  });
+  return rows.map((row) => ({
+    collectionGid: row.collectionGid,
+    title: row.title,
+    handle: row.handle,
+  }));
+}
+
+async function attachCollectionGids(
+  shopId: string,
+  rows: ProductFacetRow[],
+): Promise<ProductFacetRow[]> {
+  if (!rows.length) return rows;
+  const memberships = await prisma.collectionMembership.findMany({
+    where: {
+      shopId,
+      productGid: { in: rows.map((row) => row.productGid) },
+    },
+    select: { productGid: true, collectionGid: true },
+  });
+  const byProduct = new Map<string, string[]>();
+  for (const row of memberships) {
+    const list = byProduct.get(row.productGid) || [];
+    list.push(row.collectionGid);
+    byProduct.set(row.productGid, list);
+  }
+  return rows.map((row) => ({
+    ...row,
+    collectionGids: byProduct.get(row.productGid) || [],
+  }));
 }
 
 export async function getCollectionFilterPayload(input: {
@@ -145,7 +284,9 @@ export async function getCollectionFilterPayload(input: {
   sort?: string | null;
   query?: string | null;
   locale?: string | null;
-}) {
+  page?: number;
+  pageSize?: number;
+} & MarketRequestFields) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
@@ -196,6 +337,7 @@ export async function getCollectionFilterPayload(input: {
     : [];
 
   const appSettings = await getAppSettings(shop.id);
+  const extras = parseSearchExtras(appSettings.searchExtras);
   const collectionQuery = appSettings.enableCollectionSearch
     ? normalizeSearchQuery(input.query ?? "")
     : "";
@@ -211,14 +353,26 @@ export async function getCollectionFilterPayload(input: {
           collectionQuery,
           searchFields,
           metafieldPaths,
+          {
+            stopWords: extras.stopWords,
+            fuzzy: extras.fuzzyTextSearch,
+            fallback: extras.fallbackSearch,
+          },
         ),
       )
     : productsDb;
 
+  const enableMarkets = appSettings.enableMarkets !== false;
+  const context = parseMarketContext(input);
   const allRows = scopedProducts
     .filter((product) => (product.status || "ACTIVE") === "ACTIVE")
     .map((product) => ({
-      ...toRow(product),
+      ...applyMarketPricesToRow(
+        toRow(product),
+        product.marketPrices,
+        context,
+        enableMarkets,
+      ),
       sortPosition: positionByGid.get(product.productGid) ?? 0,
     }));
 
@@ -231,6 +385,9 @@ export async function getCollectionFilterPayload(input: {
     sort: input.sort,
     query: collectionQuery || null,
     locale: input.locale,
+    page: input.page,
+    pageSize: input.pageSize,
+    currency: payloadCurrency(context, allRows),
   });
 }
 
@@ -244,6 +401,9 @@ async function buildFacetPayload(input: {
   sort?: string | null;
   isSearch?: boolean;
   locale?: string | null;
+  page?: number;
+  pageSize?: number;
+  currency?: string | null;
 }) {
   const [mappings, appSettings, limits, valueGroups, swatches, extras] = await Promise.all([
     getMetafieldMappings(input.shopId),
@@ -258,10 +418,16 @@ async function buildFacetPayload(input: {
     .filter((mapping) => mappingAppliesToFilter(mapping))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .slice(0, limits.filterLimit);
+  const metafieldSortOptions = listMetafieldSortOptions(mappings);
   const settings = {
     showProductCounts: appSettings.showProductCounts,
+    showTotalProductCount: appSettings.showTotalProductCount !== false,
+    hideProductTags: normalizeHideProductTags(appSettings.hideProductTags),
     collapseByDefault: appSettings.collapseByDefault,
     hideOutOfStock: appSettings.hideOutOfStock,
+    paginationStyle: parsePaginationStyle(
+      (appSettings as { paginationStyle?: unknown }).paginationStyle,
+    ),
     widgetPosition: appSettings.widgetPosition,
     accentColor: appSettings.accentColor,
     widgetShadow: appSettings.widgetShadow,
@@ -283,13 +449,51 @@ async function buildFacetPayload(input: {
       appSettings.showMatchingVariantImage ?? true,
     ),
     showRefineBy: Boolean(appSettings.showRefineBy ?? true),
+    customCss: scopeCustomCss(sanitizeCustomCss(appSettings.customCss)),
+    productListLiquid: sanitizeProductListLiquid(appSettings.productListLiquid),
+    metafieldSortOptions,
+    enableVariantsAsProducts: Boolean(
+      (input.config as { enableVariantsAsProducts?: boolean })
+        .enableVariantsAsProducts,
+    ),
+    ...(input.currency ? { currency: input.currency } : {}),
   };
 
+  const visibleBase = excludeHiddenTaggedProducts(
+    input.rows,
+    normalizeHideProductTags(appSettings.hideProductTags),
+  );
+  const displayOrder = Array.isArray(input.config.displayOrder)
+    ? (input.config.displayOrder as string[])
+    : [];
+  const wantsCollection = displayOrder.includes(COLLECTION_FACET_KEY);
+  let visibleRows = visibleBase;
+  let collectionCatalog: ShopCollection[] = [];
+  if (wantsCollection) {
+    const [withGids, catalog] = await Promise.all([
+      attachCollectionGids(input.shopId, visibleBase),
+      loadShopCollections(input.shopId),
+    ]);
+    visibleRows = withGids;
+    collectionCatalog = catalog;
+  }
+  const variantSplit = Boolean(
+    (input.config as { enableVariantsAsProducts?: boolean })
+      .enableVariantsAsProducts,
+  );
+  if (variantSplit && !input.isSearch) {
+    visibleRows = expandProductsAsVariants(
+      visibleRows,
+      (input.config as { variantAsProductOptions?: string[] })
+        .variantAsProductOptions || [],
+    );
+  }
   const resolved = resolveStorefrontSort({
     requested: input.sort,
     enabled: settings.sortOptionsEnabled,
     defaultSort: settings.defaultSort,
     isSearch: input.isSearch,
+    metafieldSortKeys: metafieldSortOptions.map((option) => option.key),
   });
 
   const facetSettings = parseFacetSettings(
@@ -297,7 +501,7 @@ async function buildFacetPayload(input: {
   );
   const facets = expandFacetsWithOptions(
     facetsFromConfig(input.config, cappedMappings),
-    input.rows,
+    visibleRows,
   ).map((facet) => {
     const custom = facetSettings[facet.key]?.label;
     return custom ? { ...facet, label: custom } : facet;
@@ -315,7 +519,7 @@ async function buildFacetPayload(input: {
       sourceKey,
     );
   }
-  const matched = input.rows.filter((product) =>
+  const matched = visibleRows.filter((product) =>
     productMatchesFilters(product, facets, selectedForMatch),
   );
   const filtered = sortProductRows(
@@ -329,11 +533,14 @@ async function buildFacetPayload(input: {
       preserveOrder: resolved.preserveOrder,
       inStockOnTop: appSettings.inStockOnTop,
       soldOutToBottom: appSettings.soldOutToBottom,
+      metafieldSort: metafieldSortOptions.find(
+        (option) => option.key === resolved.sort,
+      ),
     },
   );
   const optionGroups = selectedOptionFilterGroups(facets, input.selected);
   const aggregations = withWidgetChrome(chrome, () =>
-    buildFacetAggregations(input.rows, facets, {
+    buildFacetAggregations(visibleRows, facets, {
       mode: input.config.priceRangeMode,
       customMin: input.config.customPriceMin,
       customMax: input.config.customPriceMax,
@@ -341,7 +548,7 @@ async function buildFacetPayload(input: {
       input.config && "valueSort" in input.config ? input.config.valueSort : {},
     ), parseRangeBounds(
       input.config && "rangeBounds" in input.config ? input.config.rangeBounds : {},
-    )),
+    ), collectionCatalog),
   ).map((facet) => {
     const sourceKey = sourceKeyForFacet(facet);
     const values = facet.values
@@ -351,23 +558,35 @@ async function buildFacetPayload(input: {
       facet.optionName || String(facet.key || "").replace(/^opt_/, ""),
     );
     const shopSwatches = swatches[optionKey] || {};
+    const setting = facetSettings[facet.key] || {};
+    let nextValues = values
+      ?.filter((item) =>
+        applyFacetValueFilter(facet.key, [item.value], facetSettings).includes(
+          item.value,
+        ),
+      )
+      .map((item) => {
+        const labeled = {
+          ...item,
+          label: applyFacetValueLabel(facet.key, item.label, facetSettings),
+        };
+        const swatch = shopSwatches[item.value] || shopSwatches[labeled.label];
+        return swatch ? { ...labeled, swatch } : labeled;
+      });
+    if (facet.source === "collection" && nextValues) {
+      nextValues = withCollectionMeta(nextValues, collectionCatalog);
+      if (setting.collectionTree) {
+        nextValues = nestCollectionValues(
+          nextValues,
+          parseCollectionParents(setting.collectionParents),
+        );
+      }
+    }
     return {
       ...facet,
-      label: facetSettings[facet.key]?.label || facet.label,
-      values: values
-        ?.filter((item) =>
-          applyFacetValueFilter(facet.key, [item.value], facetSettings).includes(
-            item.value,
-          ),
-        )
-        .map((item) => {
-          const labeled = {
-            ...item,
-            label: applyFacetValueLabel(facet.key, item.label, facetSettings),
-          };
-          const swatch = shopSwatches[item.value] || shopSwatches[labeled.label];
-          return swatch ? { ...labeled, swatch } : labeled;
-        }),
+      label: setting.label || facet.label,
+      collectionTree: Boolean(setting.collectionTree),
+      values: nextValues,
     };
   });
 
@@ -377,25 +596,53 @@ async function buildFacetPayload(input: {
     i18n: chrome,
     settings,
     facets: aggregations,
-    products: filtered.map((product) => ({
-      id: product.productGid,
-      handle: product.handle,
-      title: product.title,
-      available: product.available,
-      priceMin: product.priceMin,
-      priceMax: product.priceMax,
-      imageUrl: product.imageUrl,
-      variantImageUrl: settings.showMatchingVariantImage
-        ? matchingVariantImageUrl(product.variantImages ?? [], optionGroups)
-        : "",
-    })),
-    total: filtered.length,
+    products: filtered.map((product) => {
+      const variantId = shopifyNumericId(product.variantGid || "");
+      const variantImage = product.variantGid
+        ? product.imageUrl || ""
+        : settings.showMatchingVariantImage
+          ? matchingVariantImageUrl(product.variantImages ?? [], optionGroups)
+          : "";
+      return {
+        id: product.variantGid || product.productGid,
+        handle: product.handle,
+        title: product.title,
+        available: product.available,
+        priceMin: product.priceMin,
+        priceMax: product.priceMax,
+        imageUrl: product.imageUrl,
+        variantImageUrl: variantImage,
+        variantId: variantId || undefined,
+        cardKey: variantId
+          ? variantCardKey(product.handle, product.variantGid || "")
+          : product.handle,
+        url: variantId
+          ? `/products/${product.handle}?variant=${variantId}`
+          : `/products/${product.handle}`,
+      };
+    }),
     sort: resolved.sort,
     ...(input.collectionGid != null ? { collectionGid: input.collectionGid } : {}),
     ...(input.query != null ? { query: input.query } : {}),
   };
 
-  return { data, status: 200 as const };
+  const paged = sliceFilterProducts(data.products, input.page, input.pageSize);
+
+  return {
+    data: {
+      ...data,
+      products: paged.products,
+      total: paged.total,
+      ...(paged.pageSize != null
+        ? {
+            page: paged.page,
+            pageSize: paged.pageSize,
+            hasNext: paged.hasNext,
+          }
+        : {}),
+    },
+    status: 200 as const,
+  };
 }
 
 export async function getSearchFilterPayload(input: {
@@ -404,7 +651,9 @@ export async function getSearchFilterPayload(input: {
   selected: SelectedFilters;
   sort?: string | null;
   locale?: string | null;
-}) {
+  page?: number;
+  pageSize?: number;
+} & MarketRequestFields) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
@@ -443,7 +692,16 @@ export async function getSearchFilterPayload(input: {
   }
 
   const productsDb = await searchProductFacets(shop.id, query);
-  const allRows = productsDb.map(toRow);
+  const enableMarkets = appSettings.enableMarkets !== false;
+  const context = parseMarketContext(input);
+  const allRows = productsDb.map((product) =>
+    applyMarketPricesToRow(
+      toRow(product),
+      product.marketPrices,
+      context,
+      enableMarkets,
+    ),
+  );
 
   return buildFacetPayload({
     shopId: shop.id,
@@ -454,12 +712,17 @@ export async function getSearchFilterPayload(input: {
     sort: input.sort,
     isSearch: true,
     locale: input.locale,
+    page: input.page,
+    pageSize: input.pageSize,
+    currency: payloadCurrency(context, allRows),
   });
 }
 
-export async function getInstantSearchWidgetPayload(input: {
-  shopDomain: string;
-}) {
+export async function getInstantSearchWidgetPayload(
+  input: {
+    shopDomain: string;
+  } & MarketRequestFields,
+) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
@@ -468,6 +731,7 @@ export async function getInstantSearchWidgetPayload(input: {
   }
   const settings = await getAppSettings(shop.id);
   const extras = parseSearchExtras(settings.searchExtras);
+  const context = parseMarketContext(input);
   return {
     data: {
       instant: extras.instant,
@@ -475,6 +739,9 @@ export async function getInstantSearchWidgetPayload(input: {
       showSuggestionsOnEmptyQuery: settings.showSuggestionsOnEmptyQuery,
       showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
       minChars: 2,
+      ...(context.currency
+        ? { settings: { currency: context.currency } }
+        : {}),
     },
     status: 200 as const,
   };
@@ -485,7 +752,7 @@ export async function getSearchPayload(input: {
   query: string;
   locale?: string | null;
   take?: number;
-}) {
+} & MarketRequestFields) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
@@ -500,13 +767,28 @@ export async function getSearchPayload(input: {
   const redirect = extras.redirects.find((row) => row.query === queryKey);
 
   const take = Math.min(Math.max(input.take ?? 24, 1), 48);
-  const products = await searchProducts(shop.id, input.query, { take });
+  const { products, meta } = await searchProductsWithMeta(
+    shop.id,
+    input.query,
+    { take },
+  );
+  const collectionQuery = stripStopWordsFromQuery(
+    input.query,
+    extras.stopWords,
+  );
 
   const fields = normalizeSearchFields(settings.searchFields);
   const liveCollections =
     extras.instant.showCollections || fields.includes("collectionTitle")
-      ? await searchCollections(shop.id, input.query, { take: 6 })
+      ? await searchCollections(shop.id, collectionQuery, { take: 6 })
       : [];
+
+  const pages = extras.instant.showPages
+    ? await searchPages(shop.id, input.query, { take: 6 })
+    : [];
+  const articles = extras.instant.showBlogPosts
+    ? await searchArticles(shop.id, input.query, { take: 6 })
+    : [];
 
   const wantSuggestions =
     (!normalizedQuery && settings.showSuggestionsOnEmptyQuery) ||
@@ -531,40 +813,57 @@ export async function getSearchPayload(input: {
   const extrasNav = await getAdminNavExtras(shop.id);
   const { locale, chrome } = resolveWidgetChrome(extrasNav.i18n, input.locale);
 
+  const enableMarkets = settings.enableMarkets !== false;
+  const context = parseMarketContext(input);
+  const pricedProducts = products.map((product) =>
+    applyMarketPricesToRow(
+      product,
+      product.marketPrices,
+      context,
+      enableMarkets,
+    ),
+  );
+  const pricedSuggestions = pinned.products.map((product) =>
+    applyMarketPricesToRow(
+      product,
+      product.marketPrices,
+      context,
+      enableMarkets,
+    ),
+  );
+  const currency = payloadCurrency(context, [
+    ...pricedProducts,
+    ...pricedSuggestions,
+  ]);
+
+  const toSearchHit = (product: (typeof pricedProducts)[number]) => ({
+    id: product.productGid,
+    handle: product.handle,
+    title: product.title,
+    vendor: product.vendor,
+    productType: product.productType,
+    available: product.available,
+    priceMin: product.priceMin,
+    priceMax: product.priceMax,
+    imageUrl: product.imageUrl,
+    url: `/products/${product.handle}`,
+  });
+
   const data = {
     query: normalizedQuery,
     locale,
     i18n: chrome,
     instant: extras.instant,
     redirect: redirect?.url ?? null,
-    products: products.map((product) => ({
-      id: product.productGid,
-      handle: product.handle,
-      title: product.title,
-      vendor: product.vendor,
-      productType: product.productType,
-      available: product.available,
-      priceMin: product.priceMin,
-      priceMax: product.priceMax,
-      imageUrl: product.imageUrl,
-      url: `/products/${product.handle}`,
-    })),
+    didYouMean: meta.didYouMean,
+    usedFallback: meta.usedFallback,
+    settings: currency ? { currency } : undefined,
+    products: pricedProducts.map(toSearchHit),
     total: products.length,
     queries,
-    pages: [] as Array<{ title: string; url: string }>,
-    articles: [] as Array<{ title: string; url: string }>,
-    suggestions: pinned.products.map((product) => ({
-      id: product.productGid,
-      handle: product.handle,
-      title: product.title,
-      vendor: product.vendor,
-      productType: product.productType,
-      available: product.available,
-      priceMin: product.priceMin,
-      priceMax: product.priceMax,
-      imageUrl: product.imageUrl,
-      url: `/products/${product.handle}`,
-    })),
+    pages,
+    articles,
+    suggestions: pricedSuggestions.map(toSearchHit),
     collections: [...collectionMap.values()],
   };
 

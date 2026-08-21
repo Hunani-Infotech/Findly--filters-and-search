@@ -118,36 +118,29 @@ function useCollectionPickerPages({
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(initialHasNext);
   const [total, setTotal] = useState(initialTotal);
-  const queryRef = useRef(query);
-  const pageRef = useRef(1);
+  const [applied, setApplied] = useState<CollectionPickerResponse | undefined>();
   const timerRef = useRef<number>(0);
-  const appliedRef = useRef<CollectionPickerResponse | undefined>(undefined);
-
-  queryRef.current = query;
 
   const loading = fetcher.state !== "idle";
+  const incoming = fetcher.state === "idle" ? fetcher.data : undefined;
 
   if (
-    fetcher.state === "idle" &&
-    fetcher.data &&
-    fetcher.data !== appliedRef.current &&
-    fetcher.data.query === queryRef.current.trim()
+    incoming &&
+    incoming !== applied &&
+    incoming.query === query.trim()
   ) {
-    appliedRef.current = fetcher.data;
-    const nextRows = fetcher.data.collections;
-    setPage(fetcher.data.page);
-    pageRef.current = fetcher.data.page;
-    setHasNext(fetcher.data.hasNext);
-    setTotal(fetcher.data.total);
-    setRows((current) =>
-      mode === "append" && fetcher.data && fetcher.data.page > 1
-        ? mergeChoices(current, nextRows)
-        : nextRows,
+    setApplied(incoming);
+    setPage(incoming.page);
+    setHasNext(incoming.hasNext);
+    setTotal(incoming.total);
+    setRows(
+      mode === "append" && incoming.page > 1
+        ? mergeChoices(rows, incoming.collections)
+        : incoming.collections,
     );
   }
 
-  const loadPage = (nextPage: number, nextQuery = queryRef.current.trim()) => {
-    pageRef.current = nextPage;
+  const loadPage = (nextPage: number, nextQuery = query.trim()) => {
     fetcher.load(pickerUrl(nextQuery, nextPage, pageSize, searchParams));
   };
 
@@ -165,7 +158,7 @@ function useCollectionPickerPages({
 
   const loadMore = () => {
     if (loading || !hasNext) return;
-    loadPage(pageRef.current + 1);
+    loadPage(page + 1);
   };
 
   const goToPage = (nextPage: number) => {
@@ -176,7 +169,6 @@ function useCollectionPickerPages({
   const reloadFirstPage = () => {
     window.clearTimeout(timerRef.current);
     setQuery("");
-    queryRef.current = "";
     loadPage(1, "");
   };
 

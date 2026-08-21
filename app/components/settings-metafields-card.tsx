@@ -121,8 +121,8 @@ function AppliesToField({
               />
               {key === "sort" ? (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Saved on the mapping. Storefront sort does not use metafields
-                  yet.
+                  Checking Sort adds this metafield to the storefront Sort By
+                  dropdown (using its display name). Uncheck Sort to remove it.
                 </Text>
               ) : null}
             </BlockStack>

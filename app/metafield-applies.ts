@@ -11,7 +11,8 @@ const APPLY_SET = new Set<string>(METAFIELD_APPLY_KEYS);
 
 /**
  * New rows participate in launch filters + search. Display is on so the
- * metafield is declared; Sort stays off (storefront sort-by-metafield is later).
+ * metafield is declared. Sort stays off until the merchant opts in (Applies to:
+ * Sort adds a storefront Sort By key).
  */
 export const DEFAULT_NEW_APPLIES: MetafieldApplyKey[] = [
   "display",
@@ -67,6 +68,16 @@ export function mappingAppliesToSearch(mapping: {
   const listed = normalizeMetafieldAppliesTo(mapping.appliesTo);
   if (listed.length > 0) return listed.includes("search");
   return Boolean(mapping.enabled);
+}
+
+/** Sort is opt-in only — legacy enabled mappings do not get a Sort By key. */
+export function mappingAppliesToSort(mapping: {
+  enabled?: boolean;
+  appliesTo?: unknown;
+}): boolean {
+  const listed = normalizeMetafieldAppliesTo(mapping.appliesTo);
+  if (listed.length > 0) return listed.includes("sort");
+  return false;
 }
 
 /**

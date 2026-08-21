@@ -123,6 +123,7 @@ export const TRANSLATION_FIELDS: Record<
     { key: "suggested", reference: "Suggested heading", defaultValue: "Suggested" },
     { key: "search.view_all", reference: "View all", defaultValue: "View all" },
     { key: "search.did_you_mean", reference: "Did you mean", defaultValue: "Did you mean" },
+    { key: "did_you_mean", reference: "Did you mean", defaultValue: "Did you mean" },
     { key: "search.articles", reference: "Articles", defaultValue: "Articles" },
   ],
   filter: [

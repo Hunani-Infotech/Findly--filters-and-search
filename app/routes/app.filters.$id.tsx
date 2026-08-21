@@ -20,6 +20,7 @@ import {
   BlockStack,
   Button,
   Card,
+  Checkbox,
   InlineStack,
   Layout,
   Page,
@@ -38,6 +39,7 @@ import {
   withFilterTreeMeta,
 } from "../facet-settings";
 import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
+import { normalizeVariantOptionNames } from "../variants-as-products";
 import {
   createFilterTree,
   defaultFilterTreeDisplayOrder,
@@ -74,11 +76,14 @@ type ConfigState = {
   enablePrice: boolean;
   enableSale: boolean;
   enableRating: boolean;
+  enableLocation: boolean;
   enableAvailability: boolean;
   enableVendor: boolean;
   enableProductType: boolean;
   enableTags: boolean;
   enableOptions: boolean;
+  enableVariantsAsProducts: boolean;
+  variantAsProductOptions: string;
   priceRangeMode: "auto" | "custom";
   customPriceMin: string;
   customPriceMax: string;
@@ -173,11 +178,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           enablePrice: config?.enablePrice ?? true,
           enableSale: config?.enableSale ?? false,
           enableRating: config?.enableRating ?? false,
+          enableLocation: config?.enableLocation ?? false,
           enableAvailability: config?.enableAvailability ?? true,
           enableVendor: config?.enableVendor ?? true,
           enableProductType: config?.enableProductType ?? true,
           enableTags: config?.enableTags ?? true,
           enableOptions: config?.enableOptions ?? true,
+          enableVariantsAsProducts: Boolean(
+            (config as { enableVariantsAsProducts?: boolean } | null)
+              ?.enableVariantsAsProducts,
+          ),
+          variantAsProductOptions: (
+            (config as { variantAsProductOptions?: string[] } | null)
+              ?.variantAsProductOptions || []
+          ).join(", "),
           displayOrder: storedFilterDisplayOrder(
             config?.displayOrder,
             config?.enableSale,
@@ -208,11 +222,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           enablePrice: true,
           enableSale: true,
           enableRating: false,
+          enableLocation: false,
           enableAvailability: true,
           enableVendor: true,
           enableProductType: true,
           enableTags: true,
           enableOptions: true,
+          enableVariantsAsProducts: false,
+          variantAsProductOptions: "",
           displayOrder: defaultFilterTreeDisplayOrder(),
           displayTypes: parseDisplayTypes({}),
           matchModes: parseMatchModes({}),
@@ -406,11 +423,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     enablePrice: bool("enablePrice"),
     enableSale: bool("enableSale"),
     enableRating: bool("enableRating"),
+    enableLocation: bool("enableLocation"),
     enableAvailability: bool("enableAvailability"),
     enableVendor: bool("enableVendor"),
     enableProductType: bool("enableProductType"),
     enableTags: bool("enableTags"),
     enableOptions: bool("enableOptions"),
+    enableVariantsAsProducts: bool("enableVariantsAsProducts"),
+    variantAsProductOptions: normalizeVariantOptionNames(
+      String(form.get("variantAsProductOptions") || ""),
+    ),
     priceRangeMode,
     customPriceMin: customMin,
     customPriceMax: customMax,
@@ -468,6 +490,7 @@ export default function FilterTreeEditorPage() {
             enablePrice: config.enablePrice,
             enableSale: config.enableSale,
             enableRating: config.enableRating,
+            enableLocation: config.enableLocation,
             enableAvailability: config.enableAvailability,
             enableVendor: config.enableVendor,
             enableProductType: config.enableProductType,
@@ -484,6 +507,7 @@ export default function FilterTreeEditorPage() {
       config.enablePrice,
       config.enableSale,
       config.enableRating,
+      config.enableLocation,
       config.enableAvailability,
       config.enableVendor,
       config.enableProductType,
@@ -562,11 +586,17 @@ export default function FilterTreeEditorPage() {
     formData.set("enablePrice", String(config.enablePrice));
     formData.set("enableSale", String(rows.some((row) => row.key === "sale")));
     formData.set("enableRating", String(config.enableRating));
+    formData.set("enableLocation", String(config.enableLocation));
     formData.set("enableAvailability", String(config.enableAvailability));
     formData.set("enableVendor", String(config.enableVendor));
     formData.set("enableProductType", String(config.enableProductType));
     formData.set("enableTags", String(config.enableTags));
     formData.set("enableOptions", String(config.enableOptions));
+    formData.set(
+      "enableVariantsAsProducts",
+      String(config.enableVariantsAsProducts),
+    );
+    formData.set("variantAsProductOptions", config.variantAsProductOptions);
     formData.set("priceRangeMode", config.priceRangeMode);
     formData.set("customPriceMin", config.customPriceMin);
     formData.set("customPriceMax", config.customPriceMax);
@@ -683,6 +713,39 @@ export default function FilterTreeEditorPage() {
                   excluded={config.excludeCollectionGids}
                   onExcludedChange={(excludeCollectionGids) =>
                     setConfig((c) => ({ ...c, excludeCollectionGids }))
+                  }
+                />
+              </BlockStack>
+            </Card>
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">
+                  Variants as separate products
+                </Text>
+                <Checkbox
+                  label="Show variants as separate products"
+                  checked={config.enableVariantsAsProducts}
+                  disabled={saving}
+                  helpText="Each variant becomes its own card on assigned collection pages. A 3-color product shows 3 cards."
+                  onChange={(checked) =>
+                    setConfig((c) => ({
+                      ...c,
+                      enableVariantsAsProducts: checked,
+                    }))
+                  }
+                />
+                <TextField
+                  label="Split by option names"
+                  value={config.variantAsProductOptions}
+                  autoComplete="off"
+                  disabled={saving || !config.enableVariantsAsProducts}
+                  placeholder="Color"
+                  helpText="Optional. Example: Color shows one card per color. Leave empty to show every variant."
+                  onChange={(value) =>
+                    setConfig((c) => ({
+                      ...c,
+                      variantAsProductOptions: value,
+                    }))
                   }
                 />
               </BlockStack>

@@ -1,4 +1,5 @@
 import prisma from "./db.server";
+import { ADMIN_TABLE_PAGE_SIZE, slicePage } from "./admin-list-page";
 import { optionKeyFromName } from "./filter-catalog";
 import { hexFromColorName, isSwatchFilled } from "./color-autofill";
 
@@ -21,7 +22,22 @@ function isColorOptionName(name: string) {
   return /colou?r|hue|shade|finish|tone/i.test(String(name || "").trim());
 }
 
-export async function listColorOptionKeys(shopId: string) {
+type ColorOptionEntry = {
+  optionKey: string;
+  label: string;
+  values: string[];
+};
+
+type SavedSwatch = {
+  optionKey: string;
+  value: string;
+  kind: string;
+  color1: string;
+  color2: string;
+  imageUrl: string;
+};
+
+async function collectColorOptions(shopId: string): Promise<ColorOptionEntry[]> {
   const products = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
     select: { options: true },
@@ -42,54 +58,29 @@ export async function listColorOptionKeys(shopId: string) {
         values: new Set<string>(),
       };
       entry.label = name;
-      for (const value of list ?? []) entry.values.add(String(value));
+      for (const value of list ?? []) {
+        const trimmed = String(value).trim();
+        if (trimmed) entry.values.add(trimmed);
+      }
       keys.set(optionKey, entry);
     }
   }
-  const saved = await prisma.colorSwatch.findMany({ where: { shopId } });
   return [...keys.values()]
     .sort((a, b) => a.label.localeCompare(b.label))
-    .map((entry) => {
-      const rows = saved.filter((row) => row.optionKey === entry.optionKey);
-      const byValue = new Map(rows.map((row) => [row.value, row]));
-      let missing = 0;
-      for (const value of entry.values) {
-        const row = byValue.get(value);
-        if (!row || !isSwatchFilled(row)) missing += 1;
-      }
-      return {
-        optionKey: entry.optionKey,
-        label: entry.label,
-        valueCount: entry.values.size,
-        missing,
-      };
-    });
+    .map((entry) => ({
+      optionKey: entry.optionKey,
+      label: entry.label,
+      values: [...entry.values].sort((a, b) => a.localeCompare(b)),
+    }));
 }
 
-export async function listSwatchesForOption(shopId: string, optionKey: string) {
-  const products = await prisma.productFacet.findMany({
-    where: { shopId, status: "ACTIVE" },
-    select: { options: true },
-    take: 2000,
-  });
-  const values = new Set<string>();
-  let label = optionKey;
-  for (const product of products) {
-    const options =
-      product.options && typeof product.options === "object"
-        ? (product.options as Record<string, string[]>)
-        : {};
-    for (const [name, list] of Object.entries(options)) {
-      if (optionKeyFromName(name) !== optionKey) continue;
-      label = name;
-      for (const value of list ?? []) values.add(String(value));
-    }
-  }
-  const saved = await prisma.colorSwatch.findMany({
-    where: { shopId, optionKey },
-  });
+function rowsForOption(
+  optionKey: string,
+  values: string[],
+  saved: SavedSwatch[],
+): SwatchRow[] {
   const byValue = new Map(saved.map((row) => [row.value, row]));
-  const rows: SwatchRow[] = [...values].sort((a, b) => a.localeCompare(b)).map((value) => {
+  return values.map((value) => {
     const row = byValue.get(value);
     return {
       optionKey,
@@ -100,7 +91,110 @@ export async function listSwatchesForOption(shopId: string, optionKey: string) {
       imageUrl: row?.imageUrl ?? "",
     };
   });
-  return { label, rows };
+}
+
+function optionSummaries(
+  catalog: ColorOptionEntry[],
+  saved: SavedSwatch[],
+) {
+  return catalog.map((entry) => {
+    const rows = saved.filter((row) => row.optionKey === entry.optionKey);
+    const byValue = new Map(rows.map((row) => [row.value, row]));
+    let missing = 0;
+    for (const value of entry.values) {
+      const row = byValue.get(value);
+      if (!row || !isSwatchFilled(row)) missing += 1;
+    }
+    return {
+      optionKey: entry.optionKey,
+      label: entry.label,
+      valueCount: entry.values.length,
+      missing,
+    };
+  });
+}
+
+export async function listColorOptionKeys(shopId: string) {
+  const [catalog, saved] = await Promise.all([
+    collectColorOptions(shopId),
+    prisma.colorSwatch.findMany({ where: { shopId } }),
+  ]);
+  return optionSummaries(catalog, saved);
+}
+
+export async function listSwatchesForOption(shopId: string, optionKey: string) {
+  const [catalog, saved] = await Promise.all([
+    collectColorOptions(shopId),
+    prisma.colorSwatch.findMany({ where: { shopId, optionKey } }),
+  ]);
+  const entry = catalog.find((item) => item.optionKey === optionKey);
+  return {
+    label: entry?.label || optionKey,
+    rows: rowsForOption(optionKey, entry?.values || [], saved),
+  };
+}
+
+export type SwatchListStatus = "all" | "missing";
+
+export type SwatchListQuery = {
+  page?: number;
+  query?: string;
+  status?: SwatchListStatus;
+  pageSize?: number;
+};
+
+function filterSwatchRows(
+  rows: SwatchRow[],
+  query: string,
+  status: SwatchListStatus,
+) {
+  const needle = query.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (needle && !row.value.toLowerCase().includes(needle)) return false;
+    if (status === "missing" && isSwatchFilled(row)) return false;
+    return true;
+  });
+}
+
+/** One product scan; returns only the current page of values for the client. */
+export async function loadSwatchesAdmin(
+  shopId: string,
+  requestedOption: string,
+  input: SwatchListQuery = {},
+) {
+  const [catalog, saved] = await Promise.all([
+    collectColorOptions(shopId),
+    prisma.colorSwatch.findMany({ where: { shopId } }),
+  ]);
+  const options = optionSummaries(catalog, saved);
+  const optionKey =
+    requestedOption && options.some((option) => option.optionKey === requestedOption)
+      ? requestedOption
+      : options[0]?.optionKey || "";
+  const entry = catalog.find((item) => item.optionKey === optionKey);
+  const optionSaved = saved.filter((row) => row.optionKey === optionKey);
+  const allRows = rowsForOption(optionKey, entry?.values || [], optionSaved);
+  const query = String(input.query || "");
+  const status: SwatchListStatus = input.status === "missing" ? "missing" : "all";
+  const filtered = filterSwatchRows(allRows, query, status);
+  const slice = slicePage(
+    filtered,
+    input.page ?? 0,
+    input.pageSize ?? ADMIN_TABLE_PAGE_SIZE,
+  );
+  return {
+    optionKey,
+    label: entry?.label || optionKey,
+    options,
+    rows: slice.paged,
+    total: slice.total,
+    page: slice.safePage,
+    pageCount: slice.pageCount,
+    showingFrom: slice.showingFrom,
+    showingTo: slice.showingTo,
+    query,
+    status,
+  };
 }
 
 export async function upsertSwatch(shopId: string, input: SwatchRow) {

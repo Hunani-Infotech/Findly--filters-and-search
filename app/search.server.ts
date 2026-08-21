@@ -1,11 +1,12 @@
 import type { Prisma, ProductFacet } from "@prisma/client";
 import {
   normalizeHandleList,
+  normalizeHideProductTags,
   normalizeSearchFields,
   type SearchFieldKey,
 } from "./app-settings";
 import prisma from "./db.server";
-import { metafieldListValues } from "./filters.server";
+import { excludeHiddenTaggedProducts, metafieldListValues } from "./filters.server";
 import {
   expandQueryWithSynonyms,
   matchingPopularTerms,
@@ -14,7 +15,24 @@ import {
 } from "./instant-search";
 import { getAppSettings } from "./settings.server";
 import { mappingAppliesToSearch } from "./metafield-applies";
+import {
+  DEFAULT_STOP_WORDS,
+  editDistance,
+  maxTypoDistance,
+  normalizeStopWords,
+  prepareSearchTokens,
+  searchableTextFromProduct,
+  tokenMatchesHaystack,
+  type SearchMatchMode,
+} from "./search-query";
 import { getMetafieldMappings } from "./shop.server";
+
+export {
+  DEFAULT_STOP_WORDS,
+  editDistance,
+  maxTypoDistance,
+  prepareSearchTokens,
+} from "./search-query";
 
 const DEFAULT_TAKE = 24;
 const MAX_TAKE = 48;
@@ -136,19 +154,114 @@ export function fieldMatches(
   }
 }
 
+function metafieldHaystack(
+  row: Pick<ProductFacet, "metafields" | "variantMetafields">,
+  paths: string[],
+): string {
+  if (paths.length === 0) return "";
+  const values: string[] = [];
+  const records = [
+    metafieldRecord(row.metafields),
+    metafieldRecord(row.variantMetafields),
+  ];
+  for (const record of records) {
+    for (const path of paths) {
+      const raw = record[path];
+      values.push(...metafieldListValues(raw == null ? null : String(raw)));
+    }
+  }
+  return values.join(" ");
+}
+
+function fieldHaystack(
+  row: SearchableRow,
+  field: SearchFieldKey,
+  metafieldPaths: string[],
+): string {
+  switch (field) {
+    case "title":
+      return row.title;
+    case "vendor":
+      return row.vendor;
+    case "productType":
+      return row.productType;
+    case "tags":
+      return row.tags.join(" ");
+    case "sku":
+      return row.skus.join(" ");
+    case "options":
+      return flattenedOptionValues(row.options).join(" ");
+    case "metafields":
+      return metafieldHaystack(row, metafieldPaths);
+    default:
+      return "";
+  }
+}
+
+export function rowMatchesSearchTokens(
+  row: SearchableRow,
+  tokens: string[],
+  fields: SearchFieldKey[],
+  metafieldPaths: string[],
+  fuzzy: boolean,
+  mode: SearchMatchMode = "and",
+): boolean {
+  if (tokens.length === 0 || fields.length === 0) return false;
+  const tokenHits = (token: string) =>
+    fields.some((field) =>
+      fuzzy
+        ? tokenMatchesHaystack(
+            fieldHaystack(row, field, metafieldPaths),
+            token,
+            true,
+          )
+        : fieldMatches(row, field, token, metafieldPaths),
+    );
+  return mode === "or" ? tokens.some(tokenHits) : tokens.every(tokenHits);
+}
+
 /** True when any enabled search field contains the query (C7 collection scope). */
 export function productMatchesKeyword(
   row: SearchableRow,
   query: string,
   fields: readonly string[] = [],
   metafieldPaths: string[] = [],
+  options?: {
+    stopWords?: readonly string[];
+    fuzzy?: boolean;
+    fallback?: boolean;
+  },
 ): boolean {
-  const normalized = normalizeSearchQuery(query);
   const enabled = normalizeSearchFields(fields);
-  if (!normalized || enabled.length === 0) return false;
-  return enabled.some((field) =>
-    fieldMatches(row, field, normalized, metafieldPaths),
+  const tokens = prepareSearchTokens(
+    query,
+    options?.stopWords ?? DEFAULT_STOP_WORDS,
   );
+  if (tokens.length === 0 || enabled.length === 0) return false;
+  if (
+    rowMatchesSearchTokens(row, tokens, enabled, metafieldPaths, false, "and")
+  ) {
+    return true;
+  }
+  if (
+    options?.fuzzy &&
+    rowMatchesSearchTokens(row, tokens, enabled, metafieldPaths, true, "and")
+  ) {
+    return true;
+  }
+  if (options?.fallback) {
+    if (
+      rowMatchesSearchTokens(row, tokens, enabled, metafieldPaths, false, "or")
+    ) {
+      return true;
+    }
+    if (
+      rowMatchesSearchTokens(row, tokens, enabled, metafieldPaths, true, "or")
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -176,8 +289,21 @@ export function keywordSearchWhere(
   normalizedQuery: string,
   fields: readonly string[] = [],
 ): Prisma.ProductFacetWhereInput {
+  const tokens = prepareSearchTokens(normalizedQuery);
+  if (tokens.length === 0) {
+    return { shopId, id: "__no_search_fields__" };
+  }
+  return keywordSearchWhereForTokens(shopId, tokens, fields, "and");
+}
+
+export function keywordSearchWhereForTokens(
+  shopId: string,
+  tokens: string[],
+  fields: readonly string[] = [],
+  mode: "and" | "or" = "and",
+): Prisma.ProductFacetWhereInput {
   const enabled = normalizeSearchFields(fields);
-  if (enabled.length === 0) {
+  if (enabled.length === 0 || tokens.length === 0) {
     return { shopId, id: "__no_search_fields__" };
   }
 
@@ -191,85 +317,232 @@ export function keywordSearchWhere(
     return { shopId, status: "ACTIVE" };
   }
 
-  const or: Prisma.ProductFacetWhereInput[] = [];
-  if (enabled.includes("title")) {
-    or.push({ title: { contains: normalizedQuery, mode: "insensitive" } });
-  }
-  if (enabled.includes("vendor")) {
-    or.push({ vendor: { contains: normalizedQuery, mode: "insensitive" } });
-  }
-  if (enabled.includes("productType")) {
-    or.push({
-      productType: { contains: normalizedQuery, mode: "insensitive" },
-    });
+  const tokenClauses: Prisma.ProductFacetWhereInput[] = [];
+  for (const tok of tokens) {
+    const or: Prisma.ProductFacetWhereInput[] = [];
+    if (enabled.includes("title")) {
+      or.push({ title: { contains: tok, mode: "insensitive" } });
+    }
+    if (enabled.includes("vendor")) {
+      or.push({ vendor: { contains: tok, mode: "insensitive" } });
+    }
+    if (enabled.includes("productType")) {
+      or.push({
+        productType: { contains: tok, mode: "insensitive" },
+      });
+    }
+    if (or.length > 0) tokenClauses.push({ OR: or });
   }
 
-  if (or.length === 0) {
+  if (tokenClauses.length === 0) {
     return { shopId, id: "__no_search_fields__" };
   }
 
-  return { shopId, status: "ACTIVE", OR: or };
+  if (mode === "or") {
+    return { shopId, status: "ACTIVE", OR: tokenClauses };
+  }
+  if (tokenClauses.length === 1) {
+    return { shopId, status: "ACTIVE", ...tokenClauses[0] };
+  }
+  return { shopId, status: "ACTIVE", AND: tokenClauses };
+}
+
+function hitScore(
+  row: SearchableRow,
+  tokens: string[],
+  fields: SearchFieldKey[],
+  metafieldPaths: string[],
+): number {
+  const phrase = tokens.join(" ");
+  let best = scoreSearchHit(row, phrase, fields, metafieldPaths);
+  for (const token of tokens) {
+    const next = scoreSearchHit(row, token, fields, metafieldPaths);
+    if (next > best) best = next;
+  }
+  return best;
 }
 
 function rankHits(
   rows: ProductFacet[],
-  query: string,
+  tokens: string[],
   fields: SearchFieldKey[],
   metafieldPaths: string[],
+  fuzzy: boolean,
+  mode: SearchMatchMode,
 ) {
   return rows
+    .filter((row) =>
+      rowMatchesSearchTokens(row, tokens, fields, metafieldPaths, fuzzy, mode),
+    )
     .map((row) => ({
       row,
-      score: scoreSearchHit(row, query, fields, metafieldPaths),
+      score: hitScore(row, tokens, fields, metafieldPaths) || 1,
     }))
-    .filter((hit) => hit.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.row.title.localeCompare(b.row.title);
+    });
+}
+
+type RankedHitsResult = {
+  rows: ProductFacet[];
+  tokens: string[];
+  usedFallback: boolean;
+  didYouMean: string | null;
+};
+
+function uniqueTokenSets(sets: string[][]): string[][] {
+  const seen = new Set<string>();
+  const next: string[][] = [];
+  for (const tokens of sets) {
+    if (tokens.length === 0) continue;
+    const key = tokens.join("\0");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(tokens);
+  }
+  return next;
+}
+
+function mergeRanked(
+  merged: Map<string, { row: ProductFacet; score: number }>,
+  hits: Array<{ row: ProductFacet; score: number }>,
+) {
+  for (const hit of hits) {
+    const current = merged.get(hit.row.productGid);
+    if (!current || hit.score > current.score) {
+      merged.set(hit.row.productGid, hit);
+    }
+  }
+}
+
+function sortedMergedRows(
+  merged: Map<string, { row: ProductFacet; score: number }>,
+): ProductFacet[] {
+  return [...merged.values()]
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return a.row.title.localeCompare(b.row.title);
     })
     .map((hit) => hit.row);
+}
+
+function didYouMeanFromHit(
+  tokens: string[],
+  firstHit: SearchableRow,
+): string | null {
+  const hay = searchableTextFromProduct({
+    title: firstHit.title,
+    vendor: firstHit.vendor,
+    productType: firstHit.productType,
+    tags: firstHit.tags,
+    skus: firstHit.skus,
+  }).toLowerCase();
+  const words = hay.split(/[^a-z0-9']+/).filter(Boolean);
+  const corrected: string[] = [];
+  let changed = false;
+  for (const token of tokens) {
+    const tok = token.toLowerCase();
+    if (hay.includes(tok)) {
+      corrected.push(token);
+      continue;
+    }
+    const max = maxTypoDistance(tok.length);
+    let best: string | null = null;
+    let bestDist = Infinity;
+    for (const word of words) {
+      const dist = editDistance(word, tok);
+      if (dist <= max && dist < bestDist) {
+        bestDist = dist;
+        best = word;
+      }
+    }
+    if (best && best !== tok) {
+      corrected.push(best);
+      changed = true;
+    } else {
+      corrected.push(token);
+    }
+  }
+  return changed ? corrected.join(" ") : null;
 }
 
 async function fetchRankedHits(
   shopId: string,
   query: string,
   take: number,
-): Promise<ProductFacet[]> {
+): Promise<RankedHitsResult> {
+  const empty: RankedHitsResult = {
+    rows: [],
+    tokens: [],
+    usedFallback: false,
+    didYouMean: null,
+  };
   const settings = await getAppSettings(shopId);
   const extras = parseSearchExtras(settings.searchExtras);
+  const stopWords = normalizeStopWords(
+    (extras as { stopWords?: unknown }).stopWords,
+  );
+  const fuzzyOn = extras.fuzzyTextSearch !== false;
+  const fallbackOn =
+    (extras as { fallbackSearch?: boolean }).fallbackSearch !== false;
+  const spellCheckOn =
+    (extras as { spellCheck?: boolean }).spellCheck !== false;
   const fields = normalizeSearchFields(settings.searchFields);
-  if (fields.length === 0) return [];
+  const tokens = prepareSearchTokens(query, stopWords);
+  if (fields.length === 0) return { ...empty, tokens };
 
   const metafieldPaths = fields.includes("metafields")
     ? enabledMetafieldPaths(await getMetafieldMappings(shopId))
     : [];
 
-  const variants = expandQueryWithSynonyms(query, extras.synonyms);
-  const merged = new Map<string, { row: ProductFacet; score: number }>();
+  const tokenSets = uniqueTokenSets(
+    expandQueryWithSynonyms(query, extras.synonyms).map((variant) =>
+      prepareSearchTokens(variant, stopWords),
+    ),
+  );
+  if (tokenSets.length === 0) return { ...empty, tokens };
 
-  for (const variant of variants) {
-    const rows = await prisma.productFacet.findMany({
-      where: keywordSearchWhere(shopId, variant, fields),
-      take: Math.max(take, CANDIDATE_TAKE),
-    });
-    for (const hit of rankHits(rows, variant, fields, metafieldPaths)) {
-      const current = merged.get(hit.productGid);
-      const score = scoreSearchHit(hit, variant, fields, metafieldPaths);
-      if (!current || score > current.score) {
-        merged.set(hit.productGid, { row: hit, score });
-      }
+  const candidateTake = Math.max(take, CANDIDATE_TAKE);
+
+  const hitsForTokens = async (
+    fuzzy: boolean,
+    mode: SearchMatchMode,
+  ): Promise<ProductFacet[]> => {
+    const merged = new Map<string, { row: ProductFacet; score: number }>();
+    let scanned: ProductFacet[] | null = null;
+    if (fuzzy) {
+      scanned = await prisma.productFacet.findMany({
+        where: { shopId, status: "ACTIVE" },
+        take: CANDIDATE_TAKE,
+      });
     }
+    for (const set of tokenSets) {
+      const rows =
+        scanned ??
+        (await prisma.productFacet.findMany({
+          where: keywordSearchWhereForTokens(shopId, set, fields, mode),
+          take: candidateTake,
+        }));
+      mergeRanked(
+        merged,
+        rankHits(rows, set, fields, metafieldPaths, fuzzy, mode),
+      );
+    }
+    return sortedMergedRows(merged);
+  };
+
+  let ranked = await hitsForTokens(false, "and");
+  let usedFallback = false;
+  if (ranked.length === 0 && fuzzyOn) {
+    ranked = await hitsForTokens(true, "and");
   }
-
-  let ranked = [...merged.values()]
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.row.title.localeCompare(b.row.title);
-    })
-    .map((hit) => hit.row);
-
-  if (ranked.length === 0 && extras.fuzzyTextSearch) {
-    ranked = await fuzzySearchHits(shopId, query, fields, metafieldPaths, take);
+  if (ranked.length === 0 && fallbackOn) {
+    usedFallback = true;
+    ranked = await hitsForTokens(false, "or");
+    if (ranked.length === 0 && fuzzyOn) {
+      ranked = await hitsForTokens(true, "or");
+    }
   }
 
   const pinning = extras.pinnings.find(
@@ -279,7 +552,16 @@ async function fetchRankedHits(
     ranked = await applyPinnedHandles(shopId, ranked, pinning.handles);
   }
 
-  return ranked.slice(0, take);
+  ranked = excludeHiddenTaggedProducts(
+    ranked,
+    normalizeHideProductTags(settings.hideProductTags),
+  );
+
+  const rows = ranked.slice(0, take);
+  const didYouMean =
+    spellCheckOn && rows[0] ? didYouMeanFromHit(tokens, rows[0]) : null;
+
+  return { rows, tokens, usedFallback, didYouMean };
 }
 
 async function applyPinnedHandles(
@@ -301,64 +583,6 @@ async function applyPinnedHandles(
   }
   const rest = ranked.filter((row) => !seen.has(row.productGid));
   return [...pinned, ...rest];
-}
-
-function editDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (Math.abs(a.length - b.length) > 2) return 99;
-  const rows = a.length + 1;
-  const cols = b.length + 1;
-  const dp: number[] = new Array(rows * cols);
-  for (let i = 0; i < rows; i++) dp[i * cols] = i;
-  for (let j = 0; j < cols; j++) dp[j] = j;
-  for (let i = 1; i < rows; i++) {
-    for (let j = 1; j < cols; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i * cols + j] = Math.min(
-        dp[(i - 1) * cols + j] + 1,
-        dp[i * cols + j - 1] + 1,
-        dp[(i - 1) * cols + j - 1] + cost,
-      );
-    }
-  }
-  return dp[a.length * cols + b.length];
-}
-
-function fuzzyFieldMatch(haystack: string, query: string): boolean {
-  const hay = haystack.toLowerCase();
-  const needle = query.toLowerCase();
-  if (hay.includes(needle)) return true;
-  if (needle.length < 4) return false;
-  const words = hay.split(/[^a-z0-9]+/).filter(Boolean);
-  return words.some((word) => {
-    if (Math.abs(word.length - needle.length) > 2) return false;
-    return editDistance(word, needle) <= 1;
-  });
-}
-
-async function fuzzySearchHits(
-  shopId: string,
-  query: string,
-  fields: SearchFieldKey[],
-  metafieldPaths: string[],
-  take: number,
-): Promise<ProductFacet[]> {
-  const rows = await prisma.productFacet.findMany({
-    where: { shopId, status: "ACTIVE" },
-    take: CANDIDATE_TAKE,
-  });
-  return rows
-    .filter((row) =>
-      fields.some((field) => {
-        if (field === "title") return fuzzyFieldMatch(row.title, query);
-        if (field === "vendor") return fuzzyFieldMatch(row.vendor, query);
-        if (field === "productType") {
-          return fuzzyFieldMatch(row.productType, query);
-        }
-        return fieldMatches(row, field, query, metafieldPaths);
-      }),
-    )
-    .slice(0, take);
 }
 
 export async function searchCollections(
@@ -384,6 +608,59 @@ export async function searchCollections(
   }));
 }
 
+export async function searchPages(
+  shopId: string,
+  query: string,
+  options?: { take?: number },
+) {
+  const normalized = normalizeSearchQuery(query);
+  if (!normalized) return [];
+  const take = Math.min(Math.max(options?.take ?? 6, 1), 24);
+  const rows = await prisma.shopPage.findMany({
+    where: {
+      shopId,
+      published: true,
+      title: { contains: normalized, mode: "insensitive" },
+    },
+    take,
+    orderBy: { title: "asc" },
+  });
+  return rows.map((row) => ({
+    title: row.title,
+    handle: row.handle,
+    url: row.handle ? `/pages/${row.handle}` : "/pages",
+  }));
+}
+
+export async function searchArticles(
+  shopId: string,
+  query: string,
+  options?: { take?: number },
+) {
+  const normalized = normalizeSearchQuery(query);
+  if (!normalized) return [];
+  const take = Math.min(Math.max(options?.take ?? 6, 1), 24);
+  const rows = await prisma.shopArticle.findMany({
+    where: {
+      shopId,
+      published: true,
+      title: { contains: normalized, mode: "insensitive" },
+    },
+    take,
+    orderBy: { title: "asc" },
+  });
+  return rows.map((row) => ({
+    title: row.title,
+    handle: row.handle,
+    url:
+      row.blogHandle && row.handle
+        ? `/blogs/${row.blogHandle}/${row.handle}`
+        : row.handle
+          ? `/blogs/${row.handle}`
+          : "/blogs",
+  }));
+}
+
 export function popularQuerySuggestions(
   query: string,
   terms: string[],
@@ -395,20 +672,47 @@ export function popularQuerySuggestions(
   }));
 }
 
+export type SearchRunMeta = {
+  didYouMean: string | null;
+  usedFallback: boolean;
+  tokens: string[];
+};
+
+export async function searchProductsWithMeta(
+  shopId: string,
+  query: string,
+  options?: { take?: number },
+): Promise<{
+  products: ReturnType<typeof toSearchProductCard>[];
+  meta: SearchRunMeta;
+}> {
+  const normalized = normalizeSearchQuery(query);
+  if (!normalized) {
+    return {
+      products: [],
+      meta: { didYouMean: null, usedFallback: false, tokens: [] },
+    };
+  }
+
+  const take = Math.min(Math.max(options?.take ?? DEFAULT_TAKE, 1), MAX_TAKE);
+  const result = await fetchRankedHits(shopId, normalized, take);
+  return {
+    products: result.rows.map(toSearchProductCard),
+    meta: {
+      didYouMean: result.didYouMean,
+      usedFallback: result.usedFallback,
+      tokens: result.tokens,
+    },
+  };
+}
+
 export async function searchProducts(
   shopId: string,
   query: string,
   options?: { take?: number },
 ) {
-  const normalized = normalizeSearchQuery(query);
-  if (!normalized) {
-    return [];
-  }
-
-  const take = Math.min(Math.max(options?.take ?? DEFAULT_TAKE, 1), MAX_TAKE);
-  const rows = await fetchRankedHits(shopId, normalized, take);
-
-  return rows.map(toSearchProductCard);
+  const { products } = await searchProductsWithMeta(shopId, query, options);
+  return products;
 }
 
 function toSearchProductCard(row: ProductFacet) {
@@ -422,6 +726,7 @@ function toSearchProductCard(row: ProductFacet) {
     priceMax: toNumber(row.priceMax),
     imageUrl: row.imageUrl,
     available: row.available,
+    marketPrices: row.marketPrices,
   };
 }
 
@@ -453,7 +758,11 @@ export async function getPinnedSearchSuggestions(shopId: string): Promise<{
         handle: { in: productHandles },
       },
     });
-    const byHandle = new Map(rows.map((row) => [row.handle, row]));
+    const visible = excludeHiddenTaggedProducts(
+      rows,
+      normalizeHideProductTags(settings.hideProductTags),
+    );
+    const byHandle = new Map(visible.map((row) => [row.handle, row]));
     for (const handle of productHandles) {
       const row = byHandle.get(handle);
       if (row) products.push(toSearchProductCard(row));
@@ -495,5 +804,6 @@ export async function searchProductFacets(
     Math.max(options?.take ?? FACET_DEFAULT_TAKE, 1),
     FACET_MAX_TAKE,
   );
-  return fetchRankedHits(shopId, normalized, take);
+  const result = await fetchRankedHits(shopId, normalized, take);
+  return result.rows;
 }

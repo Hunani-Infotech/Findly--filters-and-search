@@ -1,6 +1,7 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Form,
+  useFetcher,
   useNavigate,
   useNavigation,
   useSearchParams,
@@ -25,7 +26,10 @@ import { withEmbeddedParams } from "../admin-path";
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
-import type { FilterOptionEditorData } from "../filter-option-editor.server";
+import type {
+  FilterOptionCatalogPage,
+  FilterOptionEditorData,
+} from "../filter-option-editor.server";
 import {
   FACET_DISPLAY_TYPE_LABELS,
   type FacetDisplayType,
@@ -41,6 +45,30 @@ import {
 
 const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
 
+type PickerResponse =
+  | ({ all: false; requestId: string } & FilterOptionCatalogPage)
+  | {
+      all: true;
+      requestId: string;
+      sourceKey: string;
+      query: string;
+      values: string[];
+      total: number;
+    };
+
+function catalogPickerPath(
+  searchParams: URLSearchParams,
+  input: { source: string; page?: number; q?: string; all?: boolean; r?: string },
+) {
+  const next = new URLSearchParams();
+  if (input.source) next.set("source", input.source);
+  if (input.q) next.set("q", input.q);
+  if (input.r) next.set("r", input.r);
+  if (input.all) next.set("all", "1");
+  else if (input.page && input.page > 0) next.set("page", String(input.page));
+  return withEmbeddedParams(`/app/filters/picker?${next.toString()}`, searchParams);
+}
+
 export function FilterOptionEditorPage({
   data,
   error,
@@ -52,6 +80,8 @@ export function FilterOptionEditorPage({
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
+  const pageFetcher = useFetcher<PickerResponse>();
+  const allFetcher = useFetcher<PickerResponse>();
   const { ask, dialog } = useConfirmDelete();
   const saving = isMutationBusy(navigation);
   const isEdit = data.mode === "edit";
@@ -60,6 +90,8 @@ export function FilterOptionEditorPage({
     searchParams,
   );
   const shopDomain = data.shopDomain || FALLBACK_SHOP_DOMAIN;
+  const lastAllKey = useRef<string | null>(null);
+  const pageRequestId = useRef(0);
 
   const [key, setKey] = useState(data.optionKey);
   const [label, setLabel] = useState(data.label);
@@ -74,6 +106,9 @@ export function FilterOptionEditorPage({
   const [handleTouched, setHandleTouched] = useState(data.mode === "edit");
   const [showHandleField, setShowHandleField] = useState(false);
   const [collectionTree, setCollectionTree] = useState(data.collectionTree);
+  const [collectionParents, setCollectionParents] = useState<Record<string, string>>(
+    data.collectionParents || {},
+  );
   const [valueSortMode, setValueSortMode] = useState<FacetValueSortMode>(
     data.valueSortMode,
   );
@@ -92,6 +127,36 @@ export function FilterOptionEditorPage({
   );
   const [tooltip, setTooltip] = useState(data.tooltip);
   const [matchMode, setMatchMode] = useState<FacetMatchMode>(data.matchMode);
+  const [catalogQuery, setCatalogQuery] = useState(data.catalog.query);
+  const [catalogPage, setCatalogPage] = useState(data.catalog);
+
+  useEffect(() => {
+    const next = pageFetcher.data;
+    if (!next || next.all !== false) return;
+    if (next.requestId !== String(pageRequestId.current)) return;
+    setCatalogPage(next);
+  }, [pageFetcher.data]);
+
+  useEffect(() => {
+    const next = allFetcher.data;
+    if (!next || next.all !== true) return;
+    const stamp = `${next.sourceKey}|${next.query}|${next.total}`;
+    if (lastAllKey.current === stamp) return;
+    lastAllKey.current = stamp;
+    setSelectedValues((prev) => [...new Set([...prev, ...next.values])]);
+  }, [allFetcher.data]);
+
+  const loadCatalogPage = (next: { source: string; page?: number; q?: string }) => {
+    pageRequestId.current += 1;
+    pageFetcher.load(
+      catalogPickerPath(searchParams, {
+        source: next.source,
+        page: next.page ?? 0,
+        q: next.q ?? "",
+        r: String(pageRequestId.current),
+      }),
+    );
+  };
 
   const sourceOptions = data.sources.length
     ? data.sources.map((source) => ({
@@ -112,12 +177,14 @@ export function FilterOptionEditorPage({
     label: FACET_DISPLAY_TYPE_LABELS[choice.value] || choice.label,
   }));
 
-  const catalogValues = selectedSource?.catalogValues || data.catalogValues;
-  const valueList = useMemo(() => {
-    const seen = new Set(catalogValues);
-    const extras = selectedValues.filter((value) => !seen.has(value));
-    return extras.length ? [...catalogValues, ...extras] : catalogValues;
-  }, [catalogValues, selectedValues]);
+  const catalogValues = catalogPage.values;
+  const catalogValueLabels = catalogPage.labels;
+  const collectionTreeValues = catalogPage.collectionTreeItems.map(
+    (item) => item.value,
+  );
+  const collectionTreeLabels = Object.fromEntries(
+    catalogPage.collectionTreeItems.map((item) => [item.value, item.label]),
+  );
 
   const resolvedHandle =
     urlHandle || defaultUrlHandle(label, key) || key || "collection";
@@ -144,6 +211,7 @@ export function FilterOptionEditorPage({
     setHandleTouched(false);
     setUrlHandle(defaultUrlHandle(nextLabel, next));
     setCollectionTree(false);
+    setCollectionParents({});
     setValueSortMode("az");
     setCollapseByDefault(true);
     setEnableValueSearch(false);
@@ -152,6 +220,20 @@ export function FilterOptionEditorPage({
     setAutoRemovePrefixes("");
     setTooltip("");
     setMatchMode("or");
+    setCatalogQuery("");
+    setCatalogPage({
+      sourceKey: next,
+      values: [],
+      labels: {},
+      total: 0,
+      page: 0,
+      pageCount: 1,
+      showingFrom: 0,
+      showingTo: 0,
+      query: "",
+      collectionTreeItems: [],
+    });
+    loadCatalogPage({ source: next, page: 0, q: "" });
   };
 
   const toggleValue = (value: string, checked: boolean) => {
@@ -174,6 +256,7 @@ export function FilterOptionEditorPage({
     formData.set("selectedValues", JSON.stringify(selectedValues));
     formData.set("urlHandle", resolvedHandle);
     formData.set("collectionTree", String(collectionTree));
+    formData.set("collectionParents", JSON.stringify(collectionParents));
     formData.set("valueSortMode", valueSortMode);
     formData.set("collapseByDefault", String(collapseByDefault));
     formData.set("enableValueSearch", String(enableValueSearch));
@@ -316,12 +399,23 @@ export function FilterOptionEditorPage({
                     }
                   />
                   {isCollection ? (
-                    <Checkbox
-                      label="Build a collection tree with multi-level sub-collections"
-                      checked={collectionTree}
-                      disabled={saving}
-                      onChange={setCollectionTree}
-                    />
+                    <BlockStack gap="200">
+                      <Checkbox
+                        label="Build a collection tree with multi-level sub-collections"
+                        checked={collectionTree}
+                        disabled={saving}
+                        onChange={setCollectionTree}
+                      />
+                      {collectionTree ? (
+                        <CollectionTreeEditor
+                          values={collectionTreeValues}
+                          labels={collectionTreeLabels}
+                          parents={collectionParents}
+                          disabled={saving}
+                          onChange={setCollectionParents}
+                        />
+                      ) : null}
+                    </BlockStack>
                   ) : null}
                 </BlockStack>
               </Card>
@@ -374,10 +468,38 @@ export function FilterOptionEditorPage({
                     {showValues && valueMode === "manual" ? (
                       <CatalogValuePicker
                         key={key}
-                        values={valueList}
+                        values={catalogValues}
                         selected={selectedValues}
+                        labels={catalogValueLabels}
                         disabled={saving}
                         onToggle={toggleValue}
+                        query={catalogQuery}
+                        onQueryChange={(next) => {
+                          setCatalogQuery(next);
+                          loadCatalogPage({ source: key, page: 0, q: next });
+                        }}
+                        page={catalogPage.page}
+                        pageCount={catalogPage.pageCount}
+                        total={catalogPage.total}
+                        showingFrom={catalogPage.showingFrom}
+                        showingTo={catalogPage.showingTo}
+                        onPageChange={(nextPage) => {
+                          loadCatalogPage({
+                            source: key,
+                            page: nextPage,
+                            q: catalogQuery,
+                          });
+                        }}
+                        onSelectAll={() => {
+                          allFetcher.load(
+                            catalogPickerPath(searchParams, {
+                              source: key,
+                              q: catalogQuery,
+                              all: true,
+                            }),
+                          );
+                        }}
+                        selectAllLoading={allFetcher.state !== "idle"}
                       />
                     ) : null}
                     {showValues && valueMode === "prefix" ? (
@@ -543,5 +665,71 @@ export function FilterOptionEditorPage({
       </Layout>
       {dialog}
     </Page>
+  );
+}
+
+function CollectionTreeEditor({
+  values,
+  labels,
+  parents,
+  disabled,
+  onChange,
+}: {
+  values: string[];
+  labels: Record<string, string>;
+  parents: Record<string, string>;
+  disabled: boolean;
+  onChange: (next: Record<string, string>) => void;
+}) {
+  const depthOf = (value: string) => {
+    let depth = 0;
+    let current = parents[value];
+    const seen = new Set<string>();
+    while (current && !seen.has(current) && values.includes(current)) {
+      seen.add(current);
+      depth += 1;
+      current = parents[current];
+    }
+    return depth;
+  };
+
+  const indent = (value: string) => {
+    const index = values.indexOf(value);
+    if (index <= 0) return;
+    const previous = values[index - 1];
+    if (!previous || previous === value) return;
+    onChange({ ...parents, [value]: previous });
+  };
+
+  const outdent = (value: string) => {
+    const parent = parents[value];
+    if (!parent) return;
+    const next = { ...parents };
+    const grand = next[parent];
+    if (grand) next[value] = grand;
+    else delete next[value];
+    onChange(next);
+  };
+
+  return (
+    <BlockStack gap="200">
+      <Text as="p" tone="subdued" variant="bodySm">
+        Indent a collection under the row above to nest it as a sub-collection.
+      </Text>
+      {values.slice(0, 80).map((value) => (
+        <InlineStack key={value} gap="200" blockAlign="center" wrap={false}>
+          <div style={{ width: `${Math.min(depthOf(value), 6) * 16}px` }} />
+          <Button size="slim" disabled={disabled} onClick={() => outdent(value)}>
+            Outdent
+          </Button>
+          <Button size="slim" disabled={disabled} onClick={() => indent(value)}>
+            Indent
+          </Button>
+          <Text as="span" variant="bodySm">
+            {labels[value] || value}
+          </Text>
+        </InlineStack>
+      ))}
+    </BlockStack>
   );
 }

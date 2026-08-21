@@ -2,6 +2,8 @@ import type { LoaderFunctionArgs } from "react-router";
 import {
   getCollectionFilterPayload,
   getSearchFilterPayload,
+  parseFilterPage,
+  parseFilterPageSize,
   parseSelectedFromSearchParams,
   verifyAppProxySignature,
 } from "../proxy.server";
@@ -34,6 +36,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const sort = url.searchParams.get("sort");
   const locale =
     url.searchParams.get("locale") || url.searchParams.get("locale_code") || "";
+  const page = parseFilterPage(url.searchParams.get("page"));
+  const pageSize = parseFilterPageSize(url.searchParams.get("pageSize"));
+  const country = url.searchParams.get("country");
+  const currency = url.searchParams.get("currency");
+  const companyLocationId =
+    url.searchParams.get("companyLocationId") ||
+    url.searchParams.get("company_location");
 
   const hasCollection = Boolean(collectionId || collectionGid);
   const result =
@@ -44,6 +53,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           selected,
           sort,
           locale,
+          page,
+          pageSize,
+          country,
+          currency,
+          companyLocationId,
         })
       : await getCollectionFilterPayload({
           shopDomain,
@@ -53,6 +67,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           sort,
           query: searchQuery,
           locale,
+          page,
+          pageSize,
+          country,
+          currency,
+          companyLocationId,
         });
 
   if ("error" in result && result.error) {

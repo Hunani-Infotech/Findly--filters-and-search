@@ -66,6 +66,8 @@ model Shop {
   products              ProductFacet[]
   memberships           CollectionMembership[]
   collections           Collection[]
+  shopPages             ShopPage[]
+  shopArticles          ShopArticle[]
   discoveredMetafields  DiscoveredMetafield[]
   colorSwatches         ColorSwatch[]
   valueGroups           ValueGroup[]
@@ -80,9 +82,15 @@ model AppSettings {
   widgetPosition    String  @default("left") // left | right | top
   accentColor       String  @default("#1c1917")
   showProductCounts Boolean @default(true)
+  /// Globo: Show the number of total products (“X products” status / theme count)
+  showTotalProductCount Boolean @default(true)
+  /// Globo: hide products with these tags from collection + search
+  hideProductTags   String[] @default([])
   collapseByDefault Boolean @default(false)
   /// show | hide | hide_after_filter (Globo out-of-stock display)
   hideOutOfStock    String  @default("show")
+  /// pagination | load_more | infinite (D9 storefront paging style)
+  paginationStyle   String  @default("pagination")
   widgetShadow      Boolean @default(true)
   widgetRadius      Int     @default(12)
   /// theme | heading | body | custom
@@ -112,6 +120,8 @@ model AppSettings {
   showMatchingVariantImage Boolean @default(true)
   /// Globo Filter panel: show applied “Refine by” chips
   showRefineBy Boolean @default(true)
+  /// F5: use Shopify Markets / B2B catalog prices instead of shop default currency
+  enableMarkets Boolean @default(true)
   /// C9: show pinned products/collections on empty search focus
   showSuggestionsOnEmptyQuery Boolean @default(false)
   /// C9: show pinned products/collections when a query matches nothing
@@ -122,6 +132,10 @@ model AppSettings {
   searchExtras      Json     @default("{}")
   /// Globo-parity admin pages (recommendations toggles, YMM form, locales) — not storefront engines
   adminExtras       Json     @default("{}")
+  /// D7: merchant CSS for the filter widget (stored raw-sanitized; scoped when serving storefront)
+  customCss         String   @default("")
+  /// D7: optional Liquid snippet for the app product grid (D8); not applied to the theme grid yet
+  productListLiquid String   @default("")
   updatedAt         DateTime @updatedAt
 }
 
@@ -140,17 +154,23 @@ model FilterConfig {
   enableSale          Boolean  @default(false)
   /// Review stars from reviews.rating / Judge.me / Loox / Stamped metafields (D5)
   enableRating        Boolean  @default(false)
+  /// Inventory-location facet from synced variant inventory levels (D4)
+  enableLocation      Boolean  @default(false)
   enableAvailability  Boolean  @default(true)
   enableVendor        Boolean  @default(true)
   enableProductType   Boolean  @default(true)
   enableTags          Boolean  @default(true)
   enableOptions       Boolean  @default(true)
+  /// F2: show each variant (or unique option combo) as its own collection card
+  enableVariantsAsProducts Boolean @default(false)
+  /// Option names to split on (e.g. Color). Empty = one card per variant.
+  variantAsProductOptions String[] @default([])
   /// auto = min/max from synced collection products; custom = merchant-defined bounds
   priceRangeMode      String   @default("auto")
   customPriceMin      Decimal? @db.Decimal(12, 2)
   customPriceMax      Decimal? @db.Decimal(12, 2)
   /// Ordered filter keys, e.g. ["availability","price","sale","vendor","productType","tags","options"]
-  displayOrder        String[] @default(["availability", "price", "sale", "rating", "vendor", "productType", "tags", "options"])
+  displayOrder        String[] @default(["availability", "location", "price", "sale", "rating", "vendor", "productType", "tags", "options"])
   /// Per-facet UI: vendor -> checkbox, productType -> dropdown, options -> swatch, price -> slider, …
   displayTypes        Json     @default("{}")
   /// Per-facet value combine: tags/options/mf_* -> "and" | "or" (default OR)
@@ -255,14 +275,20 @@ model ProductFacet {
   /// Max variant-level % off: (compareAt - price) / compareAt * 100 when compareAt > price
   salePct     Decimal  @default(0) @db.Decimal(5, 2)
   available   Boolean  @default(true)
+  /// Location names where any variant has available qty > 0 (D4)
+  inventoryLocations String[] @default([])
   /// Shopify product status: ACTIVE | DRAFT | ARCHIVED
   status      String   @default("ACTIVE")
   imageUrl    String?
   /// Per-variant images: [{ options: { Color: "Red" }, imageUrl: "https://..." }]
   variantImages Json     @default("[]")
+  /// F2: [{ id, sku, title, options, imageUrl, available, price }]
+  variants      Json     @default("[]")
   metafields  Json     @default("{}")
   /// Union of variant metafield values: { "namespace.key": "value" | JSON array }
   variantMetafields Json @default("{}")
+  /// F5: per-country and B2B catalog min/max. Keys: "US", "CA", "catalog:gid://shopify/CompanyLocation/…"
+  marketPrices Json @default("{}")
   /// Shopify publishedAt (fallback createdAt) for date sort
   publishedAt DateTime?
   updatedAt   DateTime @updatedAt
@@ -297,6 +323,37 @@ model Collection {
   updatedAt     DateTime @updatedAt
 
   @@unique([shopId, collectionGid])
+  @@index([shopId])
+}
+
+/// Synced Online Store pages for Instant Search (E2).
+model ShopPage {
+  id        String @id @default(cuid())
+  shopId    String
+  shop      Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  pageGid   String
+  title     String
+  handle    String @default("")
+  published Boolean @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, pageGid])
+  @@index([shopId])
+}
+
+/// Synced blog articles for Instant Search (E2).
+model ShopArticle {
+  id         String @id @default(cuid())
+  shopId     String
+  shop       Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  articleGid String
+  title      String
+  handle     String @default("")
+  blogHandle String @default("")
+  published  Boolean @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shopId, articleGid])
   @@index([shopId])
 }
 

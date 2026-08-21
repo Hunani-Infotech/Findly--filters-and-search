@@ -39,6 +39,7 @@ import {
 } from "../components/widget-preview";
 import {
   HIDE_OUT_OF_STOCK_OPTIONS,
+  PAGING_STYLE_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
   SORT_OPTION_KEYS,
@@ -52,15 +53,18 @@ import {
   isPresetRadius,
   isPresetTitleSize,
   normalizeHandleList,
+  normalizeHideProductTags,
   normalizeSearchFields,
   normalizeSortOptions,
   parseHideOutOfStock,
+  parsePaginationStyle,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
   type HideOutOfStockMode,
+  type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
@@ -138,8 +142,11 @@ type SettingsState = {
   widgetPosition: WidgetPosition;
   accentColor: string;
   showProductCounts: boolean;
+  showTotalProductCount: boolean;
+  hideProductTags: string[];
   collapseByDefault: boolean;
   hideOutOfStock: HideOutOfStockMode;
+  paginationStyle: PaginationStyle;
   widgetShadow: boolean;
   widgetRadius: number;
   radiusChoice: string;
@@ -156,6 +163,7 @@ type SettingsState = {
   inStockOnTop: boolean;
   soldOutToBottom: boolean;
   enableCollectionSearch: boolean;
+  enableMarkets: boolean;
   enableFiltersOnSearch: boolean;
   hideSingleValueFacets: boolean;
   showMatchingVariantImage: boolean;
@@ -164,14 +172,19 @@ type SettingsState = {
   showSuggestionsOnNoResults: boolean;
   suggestionProductHandles: string[];
   suggestionCollectionHandles: string[];
+  customCss: string;
+  productListLiquid: string;
 };
 
 function toSettingsState(settings: {
   widgetPosition: string;
   accentColor: string;
   showProductCounts: boolean;
+  showTotalProductCount?: boolean;
+  hideProductTags?: unknown;
   collapseByDefault: boolean;
   hideOutOfStock?: string;
+  paginationStyle?: string;
   widgetShadow: boolean;
   widgetRadius: number;
   widgetFontMode: string;
@@ -186,6 +199,7 @@ function toSettingsState(settings: {
   inStockOnTop?: boolean;
   soldOutToBottom?: boolean;
   enableCollectionSearch?: boolean;
+  enableMarkets?: boolean;
   enableFiltersOnSearch?: boolean;
   hideSingleValueFacets?: boolean;
   showMatchingVariantImage?: boolean;
@@ -194,6 +208,8 @@ function toSettingsState(settings: {
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: unknown;
   suggestionCollectionHandles?: unknown;
+  customCss?: string;
+  productListLiquid?: string;
 }): SettingsState {
   const widgetRadius = parseWidgetRadius(settings.widgetRadius);
   const widgetTitleSize = parseWidgetTitleSize(settings.widgetTitleSize);
@@ -201,8 +217,11 @@ function toSettingsState(settings: {
     widgetPosition: parseWidgetPosition(settings.widgetPosition),
     accentColor: settings.accentColor,
     showProductCounts: settings.showProductCounts,
+    showTotalProductCount: settings.showTotalProductCount !== false,
+    hideProductTags: normalizeHideProductTags(settings.hideProductTags),
     collapseByDefault: settings.collapseByDefault,
     hideOutOfStock: parseHideOutOfStock(settings.hideOutOfStock),
+    paginationStyle: parsePaginationStyle(settings.paginationStyle),
     widgetShadow: settings.widgetShadow,
     widgetRadius,
     radiusChoice: isPresetRadius(widgetRadius) ? String(widgetRadius) : "custom",
@@ -227,6 +246,7 @@ function toSettingsState(settings: {
     inStockOnTop: Boolean(settings.inStockOnTop),
     soldOutToBottom: Boolean(settings.soldOutToBottom),
     enableCollectionSearch: Boolean(settings.enableCollectionSearch),
+    enableMarkets: settings.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets,
     enableFiltersOnSearch: settings.enableFiltersOnSearch ?? true,
     hideSingleValueFacets: Boolean(settings.hideSingleValueFacets),
     showMatchingVariantImage: settings.showMatchingVariantImage ?? true,
@@ -239,6 +259,9 @@ function toSettingsState(settings: {
     suggestionCollectionHandles: normalizeHandleList(
       settings.suggestionCollectionHandles,
     ),
+    customCss: settings.customCss ?? DEFAULT_APP_SETTINGS.customCss,
+    productListLiquid:
+      settings.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
   };
 }
 
@@ -265,8 +288,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       widgetPosition: settings.widgetPosition,
       accentColor: settings.accentColor,
       showProductCounts: settings.showProductCounts,
+      showTotalProductCount: settings.showTotalProductCount,
+      hideProductTags: settings.hideProductTags,
       collapseByDefault: settings.collapseByDefault,
       hideOutOfStock: settings.hideOutOfStock,
+      paginationStyle: (settings as { paginationStyle?: string }).paginationStyle,
       widgetShadow: settings.widgetShadow,
       widgetRadius: settings.widgetRadius,
       widgetFontMode: settings.widgetFontMode,
@@ -281,6 +307,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       inStockOnTop: settings.inStockOnTop,
       soldOutToBottom: settings.soldOutToBottom,
       enableCollectionSearch: settings.enableCollectionSearch,
+      enableMarkets: settings.enableMarkets,
       enableFiltersOnSearch: settings.enableFiltersOnSearch,
       hideSingleValueFacets: settings.hideSingleValueFacets,
       showMatchingVariantImage: settings.showMatchingVariantImage,
@@ -289,6 +316,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
       suggestionProductHandles: settings.suggestionProductHandles,
       suggestionCollectionHandles: settings.suggestionCollectionHandles,
+      customCss: settings.customCss,
+      productListLiquid: settings.productListLiquid,
     }),
   };
 };
@@ -377,10 +406,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     showProductCounts:
       form.get("showProductCounts") === "true" ||
       form.get("showProductCounts") === "on",
+    showTotalProductCount:
+      form.get("showTotalProductCount") === "true" ||
+      form.get("showTotalProductCount") === "on",
+    hideProductTags: normalizeHideProductTags(
+      String(form.get("hideProductTags") || ""),
+    ),
     collapseByDefault:
       form.get("collapseByDefault") === "true" ||
       form.get("collapseByDefault") === "on",
     hideOutOfStock: parseHideOutOfStock(form.get("hideOutOfStock")),
+    paginationStyle: parsePaginationStyle(form.get("paginationStyle")),
     widgetShadow:
       form.get("widgetShadow") === "true" || form.get("widgetShadow") === "on",
     widgetRadius: parseWidgetRadius(form.get("widgetRadius")),
@@ -404,6 +440,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     enableCollectionSearch:
       form.get("enableCollectionSearch") === "true" ||
       form.get("enableCollectionSearch") === "on",
+    enableMarkets:
+      form.get("enableMarkets") === "true" || form.get("enableMarkets") === "on",
     enableFiltersOnSearch:
       form.get("enableFiltersOnSearch") === "true" ||
       form.get("enableFiltersOnSearch") === "on",
@@ -415,6 +453,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("showMatchingVariantImage") === "on",
     showRefineBy:
       form.get("showRefineBy") === "true" || form.get("showRefineBy") === "on",
+    customCss: String(form.get("customCss") ?? ""),
+    productListLiquid: String(form.get("productListLiquid") ?? ""),
   });
 
   return { ok: true };
@@ -451,7 +491,8 @@ export default function SettingsPage() {
   const selectedTab = parseSettingsTab(searchParams.get("tab"));
   const tabs = visibleSettingsTabs(selectedTab);
   const selectedTabIndex = tabs.findIndex((tab) => tab.id === selectedTab);
-  const showPreview = selectedTab === "panel";
+  const showPreview =
+    selectedTab === "general" || selectedTab === "panel";
   const hidePageSave =
     selectedTab === "metafields" || isPlaceholderSettingsTab(selectedTab);
 
@@ -477,8 +518,11 @@ export default function SettingsPage() {
     formData.set("widgetPosition", next.widgetPosition);
     formData.set("accentColor", next.accentColor);
     formData.set("showProductCounts", String(next.showProductCounts));
+    formData.set("showTotalProductCount", String(next.showTotalProductCount));
+    formData.set("hideProductTags", next.hideProductTags.join(", "));
     formData.set("collapseByDefault", String(next.collapseByDefault));
     formData.set("hideOutOfStock", next.hideOutOfStock);
+    formData.set("paginationStyle", next.paginationStyle);
     formData.set("widgetShadow", String(next.widgetShadow));
     formData.set("widgetRadius", String(next.widgetRadius));
     formData.set("widgetFontMode", next.widgetFontMode);
@@ -492,6 +536,7 @@ export default function SettingsPage() {
     formData.set("inStockOnTop", String(next.inStockOnTop));
     formData.set("soldOutToBottom", String(next.soldOutToBottom));
     formData.set("enableCollectionSearch", String(next.enableCollectionSearch));
+    formData.set("enableMarkets", String(next.enableMarkets));
     formData.set("enableFiltersOnSearch", String(next.enableFiltersOnSearch));
     formData.set("hideSingleValueFacets", String(next.hideSingleValueFacets));
     formData.set(
@@ -499,6 +544,8 @@ export default function SettingsPage() {
       String(next.showMatchingVariantImage),
     );
     formData.set("showRefineBy", String(next.showRefineBy));
+    formData.set("customCss", next.customCss);
+    formData.set("productListLiquid", next.productListLiquid);
     submit(formData, { method: "POST" });
   };
 
@@ -520,6 +567,13 @@ export default function SettingsPage() {
   };
 
   return (
+    <div
+      className={
+        showPreview
+          ? "findly-settings-page findly-settings-page--preview"
+          : "findly-settings-page"
+      }
+    >
     <Page
       title="Settings"
       subtitle="General, filter panel, and metafields."
@@ -555,23 +609,24 @@ export default function SettingsPage() {
             ]
       }
     >
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            <Tabs
-              tabs={[...tabs]}
-              selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
-              onSelect={(index) => {
-                const next = tabs[index];
-                if (!next) return;
-                const params = new URLSearchParams(searchParams);
-                params.set("tab", next.id);
-                setSearchParams(params, {
-                  replace: true,
-                  preventScrollReset: true,
-                });
-              }}
-            />
+      <BlockStack gap="400">
+        <Tabs
+          tabs={[...tabs]}
+          selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
+          onSelect={(index) => {
+            const next = tabs[index];
+            if (!next) return;
+            const params = new URLSearchParams(searchParams);
+            params.set("tab", next.id);
+            setSearchParams(params, {
+              replace: true,
+              preventScrollReset: true,
+            });
+          }}
+        />
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
             <Form id="settings-form" method="post" onSubmit={handleSubmit}>
             <BlockStack gap="400">
               <div
@@ -610,13 +665,38 @@ export default function SettingsPage() {
                         }
                       />
                       <Checkbox
+                        label="Enable Shopify Markets, multi-currency, and B2B catalog prices"
+                        checked={settings.enableMarkets}
+                        disabled={saving}
+                        helpText="Price filters use the storefront Market country (and B2B company location when the buyer is logged in). Turn off to always use the shop default currency from sync. Re-sync products after changing Markets in Shopify."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            enableMarkets: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
                         label="Show the number of matching products"
                         checked={settings.showProductCounts}
                         disabled={saving}
+                        helpText="Per-option counts in the filter list (Blue 12)."
                         onChange={(checked) =>
                           setSettings((s) => ({
                             ...s,
                             showProductCounts: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Show the number of total products"
+                        checked={settings.showTotalProductCount}
+                        disabled={saving}
+                        helpText="Uncheck to hide the “X products” count on collection and search pages."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            showTotalProductCount: checked,
                           }))
                         }
                       />
@@ -631,6 +711,21 @@ export default function SettingsPage() {
                       <Text as="h2" variant="headingMd">
                         Product visibility
                       </Text>
+                      <TextField
+                        label="Hide products by tags"
+                        value={settings.hideProductTags.join(", ")}
+                        autoComplete="off"
+                        disabled={saving}
+                        multiline={2}
+                        helpText="Products with any of these tags are hidden from collection pages, search, and instant search. Example: hidden-product"
+                        placeholder="hidden-product"
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            hideProductTags: normalizeHideProductTags(value),
+                          }))
+                        }
+                      />
                       <Select
                         label="Out-of-stock"
                         options={HIDE_OUT_OF_STOCK_OPTIONS}
@@ -673,12 +768,34 @@ export default function SettingsPage() {
                   <Card>
                     <BlockStack gap="300">
                       <Text as="h2" variant="headingMd">
+                        Pagination
+                      </Text>
+                      <Select
+                        label="Paging style"
+                        options={PAGING_STYLE_OPTIONS}
+                        value={settings.paginationStyle}
+                        disabled={saving}
+                        helpText="Applies to filtered collection and search grids. Theme pagination is left alone when intercept is not possible."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            paginationStyle: parsePaginationStyle(value),
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
                         Sorting
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Shoppers sort the theme product grid together with
                         active filters. Featured order comes from the Shopify
                         collection (sync after changing collection sort).
+                        Extra metafield sort keys come from Settings →
+                        Metafields (Applies to: Sort), not the checkboxes below.
                         Best-selling sorting is not available yet.
                       </Text>
                       <Checkbox
@@ -1058,6 +1175,47 @@ export default function SettingsPage() {
                       </FormLayout>
                     </BlockStack>
                   </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Custom CSS
+                      </Text>
+                      <TextField
+                        label="Custom CSS"
+                        labelHidden
+                        autoComplete="off"
+                        multiline={8}
+                        value={settings.customCss}
+                        disabled={saving}
+                        helpText="Scoped to the filter widget only. Does not change the theme header. Use --sf-accent to change the accent."
+                        onChange={(value) =>
+                          setSettings((s) => ({ ...s, customCss: value }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Product list Liquid
+                      </Text>
+                      <TextField
+                        label="Product list Liquid"
+                        labelHidden
+                        autoComplete="off"
+                        multiline={6}
+                        value={settings.productListLiquid}
+                        disabled={saving}
+                        helpText="Optional snippet for the app product grid (D8). Not applied to the live theme grid yet. Script tags are stripped on save."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            productListLiquid: value,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
                 </BlockStack>
               </div>
 
@@ -1114,25 +1272,27 @@ export default function SettingsPage() {
                 </BlockStack>
               </Card>
             </div>
-          </BlockStack>
-        </Layout.Section>
-        {showPreview ? (
-        <Layout.Section variant="oneThird">
-          <div style={{ position: "sticky", top: 16 }}>
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  Preview
-                </Text>
-                <WidgetLookPreview settings={settings} />
-              </BlockStack>
-            </Card>
-          </div>
-        </Layout.Section>
-        ) : null}
-      </Layout>
+            </BlockStack>
+          </Layout.Section>
+          {showPreview ? (
+            <Layout.Section variant="oneThird">
+              <div className="findly-settings-preview">
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingMd">
+                      Preview
+                    </Text>
+                    <WidgetLookPreview settings={settings} />
+                  </BlockStack>
+                </Card>
+              </div>
+            </Layout.Section>
+          ) : null}
+        </Layout>
+      </BlockStack>
       {dialog}
     </Page>
+    </div>
   );
 }
 

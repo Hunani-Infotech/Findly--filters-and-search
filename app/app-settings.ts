@@ -59,6 +59,30 @@ export function parseStorefrontHandle(raw: string): string {
   return value.slice(0, 100);
 }
 
+export const HIDE_PRODUCT_TAGS_MAX = 50;
+
+/** Comma or newline list of product tags that hide a product from collection + search. */
+export function normalizeHideProductTags(value: unknown): string[] {
+  const parts = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : [];
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    const tag = part.trim().slice(0, 100);
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(tag);
+    if (next.length >= HIDE_PRODUCT_TAGS_MAX) break;
+  }
+  return next;
+}
+
 export function normalizeHandleList(
   value: unknown,
   max = SUGGESTION_LIST_MAX,
@@ -102,6 +126,29 @@ export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {
   return HIDE_OUT_OF_STOCK_MODES.includes(value as HideOutOfStockMode)
     ? (value as HideOutOfStockMode)
     : "show";
+}
+
+export const PAGING_STYLE_KEYS = [
+  "pagination",
+  "load_more",
+  "infinite",
+] as const;
+
+export type PaginationStyle = (typeof PAGING_STYLE_KEYS)[number];
+
+export const PAGING_STYLE_OPTIONS: {
+  label: string;
+  value: PaginationStyle;
+}[] = [
+  { label: "Pagination", value: "pagination" },
+  { label: "Load more button", value: "load_more" },
+  { label: "Infinite scroll", value: "infinite" },
+];
+
+export function parsePaginationStyle(value: unknown): PaginationStyle {
+  return PAGING_STYLE_KEYS.includes(value as PaginationStyle)
+    ? (value as PaginationStyle)
+    : "pagination";
 }
 
 export const WIDGET_POSITIONS = [
@@ -170,8 +217,11 @@ export const DEFAULT_APP_SETTINGS = {
   widgetPosition: "left" as WidgetPosition,
   accentColor: "#1c1917",
   showProductCounts: true,
+  showTotalProductCount: true,
+  hideProductTags: [] as string[],
   collapseByDefault: false,
   hideOutOfStock: "show" as HideOutOfStockMode,
+  paginationStyle: "pagination" as PaginationStyle,
   widgetShadow: true,
   widgetRadius: 12,
   widgetFontMode: "theme" as const,
@@ -195,6 +245,7 @@ export const DEFAULT_APP_SETTINGS = {
   inStockOnTop: false,
   soldOutToBottom: false,
   enableCollectionSearch: false,
+  enableMarkets: true,
   enableFiltersOnSearch: true,
   hideSingleValueFacets: false,
   showMatchingVariantImage: true,
@@ -203,6 +254,8 @@ export const DEFAULT_APP_SETTINGS = {
   showSuggestionsOnNoResults: false,
   suggestionProductHandles: [] as string[],
   suggestionCollectionHandles: [] as string[],
+  customCss: "",
+  productListLiquid: "",
 };
 
 export const WIDGET_RADIUS_PRESETS = [

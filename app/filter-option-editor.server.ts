@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import prisma from "./db.server";
 import {
   defaultUrlHandle,
@@ -42,6 +43,7 @@ import {
   type FacetMatchMode,
 } from "./filters";
 import { getListFacetValueCatalog, getMetafieldMappings } from "./shop.server";
+import { parseCollectionParents } from "./collection-facet";
 
 export type FilterOptionEditorMode = "add" | "edit";
 
@@ -51,8 +53,20 @@ export type FilterOptionSourceChoice = {
   defaultLabel: string;
   displayType: FacetDisplayType;
   displayTypeChoices: Array<{ value: FacetDisplayType; label: string }>;
-  catalogValues: string[];
   showValues: boolean;
+};
+
+export type FilterOptionCatalogPage = {
+  sourceKey: string;
+  values: string[];
+  labels: Record<string, string>;
+  total: number;
+  page: number;
+  pageCount: number;
+  showingFrom: number;
+  showingTo: number;
+  query: string;
+  collectionTreeItems: Array<{ value: string; label: string }>;
 };
 
 export type FilterOptionEditorData = {
@@ -69,11 +83,12 @@ export type FilterOptionEditorData = {
   prefix: string;
   removePrefix: boolean;
   selectedValues: string[];
-  catalogValues: string[];
+  catalog: FilterOptionCatalogPage;
   showValues: boolean;
   shopDomain: string;
   urlHandle: string;
   collectionTree: boolean;
+  collectionParents: Record<string, string>;
   valueSortMode: FacetValueSortMode;
   collapseByDefault: boolean;
   enableValueSearch: boolean;
@@ -96,6 +111,7 @@ function editorExtras(
   | "shopDomain"
   | "urlHandle"
   | "collectionTree"
+  | "collectionParents"
   | "valueSortMode"
   | "collapseByDefault"
   | "enableValueSearch"
@@ -109,6 +125,7 @@ function editorExtras(
     shopDomain: FALLBACK_SHOP_DOMAIN,
     urlHandle: setting.urlHandle || defaultUrlHandle(label, key),
     collectionTree: Boolean(setting.collectionTree),
+    collectionParents: setting.collectionParents || {},
     valueSortMode: setting.valueSortMode || "az",
     collapseByDefault: setting.collapseByDefault !== false,
     enableValueSearch: Boolean(setting.enableValueSearch),
@@ -122,22 +139,136 @@ function editorExtras(
 
 type MappedFacet = { key: string; label: string; filterType: string };
 
-async function loadCatalogContext(shopId: string) {
-  const valueCatalog = await getListFacetValueCatalog(shopId, "");
-  const optionProducts = await prisma.productFacet.findMany({
-    where: { shopId, status: "ACTIVE" },
-    take: 500,
-    select: { options: true },
+function collectionTreeItemsFromRows(
+  collections: Array<{ collectionGid: string; title: string; handle: string }>,
+) {
+  return collections.slice(0, 80).map((row) => ({
+    value: row.collectionGid,
+    label: row.title || row.handle || row.collectionGid,
+  }));
+}
+
+function filterCatalogValues(
+  values: string[],
+  labels: Record<string, string>,
+  query: string,
+) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return values;
+  return values.filter((value) => {
+    const label = labels[value] || value;
+    return (
+      value.toLowerCase().includes(needle) ||
+      label.toLowerCase().includes(needle)
+    );
   });
+}
+
+function pageFilterOptionCatalog(
+  sourceKey: string,
+  all: string[],
+  labels: Record<string, string>,
+  page: number,
+  query: string,
+  collectionTreeItems: Array<{ value: string; label: string }>,
+): FilterOptionCatalogPage {
+  const filtered = filterCatalogValues(all, labels, query);
+  const slice = slicePage(filtered, page, ADMIN_CATALOG_PAGE_SIZE);
+  const pageLabels: Record<string, string> = {};
+  for (const value of slice.paged) {
+    if (labels[value]) pageLabels[value] = labels[value];
+  }
+  return {
+    sourceKey,
+    values: slice.paged,
+    labels: pageLabels,
+    total: slice.total,
+    page: slice.safePage,
+    pageCount: slice.pageCount,
+    showingFrom: slice.showingFrom,
+    showingTo: slice.showingTo,
+    query,
+    collectionTreeItems:
+      sourceKey === "collection" ? collectionTreeItems : [],
+  };
+}
+
+async function loadCatalogContext(shopId: string) {
+  const [valueCatalog, collections, optionProducts, mappings] = await Promise.all([
+    getListFacetValueCatalog(shopId, ""),
+    prisma.collection.findMany({
+      where: { shopId },
+      select: { collectionGid: true, title: true, handle: true },
+      orderBy: { title: "asc" },
+    }),
+    prisma.productFacet.findMany({
+      where: { shopId, status: "ACTIVE" },
+      take: 500,
+      select: { options: true },
+    }),
+    getMetafieldMappings(shopId),
+  ]);
   const catalogOptions = catalogOptionRows(
     optionProducts.map((product) => ({
       options: (product.options as Record<string, string[]>) || {},
     })),
   );
-  const mappedFacets: MappedFacet[] = mappedFacetsForAdmin(
-    await getMetafieldMappings(shopId),
+  const mappedFacets: MappedFacet[] = mappedFacetsForAdmin(mappings);
+  const collectionValues = collections.map((row) => row.collectionGid);
+  const collectionLabels = Object.fromEntries(
+    collections.map((row) => [
+      row.collectionGid,
+      row.title || row.handle || row.collectionGid,
+    ]),
   );
-  return { valueCatalog, catalogOptions, mappedFacets };
+  const catalog = valueCatalog.filter((item) => item.key !== "collection");
+  if (collectionValues.length) {
+    catalog.push({
+      key: "collection",
+      label: "Collection",
+      values: collectionValues,
+    });
+  }
+  return {
+    valueCatalog: catalog,
+    catalogOptions,
+    mappedFacets,
+    collectionLabels,
+    collectionTreeItems: collectionTreeItemsFromRows(collections),
+  };
+}
+
+export async function loadFilterOptionCatalogPage(
+  shopId: string,
+  sourceKey: string,
+  input: { page?: number; query?: string; all?: boolean } = {},
+) {
+  const { valueCatalog, collectionLabels, collectionTreeItems } =
+    await loadCatalogContext(shopId);
+  const all = catalogValuesForKey(valueCatalog, sourceKey);
+  const labels = sourceKey === "collection" ? collectionLabels : {};
+  const query = String(input.query || "");
+  if (input.all) {
+    const values = filterCatalogValues(all, labels, query);
+    return {
+      all: true as const,
+      sourceKey,
+      query,
+      values,
+      total: values.length,
+    };
+  }
+  return {
+    all: false as const,
+    ...pageFilterOptionCatalog(
+      sourceKey,
+      all,
+      labels,
+      input.page ?? 0,
+      query,
+      collectionTreeItems,
+    ),
+  };
 }
 
 function displayOrderForConfig(
@@ -163,7 +294,6 @@ function choicesForRow(row: FilterOptionRow) {
 function sourceChoice(
   row: FilterOptionRow,
   displayTypes: Record<string, FacetDisplayType>,
-  valueCatalog: Array<{ key: string; values: string[] }>,
 ): FilterOptionSourceChoice {
   const choices = choicesForRow(row);
   const stored = displayTypes[row.key];
@@ -180,7 +310,6 @@ function sourceChoice(
     defaultLabel: row.label,
     displayType,
     displayTypeChoices: choiceLabels(choices),
-    catalogValues: catalogValuesForKey(valueCatalog, row.key),
     showValues: facetSupportsValuePicker(row.key, row.filterType),
   };
 }
@@ -201,7 +330,7 @@ export async function loadFilterOptionEditorPage(
   const config = await getFilterTree(shopId, treeId);
   if (!config) return "not_found";
 
-  const { valueCatalog, catalogOptions, mappedFacets } =
+  const { valueCatalog, catalogOptions, mappedFacets, collectionLabels, collectionTreeItems } =
     await loadCatalogContext(shopId);
   const flags = enableFlagsFromConfig(config);
   const displayOrder = displayOrderForConfig(config);
@@ -228,9 +357,7 @@ export async function loadFilterOptionEditorPage(
   );
 
   if (mode === "add") {
-    const sources = available.map((row) =>
-      sourceChoice(row, displayTypes, valueCatalog),
-    );
+    const sources = available.map((row) => sourceChoice(row, displayTypes));
     const first = sources[0];
     const addKey = first?.value || "";
     const addLabel = first?.defaultLabel || "";
@@ -248,7 +375,14 @@ export async function loadFilterOptionEditorPage(
       prefix: "",
       removePrefix: false,
       selectedValues: [],
-      catalogValues: first?.catalogValues || [],
+      catalog: pageFilterOptionCatalog(
+        addKey,
+        catalogValuesForKey(valueCatalog, addKey),
+        addKey === "collection" ? collectionLabels : {},
+        0,
+        "",
+        collectionTreeItems,
+      ),
       showValues: first?.showValues || false,
       ...editorExtras(addKey, addLabel, {}, "or"),
     };
@@ -259,10 +393,7 @@ export async function loadFilterOptionEditorPage(
   const row = rows.find((item) => item.key === key);
   if (!row) return "not_found";
   const setting = settingFor(settings, key);
-  const choice = sourceChoice(row, displayTypes, valueCatalog);
-  const extras = (setting.selectedValues || []).filter(
-    (value) => !choice.catalogValues.includes(value),
-  );
+  const choice = sourceChoice(row, displayTypes);
   const label = setting.label || row.label;
 
   return {
@@ -279,7 +410,14 @@ export async function loadFilterOptionEditorPage(
     prefix: setting.prefix || "",
     removePrefix: Boolean(setting.removePrefix),
     selectedValues: setting.selectedValues || [],
-    catalogValues: [...choice.catalogValues, ...extras],
+    catalog: pageFilterOptionCatalog(
+      key,
+      catalogValuesForKey(valueCatalog, key),
+      key === "collection" ? collectionLabels : {},
+      0,
+      "",
+      collectionTreeItems,
+    ),
     showValues: choice.showValues,
     ...editorExtras(
       key,
@@ -288,6 +426,15 @@ export async function loadFilterOptionEditorPage(
       matchModes[key] === "and" ? "and" : "or",
     ),
   };
+}
+
+function parseJsonObject(raw: FormDataEntryValue | null): unknown {
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return {};
+  }
 }
 
 function parseBool(form: FormData, name: string, fallback = false) {
@@ -349,6 +496,7 @@ export function parseFilterOptionForm(form: FormData) {
     selectedValues,
     urlHandle: handleRaw || defaultUrlHandle(label, key),
     collectionTree: parseBool(form, "collectionTree"),
+    collectionParents: parseCollectionParents(parseJsonObject(form.get("collectionParents"))),
     valueSortMode,
     collapseByDefault: parseBool(form, "collapseByDefault", true),
     enableValueSearch: parseBool(form, "enableValueSearch"),
@@ -382,8 +530,14 @@ function nextFacetSetting(
   else delete setting.tooltip;
   if (input.key === "collection") {
     setting.collectionTree = input.collectionTree;
+    if (input.collectionTree && Object.keys(input.collectionParents).length) {
+      setting.collectionParents = input.collectionParents;
+    } else {
+      delete setting.collectionParents;
+    }
   } else {
     delete setting.collectionTree;
+    delete setting.collectionParents;
   }
   const persistValues = showValues || input.key === "collection";
   if (!persistValues) {

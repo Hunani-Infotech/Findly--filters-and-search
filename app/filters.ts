@@ -1,6 +1,12 @@
 import type { FilterConfig, MetafieldFilterType, MetafieldMapping } from "@prisma/client";
 import { parseKnownMetafieldKeys } from "./facet-settings";
 import { mappingAppliesToFilter } from "./metafield-applies";
+import {
+  COLLECTION_FACET_KEY,
+  collectionStorefrontPath,
+  productInSelectedCollections,
+  type ShopCollection,
+} from "./collection-facet";
 
 export type FacetSource =
   | "vendor"
@@ -10,6 +16,8 @@ export type FacetSource =
   | "sale"
   | "rating"
   | "availability"
+  | "location"
+  | "collection"
   | "metafield"
   | "option";
 
@@ -22,6 +30,7 @@ export const FACET_DISPLAY_TYPES = [
   "slider",
   "radio",
   "box",
+  "collection",
 ] as const;
 
 export type FacetDisplayType = (typeof FACET_DISPLAY_TYPES)[number];
@@ -39,6 +48,7 @@ export const FACET_DISPLAY_TYPE_LABELS: Record<FacetDisplayType, string> = {
   slider: "Slider",
   radio: "Radio",
   box: "Box",
+  collection: "Collection",
 };
 
 export type FacetDef = {
@@ -130,6 +140,7 @@ export function normalizeBooleanMetafieldValue(
 
 export const DEFAULT_DISPLAY_ORDER = [
   "availability",
+  "location",
   "price",
   "sale",
   "rating",
@@ -271,11 +282,18 @@ export function matchModeForFacet(
     if (map.tag === "and" || map.tags === "and") return "and";
     return "or";
   }
+  if (facet.source === "location") {
+    if (map.location === "and") return "and";
+    return "or";
+  }
   if (facet.source === "option") {
     if (map[facet.key] === "and" || map.options === "and") return "and";
     return "or";
   }
   if (facet.source === "metafield") {
+    return map[facet.key] === "and" ? "and" : "or";
+  }
+  if (facet.source === "collection") {
     return map[facet.key] === "and" ? "and" : "or";
   }
   return "or";
@@ -313,6 +331,9 @@ export function displayTypeChoicesForKey(
 ): FacetDisplayType[] {
   if (isRangeDisplayKey(key, kind)) return ["slider"];
   if (key === "rating") return ["checkbox"];
+  if (key === COLLECTION_FACET_KEY) {
+    return ["checkbox", "list", "dropdown", "radio", "box", "collection"];
+  }
   if (
     key === "options" ||
     key.startsWith("opt_") ||
@@ -333,6 +354,9 @@ export function displayTypeForFacet(
     return "slider";
   }
   if (facet.source === "rating") return "checkbox";
+  if (facet.source === "collection") {
+    return map[facet.key] || "checkbox";
+  }
   if (facet.type === "boolean") return map[facet.key] || "checkbox";
   const stored =
     map[facet.key] ||
@@ -546,6 +570,38 @@ export function facetsFromConfig(
       enabled: Boolean(config?.enableRating),
       displayType: "checkbox",
     },
+    location: {
+      key: "location",
+      source: "location",
+      label: "Location",
+      type: "checkbox",
+      enabled: Boolean(config?.enableLocation),
+      displayType: displayTypeForFacet(
+        { key: "location", source: "location", label: "Location", type: "checkbox" },
+        displayTypes,
+      ),
+      matchMode: matchModeForFacet({ key: "location", source: "location" }, matchModes),
+    },
+    collection: {
+      key: COLLECTION_FACET_KEY,
+      source: "collection",
+      label: "Collection",
+      type: "checkbox",
+      enabled: order.includes(COLLECTION_FACET_KEY),
+      displayType: displayTypeForFacet(
+        {
+          key: COLLECTION_FACET_KEY,
+          source: "collection",
+          label: "Collection",
+          type: "checkbox",
+        },
+        displayTypes,
+      ),
+      matchMode: matchModeForFacet(
+        { key: COLLECTION_FACET_KEY, source: "collection" },
+        matchModes,
+      ),
+    },
     vendor: {
       key: "vendor",
       source: "vendor",
@@ -705,13 +761,25 @@ export type ProductFacetRow = {
   compareAtMax?: number | null;
   salePct?: number;
   available: boolean;
+  inventoryLocations?: string[];
   status: string;
   imageUrl: string | null;
   variantImages?: VariantImageEntry[];
+  variants?: Array<{
+    id: string;
+    sku: string;
+    title: string;
+    options: Record<string, string>;
+    imageUrl: string;
+    available: boolean;
+    price: number;
+  }>;
+  variantGid?: string;
   metafields: Record<string, string>;
   variantMetafields?: Record<string, string>;
   publishedAt?: Date | null;
   sortPosition?: number;
+  collectionGids?: string[];
 };
 
 export type SelectedFilters = Record<string, string[]>;
@@ -985,6 +1053,17 @@ export function productMatchesFilters(
         if (wantOut && product.available) return false;
         break;
       }
+      case "location":
+        if (
+          !selectedMatchList(
+            values,
+            product.inventoryLocations ?? [],
+            facet.matchMode ?? "or",
+          )
+        ) {
+          return false;
+        }
+        break;
       case "price": {
         const min = parseBound(values[0]);
         const max = parseBound(values[1]);
@@ -1008,6 +1087,19 @@ export function productMatchesFilters(
           .filter((n) => Number.isFinite(n));
         if (!thresholds.length) break;
         if (!thresholds.some((n) => rating >= n)) return false;
+        break;
+      }
+      case "collection": {
+        if (facet.displayType === "collection") break;
+        if (
+          !productInSelectedCollections(
+            product.collectionGids,
+            values,
+            facet.matchMode ?? "or",
+          )
+        ) {
+          return false;
+        }
         break;
       }
       case "option": {
@@ -1067,6 +1159,23 @@ export function hasActiveFilterSelection(selected: SelectedFilters): boolean {
   return Object.values(selected).some(
     (values) => Array.isArray(values) && values.length > 0,
   );
+}
+
+/** Drop products whose tags intersect the merchant hide-by-tag list (D10). */
+export function excludeHiddenTaggedProducts<T extends { tags?: string[] | null }>(
+  products: T[],
+  hideTags: string[],
+): T[] {
+  if (!hideTags.length) return products;
+  const hidden = new Set(
+    hideTags.map((tag) => tag.trim().toLowerCase()).filter(Boolean),
+  );
+  if (!hidden.size) return products;
+  return products.filter((product) => {
+    const tags = product.tags;
+    if (!Array.isArray(tags) || tags.length === 0) return true;
+    return !tags.some((tag) => hidden.has(String(tag).trim().toLowerCase()));
+  });
 }
 
 /** Merchant hide-OOS policy. Shopper availability=out_of_stock still wins. */
@@ -1264,6 +1373,7 @@ export function buildFacetAggregations(
   priceSettings?: PriceRangeSettings | null,
   valueSort: ValueSortMap = {},
   rangeBounds: RangeBoundMap = {},
+  collectionCatalog: ShopCollection[] = [],
 ) {
   const result: Array<{
     key: string;
@@ -1275,7 +1385,14 @@ export function buildFacetAggregations(
     valueSortMode?: ValueSortMode;
     optionName?: string;
     optionNames?: string[];
-    values?: Array<{ value: string; label: string; count: number }>;
+    values?: Array<{
+      value: string;
+      label: string;
+      count: number;
+      handle?: string;
+      url?: string;
+      children?: unknown[];
+    }>;
     range?: { min: number | null; max: number | null };
   }> = [];
 
@@ -1341,6 +1458,48 @@ export function buildFacetAggregations(
       continue;
     }
 
+    if (facet.source === "collection") {
+      const counts = new Map<string, number>();
+      for (const product of products) {
+        for (const gid of product.collectionGids || []) {
+          if (!gid) continue;
+          counts.set(gid, (counts.get(gid) || 0) + 1);
+        }
+      }
+      const showAll = facet.displayType === "collection";
+      const fromCatalog = collectionCatalog.length
+        ? collectionCatalog
+        : [...counts.keys()].map((gid) => ({
+            collectionGid: gid,
+            title: gid,
+            handle: "",
+          }));
+      const sort = valueSortForFacet(facet, valueSort);
+      const listed = fromCatalog
+        .filter((row) => showAll || (counts.get(row.collectionGid) || 0) > 0)
+        .sort((a, b) =>
+          compareListedValues(a.title || a.collectionGid, b.title || b.collectionGid, facet, sort),
+        )
+        .map((row) => ({
+          value: row.collectionGid,
+          label: row.title || row.collectionGid,
+          count: counts.get(row.collectionGid) || 0,
+          handle: row.handle,
+          url: collectionStorefrontPath(row.handle),
+        }));
+      result.push({
+        key: facet.key,
+        label: facet.label,
+        type: facet.type,
+        source: facet.source,
+        displayType: facet.displayType ?? "checkbox",
+        matchMode: facet.matchMode ?? "or",
+        valueSortMode: sort.mode,
+        values: listed,
+      });
+      continue;
+    }
+
     if (facet.source === "metafield" && facet.type === "range") {
       const bounds = resolveMetafieldRangeBounds(products, facet, rangeBounds);
       result.push({
@@ -1372,6 +1531,9 @@ export function buildFacetAggregations(
           break;
         case "availability":
           vals = [product.available ? "in_stock" : "out_of_stock"];
+          break;
+        case "location":
+          vals = product.inventoryLocations ?? [];
           break;
         case "option":
           vals = optionValuesFor(product, facet);

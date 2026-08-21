@@ -135,15 +135,17 @@
     return "";
   }
 
-  function formatPrice(value) {
+  function formatPrice(value, currencyCode) {
     if (value == null || value === "") return "";
     var n = Number(value);
     if (!Number.isFinite(n)) return String(value);
     var currency =
+      currencyCode ||
       (window.Shopify &&
         window.Shopify.currency &&
         window.Shopify.currency.active) ||
-      "USD";
+      "";
+    if (!currency) return String(n);
     try {
       return new Intl.NumberFormat(undefined, {
         style: "currency",
@@ -193,6 +195,17 @@
     );
     this.showImages = String(root.getAttribute("data-show-images") || "true") !== "false";
     this.locale = root.getAttribute("data-locale") || "";
+    this.country =
+      root.getAttribute("data-country") ||
+      (window.Shopify && window.Shopify.country) ||
+      "";
+    this.currency =
+      root.getAttribute("data-currency") ||
+      (window.Shopify &&
+        window.Shopify.currency &&
+        window.Shopify.currency.active) ||
+      "";
+    this.companyLocation = root.getAttribute("data-company-location") || "";
     this.i18n = {};
     this._timer = 0;
     this._reqId = 0;
@@ -283,7 +296,58 @@
     if (this.resultsEl) this.resultsEl.innerHTML = "";
     this.hideSuggestions();
     this.setEmptyVisible(false);
+    this.hideDidYouMean();
     setStatus(this.statusEl, "", false);
+  };
+
+  SearchWidget.prototype.ensureSpellEl = function () {
+    if (this.spellEl) return this.spellEl;
+    var el = document.createElement("p");
+    el.className = "smart-filter-search__spell";
+    el.hidden = true;
+    var host = this.statusEl || this.emptyEl || this.resultsEl;
+    if (host && host.parentNode) {
+      host.parentNode.insertBefore(el, host);
+    } else {
+      this.root.insertBefore(el, this.root.firstChild);
+    }
+    this.spellEl = el;
+    return el;
+  };
+
+  SearchWidget.prototype.hideDidYouMean = function () {
+    if (!this.spellEl) return;
+    this.spellEl.innerHTML = "";
+    this.spellEl.hidden = true;
+  };
+
+  SearchWidget.prototype.renderDidYouMean = function (data) {
+    var suggestion = String((data && data.didYouMean) || "").trim();
+    var query = String(
+      (this.inputEl ? this.inputEl.value : "") ||
+        (data && data.query) ||
+        "",
+    ).trim();
+    if (!suggestion || suggestion.toLowerCase() === query.toLowerCase()) {
+      this.hideDidYouMean();
+      return;
+    }
+    var el = this.ensureSpellEl();
+    el.innerHTML = "";
+    el.appendChild(
+      document.createTextNode(this.t("did_you_mean", "Did you mean") + " "),
+    );
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "smart-filter-search__spell-link";
+    btn.textContent = suggestion;
+    var self = this;
+    btn.addEventListener("click", function () {
+      if (self.inputEl) self.inputEl.value = suggestion;
+      self.fetchSearch(suggestion);
+    });
+    el.appendChild(btn);
+    el.hidden = false;
   };
 
   SearchWidget.prototype.renderProductList = function (container, items) {
@@ -341,6 +405,7 @@
 
       var priceText = formatPrice(
         item.priceMin != null ? item.priceMin : item.price,
+        self.payloadCurrency || self.currency,
       );
       if (priceText) {
         var price = document.createElement("span");
@@ -426,12 +491,17 @@
       window.location = data.redirect;
       return;
     }
+    if (data && data.settings && data.settings.currency) {
+      this.payloadCurrency = String(data.settings.currency);
+    }
     var query = this.inputEl ? String(this.inputEl.value || "").trim() : "";
     var products = extractProducts(data);
     var suggestions = extractSuggestions(data);
     var collections = extractCollections(data);
+    this.renderDidYouMean(data);
 
     if (!query) {
+      this.hideDidYouMean();
       this.setEmptyVisible(false);
       if (this.resultsEl) this.resultsEl.innerHTML = "";
       if (!suggestions.length && !collections.length) {
@@ -475,6 +545,15 @@
     var url = this.proxyBase + "/search?q=" + encodeURIComponent(query);
     if (this.locale) {
       url += "&locale=" + encodeURIComponent(this.locale);
+    }
+    if (this.country) {
+      url += "&country=" + encodeURIComponent(this.country);
+    }
+    if (this.currency) {
+      url += "&currency=" + encodeURIComponent(this.currency);
+    }
+    if (this.companyLocation) {
+      url += "&company_location=" + encodeURIComponent(this.companyLocation);
     }
     var opts = {
       credentials: "same-origin",

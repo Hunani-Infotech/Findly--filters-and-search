@@ -24,6 +24,7 @@ export type FacetSetting = {
   selectedValues?: string[];
   urlHandle?: string;
   collectionTree?: boolean;
+  collectionParents?: Record<string, string>;
   valueSortMode?: FacetValueSortMode;
   collapseByDefault?: boolean;
   enableValueSearch?: boolean;
@@ -118,6 +119,17 @@ export function parseFacetSettings(raw: unknown): FacetSettingsMap {
     }
     if (typeof rec.collectionTree === "boolean") {
       setting.collectionTree = rec.collectionTree;
+    }
+    if (rec.collectionParents && typeof rec.collectionParents === "object" && !Array.isArray(rec.collectionParents)) {
+      const parents: Record<string, string> = {};
+      for (const [child, parent] of Object.entries(
+        rec.collectionParents as Record<string, unknown>,
+      )) {
+        if (child && typeof parent === "string" && parent && parent !== child) {
+          parents[child] = parent;
+        }
+      }
+      if (Object.keys(parents).length) setting.collectionParents = parents;
     }
     const valueSortMode = parseEnum(rec.valueSortMode, FACET_VALUE_SORT_MODES);
     if (valueSortMode) setting.valueSortMode = valueSortMode;

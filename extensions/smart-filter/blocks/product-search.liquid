@@ -3,6 +3,9 @@
   data-proxy-base="/apps/smart-filter"
   data-show-images="{% if block.settings.show_images %}true{% else %}false{% endif %}"
   data-locale="{{ request.locale.iso_code }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-currency="{{ cart.currency.iso_code }}"
+  data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
   {{ block.shopify_attributes }}
 >
   <form class="smart-filter-search__form" data-search-form role="search">

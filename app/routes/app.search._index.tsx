@@ -52,6 +52,7 @@ import {
   normalizePopularTerms,
   parseMaxProducts,
   parseSearchExtras,
+  normalizeStopWordList,
   type InstantProductStyle,
   type SearchExtras,
 } from "../instant-search";
@@ -303,9 +304,40 @@ export default function SearchPage() {
                         label="Fuzzy text search"
                         checked={state.searchExtras.fuzzyTextSearch}
                         disabled={saving}
-                        helpText="Return results even with small misspellings."
+                        helpText="Small misspellings still match. Rules: 4–5 letters → 1 edit; 6+ letters → 2 edits. Example: shrt → shirt."
                         onChange={(checked) =>
                           patchExtras({ fuzzyTextSearch: checked })
+                        }
+                      />
+                      <Checkbox
+                        label="Spell check"
+                        checked={state.searchExtras.spellCheck}
+                        disabled={saving}
+                        helpText="When a typo is corrected, show Did you mean. This is edit-distance, not AI."
+                        onChange={(checked) =>
+                          patchExtras({ spellCheck: checked })
+                        }
+                      />
+                      <Checkbox
+                        label="Fallback search"
+                        checked={state.searchExtras.fallbackSearch}
+                        disabled={saving}
+                        helpText="If nothing matches all keywords, broaden the query to any remaining keyword."
+                        onChange={(checked) =>
+                          patchExtras({ fallbackSearch: checked })
+                        }
+                      />
+                      <TextField
+                        label="Stop words"
+                        value={state.searchExtras.stopWords.join("\n")}
+                        multiline={4}
+                        autoComplete="off"
+                        disabled={saving}
+                        helpText="Ignored in search queries (one per line). “the red shirt” searches red + shirt."
+                        onChange={(value) =>
+                          patchExtras({
+                            stopWords: normalizeStopWordList(value),
+                          })
                         }
                       />
                     </BlockStack>
@@ -484,7 +516,11 @@ export default function SearchPage() {
                   <Card>
                     <BlockStack gap="300">
                       <Text as="h2" variant="headingMd">
-                        Popular search terms
+                        Suggestion dictionary
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Merchant-entered queries shown in Instant Search as
+                        shoppers type (Globo suggestion dictionary).
                       </Text>
                       <InlineStack gap="200" blockAlign="end" wrap={false}>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -661,7 +697,7 @@ export default function SearchPage() {
                         label="Blog Posts"
                         checked={state.searchExtras.instant.showBlogPosts}
                         disabled={saving}
-                        helpText="Can be enabled even if the storefront list is empty for now."
+                        helpText="After a catalog sync, matching blog titles appear in Instant Search."
                         onChange={(checked) =>
                           setState((s) => ({
                             ...s,
@@ -679,7 +715,7 @@ export default function SearchPage() {
                         label="Pages"
                         checked={state.searchExtras.instant.showPages}
                         disabled={saving}
-                        helpText="Can be enabled even if the storefront list is empty for now."
+                        helpText="After a catalog sync, matching page titles appear in Instant Search."
                         onChange={(checked) =>
                           setState((s) => ({
                             ...s,

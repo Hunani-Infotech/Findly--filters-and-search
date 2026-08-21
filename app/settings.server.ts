@@ -2,9 +2,11 @@ import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
   normalizeHandleList,
+  normalizeHideProductTags,
   normalizeSearchFields,
   normalizeSortOptions,
   parseHideOutOfStock,
+  parsePaginationStyle,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
@@ -14,6 +16,7 @@ import {
   sanitizeWidgetTitle,
   sanitizeWidgetTitleColor,
   type HideOutOfStockMode,
+  type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
@@ -23,6 +26,10 @@ import {
   parseSearchExtras,
   type SearchExtras,
 } from "./instant-search";
+import {
+  sanitizeCustomCss,
+  sanitizeProductListLiquid,
+} from "./widget-code";
 
 export { DEFAULT_APP_SETTINGS };
 
@@ -30,8 +37,11 @@ export type AppSettingsInput = {
   widgetPosition?: WidgetPosition;
   accentColor?: string;
   showProductCounts?: boolean;
+  showTotalProductCount?: boolean;
+  hideProductTags?: string[] | string;
   collapseByDefault?: boolean;
   hideOutOfStock?: HideOutOfStockMode | string;
+  paginationStyle?: PaginationStyle | string;
   widgetShadow?: boolean;
   widgetRadius?: number;
   widgetFontMode?: "theme" | "heading" | "body" | "custom";
@@ -46,6 +56,7 @@ export type AppSettingsInput = {
   inStockOnTop?: boolean;
   soldOutToBottom?: boolean;
   enableCollectionSearch?: boolean;
+  enableMarkets?: boolean;
   enableFiltersOnSearch?: boolean;
   hideSingleValueFacets?: boolean;
   showMatchingVariantImage?: boolean;
@@ -55,6 +66,8 @@ export type AppSettingsInput = {
   suggestionProductHandles?: string[] | string;
   suggestionCollectionHandles?: string[] | string;
   searchExtras?: SearchExtras | Record<string, unknown>;
+  customCss?: string;
+  productListLiquid?: string;
 };
 
 function extrasFromRow(row: object): unknown {
@@ -96,6 +109,15 @@ export async function getAppSettings(shopId: string) {
     suggestionCollectionHandles: normalizeHandleList(
       row.suggestionCollectionHandles,
     ),
+    hideProductTags: normalizeHideProductTags(
+      (row as { hideProductTags?: unknown }).hideProductTags,
+    ),
+    paginationStyle: parsePaginationStyle(
+      (row as { paginationStyle?: unknown }).paginationStyle,
+    ),
+    showTotalProductCount:
+      (row as { showTotalProductCount?: boolean }).showTotalProductCount !==
+      false,
     searchExtras: await loadSearchExtrasColumn(shopId, row),
   };
 }
@@ -118,6 +140,9 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const hideOutOfStock = parseHideOutOfStock(
     input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
   );
+  const paginationStyle = parsePaginationStyle(
+    input.paginationStyle ?? DEFAULT_APP_SETTINGS.paginationStyle,
+  );
   const sortOptionsEnabled =
     input.sortOptionsEnabled !== undefined
       ? normalizeSortOptions(input.sortOptionsEnabled)
@@ -134,6 +159,8 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const enableCollectionSearch =
     input.enableCollectionSearch ??
     DEFAULT_APP_SETTINGS.enableCollectionSearch;
+  const enableMarkets =
+    input.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets;
   const enableFiltersOnSearch =
     input.enableFiltersOnSearch ?? DEFAULT_APP_SETTINGS.enableFiltersOnSearch;
   const hideSingleValueFacets =
@@ -157,8 +184,19 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     input.suggestionCollectionHandles ??
       DEFAULT_APP_SETTINGS.suggestionCollectionHandles,
   );
+  const hideProductTags = normalizeHideProductTags(
+    input.hideProductTags ?? DEFAULT_APP_SETTINGS.hideProductTags,
+  );
+  const showTotalProductCount =
+    input.showTotalProductCount ?? DEFAULT_APP_SETTINGS.showTotalProductCount;
   const searchExtras = parseSearchExtras(
     input.searchExtras ?? DEFAULT_SEARCH_EXTRAS,
+  );
+  const customCss = sanitizeCustomCss(
+    input.customCss ?? DEFAULT_APP_SETTINGS.customCss,
+  );
+  const productListLiquid = sanitizeProductListLiquid(
+    input.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
   );
 
   const row = await prisma.appSettings.upsert({
@@ -168,8 +206,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       widgetPosition,
       accentColor,
       showProductCounts: input.showProductCounts ?? true,
+      showTotalProductCount,
+      hideProductTags,
       collapseByDefault: input.collapseByDefault ?? false,
       hideOutOfStock,
+      paginationStyle,
       widgetShadow: input.widgetShadow ?? true,
       widgetRadius,
       widgetFontMode,
@@ -184,6 +225,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       inStockOnTop,
       soldOutToBottom,
       enableCollectionSearch,
+      enableMarkets,
       enableFiltersOnSearch,
       hideSingleValueFacets,
       showMatchingVariantImage,
@@ -192,13 +234,20 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       showSuggestionsOnNoResults,
       suggestionProductHandles,
       suggestionCollectionHandles,
+      customCss,
+      productListLiquid,
     },
     update: {
       widgetPosition,
       accentColor,
       showProductCounts: input.showProductCounts,
+      ...(input.showTotalProductCount !== undefined
+        ? { showTotalProductCount }
+        : {}),
+      ...(input.hideProductTags !== undefined ? { hideProductTags } : {}),
       collapseByDefault: input.collapseByDefault,
       ...(input.hideOutOfStock !== undefined ? { hideOutOfStock } : {}),
+      ...(input.paginationStyle !== undefined ? { paginationStyle } : {}),
       widgetShadow: input.widgetShadow,
       widgetRadius,
       widgetFontMode,
@@ -215,6 +264,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       ...(input.enableCollectionSearch !== undefined
         ? { enableCollectionSearch }
         : {}),
+      ...(input.enableMarkets !== undefined ? { enableMarkets } : {}),
       ...(input.enableFiltersOnSearch !== undefined
         ? { enableFiltersOnSearch }
         : {}),
@@ -237,6 +287,8 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       ...(input.suggestionCollectionHandles !== undefined
         ? { suggestionCollectionHandles }
         : {}),
+      ...(input.customCss !== undefined ? { customCss } : {}),
+      ...(input.productListLiquid !== undefined ? { productListLiquid } : {}),
     },
   });
   if (input.searchExtras !== undefined) {

@@ -1,8 +1,18 @@
 import type { Prisma } from "@prisma/client";
+import { buildStoredVariants } from "./variants-as-products";
+import { mergeProductMarketPrices } from "../markets.server";
 
 type JsonObject = Prisma.InputJsonValue;
 
 type ShopifyMetafieldNode = { namespace: string; key: string; value: string };
+
+type ShopifyInventoryQuantity = { name?: string | null; quantity?: number | null };
+type ShopifyInventoryLevelNode = {
+  id?: string;
+  available?: number | null;
+  quantities?: ShopifyInventoryQuantity[] | null;
+  location?: { id?: string | null; name?: string | null; isActive?: boolean | null } | null;
+};
 
 type ShopifyVariantNode = {
   id?: string;
@@ -16,6 +26,13 @@ type ShopifyVariantNode = {
     edges?: Array<{
       node: ShopifyMetafieldNode;
     }>;
+  } | null;
+  inventoryItem?: {
+    id?: string | null;
+    inventoryLevels?: {
+      edges?: Array<{ node: ShopifyInventoryLevelNode }>;
+      nodes?: ShopifyInventoryLevelNode[];
+    } | null;
   } | null;
 };
 
@@ -107,6 +124,51 @@ export type VariantImageEntry = {
   options: Record<string, string>;
   imageUrl: string;
 };
+
+export function inventoryLevelAvailableQuantity(level: {
+  available?: number | null;
+  quantities?: Array<{ name?: string | null; quantity?: number | null }> | null;
+}): number {
+  if (typeof level.available === "number" && Number.isFinite(level.available)) {
+    return level.available;
+  }
+  for (const qty of level.quantities ?? []) {
+    const name = String(qty.name || "").toLowerCase();
+    if (name && name !== "available") continue;
+    const n = Number(qty.quantity);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+export function availableLocationNamesFromVariants(
+  variants: Array<{
+    inventoryItem?: {
+      id?: string | null;
+      inventoryLevels?: {
+        edges?: Array<{ node: ShopifyInventoryLevelNode }>;
+        nodes?: ShopifyInventoryLevelNode[];
+      } | null;
+    } | null;
+  }>,
+): string[] {
+  const names = new Set<string>();
+  for (const variant of variants) {
+    const conn = variant.inventoryItem?.inventoryLevels;
+    const levels = [
+      ...(conn?.edges?.map((e) => e.node) ?? []),
+      ...(conn?.nodes ?? []),
+    ];
+    for (const level of levels) {
+      const loc = level?.location;
+      const name = loc?.name?.trim();
+      if (!name) continue;
+      if (loc?.isActive === false) continue;
+      if (inventoryLevelAvailableQuantity(level) > 0) names.add(name);
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
 
 export function buildVariantImages(
   variants: Array<{
@@ -249,11 +311,14 @@ export function mapProductToFacet(
       compareAtMax,
       salePct,
       available,
+      inventoryLocations: availableLocationNamesFromVariants(variants),
       status: product.status ?? "ACTIVE",
       imageUrl: product.featuredImage?.url ?? null,
       variantImages: buildVariantImages(variants) as JsonObject,
+      variants: buildStoredVariants(variants) as JsonObject,
       metafields: metafields as JsonObject,
       variantMetafields: variantMetafields as JsonObject,
+      marketPrices: mergeProductMarketPrices(product) as JsonObject,
       publishedAt:
         parseShopifyDate(product.publishedAt) ??
         parseShopifyDate(product.createdAt),
@@ -284,33 +349,65 @@ export function parseBulkJsonlProducts(lines: string[]) {
     }
   }
 
+  const inventoryLevelsByItemId = new Map<string, ShopifyInventoryLevelNode[]>();
+  for (const [parentId, kids] of childrenByParent) {
+    const levels = kids.filter((k) =>
+      String((k as { id?: string }).id || "").includes("/InventoryLevel/"),
+    ) as ShopifyInventoryLevelNode[];
+    if (!levels.length) continue;
+    const existing = inventoryLevelsByItemId.get(parentId) ?? [];
+    inventoryLevelsByItemId.set(parentId, [...existing, ...levels]);
+  }
+
   // Attach nested nodes loosely; bulk product query often flattens differently.
   // For products that already include nested connections in one line, use as-is.
   return [...products.values()].map((p) => {
     const kids = childrenByParent.get(p.id) ?? [];
-    if (!kids.length) return p;
-
     const variantNodes = kids.filter((k) =>
       String((k as { id?: string }).id || "").includes("/ProductVariant/"),
     ) as ShopifyVariantNode[];
-    const baseVariants =
-      variantNodes.length > 0
-        ? variantNodes
-        : (p.variants?.edges?.map((edge) => edge.node) ?? []);
+    const nestedVariants = p.variants?.edges?.map((edge) => edge.node) ?? [];
+    const baseVariants = variantNodes.length > 0 ? variantNodes : nestedVariants;
+
+    if (!kids.length && !baseVariants.length) return p;
 
     const variants = baseVariants.map((variant) => {
       const variantKids = childrenByParent.get(String(variant.id ?? "")) ?? [];
       const variantMetafields = variantKids.filter((k) =>
         String((k as { id?: string }).id || "").includes("/Metafield/"),
       );
-      if (!variantMetafields.length) return variant;
+      const inventoryItemKids = variantKids.filter((k) =>
+        String((k as { id?: string }).id || "").includes("/InventoryItem/"),
+      ) as Array<{ id?: string | null }>;
+
+      let inventoryItem = variant.inventoryItem ?? null;
+      if (inventoryItemKids.length) {
+        const itemNode = inventoryItemKids[0];
+        inventoryItem = { ...inventoryItem, ...itemNode };
+      }
+
+      const itemId = inventoryItem?.id ? String(inventoryItem.id) : "";
+      const levels = itemId ? (inventoryLevelsByItemId.get(itemId) ?? []) : [];
+      if (levels.length) {
+        inventoryItem = {
+          ...inventoryItem,
+          inventoryLevels: { edges: levels.map((node) => ({ node })) },
+        };
+      }
+
+      if (!variantMetafields.length && !inventoryItem) return variant;
       return {
         ...variant,
-        metafields: {
-          edges: variantMetafields.map((node) => ({
-            node: node as ShopifyMetafieldNode,
-          })),
-        },
+        ...(variantMetafields.length
+          ? {
+              metafields: {
+                edges: variantMetafields.map((node) => ({
+                  node: node as ShopifyMetafieldNode,
+                })),
+              },
+            }
+          : {}),
+        ...(inventoryItem ? { inventoryItem } : {}),
       };
     });
 

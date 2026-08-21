@@ -7,9 +7,15 @@ import {
   BULK_PRODUCTS_QUERY,
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_LIST_QUERY,
+  PAGES_LIST_QUERY,
+  ARTICLES_LIST_QUERY,
   CURRENT_BULK_OPERATION_QUERY,
   PRODUCT_NODE_QUERY,
 } from "./graphql";
+import {
+  syncProductMarketPrices,
+  syncShopMarketPrices,
+} from "./markets-sync";
 import { mapProductToFacet, parseBulkJsonlProducts } from "./product-mapper";
 
 type GraphqlClient = {
@@ -180,6 +186,108 @@ export async function syncCollectionsList(shopDomain: string) {
   return { count };
 }
 
+export async function syncShopContent(shopDomain: string) {
+  const shop = await ensureShop(shopDomain);
+  const admin = await getAdminForShop(shopDomain);
+  const seenPages = new Set<string>();
+  const seenArticles = new Set<string>();
+
+  let cursor: string | null = null;
+  let hasNext = true;
+  while (hasNext) {
+    const response = await admin.graphql(PAGES_LIST_QUERY, {
+      variables: { cursor },
+    });
+    const json = await response.json();
+    const connection = json.data?.pages;
+    if (!connection) break;
+    const pageNodes = connection.nodes ??
+      (connection.edges ?? []).map((edge: { node: unknown }) => edge.node);
+    for (const node of pageNodes) {
+      const page = node as {
+        id?: string;
+        title?: string;
+        handle?: string;
+        isPublished?: boolean;
+      };
+      if (!page.id) continue;
+      seenPages.add(page.id);
+      await prisma.shopPage.upsert({
+        where: { shopId_pageGid: { shopId: shop.id, pageGid: page.id } },
+        create: {
+          shopId: shop.id,
+          pageGid: page.id,
+          title: page.title || "",
+          handle: page.handle ?? "",
+          published: page.isPublished !== false,
+        },
+        update: {
+          title: page.title || "",
+          handle: page.handle ?? "",
+          published: page.isPublished !== false,
+        },
+      });
+    }
+    hasNext = Boolean(connection.pageInfo?.hasNextPage);
+    cursor = connection.pageInfo?.endCursor ?? null;
+  }
+
+  cursor = null;
+  hasNext = true;
+  while (hasNext) {
+    const response = await admin.graphql(ARTICLES_LIST_QUERY, {
+      variables: { cursor },
+    });
+    const json = await response.json();
+    const connection = json.data?.articles;
+    if (!connection) break;
+    const articleNodes = connection.nodes ??
+      (connection.edges ?? []).map((edge: { node: unknown }) => edge.node);
+    for (const node of articleNodes) {
+      const article = node as {
+        id?: string;
+        title?: string;
+        handle?: string;
+        blog?: { handle?: string } | null;
+      };
+      if (!article.id) continue;
+      seenArticles.add(article.id);
+      await prisma.shopArticle.upsert({
+        where: { shopId_articleGid: { shopId: shop.id, articleGid: article.id } },
+        create: {
+          shopId: shop.id,
+          articleGid: article.id,
+          title: article.title || "",
+          handle: article.handle ?? "",
+          blogHandle: article.blog?.handle ?? "",
+          published: true,
+        },
+        update: {
+          title: article.title || "",
+          handle: article.handle ?? "",
+          blogHandle: article.blog?.handle ?? "",
+          published: true,
+        },
+      });
+    }
+    hasNext = Boolean(connection.pageInfo?.hasNextPage);
+    cursor = connection.pageInfo?.endCursor ?? null;
+  }
+
+  if (seenPages.size) {
+    await prisma.shopPage.deleteMany({
+      where: { shopId: shop.id, pageGid: { notIn: [...seenPages] } },
+    });
+  }
+  if (seenArticles.size) {
+    await prisma.shopArticle.deleteMany({
+      where: { shopId: shop.id, articleGid: { notIn: [...seenArticles] } },
+    });
+  }
+
+  return { pages: seenPages.size, articles: seenArticles.size };
+}
+
 export async function startFullSync(shopDomain: string) {
   const shop = await ensureShop(shopDomain);
 
@@ -193,6 +301,12 @@ export async function startFullSync(shopDomain: string) {
       await syncCollectionsList(shopDomain);
     } catch (error) {
       log.error("Collection list sync failed", error);
+    }
+
+    try {
+      await syncShopContent(shopDomain);
+    } catch (error) {
+      log.error("Pages/articles sync failed", error);
     }
 
     log.info("[sync] starting bulk product query (nested variant id)");
@@ -281,9 +395,11 @@ export async function ingestBulkOperation(
         compareAtMax: facet.compareAtMax,
         salePct: facet.salePct,
         available: facet.available,
+        inventoryLocations: facet.inventoryLocations,
         status: facet.status,
         imageUrl: facet.imageUrl,
         variantImages: facet.variantImages as object,
+        variants: facet.variants as object,
         metafields: facet.metafields as object,
         variantMetafields: facet.variantMetafields as object,
         publishedAt: facet.publishedAt,
@@ -312,6 +428,12 @@ export async function ingestBulkOperation(
   }
 
   try {
+    await syncShopContent(shopDomain);
+  } catch (error) {
+    log.error("Post-ingest pages/articles sync failed", error);
+  }
+
+  try {
     const collections = await prisma.collection.findMany({
       where: { shopId: shop.id },
       select: { collectionGid: true },
@@ -321,6 +443,12 @@ export async function ingestBulkOperation(
     }
   } catch (error) {
     log.error("Post-ingest collection order sync failed", error);
+  }
+
+  try {
+    await syncShopMarketPrices(admin, shop.id);
+  } catch (error) {
+    log.error("Post-ingest market prices sync failed", error);
   }
 
   const errorLog = truncated
@@ -392,9 +520,11 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
       compareAtMax: facet.compareAtMax,
       salePct: facet.salePct,
       available: facet.available,
+      inventoryLocations: facet.inventoryLocations,
       status: facet.status,
         imageUrl: facet.imageUrl,
         variantImages: facet.variantImages,
+        variants: facet.variants,
         metafields: facet.metafields,
         variantMetafields: facet.variantMetafields,
         publishedAt: facet.publishedAt,
@@ -413,6 +543,12 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
   );
 
   await syncProductMemberships(shop.id, facet.productGid, collectionGids);
+
+  try {
+    await syncProductMarketPrices(admin, shop.id, facet.productGid);
+  } catch (error) {
+    log.error("Incremental market prices sync failed", error);
+  }
 
   await setSyncStatus(shop.id, {
     status: "READY",

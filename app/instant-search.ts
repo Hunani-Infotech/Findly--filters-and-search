@@ -51,6 +51,9 @@ export type SearchRedirect = {
 
 export type SearchExtras = {
   fuzzyTextSearch: boolean;
+  spellCheck: boolean;
+  fallbackSearch: boolean;
+  stopWords: string[];
   popularSearchTerms: string[];
   instant: InstantSearchWidget;
   pinnings: SearchPinning[];
@@ -62,6 +65,27 @@ export const INSTANT_MAX_PRODUCTS_MIN = 1;
 export const INSTANT_MAX_PRODUCTS_MAX = 24;
 export const POPULAR_TERM_MAX = 24;
 export const MERCH_LIST_MAX = 40;
+export const STOP_WORD_MAX = 80;
+
+/** Used when `stopWords` is omitted from stored extras. Default extras keep `[]`. */
+export const DEFAULT_ENGLISH_STOP_WORDS = [
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "for",
+  "with",
+  "at",
+  "by",
+  "from",
+  "is",
+  "it",
+] as const;
 
 export const DEFAULT_INSTANT_SEARCH: InstantSearchWidget = {
   enabled: false,
@@ -78,6 +102,9 @@ export const DEFAULT_INSTANT_SEARCH: InstantSearchWidget = {
 
 export const DEFAULT_SEARCH_EXTRAS: SearchExtras = {
   fuzzyTextSearch: true,
+  spellCheck: true,
+  fallbackSearch: true,
+  stopWords: [],
   popularSearchTerms: [],
   instant: { ...DEFAULT_INSTANT_SEARCH },
   pinnings: [],
@@ -117,6 +144,37 @@ export function parseMaxProducts(value: unknown): number {
 export function normalizeSearchQueryKey(value: unknown): string {
   if (typeof value !== "string") return "";
   return value.trim().replace(/\s+/g, " ").slice(0, 80).toLowerCase();
+}
+
+export function normalizeStopWordList(value: unknown): string[] {
+  const parts = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : [];
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    const word = part.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!word || seen.has(word)) continue;
+    seen.add(word);
+    next.push(word);
+    if (next.length >= STOP_WORD_MAX) break;
+  }
+  return next;
+}
+
+export function stripStopWordsFromQuery(
+  query: string,
+  stopWords: readonly string[],
+): string {
+  const raw = query.trim().replace(/\s+/g, " ");
+  if (!raw || stopWords.length === 0) return raw;
+  const stops = new Set(stopWords.map((word) => word.toLowerCase()));
+  const tokens = raw.split(" ").filter(Boolean);
+  const kept = tokens.filter((token) => !stops.has(token.toLowerCase()));
+  return (kept.length ? kept : tokens).join(" ");
 }
 
 export function normalizePopularTerms(value: unknown): string[] {
@@ -242,6 +300,11 @@ export function parseSearchExtras(value: unknown): SearchExtras {
   const o = asRecord(value);
   return {
     fuzzyTextSearch: o.fuzzyTextSearch !== false,
+    spellCheck: o.spellCheck !== false,
+    fallbackSearch: o.fallbackSearch !== false,
+    stopWords: Array.isArray(o.stopWords)
+      ? normalizeStopWordList(o.stopWords)
+      : [...DEFAULT_ENGLISH_STOP_WORDS],
     popularSearchTerms: normalizePopularTerms(o.popularSearchTerms),
     instant: parseInstantWidget(o.instant),
     pinnings: parsePinnings(o.pinnings),

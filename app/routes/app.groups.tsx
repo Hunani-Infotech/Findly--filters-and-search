@@ -26,8 +26,8 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isNavigatingTo } from "../components/admin-loading";
 import {
-  getFilterValueCatalog,
   importValueGroups,
+  listCatalogSources,
   listValueGroups,
 } from "../value-groups.server";
 import { useEmbeddedNavigate } from "../admin-path";
@@ -51,12 +51,12 @@ function downloadJson(filename: string, payload: unknown) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const [groups, catalog] = await Promise.all([
+  const [groups, sources] = await Promise.all([
     listValueGroups(shop.id),
-    getFilterValueCatalog(shop.id),
+    listCatalogSources(shop.id),
   ]);
   const sourceLabels = Object.fromEntries(
-    catalog.sources.map((source) => [source.key, source.label]),
+    sources.map((source) => [source.key, source.label]),
   );
   return {
     groups: groups.map((group) => ({

@@ -1,6 +1,5 @@
 import prisma from "./db.server";
 import {
-  COLLECTION_PICKER_PAGE_SIZE,
   normalizeCollectionPickerPage,
   normalizeCollectionPickerPageSize,
   normalizeCollectionPickerQuery,

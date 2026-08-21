@@ -13,6 +13,28 @@
   max-width: 62.375rem;
 }
 
+.findly-admin-shell .findly-settings-page--preview .Polaris-Page,
+.findly-admin-shell .findly-settings-page--preview .Polaris-Page--fullWidth {
+  max-width: 78rem;
+}
+
+.findly-settings-preview {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  min-width: 0;
+}
+
+.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section--oneThird {
+  min-width: 0;
+  align-self: start;
+}
+
+.findly-settings-preview .Polaris-ShadowBevel,
+.findly-settings-preview .Polaris-Box {
+  min-width: 0;
+}
+
 .findly-admin-shell > *:last-child {
   margin-bottom: 0;
 }
@@ -714,9 +736,17 @@
 .findly-swatch-pager,
 .findly-meta-pager {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 12px;
+}
+
+.findly-swatch-pager__label {
+  margin-right: auto;
+  font-size: 12px;
+  line-height: 16px;
+  color: #6d7175;
 }
 
 .findly-meta-pager {

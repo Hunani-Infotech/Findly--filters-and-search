@@ -11,6 +11,7 @@ import {
 
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",
+  location: "Location",
   price: "Price",
   sale: "% Sale off",
   rating: "Rating",

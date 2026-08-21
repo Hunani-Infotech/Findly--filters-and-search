@@ -34,11 +34,25 @@
     return fallback || "";
   }
 
-  function formatPrice(value) {
+  function formatPrice(value, currencyCode) {
     if (value == null || value === "") return "";
     var n = Number(value);
     if (!Number.isFinite(n)) return String(value);
-    return String(n);
+    var currency =
+      currencyCode ||
+      (window.Shopify &&
+        window.Shopify.currency &&
+        window.Shopify.currency.active) ||
+      "";
+    if (!currency) return String(n);
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: currency,
+      }).format(n);
+    } catch (err) {
+      return String(n);
+    }
   }
 
   function asArray(value) {
@@ -73,6 +87,17 @@
       "",
     );
     this.locale = root.getAttribute("data-locale") || "";
+    this.country =
+      root.getAttribute("data-country") ||
+      (window.Shopify && window.Shopify.country) ||
+      "";
+    this.currency =
+      root.getAttribute("data-currency") ||
+      (window.Shopify &&
+        window.Shopify.currency &&
+        window.Shopify.currency.active) ||
+      "";
+    this.companyLocation = root.getAttribute("data-company-location") || "";
     this.instant = null;
     this.minChars = DEFAULT_MIN_CHARS;
     this.showSuggestionsOnEmptyQuery = false;
@@ -216,7 +241,10 @@
     }
 
     if (instant.showPrice) {
-      var priceText = formatPrice(item && item.priceMin != null ? item.priceMin : item && item.price);
+      var priceText = formatPrice(
+        item && item.priceMin != null ? item.priceMin : item && item.price,
+        this.payloadCurrency || this.currency,
+      );
       if (priceText) {
         var price = document.createElement("span");
         price.className = "findly-instant__price";
@@ -261,6 +289,36 @@
     var showQueries = queries.length > 0;
 
     this.panel.innerHTML = "";
+
+    var chrome = (data && data.i18n && typeof data.i18n === "object") ? data.i18n : {};
+    var suggestion = String((data && data.didYouMean) || "").trim();
+    var showSpell =
+      Boolean(query) &&
+      Boolean(suggestion) &&
+      suggestion.toLowerCase() !== query.toLowerCase();
+    if (showSpell) {
+      var spell = document.createElement("p");
+      spell.className = "findly-instant__spell";
+      spell.appendChild(
+        document.createTextNode(
+          (chrome.did_you_mean || "Did you mean") + " ",
+        ),
+      );
+      var spellBtn = document.createElement("button");
+      spellBtn.type = "button";
+      spellBtn.className = "findly-instant__spell-link";
+      spellBtn.textContent = suggestion;
+      var selfSpell = this;
+      spellBtn.addEventListener("click", function () {
+        if (selfSpell.activeInput) {
+          selfSpell.activeInput.value = suggestion;
+        }
+        selfSpell.runQuery(suggestion);
+      });
+      spell.appendChild(spellBtn);
+      this.panel.appendChild(spell);
+    }
+
     if (!showQueries && !showProducts && !showCollections && !showPages && !showPosts) {
       if (query) {
         var empty = document.createElement("p");
@@ -377,6 +435,9 @@
       return;
     }
     if (data && data.instant) this.instant = data.instant;
+    if (data && data.settings && data.settings.currency) {
+      this.payloadCurrency = String(data.settings.currency);
+    }
     this.render(data || {});
   };
 
@@ -392,6 +453,12 @@
       "&limit=" +
       encodeURIComponent(String(limit));
     if (this.locale) url += "&locale=" + encodeURIComponent(this.locale);
+    if (this.country) url += "&country=" + encodeURIComponent(this.country);
+    if (this.currency) url += "&currency=" + encodeURIComponent(this.currency);
+    if (this.companyLocation) {
+      url +=
+        "&company_location=" + encodeURIComponent(this.companyLocation);
+    }
 
     this.fetchJson(url)
       .then(function (data) {
@@ -493,6 +560,13 @@
   InstantSearch.prototype.init = function () {
     var self = this;
     var url = this.proxyBase + "/search?widget=1";
+    if (this.locale) url += "&locale=" + encodeURIComponent(this.locale);
+    if (this.country) url += "&country=" + encodeURIComponent(this.country);
+    if (this.currency) url += "&currency=" + encodeURIComponent(this.currency);
+    if (this.companyLocation) {
+      url +=
+        "&company_location=" + encodeURIComponent(this.companyLocation);
+    }
     this.fetchJson(url)
       .then(function (data) {
         var instant = data && data.instant;
@@ -501,6 +575,9 @@
         self.minChars = Number(data.minChars) || DEFAULT_MIN_CHARS;
         self.showSuggestionsOnEmptyQuery = data.showSuggestionsOnEmptyQuery === true;
         self.showSuggestionsOnNoResults = data.showSuggestionsOnNoResults === true;
+        if (data && data.settings && data.settings.currency) {
+          self.payloadCurrency = String(data.settings.currency);
+        }
         self.applyChrome();
         self.bind();
       })

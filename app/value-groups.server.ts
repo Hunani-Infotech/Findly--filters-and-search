@@ -1,4 +1,5 @@
 import prisma from "./db.server";
+import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import { collectCatalogFromProducts } from "./filter-catalog";
 
 export type ValueGroupRow = {
@@ -15,6 +16,77 @@ export async function getFilterValueCatalog(shopId: string) {
     take: 2000,
   });
   return collectCatalogFromProducts(products);
+}
+
+export async function listCatalogSources(shopId: string) {
+  const { sources } = await getFilterValueCatalog(shopId);
+  return sources;
+}
+
+function resolveSourceKey(
+  sources: Array<{ key: string }>,
+  requested: string,
+) {
+  if (requested && sources.some((source) => source.key === requested)) {
+    return requested;
+  }
+  return sources[0]?.key || requested;
+}
+
+function filterCatalogValues(values: string[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return values;
+  return values.filter((value) => value.toLowerCase().includes(needle));
+}
+
+export type CatalogValuesPage = {
+  sources: Array<{ key: string; label: string }>;
+  sourceKey: string;
+  values: string[];
+  total: number;
+  page: number;
+  pageCount: number;
+  showingFrom: number;
+  showingTo: number;
+  query: string;
+};
+
+export async function getCatalogValuesPage(
+  shopId: string,
+  requestedSource: string,
+  input: { page?: number; query?: string; pageSize?: number } = {},
+): Promise<CatalogValuesPage> {
+  const catalog = await getFilterValueCatalog(shopId);
+  const sourceKey = resolveSourceKey(catalog.sources, requestedSource);
+  const query = String(input.query || "");
+  const filtered = filterCatalogValues(catalog.values[sourceKey] || [], query);
+  const slice = slicePage(
+    filtered,
+    input.page ?? 0,
+    input.pageSize ?? ADMIN_CATALOG_PAGE_SIZE,
+  );
+  return {
+    sources: catalog.sources,
+    sourceKey,
+    values: slice.paged,
+    total: slice.total,
+    page: slice.safePage,
+    pageCount: slice.pageCount,
+    showingFrom: slice.showingFrom,
+    showingTo: slice.showingTo,
+    query,
+  };
+}
+
+export async function listMatchingCatalogValues(
+  shopId: string,
+  requestedSource: string,
+  query = "",
+) {
+  const catalog = await getFilterValueCatalog(shopId);
+  const sourceKey = resolveSourceKey(catalog.sources, requestedSource);
+  const values = filterCatalogValues(catalog.values[sourceKey] || [], query);
+  return { sourceKey, query, values, total: values.length };
 }
 
 export async function listValueGroups(shopId: string): Promise<ValueGroupRow[]> {
@@ -158,6 +230,7 @@ export function sourceKeyForFacet(facet: {
   if (facet.source === "vendor") return "vendor";
   if (facet.source === "productType") return "productType";
   if (facet.source === "tag") return "tags";
+  if (facet.source === "location") return "location";
   if (facet.source === "option") {
     const name = facet.optionName || String(facet.key || "").replace(/^opt_/, "");
     return `option:${name.trim().toLowerCase().replace(/\s+/g, "-")}`;

@@ -117,12 +117,109 @@
     return "/products/" + encodeURIComponent(handle);
   }
 
+  var partnerUpdateTimer = null;
+  var partnerUpdateHandles = [];
+
+  function reinitPartnerWidgets() {
+    try {
+      if (window.jdgm && typeof window.jdgm.customizeBadges === "function") {
+        window.jdgm.customizeBadges();
+      } else if (window.jdgm && typeof window.jdgm.preLoader === "function") {
+        window.jdgm.preLoader();
+      }
+    } catch (errJdgm) {}
+
+    try {
+      var heroButtons = document.querySelectorAll(".wishlist-hero-custom-button");
+      var hi;
+      for (hi = 0; hi < heroButtons.length; hi++) {
+        document.dispatchEvent(
+          new CustomEvent("wishlist-hero-add-to-custom-element", {
+            bubbles: true,
+            detail: heroButtons[hi],
+          }),
+        );
+      }
+    } catch (errHero) {}
+
+    try {
+      if (
+        window.frcp &&
+        window.frcp.wishlist &&
+        typeof window.frcp.wishlist.attachOnCollection === "function"
+      ) {
+        window.frcp.wishlist.attachOnCollection();
+      }
+    } catch (errFrcp) {}
+
+    try {
+      if (window._swat && typeof window._swat.initializeActionButtons === "function") {
+        window._swat.initializeActionButtons();
+      }
+    } catch (errSwym) {}
+
+    try {
+      // Shopify Translate & Adapt needs no JS because we hide/show locale-rendered theme cards.
+      if (window.Weglot && typeof window.Weglot.refresh === "function") {
+        window.Weglot.refresh();
+      }
+    } catch (errWeglot) {}
+
+    try {
+      if (window.Currency && typeof window.Currency.convertAll === "function") {
+        Currency.convertAll(
+          Currency.currentCurrency ||
+            (window.Shopify && Shopify.currency && Shopify.currency.active) ||
+            "USD",
+        );
+      }
+    } catch (errCurrency) {}
+  }
+
+  function dispatchPartnerRenderEvents(handles) {
+    var detail = { handles: handles || [] };
+    window.dispatchEvent(
+      new CustomEvent("findlyFilterRenderCompleted", {
+        bubbles: true,
+        detail: detail,
+      }),
+    );
+    document.dispatchEvent(
+      new CustomEvent("findlyFilterRenderCompleted", {
+        bubbles: true,
+        detail: detail,
+      }),
+    );
+    window.dispatchEvent(
+      new CustomEvent("globoFilterRenderCompleted", {
+        bubbles: true,
+        detail: detail,
+      }),
+    );
+    document.dispatchEvent(
+      new CustomEvent("globoFilterRenderCompleted", {
+        bubbles: true,
+        detail: detail,
+      }),
+    );
+    reinitPartnerWidgets();
+  }
+
   function dispatchUpdate(handles) {
     document.dispatchEvent(
       new CustomEvent("smart-filter:update", {
+        bubbles: true,
         detail: { handles: handles || [] },
       }),
     );
+    partnerUpdateHandles = handles || [];
+    if (partnerUpdateTimer) {
+      clearTimeout(partnerUpdateTimer);
+    }
+    partnerUpdateTimer = setTimeout(function () {
+      partnerUpdateTimer = null;
+      dispatchPartnerRenderEvents(partnerUpdateHandles);
+    }, 0);
   }
 
   function YmmWidget(root) {

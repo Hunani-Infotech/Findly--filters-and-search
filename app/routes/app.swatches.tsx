@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -35,20 +34,20 @@ import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { SwatchImagePicker } from "../components/swatch-image-picker";
-import { hexFromColorName, isSwatchFilled } from "../color-autofill";
 import {
+  autofillMissingSwatches,
   clearSwatch,
   importSwatches,
-  listColorOptionKeys,
   listSwatchesForOption,
+  loadSwatchesAdmin,
   upsertSwatch,
   type SwatchKind,
+  type SwatchListStatus,
   type SwatchRow,
 } from "../color-swatches.server";
 import { listShopImages, uploadShopImage } from "../shopify-files.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
-import { ADMIN_TABLE_PAGE_SIZE, slicePage } from "../admin-list-page";
 const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;
@@ -103,31 +102,61 @@ function downloadJson(filename: string, payload: unknown) {
   URL.revokeObjectURL(url);
 }
 
-function pickOptionKey(
-  options: { optionKey: string }[],
-  requested: string,
+function parseStatus(value: string | null): SwatchListStatus {
+  return value === "missing" ? "missing" : "all";
+}
+
+function swatchesHref(
+  current: URLSearchParams,
+  patch: {
+    option?: string;
+    page?: number;
+    q?: string;
+    status?: SwatchListStatus;
+  },
 ) {
-  if (requested && options.some((option) => option.optionKey === requested)) {
-    return requested;
+  const next = new URLSearchParams(current);
+  if (patch.option !== undefined) {
+    next.set("option", patch.option);
+    next.delete("page");
+    next.delete("q");
+    next.delete("status");
   }
-  return options[0]?.optionKey || "";
+  if (patch.page !== undefined) {
+    if (patch.page <= 0) next.delete("page");
+    else next.set("page", String(patch.page));
+  }
+  if (patch.q !== undefined) {
+    const query = patch.q.trim();
+    if (!query) next.delete("q");
+    else next.set("q", query);
+    next.delete("page");
+  }
+  if (patch.status !== undefined) {
+    if (patch.status === "all") next.delete("status");
+    else next.set("status", patch.status);
+    next.delete("page");
+  }
+  const qs = next.toString();
+  return qs ? `/app/swatches?${qs}` : "/app/swatches";
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const url = new URL(request.url);
-  const options = await listColorOptionKeys(shop.id);
-  const optionKey = pickOptionKey(
-    options,
+  const data = await loadSwatchesAdmin(
+    shop.id,
     String(url.searchParams.get("option") || "").trim(),
+    {
+      page: Number(url.searchParams.get("page") || "0") || 0,
+      query: String(url.searchParams.get("q") || ""),
+      status: parseStatus(url.searchParams.get("status")),
+    },
   );
-  const data = optionKey
-    ? await listSwatchesForOption(shop.id, optionKey)
-    : { label: "", rows: [] as SwatchRow[] };
   let shopFiles: Awaited<ReturnType<typeof listShopImages>> = [];
   let filesError = "";
-  if (optionKey) {
+  if (SHOW_IMAGE_SWATCHES && data.optionKey) {
     try {
       shopFiles = await listShopImages(admin);
     } catch (error) {
@@ -138,10 +167,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
   return {
-    optionKey,
-    label: data.label,
-    rows: data.rows,
-    options,
+    ...data,
     shopFiles,
     filesError,
   };
@@ -205,6 +231,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return { error: result.error };
     }
     return { ok: true as const, intent, imported: result.imported };
+  }
+
+  if (intent === "autofill") {
+    const result = await autofillMissingSwatches(shop.id, optionKey);
+    return { ok: true as const, intent, filled: result.filled };
+  }
+
+  if (intent === "export") {
+    const data = await listSwatchesForOption(shop.id, optionKey);
+    return { ok: true as const, intent, payload: data.rows };
   }
 
   if (intent === "upload") {
@@ -318,14 +354,28 @@ function ValuePreview({ row }: { row: SwatchRow }) {
 }
 
 export default function SwatchesPage() {
-  const { optionKey, label, rows, options, shopFiles, filesError } =
-    useLoaderData<typeof loader>();
+  const {
+    optionKey,
+    label,
+    rows,
+    options,
+    total,
+    page,
+    pageCount,
+    showingFrom,
+    showingTo,
+    query: loadedQuery,
+    status: loadedStatus,
+    shopFiles,
+    filesError,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
   const fetcher = useFetcher<typeof action>();
+  const exportFetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
   const busy =
@@ -334,10 +384,10 @@ export default function SwatchesPage() {
     fetcher.state === "loading";
   const toastSeen = useRef<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastExportKey = useRef<string | null>(null);
 
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "missing">("all");
-  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState(loadedQuery);
   const [selected, setSelected] = useState<string[]>([]);
   const [drafts, setDrafts] = useState(rows);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
@@ -361,14 +411,22 @@ export default function SwatchesPage() {
   const [gallery, setGallery] = useState(shopFiles);
   const [seenFiles, setSeenFiles] = useState(shopFiles);
 
-  if (rows !== seenRows || optionKey !== seenOption) {
-    setSeenRows(rows);
+  const [seenQuery, setSeenQuery] = useState(loadedQuery);
+  if (loadedQuery !== seenQuery) {
+    setSeenQuery(loadedQuery);
+    setQuery(loadedQuery);
+  }
+  if (optionKey !== seenOption) {
     setSeenOption(optionKey);
+    setSeenRows(rows);
     setDrafts(rows);
-    setQuery("");
-    setPage(0);
+    setQuery(loadedQuery);
+    setSeenQuery(loadedQuery);
     setSelected([]);
     setImageValue(null);
+  } else if (rows !== seenRows) {
+    setSeenRows(rows);
+    setDrafts(rows);
   }
 
   if (shopFiles !== seenFiles) {
@@ -460,6 +518,17 @@ export default function SwatchesPage() {
     if ("intent" in toastData && toastData.intent === "saveAll") {
       shopify.toast.show("Saved");
     }
+    if ("intent" in toastData && toastData.intent === "autofill") {
+      const filled = "filled" in toastData ? Number(toastData.filled) || 0 : 0;
+      shopify.toast.show(
+        filled === 0
+          ? "No matching color names to fill. Pick colors."
+          : filled === 1
+            ? "Filled 1 color."
+            : `Filled ${filled} colors.`,
+        filled === 0 ? { isError: true } : undefined,
+      );
+    }
     if ("intent" in toastData && toastData.intent === "import") {
       const imported = "imported" in toastData ? toastData.imported : 0;
       shopify.toast.show(
@@ -468,20 +537,27 @@ export default function SwatchesPage() {
     }
   }, [actionData, fetcher.data, fetcher.state, shopify]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return drafts.filter((row) => {
-      if (q && !row.value.toLowerCase().includes(q)) return false;
-      if (status === "missing" && isSwatchFilled(row)) return false;
-      return true;
-    });
-  }, [drafts, query, status]);
+  useEffect(() => {
+    const result = exportFetcher.data;
+    if (!result || !("ok" in result) || !result.ok) return;
+    if (!("intent" in result) || result.intent !== "export") return;
+    if (!("payload" in result) || !result.payload) return;
+    const key = JSON.stringify(result.payload);
+    if (lastExportKey.current === key) return;
+    lastExportKey.current = key;
+    downloadJson(
+      `findly-swatches-${encodeURIComponent(optionKey || "swatches")}.json`,
+      result.payload,
+    );
+  }, [exportFetcher.data, optionKey]);
 
-  const slice = slicePage(filtered, page, ADMIN_TABLE_PAGE_SIZE);
-  if (page !== slice.safePage) setPage(slice.safePage);
-  const paged = slice.paged;
-  const pageCount = slice.pageCount;
-  const safePage = slice.safePage;
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
+
+  const paged = drafts;
 
   const patchRow = (value: string, next: Partial<SwatchRow>) => {
     let saved: SwatchRow | null = null;
@@ -496,38 +572,7 @@ export default function SwatchesPage() {
   };
 
   const autofillDrafts = () => {
-    let filled = 0;
-    const next = drafts.map((row) => {
-      if (isSwatchFilled(row)) return row;
-      const hex = hexFromColorName(row.value);
-      if (!hex) return row;
-      filled += 1;
-      return {
-        ...row,
-        kind: "solid" as const,
-        color1: hex,
-        color2: "",
-        imageUrl: "",
-      };
-    });
-    setDrafts(next);
-    if (filled > 0) {
-      submit(
-        {
-          intent: "saveAll",
-          optionKey,
-          rows: JSON.stringify(next),
-        },
-        { method: "post" },
-      );
-      shopify.toast.show(
-        filled === 1 ? "Filled 1 color." : `Filled ${filled} colors.`,
-      );
-      return;
-    }
-    shopify.toast.show("No matching color names to fill. Pick colors.", {
-      isError: true,
-    });
+    fetcher.submit({ intent: "autofill", optionKey }, { method: "post" });
   };
 
   const dismissPromo = () => {
@@ -535,7 +580,6 @@ export default function SwatchesPage() {
     window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
   };
 
-  const encoded = encodeURIComponent(optionKey || "swatches");
   const imageRow = drafts.find((row) => row.value === imageValue) || null;
 
   if (options.length === 0) {
@@ -589,8 +633,12 @@ export default function SwatchesPage() {
         {
           content: "Export",
           icon: ExportIcon,
+          loading: exportFetcher.state !== "idle",
           onAction: () =>
-            downloadJson(`findly-swatches-${encoded}.json`, drafts),
+            exportFetcher.submit(
+              { intent: "export", optionKey },
+              { method: "post" },
+            ),
         },
       ]}
     >
@@ -646,11 +694,9 @@ export default function SwatchesPage() {
                     ? "findly-swatch-option findly-swatch-option--selected"
                     : "findly-swatch-option"
                 }
-                onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  next.set("option", option.optionKey);
-                  navigate(`/app/swatches?${next.toString()}`);
-                }}
+                onClick={() =>
+                  navigate(swatchesHref(searchParams, { option: option.optionKey }))
+                }
               >
                 <span className="findly-swatch-option__label">
                   {option.label}
@@ -676,17 +722,25 @@ export default function SwatchesPage() {
                 placeholder="Search..."
                 aria-label="Search values"
                 onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(0);
+                  const next = event.target.value;
+                  setQuery(next);
+                  if (searchTimer.current) clearTimeout(searchTimer.current);
+                  searchTimer.current = setTimeout(() => {
+                    navigate(swatchesHref(searchParams, { q: next }));
+                  }, 300);
                 }}
               />
             </div>
             <select
               aria-label="Status"
-              value={status}
+              value={loadedStatus}
               onChange={(event) => {
-                setStatus(event.target.value === "missing" ? "missing" : "all");
-                setPage(0);
+                navigate(
+                  swatchesHref(searchParams, {
+                    status:
+                      event.target.value === "missing" ? "missing" : "all",
+                  }),
+                );
               }}
             >
               <option value="all">All</option>
@@ -739,8 +793,10 @@ export default function SwatchesPage() {
           {paged.length === 0 ? (
             <div style={{ padding: "24px 8px" }}>
               <Text as="p" tone="subdued">
-                {drafts.length === 0
-                  ? `No values found for ${label || "this option"}. Sync products, then try again.`
+                {total === 0
+                  ? loadedQuery.trim() || loadedStatus === "missing"
+                    ? "No values match this search."
+                    : `No values found for ${label || "this option"}. Sync products, then try again.`
                   : "No values match this search."}
               </Text>
             </div>
@@ -886,20 +942,27 @@ export default function SwatchesPage() {
             </div>
           )}
           <div className="findly-swatch-pager">
+            {total > 0 ? (
+              <span className="findly-swatch-pager__label">
+                {`Showing ${showingFrom}–${showingTo} of ${total}`}
+              </span>
+            ) : null}
             <button
               type="button"
               aria-label="Previous page"
-              disabled={safePage <= 0}
-              onClick={() => setPage((current) => Math.max(0, current - 1))}
+              disabled={page <= 0 || busy}
+              onClick={() =>
+                navigate(swatchesHref(searchParams, { page: page - 1 }))
+              }
             >
               <ChevronLeftIcon width={14} height={14} />
             </button>
             <button
               type="button"
               aria-label="Next page"
-              disabled={safePage >= pageCount - 1}
+              disabled={page >= pageCount - 1 || busy}
               onClick={() =>
-                setPage((current) => Math.min(pageCount - 1, current + 1))
+                navigate(swatchesHref(searchParams, { page: page + 1 }))
               }
             >
               <ChevronRightIcon width={14} height={14} />

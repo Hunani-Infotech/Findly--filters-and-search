@@ -8,6 +8,7 @@ export type BuiltinEnableKey =
   | "enablePrice"
   | "enableSale"
   | "enableRating"
+  | "enableLocation"
   | "enableAvailability"
   | "enableVendor"
   | "enableProductType"
@@ -55,7 +56,7 @@ export const FILTER_OPTION_DEFS: FilterOptionDef[] = [
   },
   { key: "tags", label: "Tag", source: "Tag", enableKey: "enableTags" },
   { key: "readyToShip", label: "Ready To Ship", source: "Ready to ship" },
-  { key: "location", label: "Location", source: "Location" },
+  { key: "location", label: "Location", source: "Location", enableKey: "enableLocation" },
   { key: "rating", label: "Rating", source: "Rating", enableKey: "enableRating" },
 ];
 
@@ -75,7 +76,6 @@ export const VALUE_PICKER_SKIP_KEYS = new Set([
   "sale",
   "rating",
   "availability",
-  "collection",
   "category",
   "readyToShip",
   "location",
@@ -91,6 +91,7 @@ export function enableFlagsFromConfig(config: {
   enablePrice?: boolean | null;
   enableSale?: boolean | null;
   enableRating?: boolean | null;
+  enableLocation?: boolean | null;
   enableAvailability?: boolean | null;
   enableVendor?: boolean | null;
   enableProductType?: boolean | null;
@@ -101,6 +102,7 @@ export function enableFlagsFromConfig(config: {
     enablePrice: config.enablePrice ?? true,
     enableSale: config.enableSale ?? false,
     enableRating: config.enableRating ?? false,
+    enableLocation: config.enableLocation ?? false,
     enableAvailability: config.enableAvailability ?? true,
     enableVendor: config.enableVendor ?? true,
     enableProductType: config.enableProductType ?? true,
@@ -416,6 +418,7 @@ export function availableFilterOptions(
       !def.enableKey ||
       def.key === "sale" ||
       def.key === "rating" ||
+      def.key === "location" ||
       !flags[def.enableKey]
     ) {
       available.push({ ...def, sourceKind: sourceKindForDef(def) });

@@ -78,11 +78,14 @@ export type FilterConfigInput = {
   enablePrice?: boolean;
   enableSale?: boolean;
   enableRating?: boolean;
+  enableLocation?: boolean;
   enableAvailability?: boolean;
   enableVendor?: boolean;
   enableProductType?: boolean;
   enableTags?: boolean;
   enableOptions?: boolean;
+  enableVariantsAsProducts?: boolean;
+  variantAsProductOptions?: string[];
   priceRangeMode?: "auto" | "custom";
   customPriceMin?: number | null;
   customPriceMax?: number | null;
@@ -105,11 +108,14 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
     enablePrice: input.enablePrice,
     enableSale: input.enableSale,
     enableRating: input.enableRating,
+    enableLocation: input.enableLocation,
     enableAvailability: input.enableAvailability,
     enableVendor: input.enableVendor,
     enableProductType: input.enableProductType,
     enableTags: input.enableTags,
     enableOptions: input.enableOptions,
+    enableVariantsAsProducts: input.enableVariantsAsProducts,
+    variantAsProductOptions: input.variantAsProductOptions,
     priceRangeMode,
     customPriceMin: input.customPriceMin ?? null,
     customPriceMax: input.customPriceMax ?? null,
@@ -253,6 +259,7 @@ export async function getListFacetValueCatalog(
       product.compareAtMax == null ? null : Number(product.compareAtMax),
     salePct: Number(product.salePct),
     available: product.available,
+    inventoryLocations: product.inventoryLocations ?? [],
     status: product.status,
     imageUrl: product.imageUrl,
     metafields: (product.metafields as Record<string, string>) || {},

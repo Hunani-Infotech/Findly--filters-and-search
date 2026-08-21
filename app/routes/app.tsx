@@ -71,6 +71,7 @@ export default function App() {
           <a href="/app/recommendations">Recommendations</a>
           <a href="/app/vehicle-finder">Vehicle Finder</a>
           <a href="/app/translation">Translation</a>
+          <a href="/app/integrations">Integrations</a>
           <a href="/app/analytics">Analytics</a>
           <a href="/app/billing">Pricing plans</a>
           <a href="/app/contact">Contact</a>

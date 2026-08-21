@@ -44,6 +44,25 @@ export const PRODUCT_NODE_QUERY = `#graphql
                 }
               }
             }
+            inventoryItem {
+              id
+              inventoryLevels(first: 50) {
+                edges {
+                  node {
+                    id
+                    quantities(names: ["available"]) {
+                      name
+                      quantity
+                    }
+                    location {
+                      id
+                      name
+                      isActive
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -89,7 +108,7 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
       id
       title
       handle
-      products(first: 100, after: $cursor) {
+      products(first: 100, after: $cursor, sortKey: COLLECTION_DEFAULT) {
         pageInfo {
           hasNextPage
           endCursor
@@ -137,6 +156,25 @@ export const BULK_PRODUCTS_QUERY = `
                     namespace
                     key
                     value
+                  }
+                }
+              }
+              inventoryItem {
+                id
+                inventoryLevels {
+                  edges {
+                    node {
+                      id
+                      quantities(names: ["available"]) {
+                        name
+                        quantity
+                      }
+                      location {
+                        id
+                        name
+                        isActive
+                      }
+                    }
                   }
                 }
               }
@@ -219,6 +257,42 @@ export const COLLECTIONS_LIST_QUERY = `#graphql
         node {
           id
           title
+          handle
+        }
+      }
+    }
+  }
+`;
+
+export const PAGES_LIST_QUERY = `#graphql
+  query PagesList($cursor: String) {
+    pages(first: 50, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        title
+        handle
+        isPublished
+      }
+    }
+  }
+`;
+
+export const ARTICLES_LIST_QUERY = `#graphql
+  query ArticlesList($cursor: String) {
+    articles(first: 50, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        title
+        handle
+        blog {
           handle
         }
       }

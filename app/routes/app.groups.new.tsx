@@ -10,13 +10,13 @@ import { ensureShopAccess } from "../billing.server";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   createValueGroup,
-  getFilterValueCatalog,
+  getCatalogValuesPage,
 } from "../value-groups.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const catalog = await getFilterValueCatalog(shop.id);
+  const catalog = await getCatalogValuesPage(shop.id, "");
   return { catalog };
 };
 
