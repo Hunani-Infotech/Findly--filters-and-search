@@ -117,12 +117,19 @@ export default function ContactNavPage() {
   );
   const [subject, setSubject] = useState(draft.subject);
   const [message, setMessage] = useState(draft.message);
+  const [seenAction, setSeenAction] = useState(actionData);
+
+  if (actionData !== seenAction) {
+    setSeenAction(actionData);
+    if (actionData && "ok" in actionData && actionData.ok) {
+      setMessage("");
+    }
+  }
 
   useEffect(() => {
     if (!actionData || !("ok" in actionData)) return;
     if (actionData.ok) {
       shopify.toast.show("Message sent to Findly support");
-      setMessage("");
       return;
     }
     if (actionData.sendError) {
@@ -130,7 +137,7 @@ export default function ContactNavPage() {
     }
   }, [actionData, shopify]);
 
-  const fieldErrors =
+  const fieldErrors: { email?: string; message?: string } =
     actionData && "ok" in actionData && !actionData.ok ? actionData.errors : {};
   const sendError =
     actionData && "ok" in actionData && !actionData.ok

@@ -2,7 +2,7 @@ import type { HeadersFunction, MetaFunction } from "react-router";
 import { Link } from "react-router";
 
 import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
-import styles from "./privacy.module.css";
+import styles from "../privacy.module.css";
 
 export const meta: MetaFunction = () => [
   { title: "Terms of Service — Findly: Smart Filters & Search" },
