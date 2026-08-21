@@ -79,6 +79,8 @@ import {
   syncShopifyMetafieldDefinitions,
 } from "../settings-metafields.server";
 
+export { SettingsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const FONT_OPTIONS = [
   { label: "Match the theme (recommended)", value: "theme" },
   { label: "Theme heading font", value: "heading" },

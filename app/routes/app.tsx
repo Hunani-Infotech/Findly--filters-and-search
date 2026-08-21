@@ -12,10 +12,8 @@ import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-ro
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "../admin.css?url";
 
-import {
-  AdminNavigationOverlay,
-  ShopifyLoadingBar,
-} from "../components/admin-loading";
+import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
+import { AdminRouteSkeleton } from "../components/admin-skeletons";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../shop.server";
 
@@ -76,11 +74,22 @@ export default function App() {
           <a href="/app/sync">Sync</a>
         </NavMenu>
         <div className="findly-admin-shell">
-          <Outlet />
+          <AdminPendingScreen>
+            <Outlet />
+          </AdminPendingScreen>
         </div>
-        <AdminNavigationOverlay />
       </PolarisAppProvider>
     </ShopifyAppProvider>
+  );
+}
+
+export function HydrateFallback() {
+  return (
+    <PolarisAppProvider i18n={enTranslations}>
+      <div className="findly-admin-shell">
+        <AdminRouteSkeleton />
+      </div>
+    </PolarisAppProvider>
   );
 }
 

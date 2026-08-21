@@ -14,6 +14,8 @@ import {
   saveFilterOption,
 } from "../filter-option-editor.server";
 
+export { FilterOptionSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

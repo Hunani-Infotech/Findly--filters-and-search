@@ -30,6 +30,8 @@ import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
 import { enqueueSyncJob } from "../queues.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
+export { SyncPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

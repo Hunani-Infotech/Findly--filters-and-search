@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { useEffect } from "react";
 import {
   useFetchers,
+  useLocation,
   useNavigation,
 } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { Spinner } from "@shopify/polaris";
+import { AdminRouteSkeleton } from "./admin-skeletons";
 
 type NavigationState = {
   state: string;
@@ -24,6 +26,17 @@ function isPageNavigation(navigation: NavigationState) {
   if (navigation.state !== "loading") return false;
   const method = navigation.formMethod?.toUpperCase();
   return !method || method === "GET";
+}
+
+/** True when the destination pathname is different (not tab/search-param revalidation). */
+export function isPageSwitch(
+  navigation: NavigationState,
+  currentPathname: string,
+) {
+  if (!isPageNavigation(navigation)) return false;
+  const nextPath = navigation.location?.pathname;
+  if (!nextPath) return false;
+  return nextPath !== currentPathname;
 }
 
 export function isNavigatingTo(navigation: NavigationState, pathname: string) {
@@ -50,27 +63,18 @@ export function ShopifyLoadingBar() {
   return null;
 }
 
-/** Keeps the current page visible while the next route loader runs. */
-export function AdminNavigationOverlay() {
+/**
+ * While a GET navigation to another admin path is in flight, swap the current
+ * page for a destination skeleton so the iframe never goes blank.
+ */
+export function AdminPendingScreen({ children }: { children: ReactNode }) {
   const navigation = useNavigation();
-  if (!isPageNavigation(navigation)) return null;
+  const location = useLocation();
+  if (!isPageSwitch(navigation, location.pathname)) return children;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 499,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        paddingTop: 140,
-        background: "rgba(255, 255, 255, 0.55)",
-      }}
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <Spinner accessibilityLabel="Loading page" size="large" />
+    <div aria-busy="true" aria-live="polite">
+      <AdminRouteSkeleton pathname={navigation.location?.pathname} />
     </div>
   );
 }

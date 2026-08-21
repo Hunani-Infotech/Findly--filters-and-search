@@ -43,6 +43,8 @@ import {
   type WidgetI18nMap,
 } from "../widget-i18n";
 
+export { TranslationListSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const WIDGET_KEY_SET = new Set<string>(WIDGET_I18N_KEYS);
 
 function csvCell(value: string | number) {

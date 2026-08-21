@@ -34,6 +34,8 @@ import { useEmbeddedNavigate } from "../admin-path";
 import { slicePage } from "../admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
 
+export { GroupsListSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",

@@ -71,6 +71,8 @@ import {
 import { SetupGuide } from "../components/setup-guide";
 import { ThemeSetupCard } from "../components/theme-setup-card";
 
+export { FiltersListSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
 const PREFERENCES = [

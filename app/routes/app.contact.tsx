@@ -33,6 +33,8 @@ import {
   saveAdminNavExtras,
 } from "../admin-nav-extras.server";
 
+export { ContactPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const DEFAULT_SUBJECT = "[Findly Smart Filters & Search] I need support";
 
 function isValidEmail(value: string) {

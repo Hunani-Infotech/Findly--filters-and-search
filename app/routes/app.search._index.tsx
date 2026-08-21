@@ -59,6 +59,8 @@ import {
 import { getAppSettings, saveSearchSettings } from "../settings.server";
 import { useEmbeddedNavigate } from "../admin-path";
 
+export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const SEARCH_TABS = [
   { id: "settings", content: "Settings", panelID: "search-settings" },
   { id: "instant", content: "Instant search widget", panelID: "search-instant" },

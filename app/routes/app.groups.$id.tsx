@@ -15,6 +15,8 @@ import {
   updateValueGroup,
 } from "../value-groups.server";
 
+export { GroupFormSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

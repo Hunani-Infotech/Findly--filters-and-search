@@ -48,6 +48,8 @@ import {
 import { listShopImages, uploadShopImage } from "../shopify-files.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
+export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;

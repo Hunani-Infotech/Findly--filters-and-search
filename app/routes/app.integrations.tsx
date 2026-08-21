@@ -24,6 +24,8 @@ import {
   type PartnerIntegrationCategory,
 } from "../partner-integrations";
 
+export { IntegrationsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const CATEGORY_ORDER: PartnerIntegrationCategory[] = [
   "reviews",
   "wishlist",

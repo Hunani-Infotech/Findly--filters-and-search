@@ -39,6 +39,8 @@ import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import { useEmbeddedNavigate } from "../admin-path";
 
+export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 type ConfigState = {
   enabled: boolean;
   enablePrice: boolean;

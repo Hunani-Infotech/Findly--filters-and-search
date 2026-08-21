@@ -13,6 +13,8 @@ import {
   getCatalogValuesPage,
 } from "../value-groups.server";
 
+export { GroupFormSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

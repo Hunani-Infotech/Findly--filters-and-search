@@ -1,3 +1,45 @@
+.findly-root-skeleton {
+  box-sizing: border-box;
+  max-width: 62.375rem;
+  margin: 1.5rem auto 0;
+  padding: 0 0 2rem;
+}
+
+.findly-root-skeleton__bar,
+.findly-root-skeleton__title,
+.findly-root-skeleton__card {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e3e3e3 25%, #f1f1f1 37%, #e3e3e3 63%);
+  background-size: 400% 100%;
+  animation: findly-skeleton-shimmer 1.4s ease infinite;
+}
+
+.findly-root-skeleton__bar {
+  width: 28%;
+  height: 12px;
+  margin-bottom: 18px;
+}
+
+.findly-root-skeleton__title {
+  width: 42%;
+  height: 28px;
+  margin-bottom: 20px;
+}
+
+.findly-root-skeleton__card {
+  height: 148px;
+  margin-bottom: 16px;
+}
+
+@keyframes findly-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
 /* Embedded admin iframe: center the page and keep last fields off the bottom edge. */
 .findly-admin-shell {
   box-sizing: border-box;

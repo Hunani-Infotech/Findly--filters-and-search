@@ -23,6 +23,8 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { useEmbeddedNavigate } from "../admin-path";
 
+export { AnalyticsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 const DATE_RANGE_OPTIONS = [
   { label: "This month", value: "this_month" },
   { label: "Last 7 days", value: "last_7" },

@@ -35,6 +35,8 @@ import {
   syncActiveSubscriptions,
 } from "../billing.server";
 
+export { BillingPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

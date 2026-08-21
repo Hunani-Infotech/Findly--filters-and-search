@@ -41,6 +41,8 @@ import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import { useEmbeddedNavigate } from "../admin-path";
 
+export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);

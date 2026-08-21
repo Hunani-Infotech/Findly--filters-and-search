@@ -27,6 +27,8 @@ import {
   type TranslationField,
 } from "../translation-catalog";
 
+export { TranslationLocaleSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 /** Set true to restore Custom tab "+ Add field". */
 const ALLOW_CUSTOM_FIELDS = false;
 

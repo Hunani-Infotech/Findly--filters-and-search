@@ -67,6 +67,8 @@ import {
   type BuiltinEnableKey,
 } from "../filter-option-rows";
 
+export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
+
 type ConfigState = {
   name: string;
   appliesToSearch: boolean;
