@@ -10,7 +10,13 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { PlusIcon, RefreshIcon, XSmallIcon } from "@shopify/polaris-icons";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  RefreshIcon,
+  XSmallIcon,
+} from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import {
@@ -22,6 +28,8 @@ import {
 import type { SettingsMetafieldRow } from "../settings-metafields.server";
 import type { MetafieldOwnerTypeValue } from "../metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
+
+const PAGE_SIZE = 10;
 
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },
@@ -125,6 +133,10 @@ function AppliesToField({
   );
 }
 
+function lastPageIndex(count: number) {
+  return Math.max(0, Math.ceil(count / PAGE_SIZE) - 1);
+}
+
 export function SettingsMetafieldsCard({
   initialRows,
   plan,
@@ -140,10 +152,12 @@ export function SettingsMetafieldsCard({
   const [rows, setRows] = useState(initialRows);
   const [savedRows, setSavedRows] = useState(initialRows);
   const [seenInitial, setSeenInitial] = useState(initialRows);
+  const [page, setPage] = useState(0);
   if (initialRows !== seenInitial) {
     setSeenInitial(initialRows);
     setSavedRows(initialRows);
     setRows(initialRows);
+    setPage(0);
   }
 
   const [appliedFetcher, setAppliedFetcher] = useState<FetcherData | undefined>(
@@ -153,16 +167,21 @@ export function SettingsMetafieldsCard({
     setAppliedFetcher(fetcher.data);
     if ("ok" in fetcher.data && fetcher.data.ok) {
       if (fetcher.data.intent === "save-metafields") {
-        setRows(fetcher.data.rows);
-        setSavedRows(fetcher.data.rows);
+        const saved = fetcher.data.rows;
+        setRows(saved);
+        setSavedRows(saved);
+        setPage((current) => Math.min(current, lastPageIndex(saved.length)));
       }
       if (fetcher.data.intent === "sync-metafields") {
         if (fetcher.data.rows) {
           setRows(fetcher.data.rows);
           setSavedRows(fetcher.data.rows);
+          setPage(lastPageIndex(fetcher.data.rows.length));
         } else if (fetcher.data.extras.length) {
           const extras = fetcher.data.extras;
+          const nextCount = rows.length + extras.length;
           setRows((current) => [...current, ...extras]);
+          setPage(lastPageIndex(nextCount));
         }
       }
     }
@@ -197,6 +216,14 @@ export function SettingsMetafieldsCard({
     () => rows.filter((row) => row.appliesTo.includes("filter")).length,
     [rows],
   );
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = rows.slice(
+    safePage * PAGE_SIZE,
+    safePage * PAGE_SIZE + PAGE_SIZE,
+  );
+  const showingFrom = rows.length === 0 ? 0 : safePage * PAGE_SIZE + 1;
+  const showingTo = Math.min(rows.length, (safePage + 1) * PAGE_SIZE);
 
   const patchRow = (clientId: string, patch: Partial<SettingsMetafieldRow>) => {
     setRows((current) =>
@@ -306,7 +333,7 @@ export function SettingsMetafieldsCard({
               <span>Applies to</span>
               <span />
             </div>
-            {rows.map((row) => (
+            {paged.map((row) => (
               <div className="findly-meta-table__row" key={row.clientId}>
                 <Select
                   label="Resource"
@@ -375,6 +402,9 @@ export function SettingsMetafieldsCard({
                     setRows((current) =>
                       current.filter((item) => item.clientId !== row.clientId),
                     );
+                    setPage((currentPage) =>
+                      Math.min(currentPage, lastPageIndex(rows.length - 1)),
+                    );
                   }}
                 >
                   <XSmallIcon />
@@ -386,14 +416,40 @@ export function SettingsMetafieldsCard({
             <Button
               icon={PlusIcon}
               disabled={busy}
-              onClick={() => setRows((current) => [...current, newDraftRow()])}
+              onClick={() => {
+                setRows((current) => [...current, newDraftRow()]);
+                setPage(lastPageIndex(rows.length + 1));
+              }}
             >
               Add metafield
             </Button>
-            <InlineStack gap="300" blockAlign="center">
+            <InlineStack gap="300" blockAlign="center" wrap>
               <Text as="span" variant="bodySm" tone="subdued">
-                Filter metafields: {filterCount}/{filterLimit} on {plan}
+                {`Showing ${showingFrom}–${showingTo} of ${rows.length}`}
+                {` · Filter metafields: ${filterCount}/${filterLimit} on ${plan}`}
               </Text>
+              {rows.length > PAGE_SIZE ? (
+                <div className="findly-meta-pager">
+                  <button
+                    type="button"
+                    aria-label="Previous page"
+                    disabled={busy || safePage <= 0}
+                    onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  >
+                    <ChevronLeftIcon width={14} height={14} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next page"
+                    disabled={busy || safePage >= pageCount - 1}
+                    onClick={() =>
+                      setPage((current) => Math.min(pageCount - 1, current + 1))
+                    }
+                  >
+                    <ChevronRightIcon width={14} height={14} />
+                  </button>
+                </div>
+              ) : null}
               <Button
                 variant="primary"
                 loading={busy}

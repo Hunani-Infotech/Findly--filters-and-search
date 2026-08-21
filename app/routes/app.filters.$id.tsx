@@ -48,6 +48,8 @@ import {
   updateFilterTree,
 } from "../filter-trees.server";
 import prisma from "../db.server";
+import { COLLECTION_PICKER_PAGE_SIZE } from "../collections-picker";
+import { listCollectionsForPicker } from "../collections-picker.server";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { useEmbeddedNavigate, withEmbeddedParamsFromRequest } from "../admin-path";
 import { isMutationBusy } from "../components/admin-loading";
@@ -100,10 +102,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!isNew && !config) {
     throw new Response("Not found", { status: 404 });
   }
-  const [collections, otherTrees] = await Promise.all([
-    prisma.collection.findMany({
-      where: { shopId: shop.id },
-      orderBy: { title: "asc" },
+  const includeGids = [
+    ...(config?.treeCollections.map((row) => row.collectionGid) ?? []),
+    ...parseExcludeCollectionGids(
+      config && "facetSettings" in config ? config.facetSettings : {},
+    ),
+  ];
+  const [picker, otherTrees] = await Promise.all([
+    listCollectionsForPicker(shop.id, {
+      page: 1,
+      pageSize: COLLECTION_PICKER_PAGE_SIZE,
+      includeGids,
     }),
     listFilterTrees(shop.id),
   ]);
@@ -139,11 +148,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return {
     treeId: config?.id ?? "",
     isNew,
-    collections: collections.map((collection) => ({
-      collectionGid: collection.collectionGid,
-      title: collection.title,
-      handle: collection.handle,
-    })),
+    collections: picker.collections,
+    knownCollections: picker.included,
+    collectionTotal: picker.total,
+    collectionHasNext: picker.hasNext,
+    collectionPageSize: picker.pageSize,
     usedElsewhere,
     allCollectionsUsedElsewhere,
     catalogOptions,
@@ -421,6 +430,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   return { ok: true };
 };
 
+export function shouldRevalidate({
+  formMethod,
+  defaultShouldRevalidate,
+}: {
+  formMethod?: string;
+  defaultShouldRevalidate: boolean;
+}) {
+  const method = formMethod?.toUpperCase();
+  if (!method || method === "GET") return false;
+  return defaultShouldRevalidate;
+}
+
 export default function FilterTreeEditorPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -632,6 +653,10 @@ export default function FilterTreeEditorPage() {
                 />
                 <CollectionAppliesTo
                   collections={data.collections}
+                  knownCollections={data.knownCollections}
+                  collectionTotal={data.collectionTotal}
+                  collectionHasNext={data.collectionHasNext}
+                  collectionPageSize={data.collectionPageSize}
                   selected={config.collectionGids}
                   onChange={(collectionGids) =>
                     setConfig((c) => ({ ...c, collectionGids }))

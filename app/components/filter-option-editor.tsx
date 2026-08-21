@@ -14,7 +14,6 @@ import {
   Checkbox,
   ChoiceList,
   FormLayout,
-  InlineGrid,
   InlineStack,
   Layout,
   Page,
@@ -23,6 +22,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { withEmbeddedParams } from "../admin-path";
+import { CatalogValuePicker } from "./catalog-value-picker";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
 import type { FilterOptionEditorData } from "../filter-option-editor.server";
@@ -118,11 +118,6 @@ export function FilterOptionEditorPage({
     const extras = selectedValues.filter((value) => !seen.has(value));
     return extras.length ? [...catalogValues, ...extras] : catalogValues;
   }, [catalogValues, selectedValues]);
-
-  const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
-  const mid = Math.ceil(valueList.length / 2);
-  const left = valueList.slice(0, mid);
-  const right = valueList.slice(mid);
 
   const resolvedHandle =
     urlHandle || defaultUrlHandle(label, key) || key || "collection";
@@ -377,41 +372,13 @@ export function FilterOptionEditorPage({
                       </Box>
                     </InlineStack>
                     {showValues && valueMode === "manual" ? (
-                      valueList.length === 0 ? (
-                        <Text as="p" tone="subdued">
-                          No catalog values yet. Sync products, then select
-                          values here.
-                        </Text>
-                      ) : (
-                        <InlineGrid columns={{ xs: 1, md: 2 }} gap="200">
-                          <BlockStack gap="200">
-                            {left.map((value) => (
-                              <Checkbox
-                                key={value}
-                                label={value}
-                                checked={selectedSet.has(value)}
-                                disabled={saving}
-                                onChange={(checked) =>
-                                  toggleValue(value, checked)
-                                }
-                              />
-                            ))}
-                          </BlockStack>
-                          <BlockStack gap="200">
-                            {right.map((value) => (
-                              <Checkbox
-                                key={value}
-                                label={value}
-                                checked={selectedSet.has(value)}
-                                disabled={saving}
-                                onChange={(checked) =>
-                                  toggleValue(value, checked)
-                                }
-                              />
-                            ))}
-                          </BlockStack>
-                        </InlineGrid>
-                      )
+                      <CatalogValuePicker
+                        key={key}
+                        values={valueList}
+                        selected={selectedValues}
+                        disabled={saving}
+                        onToggle={toggleValue}
+                      />
                     ) : null}
                     {showValues && valueMode === "prefix" ? (
                       <BlockStack gap="200">

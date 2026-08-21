@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFetcher, useSearchParams } from "react-router";
 import {
   Badge,
   BlockStack,
@@ -9,25 +10,43 @@ import {
   InlineStack,
   Listbox,
   Modal,
+  Pagination,
   Tag,
+  Text,
   TextField,
 } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
+import { withEmbeddedParams } from "../admin-path";
+import {
+  COLLECTION_PICKER_BROWSE_SIZE,
+  COLLECTION_PICKER_PAGE_SIZE,
+  type CollectionChoice,
+} from "../collections-picker";
+
+export type { CollectionChoice };
 
 export const ALL_COLLECTIONS_VALUE = "__all_collections__";
 export const ALL_PRODUCTS_VALUE = "__all_products__";
 export const SEARCH_PAGE_VALUE = "__search__";
 
 const EMPTY_VALUE = "__empty__";
+const LOAD_MORE_VALUE = "__load_more__";
 
-export type CollectionChoice = {
-  collectionGid: string;
-  title: string;
-  handle: string;
+type CollectionPickerResponse = {
+  collections: CollectionChoice[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasNext: boolean;
+  query: string;
 };
 
 type CollectionAppliesToProps = {
   collections: CollectionChoice[];
+  knownCollections?: CollectionChoice[];
+  collectionTotal?: number;
+  collectionHasNext?: boolean;
+  collectionPageSize?: number;
   selected: string[];
   onChange: (next: string[]) => void;
   appliesToSearch: boolean;
@@ -57,8 +76,130 @@ function matchesQuery(needle: string, ...parts: Array<string | undefined>) {
   return parts.some((part) => part?.toLowerCase().includes(needle));
 }
 
+function mergeChoices(
+  current: CollectionChoice[],
+  extra: CollectionChoice[],
+): CollectionChoice[] {
+  const map = new Map(current.map((row) => [row.collectionGid, row]));
+  for (const row of extra) map.set(row.collectionGid, row);
+  return [...map.values()];
+}
+
+function pickerUrl(
+  query: string,
+  page: number,
+  pageSize: number,
+  searchParams: URLSearchParams,
+) {
+  const next = new URLSearchParams();
+  if (query) next.set("q", query);
+  next.set("page", String(page));
+  next.set("pageSize", String(pageSize));
+  return withEmbeddedParams(`/app/collections/picker?${next}`, searchParams);
+}
+
+function useCollectionPickerPages({
+  initialRows,
+  initialTotal,
+  initialHasNext,
+  pageSize,
+  mode,
+}: {
+  initialRows: CollectionChoice[];
+  initialTotal: number;
+  initialHasNext: boolean;
+  pageSize: number;
+  mode: "append" | "replace";
+}) {
+  const fetcher = useFetcher<CollectionPickerResponse>();
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState("");
+  const [rows, setRows] = useState(initialRows);
+  const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(initialHasNext);
+  const [total, setTotal] = useState(initialTotal);
+  const queryRef = useRef(query);
+  const pageRef = useRef(1);
+  const timerRef = useRef<number>(0);
+  const appliedRef = useRef<CollectionPickerResponse | undefined>(undefined);
+
+  queryRef.current = query;
+
+  const loading = fetcher.state !== "idle";
+
+  if (
+    fetcher.state === "idle" &&
+    fetcher.data &&
+    fetcher.data !== appliedRef.current &&
+    fetcher.data.query === queryRef.current.trim()
+  ) {
+    appliedRef.current = fetcher.data;
+    const nextRows = fetcher.data.collections;
+    setPage(fetcher.data.page);
+    pageRef.current = fetcher.data.page;
+    setHasNext(fetcher.data.hasNext);
+    setTotal(fetcher.data.total);
+    setRows((current) =>
+      mode === "append" && fetcher.data && fetcher.data.page > 1
+        ? mergeChoices(current, nextRows)
+        : nextRows,
+    );
+  }
+
+  const loadPage = (nextPage: number, nextQuery = queryRef.current.trim()) => {
+    pageRef.current = nextPage;
+    fetcher.load(pickerUrl(nextQuery, nextPage, pageSize, searchParams));
+  };
+
+  const onQueryChange = (value: string) => {
+    setQuery(value);
+    window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      loadPage(1, value.trim());
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => window.clearTimeout(timerRef.current);
+  }, []);
+
+  const loadMore = () => {
+    if (loading || !hasNext) return;
+    loadPage(pageRef.current + 1);
+  };
+
+  const goToPage = (nextPage: number) => {
+    if (loading || nextPage < 1) return;
+    loadPage(nextPage);
+  };
+
+  const reloadFirstPage = () => {
+    window.clearTimeout(timerRef.current);
+    setQuery("");
+    queryRef.current = "";
+    loadPage(1, "");
+  };
+
+  return {
+    query,
+    onQueryChange,
+    rows,
+    page,
+    hasNext,
+    total,
+    loading,
+    loadMore,
+    goToPage,
+    reloadFirstPage,
+  };
+}
+
 export function CollectionAppliesTo({
   collections,
+  knownCollections = [],
+  collectionTotal,
+  collectionHasNext = false,
+  collectionPageSize = COLLECTION_PICKER_PAGE_SIZE,
   selected,
   onChange,
   appliesToSearch,
@@ -75,15 +216,50 @@ export function CollectionAppliesTo({
   onExcludedChange,
   showAllCollectionsChip = true,
 }: CollectionAppliesToProps) {
-  const [query, setQuery] = useState("");
-  const [excludeQuery, setExcludeQuery] = useState("");
   const [browseOpen, setBrowseOpen] = useState(false);
-  const [browseQuery, setBrowseQuery] = useState("");
+  const [catalog, setCatalog] = useState(() =>
+    mergeChoices(collections, knownCollections),
+  );
+
+  const shopTotal = collectionTotal ?? collections.length;
+  const applies = useCollectionPickerPages({
+    initialRows: collections,
+    initialTotal: shopTotal,
+    initialHasNext: collectionHasNext,
+    pageSize: collectionPageSize,
+    mode: "append",
+  });
+  const excludePicker = useCollectionPickerPages({
+    initialRows: collections,
+    initialTotal: shopTotal,
+    initialHasNext: collectionHasNext,
+    pageSize: collectionPageSize,
+    mode: "append",
+  });
+  const browse = useCollectionPickerPages({
+    initialRows: collections.slice(0, COLLECTION_PICKER_BROWSE_SIZE),
+    initialTotal: shopTotal,
+    initialHasNext: shopTotal > COLLECTION_PICKER_BROWSE_SIZE,
+    pageSize: COLLECTION_PICKER_BROWSE_SIZE,
+    mode: "replace",
+  });
+
+  const incomingKnown = [
+    ...applies.rows,
+    ...excludePicker.rows,
+    ...browse.rows,
+  ];
+  const incomingKey = incomingKnown.map((row) => row.collectionGid).join("|");
+  const [catalogKey, setCatalogKey] = useState(incomingKey);
+  if (incomingKey !== catalogKey) {
+    setCatalogKey(incomingKey);
+    setCatalog((current) => mergeChoices(current, incomingKnown));
+  }
 
   const allCollectionsChecked = selected.length === 0 || allCollections;
 
   const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = applies.query.trim().toLowerCase();
     const special: AppliesRow[] = [
       {
         value: ALL_COLLECTIONS_VALUE,
@@ -102,19 +278,15 @@ export function CollectionAppliesTo({
       },
     ].filter((row) => matchesQuery(needle, row.label));
 
-    const collectionRows = collections
-      .filter((collection) =>
-        matchesQuery(needle, collection.title, collection.handle),
-      )
-      .map((collection) => ({
-        value: collection.collectionGid,
-        label: collection.title,
-        handle: collection.handle,
-        badge: Boolean(usedElsewhere[collection.collectionGid]),
-      }));
+    const collectionRows = applies.rows.map((collection) => ({
+      value: collection.collectionGid,
+      label: collection.title,
+      handle: collection.handle,
+      badge: Boolean(usedElsewhere[collection.collectionGid]),
+    }));
 
     return [...special, ...collectionRows];
-  }, [allCollectionsUsedElsewhere, collections, query, usedElsewhere]);
+  }, [allCollectionsUsedElsewhere, applies.query, applies.rows, usedElsewhere]);
 
   const isChecked = (value: string) => {
     if (value === ALL_COLLECTIONS_VALUE) return allCollectionsChecked;
@@ -125,6 +297,10 @@ export function CollectionAppliesTo({
 
   const toggleRow = (value: string) => {
     if (disabled || value === EMPTY_VALUE) return;
+    if (value === LOAD_MORE_VALUE) {
+      applies.loadMore();
+      return;
+    }
 
     if (value === ALL_COLLECTIONS_VALUE) {
       onAllCollectionsChange(true);
@@ -154,38 +330,24 @@ export function CollectionAppliesTo({
   };
 
   const selectedCollections = selected
-    .map((gid) =>
-      collections.find((collection) => collection.collectionGid === gid),
-    )
+    .map((gid) => catalog.find((collection) => collection.collectionGid === gid))
     .filter((collection): collection is CollectionChoice => Boolean(collection));
 
   const emptyLabel =
-    collections.length === 0
+    shopTotal === 0
       ? "Sync collections to assign this filter."
       : "No collections match that search.";
 
   const excludedCollections = excluded
-    .map((gid) =>
-      collections.find((collection) => collection.collectionGid === gid),
-    )
+    .map((gid) => catalog.find((collection) => collection.collectionGid === gid))
     .filter((collection): collection is CollectionChoice => Boolean(collection));
-
-  const excludeRows = useMemo(() => {
-    const needle = excludeQuery.trim().toLowerCase();
-    return collections.filter((collection) =>
-      matchesQuery(needle, collection.title, collection.handle),
-    );
-  }, [collections, excludeQuery]);
-
-  const browseRows = useMemo(() => {
-    const needle = browseQuery.trim().toLowerCase();
-    return collections.filter((collection) =>
-      matchesQuery(needle, collection.title, collection.handle),
-    );
-  }, [browseQuery, collections]);
 
   const toggleExclude = (value: string) => {
     if (disabled || !onExcludedChange || value === EMPTY_VALUE) return;
+    if (value === LOAD_MORE_VALUE) {
+      excludePicker.loadMore();
+      return;
+    }
     if (excluded.includes(value)) {
       onExcludedChange(excluded.filter((gid) => gid !== value));
       return;
@@ -199,26 +361,37 @@ export function CollectionAppliesTo({
     appliesToSearch ||
     appliesToAllProducts;
 
+  const browseFrom =
+    browse.total === 0
+      ? 0
+      : (browse.page - 1) * COLLECTION_PICKER_BROWSE_SIZE + 1;
+  const browseTo = Math.min(
+    browse.page * COLLECTION_PICKER_BROWSE_SIZE,
+    browse.total,
+  );
+
   return (
     <BlockStack gap="200">
       <Combobox
         allowMultiple
         maxHeight="320px"
-        onClose={() => setQuery("")}
+        onClose={() => {
+          if (applies.query) applies.onQueryChange("");
+        }}
         activator={
           <Combobox.TextField
             label="Applies to"
             prefix={<Icon source={SearchIcon} />}
-            value={query}
+            value={applies.query}
             placeholder="Search for collections"
             autoComplete="off"
             disabled={disabled}
-            onChange={setQuery}
+            onChange={applies.onQueryChange}
           />
         }
       >
         <Listbox onSelect={toggleRow} accessibilityLabel="Applies to">
-          {rows.length === 0 ? (
+          {rows.length === 0 && !applies.loading ? (
             <Listbox.Option value={EMPTY_VALUE} disabled>
               {emptyLabel}
             </Listbox.Option>
@@ -246,6 +419,17 @@ export function CollectionAppliesTo({
               );
             })
           )}
+          {applies.loading ? (
+            <Listbox.Loading accessibilityLabel="Loading collections" />
+          ) : null}
+          {applies.hasNext && !applies.loading ? (
+            <Listbox.Option
+              value={LOAD_MORE_VALUE}
+              accessibilityLabel="Load more collections"
+            >
+              Load more ({applies.rows.length} of {applies.total})
+            </Listbox.Option>
+          ) : null}
         </Listbox>
       </Combobox>
       {showAppliesChips ? (
@@ -302,16 +486,18 @@ export function CollectionAppliesTo({
               <Combobox
                 allowMultiple
                 maxHeight="320px"
-                onClose={() => setExcludeQuery("")}
+                onClose={() => {
+                  if (excludePicker.query) excludePicker.onQueryChange("");
+                }}
                 activator={
                   <Combobox.TextField
                     label="Exclude collections"
                     prefix={<Icon source={SearchIcon} />}
-                    value={excludeQuery}
+                    value={excludePicker.query}
                     placeholder="Search for collections"
                     autoComplete="off"
                     disabled={disabled}
-                    onChange={setExcludeQuery}
+                    onChange={excludePicker.onQueryChange}
                   />
                 }
               >
@@ -319,12 +505,12 @@ export function CollectionAppliesTo({
                   onSelect={toggleExclude}
                   accessibilityLabel="Exclude collections"
                 >
-                  {excludeRows.length === 0 ? (
+                  {excludePicker.rows.length === 0 && !excludePicker.loading ? (
                     <Listbox.Option value={EMPTY_VALUE} disabled>
                       {emptyLabel}
                     </Listbox.Option>
                   ) : (
-                    excludeRows.map((collection) => {
+                    excludePicker.rows.map((collection) => {
                       const checked = excluded.includes(collection.collectionGid);
                       return (
                         <Listbox.Option
@@ -343,13 +529,25 @@ export function CollectionAppliesTo({
                       );
                     })
                   )}
+                  {excludePicker.loading ? (
+                    <Listbox.Loading accessibilityLabel="Loading collections" />
+                  ) : null}
+                  {excludePicker.hasNext && !excludePicker.loading ? (
+                    <Listbox.Option
+                      value={LOAD_MORE_VALUE}
+                      accessibilityLabel="Load more collections"
+                    >
+                      Load more ({excludePicker.rows.length} of{" "}
+                      {excludePicker.total})
+                    </Listbox.Option>
+                  ) : null}
                 </Listbox>
               </Combobox>
             </div>
             <Button
               disabled={disabled}
               onClick={() => {
-                setBrowseQuery("");
+                browse.reloadFirstPage();
                 setBrowseOpen(true);
               }}
             >
@@ -389,16 +587,16 @@ export function CollectionAppliesTo({
                 <TextField
                   label="Search for collections"
                   labelHidden
-                  value={browseQuery}
+                  value={browse.query}
                   placeholder="Search for collections"
                   autoComplete="off"
-                  onChange={setBrowseQuery}
+                  onChange={browse.onQueryChange}
                 />
-                {browseRows.length === 0 ? (
+                {browse.rows.length === 0 && !browse.loading ? (
                   <p>{emptyLabel}</p>
                 ) : (
                   <BlockStack gap="200">
-                    {browseRows.map((collection) => (
+                    {browse.rows.map((collection) => (
                       <Checkbox
                         key={collection.collectionGid}
                         label={collection.title}
@@ -409,6 +607,24 @@ export function CollectionAppliesTo({
                     ))}
                   </BlockStack>
                 )}
+                {browse.loading ? (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Loading collections…
+                  </Text>
+                ) : null}
+                {browse.total > 0 ? (
+                  <InlineStack align="space-between" blockAlign="center" wrap>
+                    <Text as="span" variant="bodySm" tone="subdued">
+                      {browseFrom}–{browseTo} of {browse.total}
+                    </Text>
+                    <Pagination
+                      hasPrevious={browse.page > 1 && !browse.loading}
+                      onPrevious={() => browse.goToPage(browse.page - 1)}
+                      hasNext={browse.hasNext && !browse.loading}
+                      onNext={() => browse.goToPage(browse.page + 1)}
+                    />
+                  </InlineStack>
+                ) : null}
               </BlockStack>
             </Modal.Section>
           </Modal>

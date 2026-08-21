@@ -406,6 +406,7 @@
 }
 
 .findly-swatch-pager button svg,
+.findly-meta-pager button svg,
 .findly-swatch-promo__close svg {
   display: block;
   fill: currentColor;
@@ -710,15 +711,21 @@
   cursor: default;
 }
 
-.findly-swatch-pager {
+.findly-swatch-pager,
+.findly-meta-pager {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 12px;
 }
 
+.findly-meta-pager {
+  margin-top: 0;
+}
+
 .findly-swatch-pager button,
-.findly-swatch-pager a {
+.findly-swatch-pager a,
+.findly-meta-pager button {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -737,11 +744,13 @@
 }
 
 .findly-swatch-pager button:hover,
-.findly-swatch-pager a:hover {
+.findly-swatch-pager a:hover,
+.findly-meta-pager button:hover {
   background: #ebebeb;
 }
 
-.findly-swatch-pager button:disabled {
+.findly-swatch-pager button:disabled,
+.findly-meta-pager button:disabled {
   opacity: 0.45;
   cursor: default;
 }

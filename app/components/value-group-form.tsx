@@ -3,9 +3,7 @@ import { Form, useNavigation, useSubmit } from "react-router";
 import { useEmbeddedNavigate } from "../admin-path";
 import {
   BlockStack,
-  Button,
   Card,
-  Checkbox,
   FormLayout,
   Layout,
   Page,
@@ -13,6 +11,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { CatalogValuePicker } from "./catalog-value-picker";
 import { isMutationBusy } from "./admin-loading";
 import { useConfirmDelete } from "./confirm-delete-modal";
 
@@ -70,7 +69,6 @@ export function ValueGroupFormPage({
   const [name, setName] = useState(group?.name ?? "");
   const [sourceKey, setSourceKey] = useState(defaultSource);
   const [selected, setSelected] = useState<string[]>(group?.values ?? []);
-  const [query, setQuery] = useState("");
 
   const sourceOptions = catalog.sources.map((source) => ({
     label: source.label,
@@ -83,14 +81,6 @@ export function ValueGroupFormPage({
     const extras = selected.filter((value) => !seen.has(value));
     return extras.length ? [...catalogValues, ...extras] : catalogValues;
   }, [catalog.values, sourceKey, selected]);
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return valueList;
-    return valueList.filter((value) => value.toLowerCase().includes(needle));
-  }, [query, valueList]);
-
-  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   const handleSourceChange = (next: string) => {
     setSourceKey(next);
@@ -107,7 +97,7 @@ export function ValueGroupFormPage({
     });
   };
 
-  const selectAllResults = () => {
+  const selectAllResults = (filtered: string[]) => {
     setSelected((prev) => {
       const next = new Set(prev);
       for (const value of filtered) next.add(value);
@@ -198,37 +188,16 @@ export function ValueGroupFormPage({
                     onChange={handleSourceChange}
                     disabled={saving}
                   />
-                  <TextField
-                    label="Search values"
-                    value={query}
-                    onChange={setQuery}
-                    autoComplete="off"
-                    disabled={saving}
-                  />
                 </FormLayout>
-                <InlineSelectAll
-                  count={filtered.length}
-                  disabled={saving || filtered.length === 0}
+                <CatalogValuePicker
+                  key={sourceKey}
+                  values={valueList}
+                  selected={selected}
+                  disabled={saving}
+                  emptyMessage="No values for this source yet. Sync products, then pick values from the catalog."
+                  onToggle={toggleValue}
                   onSelectAll={selectAllResults}
                 />
-                {filtered.length === 0 ? (
-                  <Text as="p" tone="subdued">
-                    No values for this source yet. Sync products, then pick
-                    values from the catalog.
-                  </Text>
-                ) : (
-                  <BlockStack gap="200">
-                    {filtered.map((value) => (
-                      <Checkbox
-                        key={value}
-                        label={value}
-                        checked={selectedSet.has(value)}
-                        disabled={saving}
-                        onChange={(checked) => toggleValue(value, checked)}
-                      />
-                    ))}
-                  </BlockStack>
-                )}
               </BlockStack>
             </Form>
           </Card>
@@ -236,22 +205,5 @@ export function ValueGroupFormPage({
       </Layout>
       {dialog}
     </Page>
-  );
-}
-
-function InlineSelectAll({
-  count,
-  disabled,
-  onSelectAll,
-}: {
-  count: number;
-  disabled: boolean;
-  onSelectAll: () => void;
-}) {
-  if (count === 0) return null;
-  return (
-    <Button disabled={disabled} onClick={onSelectAll}>
-      Select all results
-    </Button>
   );
 }
