@@ -159,25 +159,6 @@ export const BULK_PRODUCTS_QUERY = `
                   }
                 }
               }
-              inventoryItem {
-                id
-                inventoryLevels {
-                  edges {
-                    node {
-                      id
-                      quantities(names: ["available"]) {
-                        name
-                        quantity
-                      }
-                      location {
-                        id
-                        name
-                        isActive
-                      }
-                    }
-                  }
-                }
-              }
             }
           }
         }

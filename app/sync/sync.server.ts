@@ -309,7 +309,7 @@ export async function startFullSync(shopDomain: string) {
       log.error("Pages/articles sync failed", error);
     }
 
-    log.info("[sync] starting bulk product query (nested variant id)");
+    log.info("[sync] starting bulk product query");
     const response = await admin.graphql(BULK_PRODUCTS_MUTATION, {
       variables: { query: BULK_PRODUCTS_QUERY },
     });

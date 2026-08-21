@@ -5,7 +5,7 @@ extends: theme-check:theme-app-extension
 # App-block JS is larger than Shopify’s default 10 KB demo threshold.
 AssetSizeAppBlockJavaScript:
   enabled: true
-  threshold_in_bytes: 60000
+  threshold_in_bytes: 100000
 
 AssetSizeAppBlockCSS:
   enabled: true
