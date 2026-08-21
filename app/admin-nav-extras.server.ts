@@ -9,8 +9,6 @@ import { DEFAULT_RECS, parseRecsConfig, type RecsConfig } from "./recs";
 
 export type { VehicleFinderAdmin };
 
-export type RecPageTab = "product" | "home" | "collection" | "cart";
-
 export type AdminLocaleRow = {
   code: string;
   name: string;

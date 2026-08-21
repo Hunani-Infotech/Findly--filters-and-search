@@ -351,11 +351,6 @@ export async function saveSearchSettings(
   return row;
 }
 
-export function collectionNumericId(collectionGid: string) {
-  const match = collectionGid.match(/Collection\/(\d+)/);
-  return match?.[1] ?? collectionGid;
-}
-
 export function toCollectionGid(idOrGid: string) {
   if (idOrGid.startsWith("gid://")) return idOrGid;
   return `gid://shopify/Collection/${idOrGid}`;

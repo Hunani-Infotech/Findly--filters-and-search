@@ -54,9 +54,9 @@ function assertStaticMarkers() {
     fail("product-search.liquid must keep working");
   }
 
-  const setup = readRepo("app", "components", "theme-setup-card.tsx");
+  const setup = readRepo("app", "routes", "app.search._index.tsx");
   if (!setup.includes("Instant search") || !setup.toLowerCase().includes("app embeds")) {
-    fail("theme-setup-card.tsx must mention Instant search app embed");
+    fail("Search settings must mention Instant search app embed");
   }
 
   log.info("E1 static markers present");

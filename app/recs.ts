@@ -129,9 +129,3 @@ export function parseRecsConfig(raw: unknown, recOnFallback?: unknown): RecsConf
     related: parseHandleMap(o.related),
   };
 }
-
-export function recLimitForWidth(counts: RecsCounts, width: number): number {
-  if (width < 750) return counts.mobile;
-  if (width < 990) return counts.tablet;
-  return counts.desktop;
-}

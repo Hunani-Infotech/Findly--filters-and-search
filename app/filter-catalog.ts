@@ -2,7 +2,7 @@ export function optionKeyFromName(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
-export function sourceKeyForOption(optionName: string) {
+function sourceKeyForOption(optionName: string) {
   return `option:${optionKeyFromName(optionName)}`;
 }
 

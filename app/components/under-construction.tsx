@@ -1,14 +1,8 @@
-import type { ReactNode } from "react";
 import { BlockStack, Card, Icon, Layout, Page, Text } from "@shopify/polaris";
 import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { useEmbeddedNavigate } from "../admin-path";
 
-export function UnderConstructionGate({
-  feature,
-}: {
-  feature: string;
-  children?: ReactNode;
-}) {
+export function UnderConstructionGate({ feature }: { feature: string }) {
   const navigate = useEmbeddedNavigate();
 
   return (

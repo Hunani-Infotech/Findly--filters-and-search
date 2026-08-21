@@ -1,6 +1,6 @@
-export const WIDGET_SCOPE = ".smart-filter";
-export const CUSTOM_CSS_MAX = 20000;
-export const PRODUCT_LIST_LIQUID_MAX = 20000;
+const WIDGET_SCOPE = ".smart-filter";
+const CUSTOM_CSS_MAX = 20000;
+const PRODUCT_LIST_LIQUID_MAX = 20000;
 
 const NESTED_AT = /^(media|supports|layer|container)$/i;
 const KEYFRAMES_AT = /^(-(webkit|moz|o)-)?keyframes$/i;

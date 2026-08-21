@@ -1108,11 +1108,6 @@
   border-bottom: 6px solid #202223;
 }
 
-.findly-option-preview__caret--collapsed {
-  border-bottom: none;
-  border-top: 6px solid #202223;
-}
-
 .findly-option-preview__title {
   font-size: 13px;
   font-weight: 650;
