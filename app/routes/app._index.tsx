@@ -50,6 +50,8 @@ import {
   withEmbeddedParamsFromRequest,
 } from "../admin-path";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
+import { AdminListPagination } from "../components/admin-list-pagination";
+import { slicePage } from "../admin-list-page";
 import {
   deleteAbandonedDraftTrees,
   deleteFilterTrees,
@@ -192,13 +194,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ),
   );
 
-  const [trees, collections] = await Promise.all([
-    listFilterTrees(shop.id),
-    prisma.collection.findMany({
-      where: { shopId: shop.id },
-      select: { collectionGid: true, title: true },
-    }),
-  ]);
+  const trees = await listFilterTrees(shop.id);
+  const assignedGids = [
+    ...new Set(
+      trees.flatMap((tree) =>
+        tree.treeCollections.map((row) => row.collectionGid),
+      ),
+    ),
+  ];
+  const collections = assignedGids.length
+    ? await prisma.collection.findMany({
+        where: { shopId: shop.id, collectionGid: { in: assignedGids } },
+        select: { collectionGid: true, title: true },
+      })
+    : [];
   const titles = new Map(
     collections.map((collection) => [collection.collectionGid, collection.title]),
   );
@@ -280,6 +289,7 @@ export default function Index() {
   const exporting = exportFetcher.state !== "idle";
   const bulkBusy = bulkFetcher.state !== "idle";
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const treeIds = trees.map((tree) => tree.id);
   const treeIdKey = treeIds.join("\0");
@@ -377,7 +387,11 @@ export default function Index() {
     return orderedTrees.filter((tree) => tree.name.toLowerCase().includes(needle));
   }, [orderedTrees, query]);
 
-  const visibleIds = filteredTrees.map((tree) => tree.id);
+  const listSlice = slicePage(filteredTrees, page);
+  if (page !== listSlice.safePage) setPage(listSlice.safePage);
+  const pagedTrees = listSlice.paged;
+
+  const visibleIds = pagedTrees.map((tree) => tree.id);
   const selectedVisible = selectedIds.filter((id) => visibleIds.includes(id));
   const allVisibleSelected =
     visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
@@ -399,7 +413,7 @@ export default function Index() {
 
   const handleDragStart = (index: number, event: DragEvent<HTMLButtonElement>) => {
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", filteredTrees[index]?.id || String(index));
+    event.dataTransfer.setData("text/plain", visibleIds[index] || String(index));
     setDragIndex(index);
   };
 
@@ -481,11 +495,17 @@ export default function Index() {
                   labelHidden
                   placeholder="Searching filters"
                   value={query}
-                  onChange={setQuery}
+                  onChange={(value) => {
+                    setQuery(value);
+                    setPage(0);
+                  }}
                   autoComplete="off"
                   prefix={<Icon source={SearchIcon} />}
                   clearButton
-                  onClearButtonClick={() => setQuery("")}
+                  onClearButtonClick={() => {
+                    setQuery("");
+                    setPage(0);
+                  }}
                 />
               </div>
               {selectedVisible.length > 0 ? (
@@ -568,7 +588,7 @@ export default function Index() {
                       </td>
                     </tr>
                   ) : (
-                    filteredTrees.map((tree, index) => {
+                    pagedTrees.map((tree, index) => {
                       const href = `/app/filters/${tree.id}`;
                       const dragging = dragIndex === index;
                       const selected = selectedIds.includes(tree.id);
@@ -595,7 +615,7 @@ export default function Index() {
                                 type="button"
                                 className="findly-filters-list__handle"
                                 draggable
-                                aria-label={`Reorder ${tree.name}. Position ${index + 1} of ${filteredTrees.length}`}
+                                aria-label={`Reorder ${tree.name}. Position ${listSlice.start + index + 1} of ${filteredTrees.length}`}
                                 onDragStart={(event) => handleDragStart(index, event)}
                                 onDragEnd={() => setDragIndex(null)}
                                 onClick={(event) => event.stopPropagation()}
@@ -625,6 +645,11 @@ export default function Index() {
                   )}
                 </tbody>
               </table>
+              <AdminListPagination
+                slice={listSlice}
+                onPageChange={setPage}
+                noun="filter"
+              />
             </Card>
             {promoOpen ? (
               <div className="findly-swatch-promo">

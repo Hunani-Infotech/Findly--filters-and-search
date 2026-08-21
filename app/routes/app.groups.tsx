@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -31,6 +31,8 @@ import {
   listValueGroups,
 } from "../value-groups.server";
 import { useEmbeddedNavigate } from "../admin-path";
+import { slicePage } from "../admin-list-page";
+import { indexTablePagination } from "../components/admin-list-pagination";
 
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -122,6 +124,9 @@ export default function ValueGroupsPage() {
   }, [fetcher.data, fetcher.state, revalidator, shopify]);
 
   const creating = isNavigatingTo(navigation, "/app/groups/new");
+  const [page, setPage] = useState(0);
+  const slice = slicePage(groups, page);
+  if (page !== slice.safePage) setPage(slice.safePage);
 
   const exportGroups = () => {
     downloadJson(
@@ -134,10 +139,14 @@ export default function ValueGroupsPage() {
     );
   };
 
-  const rows = groups.map((group, index) => {
+  const rows = slice.paged.map((group, index) => {
     const href = `/app/groups/${group.id}`;
     return (
-      <IndexTable.Row id={group.id} key={group.id} position={index}>
+      <IndexTable.Row
+        id={group.id}
+        key={group.id}
+        position={slice.start + index}
+      >
         <IndexTable.Cell>
           <Text as="span" variant="bodyMd" fontWeight="semibold">
             {group.name}
@@ -212,7 +221,8 @@ export default function ValueGroupsPage() {
             <Card padding="0">
               <IndexTable
                 resourceName={{ singular: "group", plural: "groups" }}
-                itemCount={groups.length}
+                itemCount={slice.total}
+                pagination={indexTablePagination(slice, setPage)}
                 headings={[
                   { title: "Name" },
                   { title: "Source" },

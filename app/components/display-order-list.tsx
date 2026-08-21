@@ -1,5 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { BlockStack, Select, Text } from "@shopify/polaris";
+import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../admin-list-page";
+import { AdminListPagination } from "./admin-list-pagination";
 import {
   displayTypeChoicesForKey,
   FACET_DISPLAY_TYPE_LABELS,
@@ -39,14 +41,6 @@ type DisplayOrderListProps = {
   helpText?: string;
 };
 
-function reorder(keys: string[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || to >= keys.length) return keys;
-  const next = [...keys];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
 function DragHandle() {
   return (
     <svg
@@ -81,7 +75,11 @@ export function DisplayOrderList({
 }: DisplayOrderListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
   const ghostRef = useRef<HTMLElement | null>(null);
+  const slice = slicePage(keys, page, ADMIN_TABLE_PAGE_SIZE);
+  if (page !== slice.safePage) setPage(slice.safePage);
+  const paged = slice.paged;
 
   const clearGhost = () => {
     ghostRef.current?.remove();
@@ -109,7 +107,7 @@ export function DisplayOrderList({
 
     const rect = source.getBoundingClientRect();
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", keys[index]);
+    event.dataTransfer.setData("text/plain", paged[index]);
     event.dataTransfer.setDragImage(
       ghost,
       event.clientX - rect.left,
@@ -139,7 +137,7 @@ export function DisplayOrderList({
     }
     let target = overIndex;
     if (target > dragIndex) target -= 1;
-    onChange(reorder(keys, dragIndex, target));
+      onChange(reorderWithinSubset(keys, paged, dragIndex, target));
     clearGhost();
     setDragIndex(null);
     setOverIndex(null);
@@ -158,11 +156,11 @@ export function DisplayOrderList({
     if (disabled) return;
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      onChange(reorder(keys, index, index - 1));
+      onChange(reorderWithinSubset(keys, paged, index, index - 1));
     }
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      onChange(reorder(keys, index, index + 1));
+      onChange(reorderWithinSubset(keys, paged, index, index + 1));
     }
   };
 
@@ -172,7 +170,7 @@ export function DisplayOrderList({
         {helpText}
       </Text>
       <div>
-        {keys.map((key, index) => {
+        {paged.map((key, index) => {
           const dragging = dragIndex === index;
           const noop =
             dragIndex != null &&
@@ -206,7 +204,7 @@ export function DisplayOrderList({
                 draggable={!disabled}
                 disabled={disabled}
                 aria-pressed={dragging}
-                aria-label={`${displayOrderLabel(key, labels)}. Position ${index + 1} of ${keys.length}`}
+                aria-label={`${displayOrderLabel(key, labels)}. Position ${slice.start + index + 1} of ${keys.length}`}
                 onDragStart={(event) => handleDragStart(index, event)}
                 onDragOver={(event) => handleDragOver(index, event)}
                 onDrop={handleDrop}
@@ -289,7 +287,7 @@ export function DisplayOrderList({
           );
         })}
         {dragIndex != null &&
-        overIndex === keys.length &&
+        overIndex === paged.length &&
         overIndex !== dragIndex + 1 ? (
           <div
             aria-hidden="true"
@@ -302,6 +300,12 @@ export function DisplayOrderList({
           />
         ) : null}
       </div>
+      <AdminListPagination
+        slice={slice}
+        onPageChange={setPage}
+        disabled={disabled}
+        noun="value"
+      />
     </BlockStack>
   );
 }

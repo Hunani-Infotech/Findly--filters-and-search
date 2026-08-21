@@ -29,7 +29,7 @@ import type { SettingsMetafieldRow } from "../settings-metafields.server";
 import type { MetafieldOwnerTypeValue } from "../metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
 
-const PAGE_SIZE = 10;
+import { ADMIN_TABLE_PAGE_SIZE, lastPageIndex, slicePage } from "../admin-list-page";
 
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },
@@ -133,10 +133,6 @@ function AppliesToField({
   );
 }
 
-function lastPageIndex(count: number) {
-  return Math.max(0, Math.ceil(count / PAGE_SIZE) - 1);
-}
-
 export function SettingsMetafieldsCard({
   initialRows,
   plan,
@@ -216,14 +212,13 @@ export function SettingsMetafieldsCard({
     () => rows.filter((row) => row.appliesTo.includes("filter")).length,
     [rows],
   );
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const paged = rows.slice(
-    safePage * PAGE_SIZE,
-    safePage * PAGE_SIZE + PAGE_SIZE,
-  );
-  const showingFrom = rows.length === 0 ? 0 : safePage * PAGE_SIZE + 1;
-  const showingTo = Math.min(rows.length, (safePage + 1) * PAGE_SIZE);
+  const slice = slicePage(rows, page, ADMIN_TABLE_PAGE_SIZE);
+  if (page !== slice.safePage) setPage(slice.safePage);
+  const paged = slice.paged;
+  const showingFrom = slice.showingFrom;
+  const showingTo = slice.showingTo;
+  const pageCount = slice.pageCount;
+  const safePage = slice.safePage;
 
   const patchRow = (clientId: string, patch: Partial<SettingsMetafieldRow>) => {
     setRows((current) =>
@@ -428,7 +423,7 @@ export function SettingsMetafieldsCard({
                 {`Showing ${showingFrom}–${showingTo} of ${rows.length}`}
                 {` · Filter metafields: ${filterCount}/${filterLimit} on ${plan}`}
               </Text>
-              {rows.length > PAGE_SIZE ? (
+              {rows.length > ADMIN_TABLE_PAGE_SIZE ? (
                 <div className="findly-meta-pager">
                   <button
                     type="button"

@@ -29,6 +29,8 @@ import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { parsePinnings } from "../instant-search";
 import { getAppSettings, saveSearchSettings } from "../settings.server";
+import { lastPageIndex, slicePage } from "../admin-list-page";
+import { AdminListPagination } from "../components/admin-list-pagination";
 import { useEmbeddedNavigate } from "../admin-path";
 
 type PinningDraft = {
@@ -87,10 +89,14 @@ export default function SearchPinningsPage() {
   const { ask, dialog } = useConfirmDelete();
   const [rows, setRows] = useState<PinningDraft[]>(data.rows);
   const [loaderRows, setLoaderRows] = useState(data.rows);
+  const [page, setPage] = useState(0);
   if (data.rows !== loaderRows) {
     setLoaderRows(data.rows);
     setRows(data.rows);
   }
+
+  const slice = slicePage(rows, page);
+  if (page !== slice.safePage) setPage(slice.safePage);
 
   const saving = isMutationBusy(navigation);
 
@@ -145,11 +151,11 @@ export default function SearchPinningsPage() {
                     No pinnings yet.
                   </Text>
                 ) : null}
-                {rows.map((row, index) => (
+                {slice.paged.map((row, index) => (
                   <BlockStack key={row.id} gap="200">
                     <InlineStack align="space-between" blockAlign="center">
                       <Text as="h3" variant="headingSm">
-                        Pinning {index + 1}
+                        Pinning {slice.start + index + 1}
                       </Text>
                       <Button
                         variant="plain"
@@ -205,14 +211,20 @@ export default function SearchPinningsPage() {
                     />
                   </BlockStack>
                 ))}
+                <AdminListPagination
+                  slice={slice}
+                  onPageChange={setPage}
+                  noun="pinning"
+                />
                 <Button
                   disabled={saving}
-                  onClick={() =>
+                  onClick={() => {
                     setRows((current) => [
                       ...current,
                       { id: newId(), query: "", handles: "" },
-                    ])
-                  }
+                    ]);
+                    setPage(lastPageIndex(rows.length + 1));
+                  }}
                 >
                   Add pinning
                 </Button>

@@ -30,6 +30,8 @@ import {
   type AdminLocaleRow,
 } from "../admin-nav-extras.server";
 import { useEmbeddedNavigate } from "../admin-path";
+import { slicePage } from "../admin-list-page";
+import { indexTablePagination } from "../components/admin-list-pagination";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import {
@@ -396,13 +398,20 @@ export default function TranslationPage() {
   }));
 
   const resourceName = { singular: "language", plural: "languages" };
+  const [page, setPage] = useState(0);
+  const slice = slicePage(langs, page);
+  if (page !== slice.safePage) setPage(slice.safePage);
 
   const openEditor = (code: string) => {
     navigate(`/app/translation/${encodeURIComponent(code)}`);
   };
 
-  const rowMarkup = langs.map((lang, index) => (
-    <IndexTable.Row id={lang.code} key={lang.code} position={index}>
+  const rowMarkup = slice.paged.map((lang, index) => (
+    <IndexTable.Row
+      id={lang.code}
+      key={lang.code}
+      position={slice.start + index}
+    >
       <IndexTable.Cell>
         <InlineStack gap="200" blockAlign="center" wrap={false}>
           <Button
@@ -487,7 +496,8 @@ export default function TranslationPage() {
             <Card padding="0">
               <IndexTable
                 resourceName={resourceName}
-                itemCount={langs.length}
+                itemCount={slice.total}
+                pagination={indexTablePagination(slice, setPage)}
                 headings={[
                   { title: "Language" },
                   { title: "Status" },

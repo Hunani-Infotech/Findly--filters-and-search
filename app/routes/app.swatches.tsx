@@ -48,7 +48,7 @@ import {
 import { listShopImages, uploadShopImage } from "../shopify-files.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
-const PAGE_SIZE = 10;
+import { ADMIN_TABLE_PAGE_SIZE, slicePage } from "../admin-list-page";
 const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;
@@ -477,12 +477,11 @@ export default function SwatchesPage() {
     });
   }, [drafts, query, status]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const paged = filtered.slice(
-    safePage * PAGE_SIZE,
-    safePage * PAGE_SIZE + PAGE_SIZE,
-  );
+  const slice = slicePage(filtered, page, ADMIN_TABLE_PAGE_SIZE);
+  if (page !== slice.safePage) setPage(slice.safePage);
+  const paged = slice.paged;
+  const pageCount = slice.pageCount;
+  const safePage = slice.safePage;
 
   const patchRow = (value: string, next: Partial<SwatchRow>) => {
     let saved: SwatchRow | null = null;

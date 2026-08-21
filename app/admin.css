@@ -922,6 +922,10 @@
   gap: 10px;
 }
 
+.findly-admin-pager {
+  padding: 12px 16px;
+}
+
 .findly-filters-list__table {
   width: 100%;
   border-collapse: collapse;

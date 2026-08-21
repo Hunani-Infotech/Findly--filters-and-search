@@ -10,7 +10,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 
-const PAGE_SIZE = 50;
+import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "../admin-list-page";
 
 export function CatalogValuePicker({
   values,
@@ -37,15 +37,14 @@ export function CatalogValuePicker({
     return values.filter((value) => value.toLowerCase().includes(needle));
   }, [query, values]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const start = safePage * PAGE_SIZE;
-  const paged = filtered.slice(start, start + PAGE_SIZE);
+  const slice = slicePage(filtered, page, ADMIN_CATALOG_PAGE_SIZE);
+  if (page !== slice.safePage) setPage(slice.safePage);
+  const paged = slice.paged;
   const mid = Math.ceil(paged.length / 2);
   const left = paged.slice(0, mid);
   const right = paged.slice(mid);
-  const showingFrom = paged.length === 0 ? 0 : start + 1;
-  const showingTo = start + paged.length;
+  const showingFrom = slice.showingFrom;
+  const showingTo = slice.showingTo;
 
   const handleQueryChange = (next: string) => {
     setQuery(next);
@@ -102,13 +101,13 @@ export function CatalogValuePicker({
             ? ` · Showing ${showingFrom}–${showingTo} of ${filtered.length}`
             : ""}
         </Text>
-        {filtered.length > PAGE_SIZE ? (
+        {filtered.length > ADMIN_CATALOG_PAGE_SIZE ? (
           <Pagination
-            label={`${safePage + 1} of ${pageCount}`}
-            hasPrevious={safePage > 0}
-            onPrevious={() => setPage(Math.max(0, safePage - 1))}
-            hasNext={safePage < pageCount - 1}
-            onNext={() => setPage(Math.min(pageCount - 1, safePage + 1))}
+            label={`${slice.safePage + 1} of ${slice.pageCount}`}
+            hasPrevious={slice.safePage > 0}
+            onPrevious={() => setPage(Math.max(0, slice.safePage - 1))}
+            hasNext={slice.safePage < slice.pageCount - 1}
+            onNext={() => setPage(Math.min(slice.pageCount - 1, slice.safePage + 1))}
           />
         ) : null}
       </InlineStack>

@@ -15,6 +15,8 @@ import {
   type FacetSource,
 } from "../filters";
 import { withEmbeddedParams } from "../admin-path";
+import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../admin-list-page";
+import { AdminListPagination } from "./admin-list-pagination";
 import {
   displayChoicesForRow,
   type FilterOptionRow,
@@ -80,14 +82,6 @@ function SourceCell({ row }: { row: FilterOptionRow }) {
   return <Text as="span">{row.source}</Text>;
 }
 
-function reorder(keys: string[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || to >= keys.length) return keys;
-  const next = [...keys];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
 export function FilterOptionsTable({
   rows,
   displayTypes,
@@ -105,9 +99,14 @@ export function FilterOptionsTable({
   const [searchParams] = useSearchParams();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
   const ghostRef = useRef<HTMLElement | null>(null);
   const keys = rows.map((row) => row.key);
   const types = parseDisplayTypes(displayTypes);
+  const slice = slicePage(rows, page, ADMIN_TABLE_PAGE_SIZE);
+  if (page !== slice.safePage) setPage(slice.safePage);
+  const paged = slice.paged;
+  const pagedKeys = paged.map((row) => row.key);
 
   const openEdit = (key: string) => {
     if (!allowEdit || disabled) return;
@@ -188,7 +187,7 @@ export function FilterOptionsTable({
     }
     let target = overIndex;
     if (target > dragIndex) target -= 1;
-    onReorder(reorder(keys, dragIndex, target));
+    onReorder(reorderWithinSubset(keys, pagedKeys, dragIndex, target));
     clearGhost();
     setDragIndex(null);
     setOverIndex(null);
@@ -198,11 +197,11 @@ export function FilterOptionsTable({
     if (disabled) return;
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      onReorder(reorder(keys, index, index - 1));
+      onReorder(reorderWithinSubset(keys, pagedKeys, index, index - 1));
     }
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      onReorder(reorder(keys, index, index + 1));
+      onReorder(reorderWithinSubset(keys, pagedKeys, index, index + 1));
     }
   };
 
@@ -229,7 +228,7 @@ export function FilterOptionsTable({
             No filter options yet. Add an option to show it on the storefront.
           </Text>
         ) : (
-          rows.map((row, index) => {
+          paged.map((row, index) => {
             const dragging = dragIndex === index;
             const showLine =
               dragIndex != null &&
@@ -285,7 +284,7 @@ export function FilterOptionsTable({
                     type="button"
                     draggable={!disabled}
                     disabled={disabled}
-                    aria-label={`${row.label}. Position ${index + 1} of ${rows.length}`}
+                    aria-label={`${row.label}. Position ${slice.start + index + 1} of ${rows.length}`}
                     onDragStart={(event) => handleDragStart(index, event)}
                     onDragEnd={() => {
                       clearGhost();
@@ -365,11 +364,17 @@ export function FilterOptionsTable({
           })
         )}
         {dragIndex != null &&
-        overIndex === rows.length &&
+        overIndex === paged.length &&
         overIndex !== dragIndex + 1 ? (
           <div className="findly-filter-option-table__line" aria-hidden="true" />
         ) : null}
       </div>
+      <AdminListPagination
+        slice={slice}
+        onPageChange={setPage}
+        disabled={disabled}
+        noun="option"
+      />
       {showAddButton ? (
         <Button submit={false} disabled={disabled} onClick={openAdd}>
           + Add filter option
