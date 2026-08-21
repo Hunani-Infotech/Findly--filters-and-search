@@ -1274,7 +1274,7 @@
 .findly-meta-table__head,
 .findly-meta-table__row {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 1.3fr) 36px;
+  grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 118px minmax(160px, 1.2fr) 36px;
   gap: 8px;
   align-items: center;
 }

@@ -62,6 +62,20 @@ export function parseExcludeCollectionGids(raw: unknown): string[] {
   return parseGidList(tree.excludeCollectionGids);
 }
 
+export function parseAppliesToAllProducts(raw: unknown): boolean {
+  const rec = asRecord(raw);
+  const tree = rec ? asRecord(rec[TREE_FACET_META_KEY]) : null;
+  return tree?.appliesToAllProducts === true;
+}
+
+/** `null` means this tree has never been synced with Settings metafields. */
+export function parseKnownMetafieldKeys(raw: unknown): string[] | null {
+  const rec = asRecord(raw);
+  const tree = rec ? asRecord(rec[TREE_FACET_META_KEY]) : null;
+  if (!tree || !("knownMetafieldKeys" in tree)) return null;
+  return parseGidList(tree.knownMetafieldKeys);
+}
+
 function parseEnum<T extends string>(
   value: unknown,
   allowed: readonly T[],
@@ -148,18 +162,37 @@ export function facetSettingsWithTreeMeta(
   return { ...base, ...settings };
 }
 
+export function withFilterTreeMeta(
+  settings: FacetSettingsMap,
+  meta: {
+    excludeCollectionGids?: string[];
+    appliesToAllProducts?: boolean;
+    knownMetafieldKeys?: string[] | null;
+  },
+  raw?: unknown,
+): Record<string, unknown> {
+  const out = facetSettingsWithTreeMeta(settings, raw);
+  const existingTree = asRecord(out[TREE_FACET_META_KEY]) || {};
+  const nextTree: Record<string, unknown> = { ...existingTree };
+  if (meta.excludeCollectionGids !== undefined) {
+    nextTree.excludeCollectionGids = parseGidList(meta.excludeCollectionGids);
+  }
+  if (meta.appliesToAllProducts !== undefined) {
+    nextTree.appliesToAllProducts = Boolean(meta.appliesToAllProducts);
+  }
+  if (meta.knownMetafieldKeys !== undefined && meta.knownMetafieldKeys !== null) {
+    nextTree.knownMetafieldKeys = parseGidList(meta.knownMetafieldKeys);
+  }
+  out[TREE_FACET_META_KEY] = nextTree;
+  return out;
+}
+
 export function withExcludeCollectionGids(
   settings: FacetSettingsMap,
   excludeCollectionGids: string[],
   raw?: unknown,
 ): Record<string, unknown> {
-  const out = facetSettingsWithTreeMeta(settings, raw);
-  const existingTree = asRecord(out[TREE_FACET_META_KEY]) || {};
-  out[TREE_FACET_META_KEY] = {
-    ...existingTree,
-    excludeCollectionGids: parseGidList(excludeCollectionGids),
-  };
-  return out;
+  return withFilterTreeMeta(settings, { excludeCollectionGids }, raw);
 }
 
 export function applyFacetValueFilter(

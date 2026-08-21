@@ -1,5 +1,6 @@
 import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
+import { enforcePlanLimits } from "./billing.server";
 import { listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
 import {
   ensureDefaultFilterTree,
@@ -10,6 +11,7 @@ import {
   resolveFilterTreeForSearch,
   replaceTreeCollections,
 } from "./filter-trees.server";
+import { mappingAppliesToFilter } from "./metafield-applies";
 import {
   normalizeMetafieldOwnerType,
   type MetafieldOwnerTypeValue,
@@ -206,8 +208,15 @@ export async function getListFacetValueCatalog(
   shopId: string,
   collectionGid = "",
 ) {
-  const mappings = await getMetafieldMappings(shopId);
-  const config = await getFilterConfig(shopId, collectionGid || "");
+  const [mappings, config, limits] = await Promise.all([
+    getMetafieldMappings(shopId),
+    getFilterConfig(shopId, collectionGid || ""),
+    enforcePlanLimits(shopId),
+  ]);
+  const cappedMappings = mappings
+    .filter((mapping) => mappingAppliesToFilter(mapping))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .slice(0, limits.filterLimit);
   let products;
   if (collectionGid) {
     const memberships = await prisma.collectionMembership.findMany({
@@ -250,5 +259,5 @@ export async function getListFacetValueCatalog(
     variantMetafields: (product.variantMetafields as Record<string, string>) || {},
   }));
 
-  return listFacetValueCatalog(rows, config, mappings);
+  return listFacetValueCatalog(rows, config, cappedMappings);
 }

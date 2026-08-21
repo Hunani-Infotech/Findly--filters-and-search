@@ -38,6 +38,11 @@ function assertStaticMarkers() {
     join(ROOT, "app/routes/app.settings.tsx"),
     "utf8",
   );
+  const searchPage = readFileSync(
+    join(ROOT, "app/routes/app.search._index.tsx"),
+    "utf8",
+  );
+  const searchUi = `${settingsPage}\n${searchPage}`;
   const liquid = readFileSync(
     join(ROOT, "extensions/smart-filter/blocks/product-search.liquid"),
     "utf8",
@@ -55,14 +60,14 @@ function assertStaticMarkers() {
   if (!appSettings.includes("normalizeHandleList")) {
     fail("app-settings.ts missing normalizeHandleList");
   }
-  if (!settingsPage.includes("showSuggestionsOnEmptyQuery")) {
-    fail("app.settings.tsx missing showSuggestionsOnEmptyQuery");
+  if (!searchUi.includes("showSuggestionsOnEmptyQuery")) {
+    fail("Search settings missing showSuggestionsOnEmptyQuery");
   }
-  if (!settingsPage.includes("showSuggestionsOnNoResults")) {
-    fail("app.settings.tsx missing showSuggestionsOnNoResults");
+  if (!searchUi.includes("showSuggestionsOnNoResults")) {
+    fail("Search settings missing showSuggestionsOnNoResults");
   }
-  if (!settingsPage.includes("suggestionProductHandles")) {
-    fail("app.settings.tsx missing suggestionProductHandles");
+  if (!searchUi.includes("suggestionProductHandles")) {
+    fail("Search settings missing suggestionProductHandles");
   }
   if (!liquid.includes("data-suggestions")) {
     fail("product-search.liquid missing data-suggestions");

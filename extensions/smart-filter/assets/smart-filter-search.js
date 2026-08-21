@@ -422,6 +422,10 @@
   };
 
   SearchWidget.prototype.applyPayload = function (data) {
+    if (data && data.redirect) {
+      window.location = data.redirect;
+      return;
+    }
     var query = this.inputEl ? String(this.inputEl.value || "").trim() : "";
     var products = extractProducts(data);
     var suggestions = extractSuggestions(data);

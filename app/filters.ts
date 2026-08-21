@@ -1,4 +1,5 @@
 import type { FilterConfig, MetafieldFilterType, MetafieldMapping } from "@prisma/client";
+import { parseKnownMetafieldKeys } from "./facet-settings";
 import { mappingAppliesToFilter } from "./metafield-applies";
 
 export type FacetSource =
@@ -667,8 +668,11 @@ export function facetsFromConfig(
     if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
   }
 
-  for (const facet of metafieldFacets) {
-    if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
+  const metafieldsManaged = parseKnownMetafieldKeys(config?.facetSettings) !== null;
+  if (!metafieldsManaged) {
+    for (const facet of metafieldFacets) {
+      if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
+    }
   }
 
   return ordered;

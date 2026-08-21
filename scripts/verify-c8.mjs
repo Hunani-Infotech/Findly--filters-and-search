@@ -29,10 +29,20 @@ function assertStaticMarkers() {
     join(ROOT, "app/routes/app.settings.tsx"),
     "utf8",
   );
+  const searchPage = readFileSync(
+    join(ROOT, "app/routes/app.search._index.tsx"),
+    "utf8",
+  );
   const metafieldsPage = readFileSync(
     join(ROOT, "app/routes/app.metafields.tsx"),
     "utf8",
   );
+  const metafieldsCard = readFileSync(
+    join(ROOT, "app/components/settings-metafields-card.tsx"),
+    "utf8",
+  );
+  const searchUi = `${searchPage}\n${settingsPage}`;
+  const metafieldsUi = `${metafieldsPage}\n${metafieldsCard}`;
 
   if (!appSettings.includes('"metafields"')) {
     fail("SEARCH_FIELD_KEYS must include metafields");
@@ -44,12 +54,12 @@ function assertStaticMarkers() {
     fail("search.server.ts must reuse metafieldListValues");
   }
   if (
-    !settingsPage.includes("Metafields is ticked") &&
-    !settingsPage.includes("Metafields (mapped)")
+    !searchUi.includes("Metafields is ticked") &&
+    !searchUi.includes("Metafields (mapped)")
   ) {
-    fail("Settings search fields missing Metafields help / control");
+    fail("Search fields missing Metafields help / control");
   }
-  if (!metafieldsPage.includes("Search fields includes Metafields")) {
+  if (!metafieldsUi.includes("Search fields includes Metafields")) {
     fail("Metafields page should note search reuse (no second island)");
   }
 }

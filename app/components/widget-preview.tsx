@@ -15,6 +15,8 @@ export type WidgetPreviewSettings = {
   widgetTitleSize: number;
   widgetTitleColor: string;
   enableCollectionSearch?: boolean;
+  hideSingleValueFacets?: boolean;
+  showRefineBy?: boolean;
 };
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
@@ -124,7 +126,7 @@ export function LayoutPicker({
               <input
                 className={styles.layoutRadio}
                 type="radio"
-                name="filter-layout"
+                name="findlyWidgetLayout"
                 value={option.value}
                 checked={selected}
                 disabled={disabled}
@@ -144,29 +146,37 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   const collapsed =
     settings.collapseByDefault && settings.widgetPosition !== "top";
   const counts = settings.showProductCounts;
+  const showRefine = settings.showRefineBy !== false;
+  const hideSingle = Boolean(settings.hideSingleValueFacets);
+  const offcanvas = settings.widgetPosition === "offcanvas";
 
   return (
     <div className={styles.widget} style={widgetStyle(settings)} aria-hidden="true">
+      {offcanvas ? <div className={styles.offcanvasBtn}>Filter</div> : null}
       <p className={title ? styles.title : `${styles.title} ${styles.titleHidden}`}>
         {title}
       </p>
       {settings.enableCollectionSearch ? (
         <div className={styles.collectionSearch}>Search products</div>
       ) : null}
-      <div className={styles.filterBy}>
-        <span className={styles.filterByLabel}>Filter by</span>
-        <span className={styles.clear}>Clear</span>
-      </div>
-      <div className={styles.chips}>
-        <span className={styles.chip}>
-          Availability: <span className={styles.chipStrong}>In stock</span>
-          <span className={styles.chipX}>×</span>
-        </span>
-        <span className={styles.chip}>
-          Vendor: <span className={styles.chipStrong}>Cotton</span>
-          <span className={styles.chipX}>×</span>
-        </span>
-      </div>
+      {showRefine ? (
+        <>
+          <div className={styles.filterBy}>
+            <span className={styles.filterByLabel}>Filter by</span>
+            <span className={styles.clear}>Clear</span>
+          </div>
+          <div className={styles.chips}>
+            <span className={styles.chip}>
+              Availability: <span className={styles.chipStrong}>In stock</span>
+              <span className={styles.chipX}>×</span>
+            </span>
+            <span className={styles.chip}>
+              Vendor: <span className={styles.chipStrong}>Cotton</span>
+              <span className={styles.chipX}>×</span>
+            </span>
+          </div>
+        </>
+      ) : null}
       <div className={styles.facet}>
         <div className={styles.facetLabel}>
           Availability
@@ -220,6 +230,25 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
           </>
         )}
       </div>
+      {hideSingle ? null : (
+        <div className={styles.facet}>
+          <div className={styles.facetLabel}>
+            Material
+            <span
+              className={
+                collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
+              }
+            />
+          </div>
+          {collapsed ? null : (
+            <div className={styles.option}>
+              <div className={styles.check} />
+              <span className={styles.optionText}>Cotton</span>
+              <Count value="8" show={counts} />
+            </div>
+          )}
+        </div>
+      )}
       <div className={styles.facet}>
         <div className={styles.facetLabel}>
           Price

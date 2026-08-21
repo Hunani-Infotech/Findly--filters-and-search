@@ -347,18 +347,47 @@ export function buildVisibleFilterRows(
     }
   }
   if (!optionsInserted) rows.push(...optionRows);
-  for (const mapped of mappedFacets) {
-    if (!rows.some((row) => row.key === mapped.key)) {
-      rows.push({
-        key: mapped.key,
-        label: mapped.label,
-        source: mapped.label,
-        sourceKind: "metafield",
-        filterType: mapped.filterType,
-      });
-    }
-  }
   return rows;
+}
+
+export function isMetafieldFacetKey(key: string) {
+  return key.startsWith("mf_");
+}
+
+/** Stored tree order for admin — do not re-inject mapped metafields. */
+export function storedFilterDisplayOrder(
+  displayOrder: string[] | null | undefined,
+  enableSale?: boolean | null,
+): string[] {
+  const stored = Array.isArray(displayOrder) ? displayOrder : [];
+  const next = withGloboAdminOptionKeys(stored);
+  if (enableSale || stored.includes("sale") || stored.length === 0) {
+    return next;
+  }
+  return next.filter((key) => key !== "sale");
+}
+
+/**
+ * Settings metafields: add newly declared Filter keys, drop deleted mappings,
+ * leave merchant-removed keys off this tree.
+ */
+export function nextDisplayOrderForMetafieldSync(
+  displayOrder: string[],
+  keepKeys: string[],
+  knownKeys: string[] | null,
+): string[] {
+  const keepSet = new Set(keepKeys);
+  const next = displayOrder.filter(
+    (key) => !isMetafieldFacetKey(String(key)) || keepSet.has(String(key)),
+  );
+  const toAdd =
+    knownKeys === null
+      ? keepKeys
+      : keepKeys.filter((key) => !knownKeys.includes(key));
+  for (const key of toAdd) {
+    if (key && !next.includes(key)) next.push(key);
+  }
+  return next;
 }
 
 export function applyFacetSettingLabels(
@@ -449,6 +478,7 @@ export function persistDisplayOrder(
       return false;
     }
     if (isGloboAdminOptionKey(key) || key === "sale") return false;
+    if (isMetafieldFacetKey(key)) return false;
     return true;
   });
   return [...visibleKeys, ...leftover];

@@ -24,10 +24,8 @@ type FilterOptionsTableProps = {
   rows: FilterOptionRow[];
   displayTypes: Record<string, string>;
   disabled?: boolean;
-  available?: FilterOptionRow[];
   onReorder: (nextKeys: string[]) => void;
   onRemove: (key: string) => void;
-  onAdd?: (row: FilterOptionRow) => void;
   onDisplayTypesChange: (next: Record<string, FacetDisplayType>) => void;
   treeId?: string;
   onEditOption?: (key: string) => void;

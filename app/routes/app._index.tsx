@@ -33,7 +33,6 @@ import {
   ColorIcon,
   LayoutSidebarLeftIcon,
   MergeIcon,
-  ProductIcon,
   SearchIcon,
   XSmallIcon,
 } from "@shopify/polaris-icons";
@@ -57,7 +56,10 @@ import {
   listFilterTrees,
   reorderFilterTrees,
   setFilterTreesEnabled,
+  syncMappedMetafieldKeysOnTrees,
 } from "../filter-trees.server";
+import { mappedFacetsForAdmin } from "../filters.server";
+import { getMetafieldMappings } from "../shop.server";
 
 const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
@@ -69,14 +71,6 @@ const PREFERENCES = [
       "Choose how filters are displayed — as a sidebar or a drawer.",
     url: "/app/settings?tab=panel",
     icon: LayoutSidebarLeftIcon,
-  },
-  {
-    id: "product",
-    title: "Product card & grid settings",
-    description:
-      "Control the appearance and behavior of product cards in the collection and search results.",
-    url: "/app/settings?tab=product",
-    icon: ProductIcon,
   },
   {
     id: "swatches",
@@ -161,19 +155,26 @@ type FilterListTree = {
   id: string;
   name: string;
   enabled: boolean;
+  appliesToSearch: boolean;
   collections: Array<{ gid: string; title: string }>;
 };
 
 function appliesToMarkup(tree: FilterListTree) {
-  if (tree.collections.length === 0) {
-    return <Badge>All Collections</Badge>;
-  }
-  const first = tree.collections[0]?.title || "Collection";
-  const extra = tree.collections.length - 1;
+  const collectionBadges =
+    tree.collections.length === 0 ? (
+      <Badge>All Collections</Badge>
+    ) : (
+      <>
+        <Badge>{tree.collections[0]?.title || "Collection"}</Badge>
+        {tree.collections.length > 1 ? (
+          <Badge>{`+${tree.collections.length - 1} collections`}</Badge>
+        ) : null}
+      </>
+    );
   return (
     <InlineStack gap="200" wrap>
-      <Badge>{first}</Badge>
-      {extra > 0 ? <Badge>{`+${extra} collections`}</Badge> : null}
+      {tree.appliesToSearch ? <Badge>Search Page</Badge> : null}
+      {collectionBadges}
     </InlineStack>
   );
 }
@@ -183,6 +184,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = await ensureShop(session.shop);
   await ensureShopAccess(session.shop);
   await deleteAbandonedDraftTrees(shop.id);
+  await syncMappedMetafieldKeysOnTrees(
+    shop.id,
+    mappedFacetsForAdmin(await getMetafieldMappings(shop.id)).map(
+      (facet) => facet.key,
+    ),
+  );
 
   const [trees, collections] = await Promise.all([
     listFilterTrees(shop.id),

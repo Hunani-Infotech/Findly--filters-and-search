@@ -30,7 +30,8 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ensureShopAccess } from "../billing.server";
-import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { storedFilterDisplayOrder } from "../filter-option-rows";
 import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields, hasCollectionAssignment } from "../shop.server";
 import { toCollectionGid } from "../settings.server";
 import { isMutationBusy } from "../components/admin-loading";
@@ -119,9 +120,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       enableProductType: config?.enableProductType ?? true,
       enableTags: config?.enableTags ?? true,
       enableOptions: config?.enableOptions ?? true,
-      displayOrder: withMappedFacetKeys(
+      displayOrder: storedFilterDisplayOrder(
         config?.displayOrder,
-        mappedFacets.map((facet) => facet.key),
+        config?.enableSale,
       ),
       displayTypes: parseDisplayTypes(
         config && "displayTypes" in config ? config.displayTypes : {},

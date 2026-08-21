@@ -256,6 +256,7 @@ async function buildFacetPayload(input: {
   const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
   const cappedMappings = mappings
     .filter((mapping) => mappingAppliesToFilter(mapping))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
     .slice(0, limits.filterLimit);
   const settings = {
     showProductCounts: appSettings.showProductCounts,

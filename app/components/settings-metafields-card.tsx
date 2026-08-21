@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import {
   BlockStack,
@@ -21,11 +21,19 @@ import {
 } from "../metafield-applies";
 import type { SettingsMetafieldRow } from "../settings-metafields.server";
 import type { MetafieldOwnerTypeValue } from "../metafield-owner";
+import type { MetafieldFilterType } from "@prisma/client";
 
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },
   { label: "Variant", value: "VARIANT" },
 ];
+
+const FILTER_TYPE_OPTIONS: Array<{ label: string; value: MetafieldFilterType }> =
+  [
+    { label: "List", value: "LIST" },
+    { label: "Range", value: "RANGE" },
+    { label: "Yes / No", value: "BOOLEAN" },
+  ];
 
 const APPLY_LABELS: Record<MetafieldApplyKey, string> = {
   display: "Display",
@@ -36,7 +44,13 @@ const APPLY_LABELS: Record<MetafieldApplyKey, string> = {
 
 type FetcherData =
   | { ok: true; intent: "save-metafields"; rows: SettingsMetafieldRow[] }
-  | { ok: true; intent: "sync-metafields"; added: number; extras: SettingsMetafieldRow[] }
+  | {
+      ok: true;
+      intent: "sync-metafields";
+      added: number;
+      extras: SettingsMetafieldRow[];
+      rows?: SettingsMetafieldRow[];
+    }
   | { error: string };
 
 function newDraftRow(): SettingsMetafieldRow {
@@ -85,18 +99,25 @@ function AppliesToField({
       <div className="findly-meta-applies__menu">
         <BlockStack gap="200">
           {METAFIELD_APPLY_KEYS.map((key) => (
-            <Checkbox
-              key={key}
-              label={APPLY_LABELS[key]}
-              checked={selected.has(key)}
-              disabled={disabled}
-              onChange={(checked) => {
-                const next = METAFIELD_APPLY_KEYS.filter((item) =>
-                  item === key ? checked : selected.has(item),
-                );
-                onChange(next);
-              }}
-            />
+            <BlockStack key={key} gap="050">
+              <Checkbox
+                label={APPLY_LABELS[key]}
+                checked={selected.has(key)}
+                disabled={disabled}
+                onChange={(checked) => {
+                  const next = METAFIELD_APPLY_KEYS.filter((item) =>
+                    item === key ? checked : selected.has(item),
+                  );
+                  onChange(next);
+                }}
+              />
+              {key === "sort" ? (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Saved on the mapping. Storefront sort does not use metafields
+                  yet.
+                </Text>
+              ) : null}
+            </BlockStack>
           ))}
         </BlockStack>
       </div>
@@ -117,30 +138,51 @@ export function SettingsMetafieldsCard({
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
   const [rows, setRows] = useState(initialRows);
-  const [loaderRows, setLoaderRows] = useState(initialRows);
-  if (initialRows !== loaderRows) {
-    setLoaderRows(initialRows);
-    setRows(initialRows.length ? initialRows : []);
+  const [savedRows, setSavedRows] = useState(initialRows);
+  const [seenInitial, setSeenInitial] = useState(initialRows);
+  if (initialRows !== seenInitial) {
+    setSeenInitial(initialRows);
+    setSavedRows(initialRows);
+    setRows(initialRows);
+  }
+
+  const [appliedFetcher, setAppliedFetcher] = useState<FetcherData | undefined>(
+    undefined,
+  );
+  if (fetcher.data && fetcher.data !== appliedFetcher) {
+    setAppliedFetcher(fetcher.data);
+    if ("ok" in fetcher.data && fetcher.data.ok) {
+      if (fetcher.data.intent === "save-metafields") {
+        setRows(fetcher.data.rows);
+        setSavedRows(fetcher.data.rows);
+      }
+      if (fetcher.data.intent === "sync-metafields") {
+        if (fetcher.data.rows) {
+          setRows(fetcher.data.rows);
+          setSavedRows(fetcher.data.rows);
+        } else if (fetcher.data.extras.length) {
+          const extras = fetcher.data.extras;
+          setRows((current) => [...current, ...extras]);
+        }
+      }
+    }
   }
 
   const busy = fetcher.state !== "idle";
+  const toastSeen = useRef<FetcherData | undefined>(undefined);
 
   useEffect(() => {
     const data = fetcher.data;
-    if (!data) return;
+    if (!data || toastSeen.current === data) return;
+    toastSeen.current = data;
     if ("error" in data && data.error) {
       shopify.toast.show(data.error, { isError: true });
       return;
     }
     if ("ok" in data && data.ok && data.intent === "save-metafields") {
       shopify.toast.show("Metafields saved");
-      setRows(data.rows);
-      setLoaderRows(data.rows);
     }
     if ("ok" in data && data.ok && data.intent === "sync-metafields") {
-      if (data.extras.length) {
-        setRows((current) => [...current, ...data.extras]);
-      }
       shopify.toast.show(
         data.added
           ? `Added ${data.added} metafield${data.added === 1 ? "" : "s"} from Shopify`
@@ -150,6 +192,7 @@ export function SettingsMetafieldsCard({
   }, [fetcher.data, shopify]);
 
   const empty = rows.length === 0;
+  const pendingClear = empty && savedRows.length > 0;
   const filterCount = useMemo(
     () => rows.filter((row) => row.appliesTo.includes("filter")).length,
     [rows],
@@ -201,7 +244,9 @@ export function SettingsMetafieldsCard({
             Metafields
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            List the metafields to search, filter, sort, and display.
+            Declare product and variant metafields for filters and search. Tick
+            Filter to add a collection facet. Tick Search, and keep Metafield
+            enabled on Search → Search fields, to query those values.
           </Text>
         </div>
         <Button
@@ -221,21 +266,34 @@ export function SettingsMetafieldsCard({
             <span className="findly-meta-empty__bar findly-meta-empty__bar--red" />
           </div>
           <Text as="p" variant="headingSm">
-            Declare your first metafield
+            {pendingClear
+              ? "Save to remove all metafields"
+              : "Declare your first metafield"}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            Declare your product/variation metadata fields here to
-            sort/display/filter/search products by metafield across your entire
-            site.
+            {pendingClear
+              ? "These mappings are still saved until you click Save. That drops them from search, filter, and display."
+              : "Declare product or variant metafields here to filter and search products by those values across the store."}
           </Text>
-          <Button
-            variant="primary"
-            icon={PlusIcon}
-            disabled={busy}
-            onClick={() => setRows([newDraftRow()])}
-          >
-            Add Metafield
-          </Button>
+          <InlineStack gap="300" align="center">
+            <Button
+              variant={pendingClear ? "secondary" : "primary"}
+              icon={PlusIcon}
+              disabled={busy}
+              onClick={() => setRows([newDraftRow()])}
+            >
+              Add Metafield
+            </Button>
+            {pendingClear ? (
+              <Button
+                variant="primary"
+                loading={busy}
+                onClick={() => saveRows([])}
+              >
+                Save
+              </Button>
+            ) : null}
+          </InlineStack>
         </div>
       ) : (
         <BlockStack gap="300">
@@ -244,6 +302,7 @@ export function SettingsMetafieldsCard({
               <span>Resource</span>
               <span>Namespace</span>
               <span>Key</span>
+              <span>Type</span>
               <span>Applies to</span>
               <span />
             </div>
@@ -281,6 +340,18 @@ export function SettingsMetafieldsCard({
                     patchRow(row.clientId, {
                       key,
                       displayLabel: row.displayLabel || key,
+                    })
+                  }
+                />
+                <Select
+                  label="Type"
+                  labelHidden
+                  options={FILTER_TYPE_OPTIONS}
+                  value={row.filterType}
+                  disabled={busy}
+                  onChange={(value) =>
+                    patchRow(row.clientId, {
+                      filterType: value as MetafieldFilterType,
                     })
                   }
                 />

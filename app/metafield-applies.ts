@@ -69,9 +69,17 @@ export function mappingAppliesToSearch(mapping: {
   return Boolean(mapping.enabled);
 }
 
-/** Shopify metafield namespace/key: letters, numbers, hyphen, underscore. */
+/**
+ * Shopify metafield namespace/key: letters, numbers, hyphen, underscore.
+ * App-owned definitions use `$app` or `$app:custom-namespace`.
+ */
 export function isValidMetafieldPart(value: string): boolean {
-  return /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(value.trim());
+  const part = value.trim();
+  if (!part || part.length > 255) return false;
+  if (part.startsWith("$app")) {
+    return /^\$app(?::[a-zA-Z0-9][a-zA-Z0-9_-]{0,62})?$/.test(part);
+  }
+  return /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,254}$/.test(part);
 }
 
 export function metafieldPath(namespace: string, key: string): string {

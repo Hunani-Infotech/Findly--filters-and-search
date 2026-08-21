@@ -43,7 +43,13 @@ export async function getSetupProgress(
       orderBy: { createdAt: "desc" },
     }),
     prisma.metafieldMapping.count({
-      where: { shopId, enabled: true },
+      where: {
+        shopId,
+        OR: [
+          { appliesTo: { has: "filter" } },
+          { AND: [{ appliesTo: { isEmpty: true } }, { enabled: true }] },
+        ],
+      },
     }),
     prisma.discoveredMetafield.count({ where: { shopId } }),
     prisma.collection.count({ where: { shopId } }),
@@ -105,8 +111,8 @@ export async function getSetupProgress(
       number: 5,
       title: "Configure search and sort",
       description:
-        "Search fields, in-collection search, empty-result pins, Sort By, and out-of-stock rules.",
-      href: "/app/settings?tab=general",
+        "Search fields, empty-result pins, instant widget, pinnings, synonyms, and redirects. Sort and in-collection search stay under Settings.",
+      href: "/app/search",
       actionLabel: "Open search",
       status: "complete",
     },
@@ -115,10 +121,10 @@ export async function getSetupProgress(
       number: 6,
       title: "Add the theme blocks",
       description:
-        "Place Collection filters on collection (and search) templates, and Product search in the header or search template.",
-      href: "/app/settings?tab=theme",
-      actionLabel: "How to add blocks",
-      status: "todo",
+        "Theme setup in Settings is under construction. Add Collection filters and Product search in Online Store → Themes → Customize.",
+      href: "/app/settings?tab=panel",
+      actionLabel: "Open filter layout",
+      status: "optional",
     },
     {
       id: "collections",

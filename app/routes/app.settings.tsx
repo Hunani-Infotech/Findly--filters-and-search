@@ -9,6 +9,7 @@ import {
   useActionData,
   useLoaderData,
   useNavigation,
+  useSearchParams,
   useSubmit,
 } from "react-router";
 import {
@@ -32,7 +33,6 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
-import { ThemeSetupCard } from "../components/theme-setup-card";
 import {
   LayoutPicker,
   WidgetLookPreview,
@@ -70,6 +70,7 @@ import { useEmbeddedNavigate } from "../admin-path";
 import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
 import {
   loadSettingsMetafields,
+  mergeSyncedMetafields,
   parseDeclaredMetafieldRows,
   saveDeclaredMetafields,
   syncShopifyMetafieldDefinitions,
@@ -107,6 +108,18 @@ const SETTINGS_TABS = [
 ] as const;
 
 type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
+
+const HIDDEN_SETTINGS_TABS = new Set<SettingsTabId>(["product", "theme"]);
+
+function visibleSettingsTabs(selectedTab: SettingsTabId) {
+  return SETTINGS_TABS.filter(
+    (tab) => !HIDDEN_SETTINGS_TABS.has(tab.id) || tab.id === selectedTab,
+  );
+}
+
+function isPlaceholderSettingsTab(tab: SettingsTabId) {
+  return HIDDEN_SETTINGS_TABS.has(tab);
+}
 
 function parseSettingsTab(value: unknown): SettingsTabId {
   const raw = typeof value === "string" ? value : "";
@@ -247,7 +260,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     tab,
-    shopDomain: session.shop,
     metafields,
     settings: toSettingsState({
       widgetPosition: settings.widgetPosition,
@@ -297,20 +309,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync-metafields") {
     const parsed = parseDeclaredMetafieldRows(String(form.get("mappings") || "[]"));
-    const existing = parsed.ok
-      ? parsed.rows
-      : (await loadSettingsMetafields(shop.id)).rows;
+    if (!parsed.ok) return { error: parsed.error };
+    const loaded = await loadSettingsMetafields(shop.id);
+    const existing = parsed.rows;
     try {
       const result = await syncShopifyMetafieldDefinitions(
         shop.id,
         admin,
         existing,
       );
+      if (!result.extras.length) {
+        return {
+          ok: true,
+          intent: "sync-metafields" as const,
+          added: 0,
+          extras: [] as typeof result.extras,
+          rows: existing,
+        };
+      }
+      const merged = mergeSyncedMetafields(
+        existing,
+        result.extras,
+        loaded.filterLimit,
+      );
+      const saved = await saveDeclaredMetafields(shop.id, merged);
+      if ("error" in saved) return { error: saved.error };
       return {
         ok: true,
         intent: "sync-metafields" as const,
         added: result.added,
-        extras: result.extras,
+        extras: [] as typeof result.extras,
+        rows: saved.rows,
       };
     } catch (error) {
       return {
@@ -398,7 +427,8 @@ export function shouldRevalidate({
   formData?: FormData;
   defaultShouldRevalidate: boolean;
 }) {
-  if (formData?.get("intent") === "sync-metafields") return false;
+  const intent = formData?.get("intent");
+  if (intent === "sync-metafields" || intent === "save-metafields") return false;
   return defaultShouldRevalidate;
 }
 
@@ -410,18 +440,20 @@ export default function SettingsPage() {
   const submit = useSubmit();
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<SettingsState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);
-  const [selectedTab, setSelectedTab] = useState<SettingsTabId>(data.tab);
   if (data.settings !== loaderSettings) {
     setLoaderSettings(data.settings);
     setSettings(data.settings);
   }
 
-  const selectedTabIndex = SETTINGS_TABS.findIndex(
-    (tab) => tab.id === selectedTab,
-  );
+  const selectedTab = parseSettingsTab(searchParams.get("tab"));
+  const tabs = visibleSettingsTabs(selectedTab);
+  const selectedTabIndex = tabs.findIndex((tab) => tab.id === selectedTab);
   const showPreview = selectedTab === "panel";
+  const hidePageSave =
+    selectedTab === "metafields" || isPlaceholderSettingsTab(selectedTab);
 
   const saving = isMutationBusy(navigation);
 
@@ -490,10 +522,10 @@ export default function SettingsPage() {
   return (
     <Page
       title="Settings"
-      subtitle="General, filter panel, product cards, metafields, and theme setup."
+      subtitle="General, filter panel, and metafields."
       backAction={{ content: "Filters", onAction: () => navigate("/app") }}
       primaryAction={
-        selectedTab === "metafields"
+        hidePageSave
           ? undefined
           : {
               content: saving ? "Saving…" : "Save",
@@ -508,7 +540,7 @@ export default function SettingsPage() {
             }
       }
       secondaryActions={
-        selectedTab === "metafields"
+        hidePageSave
           ? undefined
           : [
               {
@@ -527,11 +559,17 @@ export default function SettingsPage() {
         <Layout.Section>
           <BlockStack gap="400">
             <Tabs
-              tabs={[...SETTINGS_TABS]}
+              tabs={[...tabs]}
               selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
               onSelect={(index) => {
-                const next = SETTINGS_TABS[index];
-                if (next) setSelectedTab(next.id);
+                const next = tabs[index];
+                if (!next) return;
+                const params = new URLSearchParams(searchParams);
+                params.set("tab", next.id);
+                setSearchParams(params, {
+                  replace: true,
+                  preventScrollReset: true,
+                });
               }}
             />
             <Form id="settings-form" method="post" onSubmit={handleSubmit}>
@@ -1031,25 +1069,15 @@ export default function SettingsPage() {
                 <Card>
                   <BlockStack gap="300">
                     <Text as="h2" variant="headingMd">
-                      Product card
+                      Product grid
                     </Text>
-                    <Text as="p" variant="bodyMd">
-                      Findly uses your theme’s product grid. App-built
-                      product cards are not used; Findly keeps your theme
-                      cards.
-                    </Text>
-                    <Checkbox
-                      label="Display image of variants that match the filters"
-                      checked={settings.showMatchingVariantImage}
-                      disabled={saving}
-                      helpText="After a Color/Size filter, theme product cards swap to the matching variant image from catalog sync."
-                      onChange={(checked) =>
-                        setSettings((s) => ({
-                          ...s,
-                          showMatchingVariantImage: checked,
-                        }))
-                      }
-                    />
+                    <Banner tone="info" title="Under construction">
+                      <p>
+                        Product card and grid settings are not available yet.
+                        Findly currently uses your theme’s product cards on
+                        collection and search pages.
+                      </p>
+                    </Banner>
                   </BlockStack>
                 </Card>
               </div>
@@ -1071,15 +1099,20 @@ export default function SettingsPage() {
               role="tabpanel"
               style={tabPanelStyle(selectedTab === "theme")}
             >
-              <BlockStack gap="300">
-                <ThemeSetupCard shopDomain={data.shopDomain} />
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Add the Collection filters block on collection and search
-                  templates, and the Product search block in the header or
-                  search template, so filters and search appear on the
-                  storefront.
-                </Text>
-              </BlockStack>
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Theme
+                  </Text>
+                  <Banner tone="info" title="Under construction">
+                    <p>
+                      Theme setup in Settings is not available yet. For now,
+                      add the Collection filters and Product search app blocks
+                      in Online Store → Themes → Customize.
+                    </p>
+                  </Banner>
+                </BlockStack>
+              </Card>
             </div>
           </BlockStack>
         </Layout.Section>

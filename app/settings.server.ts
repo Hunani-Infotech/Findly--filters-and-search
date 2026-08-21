@@ -102,10 +102,7 @@ export async function getAppSettings(shopId: string) {
 
 export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   const widgetPosition = parseWidgetPosition(input.widgetPosition); // left | right | top | offcanvas
-  const accentColor =
-    typeof input.accentColor === "string" && input.accentColor.trim()
-      ? input.accentColor.trim().slice(0, 64)
-      : DEFAULT_APP_SETTINGS.accentColor;
+  const accentColor = sanitizeWidgetTitleColor(input.accentColor);
   const widgetRadius = parseWidgetRadius(input.widgetRadius);
 
   const widgetFontMode = parseWidgetFontMode(input.widgetFontMode);

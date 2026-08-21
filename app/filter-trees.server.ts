@@ -1,7 +1,15 @@
 import type { FilterConfig, Prisma } from "@prisma/client";
 import prisma from "./db.server";
-import { DEFAULT_DISPLAY_ORDER } from "./filters.server";
-import { withGloboAdminOptionKeys } from "./filter-option-rows";
+import { DEFAULT_DISPLAY_ORDER, mappedFacetsForAdmin } from "./filters.server";
+import {
+  nextDisplayOrderForMetafieldSync,
+  withGloboAdminOptionKeys,
+} from "./filter-option-rows";
+import {
+  parseFacetSettings,
+  parseKnownMetafieldKeys,
+  withFilterTreeMeta,
+} from "./facet-settings";
 
 export type FilterTreeWithCollections = FilterConfig & {
   treeCollections: Array<{ collectionGid: string }>;
@@ -125,6 +133,57 @@ export async function deleteAbandonedDraftTrees(shopId: string) {
   });
 }
 
+async function mappedFilterKeysForShop(shopId: string) {
+  const mappings = await prisma.metafieldMapping.findMany({
+    where: { shopId },
+    select: {
+      enabled: true,
+      appliesTo: true,
+      namespace: true,
+      key: true,
+      displayLabel: true,
+      filterType: true,
+      ownerType: true,
+      sortOrder: true,
+    },
+  });
+  return mappedFacetsForAdmin(mappings).map((facet) => facet.key);
+}
+
+export async function syncMappedMetafieldKeysOnTrees(
+  shopId: string,
+  keepKeys: string[],
+) {
+  const trees = await prisma.filterConfig.findMany({
+    where: { shopId },
+    select: { id: true, displayOrder: true, facetSettings: true },
+  });
+  await Promise.all(
+    trees.map((tree) => {
+      const current = Array.isArray(tree.displayOrder) ? tree.displayOrder : [];
+      const known = parseKnownMetafieldKeys(tree.facetSettings);
+      const next = nextDisplayOrderForMetafieldSync(current, keepKeys, known);
+      const sameOrder = JSON.stringify(next) === JSON.stringify(current);
+      const sameKnown =
+        known !== null &&
+        known.length === keepKeys.length &&
+        known.every((key, index) => key === keepKeys[index]);
+      if (sameOrder && sameKnown) return Promise.resolve();
+      return prisma.filterConfig.update({
+        where: { id: tree.id },
+        data: {
+          displayOrder: next,
+          facetSettings: withFilterTreeMeta(
+            parseFacetSettings(tree.facetSettings),
+            { knownMetafieldKeys: keepKeys },
+            tree.facetSettings,
+          ) as Prisma.InputJsonValue,
+        },
+      });
+    }),
+  );
+}
+
 export async function createFilterTree(
   shopId: string,
   input?: {
@@ -134,6 +193,12 @@ export async function createFilterTree(
   },
 ) {
   const count = await prisma.filterConfig.count({ where: { shopId } });
+  const keepKeys = await mappedFilterKeysForShop(shopId);
+  const displayOrder = nextDisplayOrderForMetafieldSync(
+    withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]),
+    keepKeys,
+    null,
+  );
   const tree = await prisma.filterConfig.create({
     data: {
       shopId,
@@ -143,7 +208,11 @@ export async function createFilterTree(
       appliesToSearch: input?.appliesToSearch ?? count === 0,
       collectionGid: "",
       enableSale: true,
-      displayOrder: withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]),
+      displayOrder,
+      facetSettings: withFilterTreeMeta(
+        {},
+        { knownMetafieldKeys: keepKeys },
+      ) as Prisma.InputJsonValue,
       sortOrder: count,
     },
   });

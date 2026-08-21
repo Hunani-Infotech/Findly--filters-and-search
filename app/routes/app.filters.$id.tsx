@@ -10,7 +10,6 @@ import {
   redirect,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useRouteError,
   useSearchParams,
@@ -31,11 +30,12 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
 import {
+  parseAppliesToAllProducts,
   parseExcludeCollectionGids,
   parseFacetSettings,
-  withExcludeCollectionGids,
+  withFilterTreeMeta,
 } from "../facet-settings";
 import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
 import {
@@ -49,7 +49,7 @@ import {
 } from "../filter-trees.server";
 import prisma from "../db.server";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
-import { withEmbeddedParams, withEmbeddedParamsFromRequest } from "../admin-path";
+import { useEmbeddedNavigate, withEmbeddedParamsFromRequest } from "../admin-path";
 import { isMutationBusy } from "../components/admin-loading";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
@@ -59,7 +59,7 @@ import {
   builtinDefForKey,
   isOptionRowKey,
   persistDisplayOrder,
-  withGloboAdminOptionKeys,
+  storedFilterDisplayOrder,
   type BuiltinEnableKey,
 } from "../filter-option-rows";
 
@@ -153,7 +153,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       ? {
           name: config.name,
           appliesToSearch: config.appliesToSearch,
-          appliesToAllProducts: false,
+          appliesToAllProducts: parseAppliesToAllProducts(
+            config && "facetSettings" in config ? config.facetSettings : {},
+          ),
           collectionGids: config.treeCollections.map((row) => row.collectionGid),
           excludeCollectionGids: parseExcludeCollectionGids(
             config && "facetSettings" in config ? config.facetSettings : {},
@@ -167,21 +169,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           enableProductType: config?.enableProductType ?? true,
           enableTags: config?.enableTags ?? true,
           enableOptions: config?.enableOptions ?? true,
-          displayOrder: (() => {
-            const mapped = withGloboAdminOptionKeys(
-              withMappedFacetKeys(
-                config?.displayOrder,
-                mappedFacets.map((facet) => facet.key),
-              ),
-            );
-            const stored = Array.isArray(config?.displayOrder)
-              ? config.displayOrder
-              : [];
-            if (config?.enableSale || stored.includes("sale") || stored.length === 0) {
-              return mapped;
-            }
-            return mapped.filter((key) => key !== "sale");
-          })(),
+          displayOrder: storedFilterDisplayOrder(
+            config?.displayOrder,
+            config?.enableSale,
+          ),
           displayTypes: parseDisplayTypes(
             config && "displayTypes" in config ? config.displayTypes : {},
           ),
@@ -385,13 +376,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       ).id
     : treeId;
 
+  const mappedKeys = mappedFacetsForAdmin(
+    await getMetafieldMappings(shop.id),
+  ).map((facet) => facet.key);
+
   await updateFilterTree(shop.id, persistId, {
     name: savedName,
     appliesToSearch: bool("appliesToSearch"),
     collectionGids,
-    facetSettings: withExcludeCollectionGids(
+    facetSettings: withFilterTreeMeta(
       parseFacetSettings(rawFacetSettings),
-      excludeCollectionGids,
+      {
+        excludeCollectionGids,
+        appliesToAllProducts: bool("appliesToAllProducts"),
+        knownMetafieldKeys: mappedKeys,
+      },
       rawFacetSettings,
     ) as Prisma.InputJsonValue,
     enabled: bool("enabled"),
@@ -426,7 +425,7 @@ export default function FilterTreeEditorPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const submit = useSubmit();
   const [searchParams, setSearchParams] = useSearchParams();
   const shopify = useAppBridge();
@@ -530,6 +529,7 @@ export default function FilterTreeEditorPage() {
     formData.set("intent", "save");
     formData.set("name", config.name);
     formData.set("appliesToSearch", String(config.appliesToSearch));
+    formData.set("appliesToAllProducts", String(config.appliesToAllProducts));
     formData.set("collectionGids", JSON.stringify(config.collectionGids));
     if (searchParams.get("new") !== "1") {
       formData.set(
@@ -570,7 +570,7 @@ export default function FilterTreeEditorPage() {
       title={pageTitle}
       backAction={{
         content: "Filters",
-        onAction: () => navigate(withEmbeddedParams("/app", searchParams)),
+        onAction: () => navigate("/app"),
       }}
       secondaryActions={
         isEditMode
@@ -604,7 +604,7 @@ export default function FilterTreeEditorPage() {
           : undefined
       }
       primaryAction={{
-        content: saving ? "Saving…" : isEditMode ? "Next step" : "Save",
+        content: saving ? "Saving…" : "Save",
         loading: saving,
         disabled: saving,
         onAction: () => {
@@ -674,12 +674,7 @@ export default function FilterTreeEditorPage() {
                     submit={false}
                     disabled={saving}
                     onClick={() =>
-                      navigate(
-                        withEmbeddedParams(
-                          `/app/filters/${data.treeId}/options/new`,
-                          searchParams,
-                        ),
-                      )
+                      navigate(`/app/filters/${data.treeId}/options/new`)
                     }
                   >
                     + Add filter option
@@ -723,11 +718,11 @@ export function ErrorBoundary() {
     error instanceof Error
       ? error.message
       : typeof error === "object" && error && "status" in error
-        ? `Could not load shop-wide defaults (${String((error as { status: unknown }).status)})`
-        : "Could not load shop-wide defaults";
+        ? `Could not load this filter (${String((error as { status: unknown }).status)})`
+        : "Could not load this filter";
 
   return (
-    <Page title="Shop-wide default filters">
+    <Page title="Edit filter">
       <Layout>
         <Layout.Section>
           <Banner tone="critical" title="This page did not load">

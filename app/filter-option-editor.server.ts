@@ -2,8 +2,8 @@ import type { Prisma } from "@prisma/client";
 import prisma from "./db.server";
 import {
   defaultUrlHandle,
-  facetSettingsWithTreeMeta,
   parseFacetSettings,
+  withFilterTreeMeta,
   type FacetSetting,
   type FacetSettingsMap,
   type FacetShowMoreMode,
@@ -25,7 +25,7 @@ import {
   persistDisplayOrder,
   removeFilterOptionKeys,
   resolveFilterOptionRow,
-  withGloboAdminOptionKeys,
+  storedFilterDisplayOrder,
   type FilterOptionRow,
 } from "./filter-option-rows";
 import { getFilterTree, updateFilterTree } from "./filter-trees.server";
@@ -33,7 +33,6 @@ import {
   catalogOptionRows,
   mappedFacetsForAdmin,
   parseDisplayTypes,
-  withMappedFacetKeys,
 } from "./filters.server";
 import {
   displayTypeChoicesForKey,
@@ -146,19 +145,8 @@ function displayOrderForConfig(
     displayOrder: string[];
     enableSale?: boolean | null;
   },
-  mappedFacets: MappedFacet[],
 ) {
-  const mapped = withGloboAdminOptionKeys(
-    withMappedFacetKeys(
-      config.displayOrder,
-      mappedFacets.map((facet) => facet.key),
-    ),
-  );
-  const stored = Array.isArray(config.displayOrder) ? config.displayOrder : [];
-  if (config.enableSale || stored.includes("sale") || stored.length === 0) {
-    return mapped;
-  }
-  return mapped.filter((key) => key !== "sale");
+  return storedFilterDisplayOrder(config.displayOrder, config.enableSale);
 }
 
 function choiceLabels(choices: FacetDisplayType[]) {
@@ -216,7 +204,7 @@ export async function loadFilterOptionEditorPage(
   const { valueCatalog, catalogOptions, mappedFacets } =
     await loadCatalogContext(shopId);
   const flags = enableFlagsFromConfig(config);
-  const displayOrder = displayOrderForConfig(config, mappedFacets);
+  const displayOrder = displayOrderForConfig(config);
   const rows = applyFacetSettingLabels(
     buildVisibleFilterRows(displayOrder, flags, catalogOptions, mappedFacets),
     parseFacetSettings(
@@ -444,7 +432,7 @@ export async function saveFilterOption(
 
   const { catalogOptions, mappedFacets } = await loadCatalogContext(shopId);
   const flags = enableFlagsFromConfig(config);
-  const displayOrder = displayOrderForConfig(config, mappedFacets);
+  const displayOrder = displayOrderForConfig(config);
   const rows = buildVisibleFilterRows(
     displayOrder,
     flags,
@@ -505,8 +493,9 @@ export async function saveFilterOption(
     displayOrder: persistDisplayOrder(nextVisible, displayOrder),
     displayTypes: displayTypes as Prisma.InputJsonValue,
     matchModes: matchModes as Prisma.InputJsonValue,
-    facetSettings: facetSettingsWithTreeMeta(
+    facetSettings: withFilterTreeMeta(
       settings,
+      { knownMetafieldKeys: mappedFacets.map((facet) => facet.key) },
       rawFacetSettings,
     ) as Prisma.InputJsonValue,
   });
@@ -525,7 +514,7 @@ export async function deleteFilterOption(
 
   const { catalogOptions, mappedFacets } = await loadCatalogContext(shopId);
   const flags = enableFlagsFromConfig(config);
-  const displayOrder = displayOrderForConfig(config, mappedFacets);
+  const displayOrder = displayOrderForConfig(config);
   const rows = buildVisibleFilterRows(
     displayOrder,
     flags,
@@ -550,8 +539,9 @@ export async function deleteFilterOption(
     ...removed.flags,
     displayOrder: persistDisplayOrder(removed.visibleKeys, displayOrder),
     displayTypes: displayTypes as Prisma.InputJsonValue,
-    facetSettings: facetSettingsWithTreeMeta(
+    facetSettings: withFilterTreeMeta(
       settings,
+      { knownMetafieldKeys: mappedFacets.map((facet) => facet.key) },
       rawFacetSettings,
     ) as Prisma.InputJsonValue,
   });

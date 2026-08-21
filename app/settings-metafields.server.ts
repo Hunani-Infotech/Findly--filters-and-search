@@ -15,6 +15,7 @@ import {
 } from "./metafield-owner";
 import { getMetafieldMappings, saveMetafieldMappings } from "./shop.server";
 import { metafieldFacetKey } from "./filters";
+import { syncMappedMetafieldKeysOnTrees } from "./filter-trees.server";
 
 const VALID_FILTER_TYPES = new Set(["LIST", "RANGE", "BOOLEAN"]);
 
@@ -137,6 +138,35 @@ export function parseDeclaredMetafieldRows(raw: string): {
   }
 }
 
+/** Drop Filter on newly synced rows until the shop is within plan limits. */
+export function mergeSyncedMetafields(
+  existing: SettingsMetafieldRow[],
+  extras: SettingsMetafieldRow[],
+  filterLimit: number,
+): SettingsMetafieldRow[] {
+  const extraIds = new Set(
+    extras.map((row) => mappingRowId(row.ownerType, row.namespace, row.key)),
+  );
+  const merged = [...existing, ...extras];
+  let filterCount = merged.filter((row) => mappingAppliesToFilter(row)).length;
+  if (filterCount <= filterLimit) return merged;
+  return merged.map((row) => {
+    const id = mappingRowId(row.ownerType, row.namespace, row.key);
+    if (
+      filterCount <= filterLimit ||
+      !extraIds.has(id) ||
+      !mappingAppliesToFilter(row)
+    ) {
+      return row;
+    }
+    filterCount -= 1;
+    return {
+      ...row,
+      appliesTo: row.appliesTo.filter((key) => key !== "filter"),
+    };
+  });
+}
+
 export async function saveDeclaredMetafields(
   shopId: string,
   rows: SettingsMetafieldRow[],
@@ -200,31 +230,10 @@ async function syncFilterTreeMetafieldKeys(
   shopId: string,
   filterRows: SettingsMetafieldRow[],
 ) {
-  const keep = new Set(
-    filterRows.map((row) =>
-      metafieldFacetKey(row.namespace, row.key, row.ownerType),
-    ),
+  const keepKeys = filterRows.map((row) =>
+    metafieldFacetKey(row.namespace, row.key, row.ownerType),
   );
-  const trees = await prisma.filterConfig.findMany({
-    where: { shopId },
-    select: { id: true, displayOrder: true },
-  });
-  await Promise.all(
-    trees.map((tree) => {
-      const current = Array.isArray(tree.displayOrder) ? tree.displayOrder : [];
-      const next = current.filter(
-        (key) => !String(key).startsWith("mf_") || keep.has(String(key)),
-      );
-      for (const key of keep) {
-        if (!next.includes(key)) next.push(key);
-      }
-      if (JSON.stringify(next) === JSON.stringify(current)) return Promise.resolve();
-      return prisma.filterConfig.update({
-        where: { id: tree.id },
-        data: { displayOrder: next },
-      });
-    }),
-  );
+  await syncMappedMetafieldKeysOnTrees(shopId, keepKeys);
 }
 
 const DEFINITIONS_QUERY = `#graphql

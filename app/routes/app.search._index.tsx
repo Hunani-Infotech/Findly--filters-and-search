@@ -149,7 +149,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
 
   const searchFields = normalizeSearchFields(parseJsonField(form.get("searchFields")));
-  const searchExtras = parseSearchExtras(parseJsonField(form.get("searchExtras")));
+  const current = await getAppSettings(shop.id);
+  const incoming = parseSearchExtras(parseJsonField(form.get("searchExtras")));
 
   await saveSearchSettings(shop.id, {
     searchFields,
@@ -165,7 +166,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     suggestionCollectionHandles: normalizeHandleList(
       form.get("suggestionCollectionHandles"),
     ),
-    searchExtras,
+    searchExtras: {
+      ...incoming,
+      pinnings: current.searchExtras.pinnings,
+      synonyms: current.searchExtras.synonyms,
+      redirects: current.searchExtras.redirects,
+    },
   });
 
   return { ok: true };
@@ -369,7 +375,7 @@ export default function SearchPage() {
                         enabled={state.searchFields}
                         labels={SEARCH_FIELD_LABELS}
                         disabled={saving}
-                        helpText="Field order sets simple relevance; no synonym engine here. Drag a row to change priority. Arrow keys also work when a handle is focused."
+                        helpText="Field order sets simple relevance; no synonym engine here. Drag a row to change priority. Arrow keys also work when a handle is focused. When Metafields is ticked, mapped metafields from Settings → Metafields are searched."
                         onReorder={(next) =>
                           setState((s) => {
                             const fieldOrder = next.filter(
