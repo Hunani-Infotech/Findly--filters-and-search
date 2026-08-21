@@ -3,7 +3,7 @@
 Shopify embedded app for **collection filters + storefront search** via Theme App Extension (launch MVP). AI, analytics, and advanced extras come later. Built on Shopify’s official React Router 7 template.
 
 **Full architecture, flows, and setup checklist:** [docs/APP-FLOW-AND-SETUP.md](docs/APP-FLOW-AND-SETUP.md)  
-**vs Globo Smart Product Filter & Search:** [docs/COMPETITIVE-COMPARISON.md](docs/COMPETITIVE-COMPARISON.md)
+**Launch scope and capabilities:** [docs/LAUNCH-SCOPE.md](docs/LAUNCH-SCOPE.md)
 
 ## Stack
 

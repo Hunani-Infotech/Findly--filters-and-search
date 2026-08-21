@@ -1,5 +1,5 @@
 /**
- * C3b gate: Globo filter tree styles — vertical (left/right), horizontal (top), off-canvas.
+ * C3b gate: filter tree styles — vertical (left/right), horizontal (top), off-canvas.
  * Usage: node ./scripts/verify-c3b.mjs
  */
 import "tsx/esm";

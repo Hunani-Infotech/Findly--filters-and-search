@@ -1,33 +1,33 @@
-# Findly vs Smart Product Filter & Search (Globo)
+# Findly launch scope
 
-Reference listing: [Smart Product Filter & Search on the Shopify App Store](https://apps.shopify.com/product-filter-and-search) (Globo.io).
-
-This doc maps **what that app markets** against **what Findly covers at launch** and what we explicitly defer. Use it for product planning and App Store positioning — not as a claim that Findly matches Globo feature-for-feature.
+What Findly ships at launch, what we defer, and how we talk about the product. Use this for planning and App Store positioning.
 
 ---
 
 ## Positioning summary
 
-| | [Globo — Smart Product Filter & Search](https://apps.shopify.com/product-filter-and-search) | **Findly: Smart Filters & Search** |
-|---|---|---|
-| Core pitch | AI search + smart filters + analytics + merchandising | **Filters + solid storefront search** via Theme App Extension (no AI suite) |
-| Launch focus | Filters + search + AI + analytics in one product | **Filters + search + Theme App Extension** |
-| Search | AI semantic, autocomplete, synonyms, typo tolerance | **Solid basic search** (launch / to build; not AI) |
-| Analytics | Filter/search behavior dashboards | **Not at launch** (later; deferred / no stubs) |
-| Widget install | Theme integration / customization-heavy | Theme App Extension (async, scoped CSS) |
-| Typical entry price | Free (dev) → ~$14–$29/mo by product tier | Free (200 products / 5 metafield filters) → Pro $19.99/mo |
+Findly is a Shopify embedded app for **collection filters + solid storefront search** via Theme App Extension. The launch product is reliable filtering, metafield mapping, catalog sync, and basic search — not an AI ranking or analytics suite.
 
-**Findly launch win theme:** collection-level filters, metafield mapping, reliable sync, and solid storefront search — without the Globo “AI search + analytics suite” surface area.
+| | **Findly: Smart Filters & Search** |
+|---|---|
+| Core pitch | **Filters + solid storefront search** via Theme App Extension |
+| Launch focus | **Filters + search + Theme App Extension** |
+| Search | **Solid basic search** (launch / to build; not AI) |
+| Analytics | **Not at launch** (later; deferred / no stubs) |
+| Widget install | Theme App Extension (async, scoped CSS) |
+| Pricing | Free (200 products / 5 metafield filters) → Pro $19.99/mo |
+
+**Launch win theme:** collection-level filters, metafield mapping, reliable sync, and solid storefront search — without an AI search or analytics surface area.
 
 ---
 
-## Feature coverage matrix
+## Feature coverage
 
-Legend: **Yes** = in Findly launch · **Partial** = limited vs Globo · **No (later)** = planned later · **No** = not planned for near term
+Legend: **Yes** = in Findly launch · **Partial** = limited at launch · **No (later)** = planned later · **No** = not planned for near term
 
 ### A. Collection / product filters
 
-| Capability (Globo markets) | Findly launch | Notes |
+| Capability | Findly launch | Notes |
 |---|---|---|
 | Filter by price | **Yes** | Range facet |
 | Filter by availability | **Yes** | In stock / out of stock |
@@ -69,7 +69,7 @@ Legend: **Yes** = in Findly launch · **Partial** = limited vs Globo · **No (la
 | Custom dashboards / 90–180 day reports | **No (later)** | Deferred / no stubs |
 | Merchandising / spell check / ranking rules | **No** | |
 
-### D. Platform / ops (Findly built-in)
+### D. Platform / ops
 
 | Capability | Findly launch | Notes |
 |---|---|---|
@@ -81,20 +81,7 @@ Legend: **Yes** = in Findly launch · **Partial** = limited vs Globo · **No (la
 
 ---
 
-## Pricing shape (indicative)
-
-### Globo (from App Store listing)
-
-| Plan | Price (approx.) | Highlights from listing |
-|---|---|---|
-| Development Free | $0 | Full features on partner/dev/trial stores |
-| Basic | From **$14/mo** (≤500 products) | Filters + smart search + analytics window |
-| Basic | From **$19/mo** (≤1000 products) | Same family, higher product tier |
-| Pro | From **$29/mo** (≤500 products) | AI search, more metafields, longer analytics |
-
-Shopify Plus tiers on that listing start higher. Always confirm live pricing on the [App Store page](https://apps.shopify.com/product-filter-and-search).
-
-### Findly (current product code)
+## Pricing (current product code)
 
 | Plan | Price | Limits (current) | Includes at launch |
 |---|---|---|---|
@@ -121,16 +108,16 @@ Use this as the “in scope” product promise:
 
 ---
 
-## What we intentionally do **not** match from Globo (launch)
+## What we intentionally defer at launch
 
-Do not implement these to “catch up” during the current build:
+Do not implement these during the current build:
 
-1. AI-powered / semantic search  
-2. Synonym engines / typo-tolerance engines beyond solid basic search  
-3. Analytics dashboards (filter or search)  
-4. Filter tree builder / unlimited visual menu designer  
-5. Variants-as-products, Year-Make-Model, recommendation engines  
-6. Deep custom CSS / drag-drop theme editor  
+1. AI-powered / semantic search
+2. Synonym engines / typo-tolerance engines beyond solid basic search
+3. Analytics dashboards (filter or search)
+4. Filter tree builder / unlimited visual menu designer
+5. Variants-as-products, Year-Make-Model, recommendation engines
+6. Deep custom CSS / drag-drop theme editor
 
 Basic storefront search **is** in launch scope — do not treat it as a non-goal.
 
@@ -138,19 +125,19 @@ See also: [build-order.md](./build-order.md) non-goals and `.cursor/rules/projec
 
 ---
 
-## Suggested App Store / marketing angle for Findly
+## Suggested App Store / marketing angle
 
 **Headline direction:**  
 “Fast collection filters and solid storefront search — metafields included, without an AI analytics suite.”
 
 **Differentiators to emphasize:**
-- Per-collection control without Shopify Search & Discovery’s filter-count ceiling (a common complaint in Globo reviews about native tools)
+- Per-collection control without Shopify Search & Discovery’s filter-count ceiling
 - Merchant-owned metafield mapping from synced catalog data
 - Lightweight Theme App Extension (performance-friendly)
 - Clear Free → Pro path based on **product / metafield caps**, not AI/analytics SKUs
 
-**Honesty line:**  
-Findly launch is **filters + solid search** via Theme App Extension — not an AI ranking or analytics suite. Merchants who need AI search + analytics dashboards today should evaluate Globo / Boost / Searchanise; Findly targets merchants who want reliable filtering and basic storefront search without that surface area.
+**Product line:**  
+Findly launch is **filters + solid search** via Theme App Extension — not an AI ranking or analytics suite. The product is for merchants who want reliable filtering and basic storefront search.
 
 ---
 
@@ -159,6 +146,5 @@ Findly launch is **filters + solid search** via Theme App Extension — not an A
 | Doc | Use |
 |-----|-----|
 | [APP-FLOW-AND-SETUP.md](./APP-FLOW-AND-SETUP.md) | Architecture + setup |
-| [mvp-guide.md](./mvp-guide.md) | Broader market notes |
+| [mvp-guide.md](./mvp-guide.md) | MVP build guide |
 | [build-order.md](./build-order.md) | Verification sequence |
-| [Globo App Store listing](https://apps.shopify.com/product-filter-and-search) | Competitor source of truth for features/pricing |

@@ -17,7 +17,6 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import {
   FINDLY_FILTER_RENDER_COMPLETED,
-  GLOBO_FILTER_RENDER_COMPLETED,
   PARTNER_INTEGRATIONS,
   PARTNER_LISTENER_SNIPPET,
   SMART_FILTER_UPDATE_EVENT,
@@ -100,14 +99,6 @@ export default function IntegrationsPage() {
                   </Text>
                   <Text as="p">
                     <Text as="span" fontWeight="semibold">
-                      {GLOBO_FILTER_RENDER_COMPLETED}
-                    </Text>
-                    {" — "}
-                    Globo-compatible alias so existing partner snippets keep
-                    working.
-                  </Text>
-                  <Text as="p">
-                    <Text as="span" fontWeight="semibold">
                       {SMART_FILTER_UPDATE_EVENT}
                     </Text>
                     {" — "}
@@ -127,8 +118,7 @@ export default function IntegrationsPage() {
                 </InlineStack>
                 <Text as="p" tone="subdued">
                   Paste before {"</body>"} so partners can listen for
-                  findlyFilterRenderCompleted (and the globoFilterRenderCompleted
-                  alias).
+                  findlyFilterRenderCompleted.
                 </Text>
                 <TextField
                   label="Partner listener snippet"

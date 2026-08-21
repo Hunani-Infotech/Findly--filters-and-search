@@ -1,4 +1,4 @@
--- Globo Settings-parity toggles (search-page filters, hide single-value facets,
+-- Settings toggles (search-page filters, hide single-value facets,
 -- matching variant image, Refine by chips).
 
 ALTER TABLE "AppSettings" ADD COLUMN IF NOT EXISTS "enableFiltersOnSearch" BOOLEAN NOT NULL DEFAULT true;

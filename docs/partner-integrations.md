@@ -1,6 +1,6 @@
 # Findly partner integrations
 
-After Ajax hide/show of the theme product grid, Findly dispatches `findlyFilterRenderCompleted` and `globoFilterRenderCompleted` on **window** and **document**. Existing Findly code also fires `smart-filter:update` with `{ handles }`.
+After Ajax hide/show of the theme product grid, Findly dispatches `findlyFilterRenderCompleted` on **window** and **document**. Existing Findly code also fires `smart-filter:update` with `{ handles }`.
 
 ## Listen for the render-completed event
 
@@ -11,8 +11,6 @@ After Ajax hide/show of the theme product grid, Findly dispatches `findlyFilterR
   });
 </script>
 ```
-
-The `globoFilterRenderCompleted` alias is dispatched at the same time so Globo partner snippets keep working.
 
 ## Built-in re-init
 

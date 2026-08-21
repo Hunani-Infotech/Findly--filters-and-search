@@ -204,18 +204,6 @@
         detail: detail,
       }),
     );
-    window.dispatchEvent(
-      new CustomEvent("globoFilterRenderCompleted", {
-        bubbles: true,
-        detail: detail,
-      }),
-    );
-    document.dispatchEvent(
-      new CustomEvent("globoFilterRenderCompleted", {
-        bubbles: true,
-        detail: detail,
-      }),
-    );
     reinitPartnerWidgets();
   }
 

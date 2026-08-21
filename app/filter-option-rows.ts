@@ -22,14 +22,14 @@ export type FilterOptionDef = {
   enableKey?: BuiltinEnableKey;
 };
 
-export const GLOBO_ADMIN_OPTION_KEYS = [
+export const ADMIN_OPTION_KEYS = [
   "collection",
   "category",
   "readyToShip",
   "location",
 ] as const;
 
-export type GloboAdminOptionKey = (typeof GLOBO_ADMIN_OPTION_KEYS)[number];
+export type AdminOptionKey = (typeof ADMIN_OPTION_KEYS)[number];
 
 export const FILTER_OPTION_DEFS: FilterOptionDef[] = [
   { key: "collection", label: "Collection", source: "Collection" },
@@ -208,21 +208,21 @@ export function removeFilterOptionKeys(
   return { visibleKeys: remaining, flags: nextFlags };
 }
 
-export function isGloboAdminOptionKey(key: string): key is GloboAdminOptionKey {
-  return (GLOBO_ADMIN_OPTION_KEYS as readonly string[]).includes(key);
+export function isAdminOptionKey(key: string): key is AdminOptionKey {
+  return (ADMIN_OPTION_KEYS as readonly string[]).includes(key);
 }
 
-export function withGloboAdminOptionKeys(order: string[]): string[] {
+export function withAdminOptionKeys(order: string[]): string[] {
   const seenAdmin = new Set<string>();
   const next: string[] = [];
   for (const key of order) {
-    if (isGloboAdminOptionKey(key)) {
+    if (isAdminOptionKey(key)) {
       if (seenAdmin.has(key)) continue;
       seenAdmin.add(key);
     }
     next.push(key);
   }
-  if (GLOBO_ADMIN_OPTION_KEYS.some((key) => next.includes(key))) {
+  if (ADMIN_OPTION_KEYS.some((key) => next.includes(key))) {
     return next;
   }
 
@@ -362,7 +362,7 @@ export function storedFilterDisplayOrder(
   enableSale?: boolean | null,
 ): string[] {
   const stored = Array.isArray(displayOrder) ? displayOrder : [];
-  const next = withGloboAdminOptionKeys(stored);
+  const next = withAdminOptionKeys(stored);
   if (enableSale || stored.includes("sale") || stored.length === 0) {
     return next;
   }
@@ -480,7 +480,7 @@ export function persistDisplayOrder(
     if (isOptionRowKey(key) && visibleKeys.some((item) => isOptionRowKey(item))) {
       return false;
     }
-    if (isGloboAdminOptionKey(key) || key === "sale") return false;
+    if (isAdminOptionKey(key) || key === "sale") return false;
     if (isMetafieldFacetKey(key)) return false;
     return true;
   });

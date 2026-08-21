@@ -3,7 +3,7 @@ import prisma from "./db.server";
 import { DEFAULT_DISPLAY_ORDER, mappedFacetsForAdmin } from "./filters.server";
 import {
   nextDisplayOrderForMetafieldSync,
-  withGloboAdminOptionKeys,
+  withAdminOptionKeys,
 } from "./filter-option-rows";
 import {
   parseFacetSettings,
@@ -112,7 +112,7 @@ export function isAbandonedDraftName(name: string) {
 }
 
 export function defaultFilterTreeDisplayOrder() {
-  return withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]);
+  return withAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]);
 }
 
 /** Drop filters that were created by Add Filter then abandoned (never named). */
@@ -195,7 +195,7 @@ export async function createFilterTree(
   const count = await prisma.filterConfig.count({ where: { shopId } });
   const keepKeys = await mappedFilterKeysForShop(shopId);
   const displayOrder = nextDisplayOrderForMetafieldSync(
-    withGloboAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]),
+    withAdminOptionKeys([...DEFAULT_DISPLAY_ORDER]),
     keepKeys,
     null,
   );

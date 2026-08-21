@@ -1,4 +1,4 @@
-# Smart Filter & Search — MVP Build Guide & Market Comparison
+# Smart Filter & Search — MVP Build Guide
 
 ## 1. Scope Decision: Filters + Search Launch, Advanced Later
 
@@ -56,15 +56,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 9. Internal QA, then a small beta with 3–5 real stores before submission
 10. Submit for App Store review
 
-## 4. Competitive Comparison & Plan Structure
-
-| App | Free tier | Paid entry point | Search included? |
-|---|---|---|---|
-| Shopify Search & Discovery (Shopify's own) | Full filtering + basic search, free | N/A — always free | Basic |
-| Boost AI Search & Filter | Limited filters, capped products | ~$29/mo+ | Yes, AI-ranked |
-| Searchanise | Limited products/searches | ~$19/mo+ | Yes, with synonyms |
-
-### Recommended plan structure
+## 4. Plan structure
 
 **Free plan:**
 - Standard collection filters (price, availability, tags, vendor, product type)

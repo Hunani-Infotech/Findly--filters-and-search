@@ -520,7 +520,7 @@ export default function SearchPage() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Merchant-entered queries shown in Instant Search as
-                        shoppers type (Globo suggestion dictionary).
+                        shoppers type.
                       </Text>
                       <InlineStack gap="200" blockAlign="end" wrap={false}>
                         <div style={{ flex: 1, minWidth: 0 }}>

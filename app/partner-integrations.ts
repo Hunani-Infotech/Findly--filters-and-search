@@ -1,5 +1,4 @@
 export const FINDLY_FILTER_RENDER_COMPLETED = "findlyFilterRenderCompleted";
-export const GLOBO_FILTER_RENDER_COMPLETED = "globoFilterRenderCompleted";
 export const SMART_FILTER_UPDATE_EVENT = "smart-filter:update";
 
 export type PartnerIntegrationCategory =
@@ -23,13 +22,10 @@ export const PARTNER_LISTENER_SNIPPET = `<!-- Findly Smart Filters: paste before
 <script>
   (function () {
     function onFindlyGridReady(event) {
-      // Findly native event. A globoFilterRenderCompleted alias is also
-      // dispatched so existing Globo partner snippets keep working.
       console.log("Findly grid render completed", event && event.type);
       // Re-init your review / wishlist / badge widgets here if needed.
     }
     window.addEventListener("findlyFilterRenderCompleted", onFindlyGridReady);
-    window.addEventListener("globoFilterRenderCompleted", onFindlyGridReady);
   })();
 </script>
 `;

@@ -1,6 +1,6 @@
 /**
- * F6 gate: partner re-init after Ajax grid (findlyFilterRenderCompleted /
- * globoFilterRenderCompleted, Judge.me, Wishlist Hero, Integrations admin).
+ * F6 gate: partner re-init after Ajax grid (findlyFilterRenderCompleted,
+ * Judge.me, Wishlist Hero, Integrations admin).
  * Usage: npm run verify:f6
  *
  * Static file greps only — no Prisma / Postgres.
@@ -50,7 +50,6 @@ function assertStaticMarkers() {
     filterJs,
     [
       "findlyFilterRenderCompleted",
-      "globoFilterRenderCompleted",
       "window.dispatchEvent",
       "jdgm.customizeBadges",
       "wishlist-hero-add-to-custom-element",
@@ -78,7 +77,6 @@ function assertStaticMarkers() {
     vehicleJs,
     [
       "findlyFilterRenderCompleted",
-      "globoFilterRenderCompleted",
       "window.dispatchEvent",
     ],
     "extensions/smart-filter/assets/vehicle-finder.js",
@@ -89,7 +87,6 @@ function assertStaticMarkers() {
     partners,
     [
       "findlyFilterRenderCompleted",
-      "globoFilterRenderCompleted",
       "Judge.me",
       "Wishlist Hero",
     ],
@@ -99,7 +96,7 @@ function assertStaticMarkers() {
   const admin = readRepo("app", "routes", "app.integrations.tsx");
   requireAll(
     admin,
-    ["Integrations", "findlyFilterRenderCompleted", "globoFilterRenderCompleted"],
+    ["Integrations", "findlyFilterRenderCompleted"],
     "app/routes/app.integrations.tsx",
   );
 
@@ -109,7 +106,7 @@ function assertStaticMarkers() {
   const docs = readRepo("docs", "partner-integrations.md");
   requireAll(
     docs,
-    ["findlyFilterRenderCompleted", "globoFilterRenderCompleted"],
+    ["findlyFilterRenderCompleted", "smart-filter:update"],
     "docs/partner-integrations.md",
   );
 

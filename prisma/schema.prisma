@@ -82,12 +82,12 @@ model AppSettings {
   widgetPosition    String  @default("left") // left | right | top
   accentColor       String  @default("#1c1917")
   showProductCounts Boolean @default(true)
-  /// Globo: Show the number of total products (“X products” status / theme count)
+  /// Show the number of total products (“X products” status / theme count)
   showTotalProductCount Boolean @default(true)
-  /// Globo: hide products with these tags from collection + search
+  /// Hide products with these tags from collection + search
   hideProductTags   String[] @default([])
   collapseByDefault Boolean @default(false)
-  /// show | hide | hide_after_filter (Globo out-of-stock display)
+  /// show | hide | hide_after_filter (out-of-stock display)
   hideOutOfStock    String  @default("show")
   /// pagination | load_more | infinite (D9 storefront paging style)
   paginationStyle   String  @default("pagination")
@@ -110,15 +110,15 @@ model AppSettings {
   inStockOnTop       Boolean  @default(false)
   /// Push unavailable products after C4 secondary sort
   soldOutToBottom    Boolean  @default(false)
-  /// Globo: search bar on collection pages (keyword stays inside the collection)
+  /// Search bar on collection pages (keyword stays inside the collection)
   enableCollectionSearch Boolean @default(false)
-  /// Globo General: show filter sidebar on the search results page
+  /// Show filter sidebar on the search results page
   enableFiltersOnSearch Boolean @default(true)
-  /// Globo Filter panel: hide a facet when it has only one value
+  /// Hide a facet when it has only one value
   hideSingleValueFacets Boolean @default(false)
-  /// Globo Product card: swap theme card image to the matching variant
+  /// Swap theme card image to the matching variant
   showMatchingVariantImage Boolean @default(true)
-  /// Globo Filter panel: show applied “Refine by” chips
+  /// Show applied “Refine by” chips
   showRefineBy Boolean @default(true)
   /// F5: use Shopify Markets / B2B catalog prices instead of shop default currency
   enableMarkets Boolean @default(true)
@@ -130,7 +130,7 @@ model AppSettings {
   suggestionCollectionHandles String[] @default([])
   /// Instant search + Search Settings extras (fuzzy, popular terms, pinnings, synonyms, redirects)
   searchExtras      Json     @default("{}")
-  /// Globo-parity admin pages (recommendations toggles, YMM form, locales) — not storefront engines
+  /// Admin extras (recommendations toggles, YMM form, locales) — not storefront engines
   adminExtras       Json     @default("{}")
   /// D7: merchant CSS for the filter widget (stored raw-sanitized; scoped when serving storefront)
   customCss         String   @default("")
@@ -139,7 +139,7 @@ model AppSettings {
   updatedAt         DateTime @updatedAt
 }
 
-/// Named filter tree (Globo Filter Tree). Last-created wins when collections overlap.
+/// Named filter tree. Last-created wins when collections overlap.
 model FilterConfig {
   id                  String   @id @default(cuid())
   shopId              String
@@ -215,7 +215,7 @@ model MetafieldMapping {
   /// PRODUCT = product metafield; VARIANT = any-variant match
   ownerType    MetafieldOwnerType  @default(PRODUCT)
   enabled      Boolean             @default(true)
-  /// Globo Settings > Metafields: display | search | filter | sort
+  /// Metafield applies-to: display | search | filter | sort
   appliesTo    String[]            @default([])
   sortOrder    Int                 @default(0)
   createdAt    DateTime            @default(now())
@@ -373,7 +373,7 @@ model DiscoveredMetafield {
   @@index([shopId])
 }
 
-/// Merchant swatch overrides for option values (Globo D6). Shop-scoped.
+/// Merchant swatch overrides for option values. Shop-scoped.
 model ColorSwatch {
   id        String   @id @default(cuid())
   shopId    String
@@ -391,7 +391,7 @@ model ColorSwatch {
   @@index([shopId, optionKey])
 }
 
-/// Merge catalog values into one shopper-facing label (Globo D2). Shop-scoped.
+/// Merge catalog values into one shopper-facing label. Shop-scoped.
 model ValueGroup {
   id        String   @id @default(cuid())
   shopId    String

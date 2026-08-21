@@ -23,6 +23,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { withEmbeddedParams } from "../admin-path";
+import { hexFromColorName } from "../color-autofill";
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
@@ -281,18 +282,24 @@ export function FilterOptionEditorPage({
     submit(formData, { method: "POST" });
   };
 
-  const previewValues = (catalogValues.length
-    ? catalogValues
-    : ["Blue", "Red"]
-  ).slice(0, 4);
-  const previewLabel = (label || "Collection").toUpperCase();
-  const previewValueStyle: { textTransform: "none" | "capitalize" | "uppercase" | "lowercase" } =
-    textTransform === "none" ||
-    textTransform === "capitalize" ||
-    textTransform === "uppercase" ||
-    textTransform === "lowercase"
-      ? { textTransform }
-      : { textTransform: "none" };
+  const previewItems = buildPreviewItems({
+    sourceKey: key,
+    catalogValues,
+    labels: { ...collectionTreeLabels, ...catalogValueLabels },
+    treeItems: catalogPage.collectionTreeItems,
+    selectedValues,
+    valueMode,
+    prefix,
+    valueSortMode,
+  }).map((item) => ({
+    ...item,
+    label: applyPreviewLabel(item.label, {
+      valueMode,
+      prefix,
+      removePrefix,
+      autoRemovePrefixes,
+    }),
+  }));
 
   return (
     <Page
@@ -633,38 +640,331 @@ export function FilterOptionEditorPage({
           </Form>
         </Layout.Section>
         <Layout.Section variant="oneThird">
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Preview
-              </Text>
-              <div className="findly-option-preview">
-                <div className="findly-option-preview__header">
-                  <span className="findly-option-preview__caret" aria-hidden />
-                  <span className="findly-option-preview__title">
-                    {previewLabel}
-                  </span>
-                </div>
-                {!collapseByDefault ? (
-                  <div className="findly-option-preview__values">
-                    {previewValues.map((value) => (
-                      <label
-                        key={value}
-                        className="findly-option-preview__value"
-                      >
-                        <input type="checkbox" readOnly tabIndex={-1} />
-                        <span style={previewValueStyle}>{value}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </BlockStack>
-          </Card>
+          <div className="findly-option-preview-wrap">
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">
+                  Preview
+                </Text>
+                <FilterOptionPreview
+                  label={label || "Collection"}
+                  displayType={displayType}
+                  items={previewItems}
+                  parents={collectionParents}
+                  collectionTree={collectionTree && isCollection}
+                  enableValueSearch={enableValueSearch}
+                  showMore={showMore}
+                  textTransform={textTransform}
+                  tooltip={tooltip}
+                />
+              </BlockStack>
+            </Card>
+          </div>
         </Layout.Section>
       </Layout>
       {dialog}
     </Page>
+  );
+}
+
+type PreviewItem = { value: string; label: string };
+
+function fallbackPreviewLabels(sourceKey: string): string[] {
+  if (sourceKey === "collection") return ["Home", "Summer", "Sale", "New arrivals"];
+  if (sourceKey === "availability") return ["In stock", "Out of stock"];
+  if (sourceKey === "vendor") return ["Cotton", "Linen", "Wool"];
+  if (sourceKey === "productType") return ["Shirts", "Pants", "Hats"];
+  if (sourceKey === "tag" || sourceKey === "tags") return ["New", "Sale", "Organic"];
+  return ["Blue", "Red", "Green", "Black"];
+}
+
+function applyPreviewLabel(
+  label: string,
+  input: {
+    valueMode: FacetValueMode;
+    prefix: string;
+    removePrefix: boolean;
+    autoRemovePrefixes: string;
+  },
+) {
+  let text = label;
+  if (
+    input.valueMode === "prefix" &&
+    input.removePrefix &&
+    input.prefix &&
+    text.startsWith(input.prefix)
+  ) {
+    text = text.slice(input.prefix.length);
+  }
+  const prefixes = input.autoRemovePrefixes
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  for (const prefix of prefixes) {
+    if (text.startsWith(prefix)) {
+      text = text.slice(prefix.length);
+      break;
+    }
+  }
+  return text || label;
+}
+
+function buildPreviewItems(input: {
+  sourceKey: string;
+  catalogValues: string[];
+  labels: Record<string, string>;
+  treeItems: Array<{ value: string; label: string }>;
+  selectedValues: string[];
+  valueMode: FacetValueMode;
+  prefix: string;
+  valueSortMode: FacetValueSortMode;
+}): PreviewItem[] {
+  const labeled = (values: string[]) =>
+    values
+      .map((value) => ({
+        value,
+        label: input.labels[value] || value,
+      }))
+      .filter((item) => !item.label.startsWith("gid://"));
+  let items: PreviewItem[] = [];
+  if (input.valueMode === "manual" && input.selectedValues.length) {
+    items = labeled(input.selectedValues);
+  } else if (input.valueMode === "prefix" && input.prefix) {
+    const filtered = input.catalogValues.filter((value) => {
+      const label = input.labels[value] || value;
+      return label.startsWith(input.prefix) || value.startsWith(input.prefix);
+    });
+    items = labeled(filtered.length ? filtered : input.catalogValues);
+  } else if (input.catalogValues.length) {
+    items = labeled(input.catalogValues);
+  }
+  if (!items.length && input.sourceKey === "collection" && input.treeItems.length) {
+    items = input.treeItems.map((item) => ({
+      value: item.value,
+      label: item.label,
+    }));
+  } else {
+    items = fallbackPreviewLabels(input.sourceKey).map((label) => ({
+      value: label,
+      label,
+    }));
+  }
+  if (input.valueSortMode === "za") {
+    return [...items].sort((a, b) => b.label.localeCompare(a.label));
+  }
+  if (input.valueSortMode === "az") {
+    return [...items].sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return items;
+}
+
+function previewSwatchColor(value: string) {
+  return hexFromColorName(value) || `hsl(${Math.abs(hashHue(value)) % 360}, 58%, 52%)`;
+}
+
+function hashHue(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = value.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return hash;
+}
+
+function previewDepth(value: string, parents: Record<string, string>, values: string[]) {
+  let depth = 0;
+  let current = parents[value];
+  const seen = new Set<string>();
+  while (current && !seen.has(current) && values.includes(current)) {
+    seen.add(current);
+    depth += 1;
+    current = parents[current];
+  }
+  return depth;
+}
+
+function FilterOptionPreview({
+  label,
+  displayType,
+  items,
+  parents,
+  collectionTree,
+  enableValueSearch,
+  showMore,
+  textTransform,
+  tooltip,
+}: {
+  label: string;
+  displayType: FacetDisplayType;
+  items: PreviewItem[];
+  parents: Record<string, string>;
+  collectionTree: boolean;
+  enableValueSearch: boolean;
+  showMore: FacetShowMoreMode;
+  textTransform: FacetTextTransform;
+  tooltip: string;
+}) {
+  const [open, setOpen] = useState(true);
+  const [buttonOpen, setButtonOpen] = useState(false);
+
+  const isSlider = displayType === "slider";
+  const visibleLimit =
+    showMore === "button" && !buttonOpen ? 3 : showMore === "scrollbar" ? 6 : 8;
+  const visible = items.slice(0, visibleLimit);
+  const valueIds = items.map((item) => item.value);
+  const transformStyle: { textTransform: "none" | "capitalize" | "uppercase" | "lowercase" } =
+    textTransform === "none" ||
+    textTransform === "capitalize" ||
+    textTransform === "uppercase" ||
+    textTransform === "lowercase"
+      ? { textTransform }
+      : { textTransform: "none" };
+  const valuesClass = [
+    "findly-option-preview__values",
+    showMore === "scrollbar" ? "findly-option-preview__values--scroll" : "",
+    displayType === "swatch" || displayType === "swatch-text"
+      ? "findly-option-preview__values--swatches"
+      : "",
+    displayType === "box" ? "findly-option-preview__values--boxes" : "",
+    displayType === "collection" ? "findly-option-preview__values--links" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const renderValue = (item: PreviewItem) => {
+    const depth = collectionTree ? previewDepth(item.value, parents, valueIds) : 0;
+    const text = (
+      <span className="findly-option-preview__text" style={transformStyle}>
+        {item.label}
+      </span>
+    );
+    if (displayType === "dropdown") return null;
+    if (displayType === "collection") {
+      return (
+        <span
+          key={item.value}
+          className="findly-option-preview__link"
+          style={{ paddingLeft: `${depth * 14}px` }}
+        >
+          {text}
+        </span>
+      );
+    }
+    if (displayType === "swatch") {
+      return (
+        <span
+          key={item.value}
+          className="findly-option-preview__swatch"
+          title={item.label}
+          style={{ background: previewSwatchColor(item.label) }}
+        />
+      );
+    }
+    if (displayType === "swatch-text") {
+      return (
+        <span key={item.value} className="findly-option-preview__swatch-text">
+          <span
+            className="findly-option-preview__swatch findly-option-preview__swatch--inline"
+            style={{ background: previewSwatchColor(item.label) }}
+          />
+          {text}
+        </span>
+      );
+    }
+    if (displayType === "box") {
+      return (
+        <span key={item.value} className="findly-option-preview__box">
+          {text}
+        </span>
+      );
+    }
+    if (displayType === "list") {
+      return (
+        <span
+          key={item.value}
+          className="findly-option-preview__value findly-option-preview__value--list"
+          style={{ paddingLeft: `${depth * 14}px` }}
+        >
+          {text}
+        </span>
+      );
+    }
+    return (
+      <label
+        key={item.value}
+        className="findly-option-preview__value"
+        style={{ paddingLeft: `${depth * 14}px` }}
+      >
+        <input
+          type={displayType === "radio" ? "radio" : "checkbox"}
+          readOnly
+          tabIndex={-1}
+          name="findly-option-preview"
+        />
+        {text}
+      </label>
+    );
+  };
+
+  return (
+    <div className="findly-option-preview">
+      <button
+        type="button"
+        className="findly-option-preview__header"
+        aria-expanded={open}
+        onClick={() => setOpen((next) => !next)}
+      >
+        <span
+          className={
+            open
+              ? "findly-option-preview__caret"
+              : "findly-option-preview__caret findly-option-preview__caret--collapsed"
+          }
+          aria-hidden
+        />
+        <span className="findly-option-preview__title">{label}</span>
+        {tooltip.trim() ? (
+          <span className="findly-option-preview__tip" title={tooltip.trim()}>
+            ?
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="findly-option-preview__body">
+          {enableValueSearch && !isSlider ? (
+            <div className="findly-option-preview__search">Search values</div>
+          ) : null}
+          {isSlider ? (
+            <div className="findly-option-preview__slider" aria-hidden>
+              <div className="findly-option-preview__slider-track">
+                <div className="findly-option-preview__slider-fill" />
+                <span className="findly-option-preview__slider-thumb findly-option-preview__slider-thumb--min" />
+                <span className="findly-option-preview__slider-thumb findly-option-preview__slider-thumb--max" />
+              </div>
+              <div className="findly-option-preview__slider-inputs">
+                <span>20</span>
+                <span>180</span>
+              </div>
+            </div>
+          ) : displayType === "dropdown" ? (
+            <div className="findly-option-preview__dropdown">
+              {visible[0]?.label || "Any"}
+            </div>
+          ) : (
+            <div className={valuesClass}>{visible.map(renderValue)}</div>
+          )}
+          {!isSlider && displayType !== "dropdown" && showMore === "button" && items.length > 3 ? (
+            <button
+              type="button"
+              className="findly-option-preview__more"
+              onClick={() => setButtonOpen((next) => !next)}
+            >
+              {buttonOpen ? "Show less" : "Show more"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

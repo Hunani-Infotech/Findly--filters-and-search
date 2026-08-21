@@ -440,7 +440,7 @@ export function valueSortForFacet(
   return { mode: "auto" };
 }
 
-/** Globo-style size rank: XS/S/M/L then numbered sizes. Unranked values sort after. */
+/** Size rank: XS/S/M/L then numbered sizes. Unranked values sort after. */
 export function sizeRank(raw: string): number | null {
   const value = String(raw || "").trim().toLowerCase();
   if (!value) return null;
