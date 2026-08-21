@@ -1,3 +1,5 @@
+import nodemailer from "nodemailer";
+
 const MAX_MESSAGE_CHARS = 10_000;
 const DELIVER_TIMEOUT_MS = 15_000;
 
@@ -17,8 +19,15 @@ function trimEnv(name: string) {
   return (process.env[name] ?? "").trim();
 }
 
+function gmailCredentials() {
+  const user = trimEnv("GMAIL_USER");
+  const pass = trimEnv("GMAIL_APP_PASSWORD").replace(/\s+/g, "");
+  if (!user || !pass) return null;
+  return { user, pass };
+}
+
 export function contactDeliveryConfigured() {
-  return Boolean(trimEnv("CONTACT_WEBHOOK_URL") || trimEnv("RESEND_API_KEY"));
+  return Boolean(gmailCredentials());
 }
 
 export function formatContactPlainText(msg: ContactMessage) {
@@ -34,69 +43,46 @@ export function formatContactPlainText(msg: ContactMessage) {
   ].join("\n");
 }
 
-function webhookPayload(msg: ContactMessage, text: string) {
-  return {
-    source: "findly-admin-contact",
-    shop: msg.shopDomain,
-    email: msg.email,
-    collaboratorCode: msg.collaboratorCode,
-    subject: msg.subject,
-    message: msg.message,
-    text,
-    content: text.slice(0, 2000),
-  };
+function isLocalSmtpHost(host: string) {
+  return host === "127.0.0.1" || host === "localhost";
 }
 
-async function postJson(url: string, body: unknown, headers: Record<string, string>) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "User-Agent": "Findly-Smart-Filters-Search/contact",
-      ...headers,
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(DELIVER_TIMEOUT_MS),
+function createGmailTransport(auth: { user: string; pass: string }) {
+  const host = trimEnv("CONTACT_SMTP_HOST") || "smtp.gmail.com";
+  const local = isLocalSmtpHost(host);
+  const port = Number(
+    trimEnv("CONTACT_SMTP_PORT") || (local ? "2525" : "465"),
+  );
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: !local && port === 465,
+    auth,
+    ignoreTLS: local,
+    tls: local ? { rejectUnauthorized: false } : undefined,
+    connectionTimeout: DELIVER_TIMEOUT_MS,
+    greetingTimeout: DELIVER_TIMEOUT_MS,
+    socketTimeout: DELIVER_TIMEOUT_MS,
   });
-  const raw = await response.text();
-  return { ok: response.ok, status: response.status, raw };
 }
 
-async function deliverWebhook(msg: ContactMessage, text: string) {
-  const url = trimEnv("CONTACT_WEBHOOK_URL");
-  if (!url) return null;
-  const result = await postJson(url, webhookPayload(msg, text), {});
-  if (!result.ok) {
-    throw new Error(`Support webhook returned HTTP ${result.status}`);
-  }
-  return "webhook";
-}
+async function deliverGmail(msg: ContactMessage, text: string) {
+  const auth = gmailCredentials();
+  if (!auth) return null;
 
-async function deliverResend(msg: ContactMessage, text: string) {
-  const apiKey = trimEnv("RESEND_API_KEY");
-  if (!apiKey) return null;
-  const to = trimEnv("CONTACT_SUPPORT_TO");
-  if (!to) {
-    throw new Error("CONTACT_SUPPORT_TO is required when RESEND_API_KEY is set");
-  }
-  const from =
-    trimEnv("CONTACT_FROM_EMAIL") || "Findly Support <beth.t@example.com>";
-  const result = await postJson(
-    "https://api.resend.com/emails",
-    {
-      from,
-      to: [to],
-      reply_to: msg.email,
+  const transport = createGmailTransport(auth);
+  try {
+    await transport.sendMail({
+      from: `Findly Support <${auth.user}>`,
+      to: auth.user,
+      replyTo: msg.email,
       subject: msg.subject,
       text,
-    },
-    { Authorization: `Bearer ${apiKey}` },
-  );
-  if (!result.ok) {
-    throw new Error(`Resend returned HTTP ${result.status}`);
+    });
+  } finally {
+    transport.close();
   }
-  return "resend";
+  return "gmail";
 }
 
 export async function deliverContactMessage(
@@ -110,7 +96,7 @@ export async function deliverContactMessage(
     return { ok: false, error: "Message is too long" };
   }
   if (!contactDeliveryConfigured()) {
-    console.error("Contact form has no CONTACT_WEBHOOK_URL or RESEND_API_KEY");
+    console.error("Contact form has no GMAIL_USER / GMAIL_APP_PASSWORD");
     return {
       ok: false,
       error: "Could not send your message. Findly support is not configured yet.",
@@ -125,31 +111,23 @@ export async function deliverContactMessage(
     message,
   };
   const text = formatContactPlainText(payload);
-  const channels: string[] = [];
-  const failures: string[] = [];
 
-  for (const send of [deliverWebhook, deliverResend]) {
-    try {
-      const channel = await send(payload, text);
-      if (channel) channels.push(channel);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Delivery failed";
-      failures.push(detail);
-      console.error("Contact delivery failed", detail);
+  try {
+    const channel = await deliverGmail(payload, text);
+    if (!channel) {
+      return {
+        ok: false,
+        error: "Could not send your message. Findly support is not configured yet.",
+      };
     }
+    console.info(`Contact message delivered for ${payload.shopDomain} via gmail`);
+    return { ok: true, channels: [channel] };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Delivery failed";
+    console.error("Contact delivery failed", detail);
+    return {
+      ok: false,
+      error: "Could not reach Findly support. Please try again in a few minutes.",
+    };
   }
-
-  if (channels.length > 0) {
-    console.info(
-      `Contact message delivered for ${payload.shopDomain} via ${channels.join(",")}`,
-    );
-    return { ok: true, channels };
-  }
-
-  return {
-    ok: false,
-    error:
-      failures[0] ||
-      "Could not reach Findly support. Please try again in a few minutes.",
-  };
 }

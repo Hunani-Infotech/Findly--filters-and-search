@@ -189,10 +189,9 @@ export default function PrivacyPolicy() {
             and the merchant’s own product data remain on Shopify.
           </li>
           <li>
-            <strong>Email / webhook delivery</strong> — if the merchant submits
-            Contact, the message may be sent through Resend and/or a configured
-            support webhook. Those providers only receive what the merchant
-            typed.
+            <strong>Email</strong> — if the merchant submits Contact, the
+            message is sent to Findly’s Gmail inbox over SMTP. Reply-To is the
+            merchant’s email so we can answer from Gmail.
           </li>
         </ul>
         <p>
@@ -287,8 +286,7 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Support email:</strong> if a merchant contacts us, copies
-            may remain in our support inbox or webhook destination under that
-            provider’s retention rules.
+            may remain in our Gmail inbox.
           </li>
         </ul>
 

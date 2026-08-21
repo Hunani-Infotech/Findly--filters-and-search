@@ -1,9 +1,9 @@
 /**
- * Contact form must deliver to a human-monitored inbox, not only save a draft.
+ * Contact form must email Gmail (SMTP), not only save a draft.
  * Usage: npm run verify:contact
  */
 import "tsx/esm";
-import { createServer } from "node:http";
+import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,12 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = `findly-contact-e2e-${Date.now()}`;
+const CONTACT_ENV = [
+  "GMAIL_USER",
+  "GMAIL_APP_PASSWORD",
+  "CONTACT_SMTP_HOST",
+  "CONTACT_SMTP_PORT",
+];
 
 function fail(message) {
   throw new Error(message);
@@ -22,6 +28,22 @@ function fail(message) {
 
 function readRepo(...parts) {
   return readFileSync(join(ROOT, ...parts), "utf8");
+}
+
+function snapshotEnv() {
+  return Object.fromEntries(CONTACT_ENV.map((key) => [key, process.env[key]]));
+}
+
+function restoreEnv(snap) {
+  for (const key of CONTACT_ENV) {
+    const value = snap[key];
+    if (value == null || value === "") delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
+function clearContactEnv() {
+  for (const key of CONTACT_ENV) delete process.env[key];
 }
 
 function assertRouteWiresDelivery() {
@@ -52,147 +74,108 @@ function sampleMessage() {
   };
 }
 
-async function listenLocalWebhook() {
+function listenLocalSmtp() {
   const received = [];
-  const server = createServer((req, res) => {
-    const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      received.push({
-        method: req.method,
-        url: req.url,
-        raw,
-        json: JSON.parse(raw),
-      });
-      res.writeHead(204);
-      res.end();
+  const server = createServer((socket) => {
+    let mode = "cmd";
+    let buffer = "";
+    let data = "";
+    socket.write("220 localhost ESMTP\r\n");
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      if (mode === "data") {
+        data += buffer;
+        buffer = "";
+        if (data.includes("\r\n.\r\n")) {
+          received.push(data.slice(0, data.indexOf("\r\n.\r\n")));
+          data = "";
+          mode = "cmd";
+          socket.write("250 OK\r\n");
+        }
+        return;
+      }
+      while (buffer.includes("\r\n")) {
+        const idx = buffer.indexOf("\r\n");
+        const line = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const upper = line.toUpperCase();
+        if (upper.startsWith("EHLO") || upper.startsWith("HELO")) {
+          socket.write("250-localhost\r\n250 AUTH PLAIN LOGIN\r\n");
+        } else if (upper.startsWith("AUTH")) {
+          socket.write("235 2.7.0 Authentication successful\r\n");
+        } else if (upper.startsWith("MAIL") || upper.startsWith("RCPT") || upper === "RSET") {
+          socket.write("250 OK\r\n");
+        } else if (upper === "DATA") {
+          mode = "data";
+          data = "";
+          socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+        } else if (upper === "QUIT") {
+          socket.write("221 Bye\r\n");
+          socket.end();
+        } else {
+          socket.write("250 OK\r\n");
+        }
+      }
     });
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address();
-  return {
-    url: `http://127.0.0.1:${port}/findly-support`,
-    received,
-    close: () =>
-      new Promise((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
-  };
+  return new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      resolve({
+        port,
+        received,
+        close: () =>
+          new Promise((done, reject) =>
+            server.close((err) => (err ? reject(err) : done())),
+          ),
+      });
+    });
+  });
 }
 
 async function assertUnconfiguredFails(msg) {
-  const previousWebhook = process.env.CONTACT_WEBHOOK_URL;
-  const previousResend = process.env.RESEND_API_KEY;
-  delete process.env.CONTACT_WEBHOOK_URL;
-  delete process.env.RESEND_API_KEY;
-  const result = await deliverContactMessage(msg);
-  if (result.ok) fail("Delivery must fail closed when no inbox is configured");
-  if (previousWebhook) process.env.CONTACT_WEBHOOK_URL = previousWebhook;
-  if (previousResend) process.env.RESEND_API_KEY = previousResend;
-  log.info("Unconfigured contact form fails instead of fake-success");
-}
-
-async function assertLocalWebhook(msg) {
-  const previousWebhook = process.env.CONTACT_WEBHOOK_URL;
-  const previousResend = process.env.RESEND_API_KEY;
-  const inbox = await listenLocalWebhook();
-  process.env.CONTACT_WEBHOOK_URL = inbox.url;
-  delete process.env.RESEND_API_KEY;
+  const snap = snapshotEnv();
+  clearContactEnv();
   try {
     const result = await deliverContactMessage(msg);
-    if (!result.ok) fail(`Local webhook delivery failed: ${result.error}`);
-    if (!result.channels.includes("webhook")) {
-      fail("Expected webhook channel on local delivery");
+    if (result.ok) fail("Delivery must fail closed when no inbox is configured");
+    log.info("Unconfigured contact form fails instead of fake-success");
+  } finally {
+    restoreEnv(snap);
+  }
+}
+
+async function assertLocalGmailSmtp(msg) {
+  const snap = snapshotEnv();
+  const inbox = await listenLocalSmtp();
+  process.env.GMAIL_USER = "findly.support@gmail.com";
+  process.env.GMAIL_APP_PASSWORD = "test-app-password";
+  process.env.CONTACT_SMTP_HOST = "127.0.0.1";
+  process.env.CONTACT_SMTP_PORT = String(inbox.port);
+  try {
+    const result = await deliverContactMessage(msg);
+    if (!result.ok) fail(`Local Gmail SMTP delivery failed: ${result.error}`);
+    if (!result.channels.includes("gmail")) {
+      fail("Expected gmail channel on local delivery");
     }
     if (inbox.received.length !== 1) {
-      fail(`Expected 1 webhook POST, got ${inbox.received.length}`);
+      fail(`Expected 1 SMTP message, got ${inbox.received.length}`);
     }
-    const body = inbox.received[0].json;
+    const raw = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
     const text = formatContactPlainText(msg);
-    if (body.message !== msg.message || !body.text.includes(MARKER)) {
-      fail("Webhook payload missing the merchant message");
+    if (!raw.includes(MARKER) || !raw.includes(msg.message)) {
+      fail("SMTP message missing the merchant body");
     }
-    if (body.shop !== msg.shopDomain || body.email !== msg.email) {
-      fail("Webhook payload missing shop or reply email");
+    if (!raw.includes(msg.email) || !raw.includes(msg.shopDomain)) {
+      fail("SMTP message missing reply email or shop");
     }
     if (!text.includes(msg.collaboratorCode)) {
       fail("Plain-text body missing collaborator code");
     }
-    log.info("Local webhook captured the contact payload");
+    log.info("Local SMTP captured the contact email for Gmail");
   } finally {
     await inbox.close();
-    if (previousWebhook) process.env.CONTACT_WEBHOOK_URL = previousWebhook;
-    else delete process.env.CONTACT_WEBHOOK_URL;
-    if (previousResend) process.env.RESEND_API_KEY = previousResend;
-    else delete process.env.RESEND_API_KEY;
-  }
-}
-
-async function createWebhookSiteToken() {
-  const response = await fetch("https://webhook.site/token", {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!response.ok) {
-    fail(`webhook.site token create failed: HTTP ${response.status}`);
-  }
-  const token = await response.json();
-  if (!token?.uuid) fail("webhook.site did not return a uuid");
-  return token.uuid;
-}
-
-async function readWebhookSiteRequests(uuid) {
-  const response = await fetch(
-    `https://webhook.site/token/${uuid}/requests?sorting=newest&per_page=5`,
-    {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(15000),
-    },
-  );
-  if (!response.ok) {
-    fail(`webhook.site request poll failed: HTTP ${response.status}`);
-  }
-  return response.json();
-}
-
-async function assertHumanVisibleInbox(msg) {
-  const previousWebhook = process.env.CONTACT_WEBHOOK_URL;
-  const previousResend = process.env.RESEND_API_KEY;
-  const uuid = await createWebhookSiteToken();
-  const inboxUrl = `https://webhook.site/${uuid}`;
-  process.env.CONTACT_WEBHOOK_URL = inboxUrl;
-  delete process.env.RESEND_API_KEY;
-
-  try {
-    const result = await deliverContactMessage(msg);
-    if (!result.ok) fail(`Human inbox delivery failed: ${result.error}`);
-
-    let found = null;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const payload = await readWebhookSiteRequests(uuid);
-      const rows = payload?.data ?? [];
-      found = rows.find((row) => {
-        const content =
-          typeof row.content === "string"
-            ? row.content
-            : JSON.stringify(row.content ?? "");
-        return content.includes(MARKER);
-      });
-      if (found) break;
-      await new Promise((resolve) => setTimeout(resolve, 750));
-    }
-    if (!found) {
-      fail(`webhook.site inbox ${inboxUrl} never received marker ${MARKER}`);
-    }
-    log.info(`Human-visible inbox received the message: ${inboxUrl}`);
-    return inboxUrl;
-  } finally {
-    if (previousWebhook) process.env.CONTACT_WEBHOOK_URL = previousWebhook;
-    else delete process.env.CONTACT_WEBHOOK_URL;
-    if (previousResend) process.env.RESEND_API_KEY = previousResend;
-    else delete process.env.RESEND_API_KEY;
+    restoreEnv(snap);
   }
 }
 
@@ -200,9 +183,8 @@ async function main() {
   const msg = sampleMessage();
   assertRouteWiresDelivery();
   await assertUnconfiguredFails(msg);
-  await assertLocalWebhook(msg);
-  const inboxUrl = await assertHumanVisibleInbox(msg);
-  log.success(`CONTACT_OK human inbox ${inboxUrl}`);
+  await assertLocalGmailSmtp(msg);
+  log.success("CONTACT_OK gmail SMTP");
 }
 
 main().catch((error) => {
