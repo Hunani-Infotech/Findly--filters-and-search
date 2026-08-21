@@ -31,10 +31,14 @@ Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run
 
 ## Fly.io
 
+Public URL: `https://findly.hunaniinfotech.com` (CNAME `findly` to the Fly app, then `fly certs add findly.hunaniinfotech.com`).
+
 ```bash
 fly launch   # or use existing fly.toml
 fly secrets set SHOPIFY_API_SECRET=... DATABASE_URL=... BILLING_TEST_MODE=true
+fly certs add findly.hunaniinfotech.com
 fly deploy
+shopify app deploy   # pushes App URL + app proxy to Partner Dashboard
 ```
 
 ## App proxy

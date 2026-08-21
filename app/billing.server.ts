@@ -5,9 +5,21 @@ export const PLANS = {
     key: "free",
     name: "Free",
     amount: 0,
+    currencyCode: "USD",
+    interval: "EVERY_30_DAYS" as const,
     productLimit: 200,
     filterLimit: 5,
     trialDays: 0,
+  },
+  standard: {
+    key: "standard",
+    name: "Findly Standard",
+    amount: 9.99,
+    currencyCode: "USD",
+    interval: "EVERY_30_DAYS" as const,
+    productLimit: 1000,
+    filterLimit: 12,
+    trialDays: 7,
   },
   pro: {
     key: "pro",
@@ -22,6 +34,32 @@ export const PLANS = {
 } as const;
 
 export type PlanKey = keyof typeof PLANS;
+export type PaidPlanKey = Exclude<PlanKey, "free">;
+
+export function isPaidPlanKey(key: string): key is PaidPlanKey {
+  return key === "standard" || key === "pro";
+}
+
+/** Map a Shopify subscription name to a plan key (legacy "Findly Pro" still counts as Pro). */
+export function planKeyFromName(name: string | null | undefined): PlanKey {
+  const normalized = (name ?? "").trim().toLowerCase();
+  if (!normalized) return "free";
+  for (const key of Object.keys(PLANS) as PlanKey[]) {
+    const plan = PLANS[key];
+    if (plan.name.toLowerCase() === normalized || plan.key === normalized) {
+      return key;
+    }
+  }
+  if (normalized.includes("standard")) return "standard";
+  if (
+    normalized === "professional" ||
+    normalized.includes("findly pro") ||
+    /\bpro\b/.test(normalized)
+  ) {
+    return "pro";
+  }
+  return "free";
+}
 
 export function isBillingTestMode() {
   return (process.env.BILLING_TEST_MODE ?? "true").toLowerCase() === "true";
@@ -64,10 +102,11 @@ export function getShopPlan(shop: {
     planName?: string | null;
   } | null;
 }): PlanKey {
-  if (hasActivePaidSubscription(shop.subscription ?? null)) {
-    return "pro";
+  if (!hasActivePaidSubscription(shop.subscription ?? null)) {
+    return "free";
   }
-  return "free";
+  const fromName = planKeyFromName(shop.subscription?.planName);
+  return fromName === "free" ? "pro" : fromName;
 }
 
 export async function enforcePlanLimits(shopId: string) {
@@ -84,12 +123,12 @@ export async function enforcePlanLimits(shopId: string) {
   const plan = unlocked ? PLANS.pro : PLANS[planKey];
   const productLimit = unlocked
     ? PLANS.pro.productLimit
-    : planKey === "pro" && shop.subscription?.productLimit
+    : planKey !== "free" && shop.subscription?.productLimit
       ? shop.subscription.productLimit
       : plan.productLimit;
   const filterLimit = unlocked
     ? PLANS.pro.filterLimit
-    : planKey === "pro" && shop.subscription?.filterLimit
+    : planKey !== "free" && shop.subscription?.filterLimit
       ? shop.subscription.filterLimit
       : plan.filterLimit;
 
@@ -124,7 +163,7 @@ export async function enforcePlanLimits(shopId: string) {
 }
 
 /**
- * Free plan always has access; paid Pro unlocks higher limits.
+ * Free plan always has access; paid Standard/Pro unlock higher limits.
  * App use is never hard-blocked for billing — limits are enforced elsewhere.
  */
 export async function ensureShopAccess(shopDomain: string) {
@@ -155,8 +194,9 @@ type GraphqlAdmin = {
 export async function createAppSubscription(
   admin: GraphqlAdmin,
   returnUrl: string,
+  planKey: PaidPlanKey = "pro",
 ) {
-  const plan = PLANS.pro;
+  const plan = PLANS[planKey];
   const response = await admin.graphql(
     `#graphql
     mutation AppSubscriptionCreate(
@@ -164,6 +204,7 @@ export async function createAppSubscription(
       $returnUrl: URL!
       $trialDays: Int
       $test: Boolean
+      $replacementBehavior: AppSubscriptionReplacementBehavior
       $lineItems: [AppSubscriptionLineItemInput!]!
     ) {
       appSubscriptionCreate(
@@ -171,6 +212,7 @@ export async function createAppSubscription(
         returnUrl: $returnUrl
         trialDays: $trialDays
         test: $test
+        replacementBehavior: $replacementBehavior
         lineItems: $lineItems
       ) {
         appSubscription {
@@ -191,6 +233,7 @@ export async function createAppSubscription(
         returnUrl,
         trialDays: plan.trialDays,
         test: isBillingTestMode(),
+        replacementBehavior: "STANDARD",
         lineItems: [
           {
             plan: {
@@ -271,6 +314,9 @@ export async function syncActiveSubscriptions(
       : null;
 
   const planName = active.name ?? PLANS.pro.name;
+  const resolvedKey = planKeyFromName(planName);
+  const paidKey: PaidPlanKey = resolvedKey === "free" ? "pro" : resolvedKey;
+  const paidPlan = PLANS[paidKey];
   const status = String(active.status || "").toUpperCase();
   const isPaid =
     status === "ACTIVE" ||
@@ -286,8 +332,8 @@ export async function syncActiveSubscriptions(
       status: active.status,
       test: Boolean(active.test),
       trialEndsAt,
-      productLimit: PLANS.pro.productLimit,
-      filterLimit: PLANS.pro.filterLimit,
+      productLimit: paidPlan.productLimit,
+      filterLimit: paidPlan.filterLimit,
     },
     update: {
       shopifySubscriptionId: active.id,
@@ -295,14 +341,14 @@ export async function syncActiveSubscriptions(
       status: active.status,
       test: Boolean(active.test),
       trialEndsAt,
-      productLimit: PLANS.pro.productLimit,
-      filterLimit: PLANS.pro.filterLimit,
+      productLimit: paidPlan.productLimit,
+      filterLimit: paidPlan.filterLimit,
     },
   });
 
   await prisma.shop.update({
     where: { id: shopId },
-    data: { plan: isPaid ? PLANS.pro.key : PLANS.free.key },
+    data: { plan: isPaid ? paidKey : PLANS.free.key },
   });
 
   return subscription;

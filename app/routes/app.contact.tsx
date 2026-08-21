@@ -11,6 +11,7 @@ import {
   useNavigation,
 } from "react-router";
 import {
+  Banner,
   BlockStack,
   Button,
   Card,
@@ -26,6 +27,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useEmbeddedNavigate } from "../admin-path";
+import { deliverContactMessage } from "../contact.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
@@ -71,13 +73,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const extras = await getAdminNavExtras(shop.id);
-  await saveAdminNavExtras(shop.id, {
+  const draftExtras = {
     recOn: extras.recOn,
     recs: extras.recs,
     ymm: extras.ymm,
     langs: extras.langs,
     i18n: extras.i18n,
+    translationCustom: extras.translationCustom,
     contactDraft: { email, collaboratorCode, subject, message },
+  };
+
+  const delivered = await deliverContactMessage({
+    shopDomain: session.shop,
+    email,
+    collaboratorCode,
+    subject,
+    message,
+  });
+  if (!delivered.ok) {
+    await saveAdminNavExtras(shop.id, draftExtras);
+    return { ok: false as const, errors: {}, sendError: delivered.error };
+  }
+
+  await saveAdminNavExtras(shop.id, {
+    ...draftExtras,
+    contactDraft: { email, collaboratorCode, subject, message: "" },
   });
 
   return { ok: true as const };
@@ -99,13 +119,23 @@ export default function ContactNavPage() {
   const [message, setMessage] = useState(draft.message);
 
   useEffect(() => {
-    if (actionData && "ok" in actionData && actionData.ok) {
+    if (!actionData || !("ok" in actionData)) return;
+    if (actionData.ok) {
       shopify.toast.show("Message sent to Findly support");
+      setMessage("");
+      return;
+    }
+    if (actionData.sendError) {
+      shopify.toast.show(actionData.sendError, { isError: true });
     }
   }, [actionData, shopify]);
 
   const fieldErrors =
     actionData && "ok" in actionData && !actionData.ok ? actionData.errors : {};
+  const sendError =
+    actionData && "ok" in actionData && !actionData.ok
+      ? actionData.sendError
+      : undefined;
 
   return (
     <Page
@@ -122,6 +152,11 @@ export default function ContactNavPage() {
                 using the email you enter below, and include Apps and Online
                 Store → Themes permissions in that invitation.
               </Text>
+              {sendError ? (
+                <Banner tone="critical" title="Message was not sent">
+                  <p>{sendError}</p>
+                </Banner>
+              ) : null}
               <Form method="post">
                 <FormLayout>
                   <input type="hidden" name="email" value={email} />

@@ -32,7 +32,7 @@ log.info(`[shopify] appUrl=${appUrl || "(empty)"}`);
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-  apiVersion: ApiVersion.October25,
+  apiVersion: ApiVersion.July26,
   scopes: process.env.SCOPES?.split(","),
   appUrl,
   authPathPrefix: "/auth",

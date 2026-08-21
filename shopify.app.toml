@@ -2,7 +2,9 @@
 
 client_id = "15d512118a672ce93db2d90ad68f826b"
 name = "Findly Smart Filters"
-application_url = "https://example.com"
+# Public app host. `shopify app dev` still rewrites these when
+# automatically_update_urls_on_dev is true; `shopify app deploy` pushes them.
+application_url = "https://findly.hunaniinfotech.com"
 embedded = true
 
 [build]
@@ -65,17 +67,19 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets"
+# read_products only: catalog sync is queries + webhooks. No product mutations in app runtime.
+# write_products omitted (least privilege). scripts/seed-dev-catalog.mjs is local-dev only.
+scopes = "read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets"
 optional_scopes = [ "read_companies" ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://example.com/auth/callback" ]
+redirect_urls = [ "https://findly.hunaniinfotech.com/auth/callback" ]
 
 # Must share the application_url host (not localhost).
-# `shopify app dev` replaces example.com with the Cloudflare tunnel URL.
+# `shopify app dev` replaces this with the Cloudflare tunnel URL.
 [app_proxy]
-url = "https://example.com/apps/smart-filter"
+url = "https://findly.hunaniinfotech.com/apps/smart-filter"
 subpath = "smart-filter"
 prefix = "apps"
 

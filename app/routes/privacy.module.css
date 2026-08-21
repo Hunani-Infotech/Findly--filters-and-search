@@ -1,0 +1,71 @@
+.page {
+  min-height: 100%;
+  background: #fafaf9;
+  color: #1c1917;
+}
+
+.inner {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+.brand {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #57534e;
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: #1c1917;
+}
+
+h1 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 1.85rem;
+  line-height: 1.2;
+}
+
+.updated {
+  margin: 0 0 2rem;
+  color: #78716c;
+  font-size: 0.95rem;
+}
+
+h2 {
+  margin: 2rem 0 0.65rem;
+  font-size: 1.15rem;
+}
+
+p,
+li {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+p {
+  margin: 0 0 0.9rem;
+}
+
+ul {
+  margin: 0 0 0.9rem;
+  padding-left: 1.25rem;
+}
+
+li + li {
+  margin-top: 0.35rem;
+}
+
+.footer {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e7e5e4;
+  color: #78716c;
+  font-size: 0.9rem;
+}
+
+.footer a {
+  color: #1c1917;
+}

@@ -13,7 +13,6 @@ import {
   useSubmit,
 } from "react-router";
 import {
-  Banner,
   BlockStack,
   Button,
   Card,
@@ -106,29 +105,17 @@ const RADIUS_OPTIONS = [
 const SETTINGS_TABS = [
   { id: "general", content: "General", panelID: "settings-general" },
   { id: "panel", content: "Filter panel", panelID: "settings-panel" },
-  { id: "product", content: "Product card", panelID: "settings-product" },
   { id: "metafields", content: "Metafields", panelID: "settings-metafields" },
-  { id: "theme", content: "Theme", panelID: "settings-theme" },
 ] as const;
 
 type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
-const HIDDEN_SETTINGS_TABS = new Set<SettingsTabId>(["product", "theme"]);
-
-function visibleSettingsTabs(selectedTab: SettingsTabId) {
-  return SETTINGS_TABS.filter(
-    (tab) => !HIDDEN_SETTINGS_TABS.has(tab.id) || tab.id === selectedTab,
-  );
-}
-
-function isPlaceholderSettingsTab(tab: SettingsTabId) {
-  return HIDDEN_SETTINGS_TABS.has(tab);
-}
-
 function parseSettingsTab(value: unknown): SettingsTabId {
   const raw = typeof value === "string" ? value : "";
   if (raw === "layout" || raw === "look") return "panel";
-  if (raw === "sort" || raw === "search") return "general";
+  if (raw === "sort" || raw === "search" || raw === "product" || raw === "theme") {
+    return "general";
+  }
   return SETTINGS_TABS.some((tab) => tab.id === raw)
     ? (raw as SettingsTabId)
     : "general";
@@ -489,12 +476,10 @@ export default function SettingsPage() {
   }
 
   const selectedTab = parseSettingsTab(searchParams.get("tab"));
-  const tabs = visibleSettingsTabs(selectedTab);
-  const selectedTabIndex = tabs.findIndex((tab) => tab.id === selectedTab);
+  const selectedTabIndex = SETTINGS_TABS.findIndex((tab) => tab.id === selectedTab);
   const showPreview =
     selectedTab === "general" || selectedTab === "panel";
-  const hidePageSave =
-    selectedTab === "metafields" || isPlaceholderSettingsTab(selectedTab);
+  const hidePageSave = selectedTab === "metafields";
 
   const saving = isMutationBusy(navigation);
 
@@ -611,10 +596,10 @@ export default function SettingsPage() {
     >
       <BlockStack gap="400">
         <Tabs
-          tabs={[...tabs]}
+          tabs={[...SETTINGS_TABS]}
           selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
           onSelect={(index) => {
-            const next = tabs[index];
+            const next = SETTINGS_TABS[index];
             if (!next) return;
             const params = new URLSearchParams(searchParams);
             params.set("tab", next.id);
@@ -1218,27 +1203,6 @@ export default function SettingsPage() {
                   </Card>
                 </BlockStack>
               </div>
-
-              <div
-                id="settings-product"
-                role="tabpanel"
-                style={tabPanelStyle(selectedTab === "product")}
-              >
-                <Card>
-                  <BlockStack gap="300">
-                    <Text as="h2" variant="headingMd">
-                      Product grid
-                    </Text>
-                    <Banner tone="info" title="Under construction">
-                      <p>
-                        Product card and grid settings are not available yet.
-                        Findly currently uses your theme’s product cards on
-                        collection and search pages.
-                      </p>
-                    </Banner>
-                  </BlockStack>
-                </Card>
-              </div>
             </BlockStack>
           </Form>
               <div
@@ -1252,26 +1216,6 @@ export default function SettingsPage() {
                   filterLimit={data.metafields.filterLimit}
                 />
               </div>
-            <div
-              id="settings-theme"
-              role="tabpanel"
-              style={tabPanelStyle(selectedTab === "theme")}
-            >
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Theme
-                  </Text>
-                  <Banner tone="info" title="Under construction">
-                    <p>
-                      Theme setup in Settings is not available yet. For now,
-                      add the Collection filters and Product search app blocks
-                      in Online Store → Themes → Customize.
-                    </p>
-                  </Banner>
-                </BlockStack>
-              </Card>
-            </div>
             </BlockStack>
           </Layout.Section>
           {showPreview ? (

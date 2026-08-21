@@ -31,6 +31,7 @@ import {
   ensureShopAccess,
   isBillingTestMode,
   isDevUnlockLimits,
+  isPaidPlanKey,
   syncActiveSubscriptions,
 } from "../billing.server";
 
@@ -67,10 +68,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
 
-  // Free plan: no AppSubscriptionCreate — only Pro creates a charge.
+  const formData = await request.formData();
+  const requested = String(formData.get("plan") ?? "");
+  if (!isPaidPlanKey(requested)) {
+    return { error: "Choose Standard or Pro to start a Shopify charge." };
+  }
+
+  const plan = PLANS[requested];
+  // Free plan: no AppSubscriptionCreate — Standard and Pro create a charge.
   const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing/callback?shop=${encodeURIComponent(session.shop)}`;
 
-  const result = await createAppSubscription(admin, returnUrl);
+  const result = await createAppSubscription(admin, returnUrl, requested);
   const errors = result?.userErrors ?? [];
   if (errors.length || !result?.confirmationUrl) {
     return {
@@ -86,24 +94,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       create: {
         shopId: shop.id,
         shopifySubscriptionId: result.appSubscription.id,
-        planName: PLANS.pro.name,
+        planName: plan.name,
         status: result.appSubscription.status || "PENDING",
         test: isBillingTestMode(),
-        productLimit: PLANS.pro.productLimit,
-        filterLimit: PLANS.pro.filterLimit,
+        productLimit: plan.productLimit,
+        filterLimit: plan.filterLimit,
       },
       update: {
         shopifySubscriptionId: result.appSubscription.id,
-        planName: PLANS.pro.name,
+        planName: plan.name,
         status: result.appSubscription.status || "PENDING",
         test: isBillingTestMode(),
-        productLimit: PLANS.pro.productLimit,
-        filterLimit: PLANS.pro.filterLimit,
+        productLimit: plan.productLimit,
+        filterLimit: plan.filterLimit,
       },
     });
     await prisma.shop.update({
       where: { id: shop.id },
-      data: { plan: PLANS.pro.key },
+      data: { plan: plan.key },
     });
   }
 
@@ -121,13 +129,15 @@ export default function BillingPage() {
     }
   }, [fetcher.data, shopify]);
 
-  const upgrading =
+  const upgradingPlan =
     ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
-  const isPro = data.currentPlan === "pro";
+    fetcher.formMethod === "POST"
+      ? String(fetcher.formData?.get("plan") ?? "")
+      : "";
   const free = data.plans.free;
+  const standard = data.plans.standard;
   const pro = data.plans.pro;
-  const planLabel = isPro ? "Professional" : "Basic";
+  const currentPlan = data.plans[data.currentPlan];
   const subStatus = data.subscription?.status
     ? data.subscription.status
     : "None (Free)";
@@ -178,8 +188,8 @@ export default function BillingPage() {
                 <p>
                   You are over plan limits ({data.usage.productCount}/
                   {data.usage.productLimit} products, {data.usage.filterCount}/
-                  {data.usage.filterLimit} metafield filters). Upgrade to Pro or
-                  reduce usage.
+                  {data.usage.filterLimit} metafield filters). Upgrade to
+                  Standard or Pro, or reduce usage.
                 </p>
               </Banner>
             )}
@@ -190,17 +200,17 @@ export default function BillingPage() {
                   <Text as="h2" variant="headingMd">
                     Plan details
                   </Text>
-                  <Text as="p">
-                    {planLabel} ({isPro ? pro.name : free.name})
-                  </Text>
-                  {isPro ? (
+                  <Text as="p">{currentPlan.name}</Text>
+                  {data.currentPlan === "free" ? (
                     <Text as="p" tone="subdued">
-                      Status: {subStatus}. {pro.trialDays}-day trial, then $
-                      {pro.amount.toFixed(2)} {pro.currencyCode} every 30 days.
+                      Status: {subStatus}. ${free.amount.toFixed(2)}/month — no
+                      Shopify charge.
                     </Text>
                   ) : (
                     <Text as="p" tone="subdued">
-                      Status: {subStatus}. $0/month — no Shopify charge.
+                      Status: {subStatus}. {currentPlan.trialDays}-day trial,
+                      then ${currentPlan.amount.toFixed(2)}{" "}
+                      {currentPlan.currencyCode} every 30 days.
                     </Text>
                   )}
                 </BlockStack>
@@ -238,14 +248,14 @@ export default function BillingPage() {
               onChange={() => undefined}
             />
 
-            <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+            <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Basic
+                    {free.name}
                   </Text>
                   <Text as="p" variant="headingLg">
-                    $0/month
+                    ${free.amount.toFixed(2)}/month
                   </Text>
                   <Text as="p" tone="subdued">
                     Ideal for individuals &amp; small teams
@@ -260,7 +270,48 @@ export default function BillingPage() {
                     <List.Item>Up to {free.productLimit} products</List.Item>
                   </List>
                   <Button disabled>
-                    {isPro ? "Available on Free" : "Current plan"}
+                    {data.currentPlan === "free"
+                      ? "Current plan"
+                      : "Available on Free"}
+                  </Button>
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Standard
+                  </Text>
+                  <Text as="p" variant="headingLg">
+                    ${standard.amount.toFixed(2)} / 30 days
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    More products and metafield filters
+                  </Text>
+                  <List>
+                    <List.Item>Everything in {free.name}</List.Item>
+                    <List.Item>
+                      Up to {standard.productLimit} products and{" "}
+                      {standard.filterLimit} metafield filters
+                    </List.Item>
+                    <List.Item>
+                      {standard.trialDays}-day trial, then billed every 30 days
+                    </List.Item>
+                  </List>
+                  <Button
+                    loading={upgradingPlan === "standard"}
+                    disabled={Boolean(upgradingPlan)}
+                    onClick={() =>
+                      fetcher.submit({ plan: "standard" }, { method: "POST" })
+                    }
+                  >
+                    {upgradingPlan === "standard"
+                      ? "Redirecting to Shopify…"
+                      : data.currentPlan === "standard"
+                        ? "Manage / resubscribe"
+                        : data.currentPlan === "pro"
+                          ? "Switch to Standard"
+                          : "Upgrade to Standard"}
                   </Button>
                 </BlockStack>
               </Card>
@@ -269,7 +320,7 @@ export default function BillingPage() {
                 <BlockStack gap="300">
                   <InlineStack gap="200" blockAlign="center">
                     <Text as="h2" variant="headingMd">
-                      Professional
+                      Pro
                     </Text>
                     <Badge tone="success">Recommended</Badge>
                   </InlineStack>
@@ -280,7 +331,7 @@ export default function BillingPage() {
                     Best value for larger catalogs
                   </Text>
                   <List>
-                    <List.Item>Everything in Basic</List.Item>
+                    <List.Item>Everything in Standard</List.Item>
                     <List.Item>
                       Up to {pro.productLimit} products and {pro.filterLimit}{" "}
                       metafield filters
@@ -291,13 +342,15 @@ export default function BillingPage() {
                   </List>
                   <Button
                     variant="primary"
-                    loading={upgrading}
-                    disabled={upgrading}
-                    onClick={() => fetcher.submit({}, { method: "POST" })}
+                    loading={upgradingPlan === "pro"}
+                    disabled={Boolean(upgradingPlan)}
+                    onClick={() =>
+                      fetcher.submit({ plan: "pro" }, { method: "POST" })
+                    }
                   >
-                    {upgrading
+                    {upgradingPlan === "pro"
                       ? "Redirecting to Shopify…"
-                      : isPro
+                      : data.currentPlan === "pro"
                         ? "Manage / resubscribe"
                         : "Upgrade to Pro"}
                   </Button>
@@ -307,8 +360,8 @@ export default function BillingPage() {
 
             <Banner tone="info">
               <p>
-                Compare plans in the two cards above. Professional includes a{" "}
-                {pro.trialDays}-day trial. There is no 30-day money-back
+                Compare plans in the three cards above. Standard and Pro include
+                a {standard.trialDays}-day trial. There is no 30-day money-back
                 guarantee in Findly billing.
               </p>
             </Banner>

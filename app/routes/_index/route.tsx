@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect, Form, useLoaderData, useNavigation } from "react-router";
+import { redirect, Form, Link, useLoaderData, useNavigation } from "react-router";
 
 import { login } from "../../shopify.server";
 
@@ -66,6 +66,11 @@ export default function App() {
             with basic styling.
           </li>
         </ul>
+        <p className={styles.footer}>
+          <Link to="/privacy">Privacy policy</Link>
+          {" · "}
+          <Link to="/terms">Terms of service</Link>
+        </p>
       </div>
     </div>
   );

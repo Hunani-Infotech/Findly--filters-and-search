@@ -44,6 +44,7 @@ function assertThemeSeoAndUi() {
     "extensions/smart-filter/assets/smart-filter-search.css",
   );
   const toml = read("shopify.app.toml");
+  const shopifyServer = read("app/shopify.server.ts");
   const billing = read("app/billing.server.ts");
   const uninstall = read("app/routes/webhooks.app.uninstalled.tsx");
   const dataRequest = read("app/routes/webhooks.customers.data_request.tsx");
@@ -93,8 +94,27 @@ function assertThemeSeoAndUi() {
       fail(`shopify.app.toml missing webhook topic ${topic}`);
     }
   }
-  if (!uninstall.includes("shop.cleanup") || !uninstall.includes("enqueueSyncJob")) {
-    fail("app/uninstalled handler must enqueue shop.cleanup (not a stub)");
+  if (!toml.includes('api_version = "2026-07"')) {
+    fail("shopify.app.toml webhook api_version must be 2026-07");
+  }
+  if (!shopifyServer.includes("ApiVersion.July26")) {
+    fail("shopify.server.ts must use ApiVersion.July26 (2026-07)");
+  }
+  if (/apiVersion:\s*ApiVersion\.October25/.test(shopifyServer)) {
+    fail("shopify.server.ts still targets ApiVersion.October25");
+  }
+  if (!uninstall.includes("ensureShopPurged")) {
+    fail("app/uninstalled handler must ensureShopPurged (queue + inline fallback)");
+  }
+  if (!shopRedact.includes("ensureShopPurged")) {
+    fail("shop/redact must ensureShopPurged (not enqueue-only)");
+  }
+  if (
+    !compliance.includes("ensureShopPurged") ||
+    !compliance.includes("running inline purge") ||
+    !compliance.includes("inline purge FAILED")
+  ) {
+    fail("compliance.server.ts must queue cleanup, inline-purge on Redis failure, and rethrow if purge fails");
   }
   if (!dataRequest.includes("logComplianceEvent")) {
     fail("customers/data_request must log compliance (not a stub)");
@@ -102,8 +122,11 @@ function assertThemeSeoAndUi() {
   if (!customerRedact.includes("logComplianceEvent")) {
     fail("customers/redact must log compliance (not a stub)");
   }
-  if (!shopRedact.includes("shop.cleanup")) {
-    fail("shop/redact must enqueue cleanup (not a stub)");
+  if (!customerRedact.includes("scrubCustomerData")) {
+    fail("customers/redact must scrub stored customer data, not only log");
+  }
+  if (!compliance.includes("scrubCustomerData")) {
+    fail("compliance.server.ts missing scrubCustomerData");
   }
   if (!compliance.includes("purgeShopData")) {
     fail("compliance.server.ts missing purgeShopData");
@@ -318,9 +341,45 @@ try {
   const { getCollectionFilterPayload, getSearchFilterPayload, getSearchPayload } =
     await import("../app/proxy.server.ts");
   const { PLANS } = await import("../app/billing.server.ts");
-  const { purgeShopData, logComplianceEvent } = await import(
-    "../app/compliance.server.ts"
+  const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
+    await import("../app/compliance.server.ts");
+  const { webhookGraphqlId } = await import("../app/webhooks.server.ts");
+
+  const productGid = webhookGraphqlId(
+    {
+      id: 788032119674574782,
+      admin_graphql_api_id: "gid://shopify/Product/788032119674574782",
+    },
+    "Product",
   );
+  if (productGid !== "gid://shopify/Product/788032119674574782") {
+    fail(`2026-07 product webhook GID parse failed: ${productGid}`);
+  }
+  const productGidFromId = webhookGraphqlId({ id: 42 }, "Product");
+  if (productGidFromId !== "gid://shopify/Product/42") {
+    fail(`id-only product webhook GID parse failed: ${productGidFromId}`);
+  }
+  const collectionGid = webhookGraphqlId(
+    { id: 841564295, admin_graphql_api_id: "gid://shopify/Collection/841564295" },
+    "Collection",
+  );
+  if (collectionGid !== "gid://shopify/Collection/841564295") {
+    fail(`2026-07 collection webhook GID parse failed: ${collectionGid}`);
+  }
+  const tokens = customerRedactTokens({
+    shop_id: 954889,
+    shop_domain: "snowdevil.myshopify.com",
+    customer: {
+      id: 191167,
+      email: "john@example.com",
+      phone: "555-625-1199",
+    },
+    orders_to_redact: [299938, 280263, 220458],
+  });
+  if (!tokens.includes("john@example.com") || !tokens.includes("5556251199")) {
+    fail(`2026-07 customers/redact payload tokens missing: ${tokens.join(",")}`);
+  }
+  log.info("2026-07 webhook payload parse (product/collection/GDPR) ok");
 
   if (PLANS.free.productLimit !== 200 || PLANS.free.filterLimit !== 5) {
     fail("Free plan caps drifted");
@@ -508,9 +567,73 @@ try {
   }
 
   const logged = await logComplianceEvent(SHOP_A, "customers/data_request", {
-    customer: { id: 1 },
+    requestId: "verify-b5-data-request",
+    status: "acknowledged",
   });
   if (!logged?.id) fail("logComplianceEvent must persist a row");
+  if (!logged.requestId || logged.requestId !== "verify-b5-data-request") {
+    fail("compliance row must store requestId, not a customer payload");
+  }
+  if ("payload" in logged) {
+    fail("ComplianceRequest must not include a payload field");
+  }
+  const stored = JSON.stringify(logged);
+  if (
+    stored.includes('"payload"') ||
+    stored.includes('"email"') ||
+    stored.includes('"phone"')
+  ) {
+    fail("compliance row must not contain customer payload fields");
+  }
+  const allowed = ["id", "shopDomain", "requestId", "topic", "status", "createdAt"];
+  const extra = Object.keys(logged).filter((key) => !allowed.includes(key));
+  if (extra.length) {
+    fail(`compliance row has unexpected fields: ${extra.join(",")}`);
+  }
+
+  await prisma.analyticsEvent.createMany({
+    data: [
+      {
+        shopId: shopA.id,
+        kind: "search",
+        query: "john@example.com",
+        combo: "",
+        handle: "",
+        visitor: "keep-anonymous",
+        device: "desktop",
+        resultCount: 0,
+      },
+      {
+        shopId: shopA.id,
+        kind: "search",
+        query: "blue tee",
+        combo: "",
+        handle: "",
+        visitor: "keep-anonymous",
+        device: "desktop",
+        resultCount: 1,
+      },
+    ],
+  });
+  const scrubbed = await scrubCustomerData(SHOP_A, {
+    customer: {
+      id: 191167,
+      email: "john@example.com",
+      phone: "555-625-1199",
+    },
+  });
+  if (scrubbed.analyticsDeleted < 1) {
+    fail("customers/redact must delete analytics that contain the customer email");
+  }
+  const emailLeft = await prisma.analyticsEvent.count({
+    where: { shopId: shopA.id, query: "john@example.com" },
+  });
+  if (emailLeft !== 0) fail("customer email query must be gone after redact");
+  const kept = await prisma.analyticsEvent.count({
+    where: { shopId: shopA.id, query: "blue tee" },
+  });
+  if (kept !== 1) fail("unrelated analytics must survive customers/redact");
+  log.info("customers/redact scrubbed matching analytics only");
 
   const purged = await purgeShopData(SHOP_A);
   if (!purged.deleted) fail("purgeShopData should delete shop A");

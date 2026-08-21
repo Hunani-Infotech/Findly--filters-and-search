@@ -10,7 +10,7 @@
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
 
-const API_VERSION = "2025-10";
+const API_VERSION = "2026-07";
 const TITLE_PREFIX = "[Findly Seed]";
 const SEED_TAG = "findly-seed";
 const SLEEP_MS = 400;
@@ -37,14 +37,15 @@ function isAccessDenied(payload) {
 }
 
 function printScopeHelp() {
-  log.error(`ACCESS DENIED / missing write_products scope.
-Your offline session may predate the current scopes in shopify.app.toml.
+  log.error(`ACCESS DENIED — this script writes products via productSet.
+Findly does not request write_products (app runtime is catalog read + webhooks).
+npm run seed:catalog cannot use the app's OAuth token.
 
 Fix:
-  1. Ensure scopes include write_products (and read_products).
-  2. Restart \`npm run dev\` and reinstall / update the app on the dev store
-     so Shopify grants the new scopes.
-  3. Re-run: npm run seed:catalog`);
+  1. On the development store, create a custom app with write_products
+     (productSet is not part of Findly's App Store scopes).
+  2. Do not add write_products back to shopify.app.toml.
+  3. Seed with that custom-app Admin API token, not the Findly session.`);
 }
 
 async function adminGraphql(shop, accessToken, query, variables = {}) {

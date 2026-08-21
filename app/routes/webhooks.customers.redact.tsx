@@ -1,14 +1,25 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { logComplianceEvent } from "../compliance.server";
+import {
+  logComplianceEvent,
+  scrubCustomerData,
+  shopifyWebhookRequestId,
+} from "../compliance.server";
 import { log } from "../log.server";
 
-/** GDPR: app does not store customer PII — log request only. */
+/** GDPR customers/redact: scrub any stored identifiers, then audit (no payload). */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
 
   log.info(`Received ${topic} webhook for ${shop}`);
-  await logComplianceEvent(shop, topic, payload);
+  const scrubbed = await scrubCustomerData(shop, payload);
+  await logComplianceEvent(shop, topic, {
+    requestId: shopifyWebhookRequestId(request),
+    status: "redacted",
+  });
+  log.info(
+    `[compliance] customers/redact done for ${shop} analyticsDeleted=${scrubbed.analyticsDeleted}`,
+  );
 
   return new Response(null, { status: 200 });
 };

@@ -2,6 +2,19 @@ import { log } from "./log.server";
 import { enqueueSyncJob } from "./queues.server";
 
 /** Fast-ack webhook handling — enqueue BullMQ jobs only. */
+export function webhookGraphqlId(
+  payload: Record<string, unknown>,
+  resource: "Product" | "Collection",
+): string {
+  const gid = payload.admin_graphql_api_id;
+  if (typeof gid === "string" && gid.startsWith("gid://")) return gid;
+  const id = payload.id;
+  if (id == null || id === "") {
+    throw new Error(`Webhook ${resource} payload missing id and admin_graphql_api_id`);
+  }
+  return `gid://shopify/${resource}/${id}`;
+}
+
 export async function handleWebhookTopic(
   shop: string,
   topic: string,
@@ -12,9 +25,7 @@ export async function handleWebhookTopic(
   switch (normalized) {
     case "PRODUCTS_CREATE":
     case "PRODUCTS_UPDATE": {
-      const productGid =
-        (payload.admin_graphql_api_id as string) ||
-        `gid://shopify/Product/${payload.id}`;
+      const productGid = webhookGraphqlId(payload, "Product");
       await enqueueSyncJob(
         "product.upsert",
         { shop, productGid },
@@ -23,9 +34,7 @@ export async function handleWebhookTopic(
       break;
     }
     case "PRODUCTS_DELETE": {
-      const productGid =
-        (payload.admin_graphql_api_id as string) ||
-        `gid://shopify/Product/${payload.id}`;
+      const productGid = webhookGraphqlId(payload, "Product");
       await enqueueSyncJob(
         "product.delete",
         { shop, productGid },
@@ -36,9 +45,7 @@ export async function handleWebhookTopic(
     case "COLLECTIONS_CREATE":
     case "COLLECTIONS_UPDATE":
     case "COLLECTIONS_DELETE": {
-      const collectionGid =
-        (payload.admin_graphql_api_id as string) ||
-        `gid://shopify/Collection/${payload.id}`;
+      const collectionGid = webhookGraphqlId(payload, "Collection");
       await enqueueSyncJob(
         "collection.rebuild",
         { shop, collectionGid },

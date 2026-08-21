@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { enqueueSyncJob } from "../queues.server";
+import { ensureShopPurged } from "../compliance.server";
 import { log } from "../log.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -8,12 +8,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  // Background purge — ack fast for Shopify retries
-  await enqueueSyncJob(
-    "shop.cleanup",
-    { shop },
-    { jobId: `${shop}:shop.cleanup` },
-  );
+  // Queue when Redis is up; purge inline if enqueue fails. Throws → 5xx retry.
+  await ensureShopPurged(shop, "app/uninstalled");
 
   return new Response(null, { status: 200 });
 };

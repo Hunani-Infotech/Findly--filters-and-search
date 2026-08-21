@@ -116,7 +116,15 @@ export async function saveAdminNavExtras(
   shopId: string,
   extras: AdminNavExtras,
 ): Promise<AdminNavExtras> {
-  const payload = extras as Prisma.InputJsonValue;
+  const current = await prisma.appSettings.findUnique({
+    where: { shopId },
+    select: { adminExtras: true },
+  });
+  const existingSetup = asRecord(asRecord(current?.adminExtras).setup);
+  const payload = {
+    ...extras,
+    ...(Object.keys(existingSetup).length > 0 ? { setup: existingSetup } : {}),
+  } as Prisma.InputJsonValue;
   const row = await prisma.appSettings.upsert({
     where: { shopId },
     create: { shopId, adminExtras: payload },

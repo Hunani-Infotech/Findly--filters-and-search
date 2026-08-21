@@ -54,7 +54,7 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host, "localhost", "127.0.0.1"],
+    allowedHosts: [host, "localhost", "127.0.0.1", "findly.hunaniinfotech.com"],
     cors: {
       preflightContinue: true,
     },

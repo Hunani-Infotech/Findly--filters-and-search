@@ -425,11 +425,15 @@ model AnalyticsEvent {
 }
 
 /// GDPR / compliance webhook audit log (shop-scoped by domain; survives purge).
+/// Never store the raw webhook body — customer email/phone/id live only at Shopify.
 model ComplianceRequest {
   id         String   @id @default(cuid())
   shopDomain String
+  /// Shopify X-Shopify-Webhook-Id (or a generated id if the header is missing)
+  requestId  String   @unique
+  /// Webhook topic (customers/data_request, customers/redact, shop/redact). Not PII.
   topic      String
-  payload    Json
+  status     String
   createdAt  DateTime @default(now())
 
   @@index([shopDomain])

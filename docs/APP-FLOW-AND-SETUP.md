@@ -170,7 +170,7 @@ Copy `.env.example` → `.env` (never commit secrets):
 | `SHOPIFY_API_KEY` | Yes | Partner app client ID |
 | `SHOPIFY_API_SECRET` | Yes | Partner app secret |
 | `SCOPES` | Yes | Default `read_products` |
-| `SHOPIFY_APP_URL` | Yes | Tunnel/prod URL |
+| `SHOPIFY_APP_URL` | Yes | Local: CLI tunnel. Production: `https://findly.hunaniinfotech.com` |
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `REDIS_URL` | Yes | Redis for BullMQ |
 | `BILLING_TEST_MODE` | Recommended | `true` in development |
@@ -222,7 +222,7 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 2. `fly secrets set` for secrets; set non-secrets in `fly.toml`.
 3. Deploy image with processes: `web` + `worker`.
 4. `shopify app deploy` for app config + Theme App Extension.
-5. Point App Proxy / app URL at the Fly hostname.
+5. Point App URL, OAuth redirect, and App Proxy at `https://findly.hunaniinfotech.com` (CNAME to the Fly app + `fly certs add`).
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.
 
 ---

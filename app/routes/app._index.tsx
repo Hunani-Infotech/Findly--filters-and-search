@@ -63,6 +63,13 @@ import {
   syncMappedMetafieldKeysOnTrees,
 } from "../filter-trees.server";
 import { mappedFacetsForAdmin } from "../filters.server";
+import {
+  getSetupProgress,
+  isThemeStepId,
+  setThemeStepComplete,
+} from "../setup-progress.server";
+import { SetupGuide } from "../components/setup-guide";
+import { ThemeSetupCard } from "../components/theme-setup-card";
 
 const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
@@ -195,6 +202,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   const trees = await listFilterTrees(shop.id);
+  const setup = await getSetupProgress(shop.id, session.shop);
   const assignedGids = [
     ...new Set(
       trees.flatMap((tree) =>
@@ -213,6 +221,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   return {
+    setup,
     trees: trees.map((tree) => ({
       id: tree.id,
       name: tree.name,
@@ -271,6 +280,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, intent: "delete" as const, deleted: result.deleted };
   }
 
+  if (intent === "setup-theme") {
+    const step = String(form.get("step") || "");
+    if (!isThemeStepId(step)) {
+      return { ok: false, intent: "setup-theme" as const };
+    }
+    const done = String(form.get("done") || "true") !== "false";
+    await setThemeStepComplete(shop.id, step, done);
+    return { ok: true, intent: "setup-theme" as const, step, done };
+  }
+
   return { ok: false };
 };
 
@@ -284,7 +303,7 @@ export default function Index() {
   const bulkFetcher = useFetcher<typeof action>();
   const reorderFetcher = useFetcher<typeof action>();
   const { ask, dialog } = useConfirmDelete();
-  const { trees } = data;
+  const { trees, setup } = data;
   const creating = isMutationBusy(navigation);
   const exporting = exportFetcher.state !== "idle";
   const bulkBusy = bulkFetcher.state !== "idle";
@@ -464,6 +483,11 @@ export default function Index() {
   return (
     <Page
       title="Filters"
+      subtitle={
+        setup.allComplete
+          ? undefined
+          : "Add the theme app blocks so filters and search show on your storefront."
+      }
       primaryAction={{
         content: creating ? "Creating…" : "+ Add Filter",
         loading: creating,
@@ -488,6 +512,8 @@ export default function Index() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
+            <SetupGuide progress={setup} />
+            <ThemeSetupCard progress={setup} />
             <Card padding="0">
               <div className="findly-filters-list__search">
                 <TextField

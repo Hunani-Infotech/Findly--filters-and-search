@@ -12,6 +12,10 @@ declare namespace NodeJS {
     DATABASE_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
+    CONTACT_WEBHOOK_URL?: string;
+    CONTACT_SUPPORT_TO?: string;
+    CONTACT_FROM_EMAIL?: string;
+    RESEND_API_KEY?: string;
     DEV_UNLOCK_LIMITS?: string;
     PROXY_SIGNATURE_BYPASS?: string;
     PORT?: string;

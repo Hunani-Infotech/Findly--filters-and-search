@@ -59,3 +59,24 @@ export async function enqueueSyncJob(
     backoff: { type: "exponential", delay: 2000 },
   });
 }
+
+const DEFAULT_ENQUEUE_TIMEOUT_MS = 2000;
+
+/** Reject if Redis/BullMQ hangs (ioredis retries forever when Redis is down). */
+export async function enqueueSyncJobWithTimeout(
+  name: SyncJobName,
+  data: Record<string, unknown>,
+  opts?: { jobId?: string; delay?: number; timeoutMs?: number },
+) {
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_ENQUEUE_TIMEOUT_MS;
+  return await Promise.race([
+    enqueueSyncJob(name, data, opts),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(`enqueue ${name} timed out after ${timeoutMs}ms`),
+        );
+      }, timeoutMs);
+    }),
+  ]);
+}

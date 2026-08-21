@@ -1,5 +1,5 @@
 import prisma from "./db.server";
-import { getShopPlan, isDevUnlockLimits } from "./billing.server";
+import { getShopPlan, isDevUnlockLimits, isPaidPlanKey } from "./billing.server";
 
 export const ANALYTICS_KINDS = ["search", "filter", "click", "visit"] as const;
 export type AnalyticsKind = (typeof ANALYTICS_KINDS)[number];
@@ -26,7 +26,7 @@ function isKind(value: string): value is AnalyticsKind {
 
 export function retentionDaysForPlan(plan: string): number {
   if (isDevUnlockLimits()) return 180;
-  return plan === "pro" ? 180 : 90;
+  return isPaidPlanKey(plan) ? 180 : 90;
 }
 
 export function rangeStart(range: AnalyticsRange, now = new Date()): Date {
