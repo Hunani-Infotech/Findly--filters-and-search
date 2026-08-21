@@ -6,13 +6,15 @@ import {
   useSyncExternalStore,
   type DragEvent,
 } from "react";
-import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
 import {
   redirect,
   useFetcher,
   useLoaderData,
   useNavigation,
   useSubmit,
+  type ActionFunctionArgs,
+  type HeadersFunction,
+  type LoaderFunctionArgs,
 } from "react-router";
 import {
   Badge,
@@ -40,7 +42,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { ensureShop } from "../shop.server";
+import { ensureShop, getMetafieldMappings } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
 import {
@@ -59,7 +61,6 @@ import {
   syncMappedMetafieldKeysOnTrees,
 } from "../filter-trees.server";
 import { mappedFacetsForAdmin } from "../filters.server";
-import { getMetafieldMappings } from "../shop.server";
 
 const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
