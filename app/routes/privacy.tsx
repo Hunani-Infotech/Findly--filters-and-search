@@ -190,8 +190,8 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Email</strong> — if the merchant submits Contact, the
-            message is sent to Findly’s Gmail inbox over SMTP. Reply-To is the
-            merchant’s email so we can answer from Gmail.
+            message is sent to Findly’s support inbox over SMTP. Reply-To is
+            the merchant’s email so we can answer from that inbox.
           </li>
         </ul>
         <p>
@@ -286,7 +286,7 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Support email:</strong> if a merchant contacts us, copies
-            may remain in our Gmail inbox.
+            may remain in our support inbox.
           </li>
         </ul>
 

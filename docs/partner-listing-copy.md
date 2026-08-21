@@ -17,7 +17,7 @@ Enabled in `NavMenu` right now:
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
 | Analytics | `/app/analytics` | **Yes, one feature line only** | Real dashboard (not Under construction) **and** visible in nav |
 | Pricing plans | `/app/billing` | Yes (pricing fields) | Free / Standard / Pro in `billing.server.ts` |
-| Contact | `/app/contact` | No | In-app form emails Gmail. Listing still needs a real support inbox (AS-L8). |
+| Contact | `/app/contact` | No | In-app form emails the listing support address (AS-L8). |
 | Sync | `/app/sync` | Yes (how it works) | Catalog sync status |
 
 **Not in NavMenu** (routes exist as Under construction — do **not** advertise):
@@ -146,7 +146,7 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 | AI / semantic search / typo-tolerance engine | Not shipped | Removed. Search is keyword + instant suggestions + pins / synonyms / redirects. |
 | Unlimited products or filters | Caps in `PLANS` | Removed. Use the table above. |
 | Yearly billing | Disabled on `/app/billing` | Removed (AS-B9). |
-| In-app live support / ticket send | Contact emails Gmail (AS-H4) | Do not claim live chat. Put the same Gmail in the listing contact field (AS-L8). |
+| In-app live support / ticket send | Contact emails SUPPORT_EMAIL (AS-H4) | Do not claim live chat. Use the same address in the listing contact field (AS-L8). |
 
 ## Still human after paste
 

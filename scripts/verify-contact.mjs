@@ -1,5 +1,5 @@
 /**
- * Contact form must email Gmail (SMTP), not only save a draft.
+ * Contact form must SMTP to SUPPORT_EMAIL, not only save a draft.
  * Usage: npm run verify:contact
  */
 import "tsx/esm";
@@ -16,10 +16,12 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = `findly-contact-e2e-${Date.now()}`;
 const CONTACT_ENV = [
-  "GMAIL_USER",
-  "GMAIL_APP_PASSWORD",
-  "CONTACT_SMTP_HOST",
-  "CONTACT_SMTP_PORT",
+  "SUPPORT_EMAIL",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USER",
+  "SMTP_PASSWORD",
+  "SMTP_FROM",
 ];
 
 function fail(message) {
@@ -145,18 +147,19 @@ async function assertUnconfiguredFails(msg) {
   }
 }
 
-async function assertLocalGmailSmtp(msg) {
+async function assertLocalSmtp(msg) {
   const snap = snapshotEnv();
   const inbox = await listenLocalSmtp();
-  process.env.GMAIL_USER = "findly.support@gmail.com";
-  process.env.GMAIL_APP_PASSWORD = "test-app-password";
-  process.env.CONTACT_SMTP_HOST = "127.0.0.1";
-  process.env.CONTACT_SMTP_PORT = String(inbox.port);
+  process.env.SUPPORT_EMAIL = "support@hunaniinfotech.com";
+  process.env.SMTP_HOST = "127.0.0.1";
+  process.env.SMTP_PORT = String(inbox.port);
+  process.env.SMTP_USER = "findly@hunaniinfotech.com";
+  process.env.SMTP_PASSWORD = "test-smtp-password";
   try {
     const result = await deliverContactMessage(msg);
-    if (!result.ok) fail(`Local Gmail SMTP delivery failed: ${result.error}`);
-    if (!result.channels.includes("gmail")) {
-      fail("Expected gmail channel on local delivery");
+    if (!result.ok) fail(`Local SMTP delivery failed: ${result.error}`);
+    if (!result.channels.includes("smtp")) {
+      fail("Expected smtp channel on local delivery");
     }
     if (inbox.received.length !== 1) {
       fail(`Expected 1 SMTP message, got ${inbox.received.length}`);
@@ -169,10 +172,13 @@ async function assertLocalGmailSmtp(msg) {
     if (!raw.includes(msg.email) || !raw.includes(msg.shopDomain)) {
       fail("SMTP message missing reply email or shop");
     }
+    if (!raw.includes("support@hunaniinfotech.com")) {
+      fail("SMTP message was not addressed to SUPPORT_EMAIL");
+    }
     if (!text.includes(msg.collaboratorCode)) {
       fail("Plain-text body missing collaborator code");
     }
-    log.info("Local SMTP captured the contact email for Gmail");
+    log.info("Local SMTP captured the contact email for SUPPORT_EMAIL");
   } finally {
     await inbox.close();
     restoreEnv(snap);
@@ -183,8 +189,8 @@ async function main() {
   const msg = sampleMessage();
   assertRouteWiresDelivery();
   await assertUnconfiguredFails(msg);
-  await assertLocalGmailSmtp(msg);
-  log.success("CONTACT_OK gmail SMTP");
+  await assertLocalSmtp(msg);
+  log.success("CONTACT_OK smtp SUPPORT_EMAIL");
 }
 
 main().catch((error) => {

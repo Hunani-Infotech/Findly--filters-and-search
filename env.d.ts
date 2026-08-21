@@ -12,10 +12,12 @@ declare namespace NodeJS {
     DATABASE_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
-    GMAIL_USER?: string;
-    GMAIL_APP_PASSWORD?: string;
-    CONTACT_SMTP_HOST?: string;
-    CONTACT_SMTP_PORT?: string;
+    SUPPORT_EMAIL?: string;
+    SMTP_HOST?: string;
+    SMTP_PORT?: string;
+    SMTP_USER?: string;
+    SMTP_PASSWORD?: string;
+    SMTP_FROM?: string;
     DEV_UNLOCK_LIMITS?: string;
     PROXY_SIGNATURE_BYPASS?: string;
     PORT?: string;

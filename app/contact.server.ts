@@ -19,15 +19,19 @@ function trimEnv(name: string) {
   return (process.env[name] ?? "").trim();
 }
 
-function gmailCredentials() {
-  const user = trimEnv("GMAIL_USER");
-  const pass = trimEnv("GMAIL_APP_PASSWORD").replace(/\s+/g, "");
-  if (!user || !pass) return null;
-  return { user, pass };
+function smtpConfig() {
+  const to = trimEnv("SUPPORT_EMAIL");
+  const host = trimEnv("SMTP_HOST");
+  const user = trimEnv("SMTP_USER");
+  const pass = trimEnv("SMTP_PASSWORD").replace(/\s+/g, "");
+  if (!to || !host || !user || !pass) return null;
+  const port = Number(trimEnv("SMTP_PORT") || "587");
+  const from = trimEnv("SMTP_FROM") || user;
+  return { to, host, user, pass, port, from };
 }
 
 export function contactDeliveryConfigured() {
-  return Boolean(gmailCredentials());
+  return Boolean(smtpConfig());
 }
 
 export function formatContactPlainText(msg: ContactMessage) {
@@ -47,17 +51,13 @@ function isLocalSmtpHost(host: string) {
   return host === "127.0.0.1" || host === "localhost";
 }
 
-function createGmailTransport(auth: { user: string; pass: string }) {
-  const host = trimEnv("CONTACT_SMTP_HOST") || "smtp.gmail.com";
-  const local = isLocalSmtpHost(host);
-  const port = Number(
-    trimEnv("CONTACT_SMTP_PORT") || (local ? "2525" : "465"),
-  );
+function createSmtpTransport(cfg: NonNullable<ReturnType<typeof smtpConfig>>) {
+  const local = isLocalSmtpHost(cfg.host);
   return nodemailer.createTransport({
-    host,
-    port,
-    secure: !local && port === 465,
-    auth,
+    host: cfg.host,
+    port: cfg.port,
+    secure: !local && cfg.port === 465,
+    auth: { user: cfg.user, pass: cfg.pass },
     ignoreTLS: local,
     tls: local ? { rejectUnauthorized: false } : undefined,
     connectionTimeout: DELIVER_TIMEOUT_MS,
@@ -66,15 +66,15 @@ function createGmailTransport(auth: { user: string; pass: string }) {
   });
 }
 
-async function deliverGmail(msg: ContactMessage, text: string) {
-  const auth = gmailCredentials();
-  if (!auth) return null;
+async function deliverSmtp(msg: ContactMessage, text: string) {
+  const cfg = smtpConfig();
+  if (!cfg) return null;
 
-  const transport = createGmailTransport(auth);
+  const transport = createSmtpTransport(cfg);
   try {
     await transport.sendMail({
-      from: `Findly Support <${auth.user}>`,
-      to: auth.user,
+      from: `Findly Support <${cfg.from}>`,
+      to: cfg.to,
       replyTo: msg.email,
       subject: msg.subject,
       text,
@@ -82,7 +82,7 @@ async function deliverGmail(msg: ContactMessage, text: string) {
   } finally {
     transport.close();
   }
-  return "gmail";
+  return "smtp";
 }
 
 export async function deliverContactMessage(
@@ -96,7 +96,9 @@ export async function deliverContactMessage(
     return { ok: false, error: "Message is too long" };
   }
   if (!contactDeliveryConfigured()) {
-    console.error("Contact form has no GMAIL_USER / GMAIL_APP_PASSWORD");
+    console.error(
+      "Contact form has no SUPPORT_EMAIL / SMTP_HOST / SMTP_USER / SMTP_PASSWORD",
+    );
     return {
       ok: false,
       error: "Could not send your message. Findly support is not configured yet.",
@@ -113,14 +115,14 @@ export async function deliverContactMessage(
   const text = formatContactPlainText(payload);
 
   try {
-    const channel = await deliverGmail(payload, text);
+    const channel = await deliverSmtp(payload, text);
     if (!channel) {
       return {
         ok: false,
         error: "Could not send your message. Findly support is not configured yet.",
       };
     }
-    console.info(`Contact message delivered for ${payload.shopDomain} via gmail`);
+    console.info(`Contact message delivered for ${payload.shopDomain} via smtp`);
     return { ok: true, channels: [channel] };
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Delivery failed";

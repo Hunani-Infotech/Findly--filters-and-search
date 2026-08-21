@@ -323,7 +323,7 @@
     <div class="h2">Suggested order</div>
     <ol>
       <li>DNS CNAME <code>findly</code> → Fly, <code>fly certs add</code>, then <code>fly deploy</code> + <code>shopify app deploy</code>.</li>
-      <li>Set Fly secrets: <code>BILLING_TEST_MODE=false</code>, <code>GMAIL_USER</code>, <code>GMAIL_APP_PASSWORD</code>.</li>
+      <li>Set Fly secrets: <code>BILLING_TEST_MODE=false</code>, <code>SUPPORT_EMAIL</code>, <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code>.</li>
       <li>Live theme QA (collection filters + search + instant search) and live billing Free → Standard → Pro.</li>
       <li>Partner listing: icon, screenshots, paste <code>docs/partner-listing-copy.md</code>, privacy/terms URLs.</li>
       <li>Automated checks, then submit.</li>
@@ -419,7 +419,7 @@
       ["AS-H1", "product", "blocker", "Hide or finish Recommendations + Vehicle Finder nav", "Repo-complete: NavMenu no longer links them. Direct URLs still show Under construction — do not advertise those blocks.", "app/routes/app.tsx"],
       ["AS-H2", "product", "blocker", "Do not ship Settings Theme / Product as under construction", "Repo-complete: Settings tabs are General, Filter panel, Metafields only. Old theme/product query params redirect to General.", "app/routes/app.settings.tsx"],
       ["AS-H3", "product", "blocker", "Wire SetupGuide / ThemeSetupCard into Home", "Repo-complete: both render on /app from setup progress.", "app._index.tsx"],
-      ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: SMTP to GMAIL_USER. Set Fly secrets GMAIL_USER and GMAIL_APP_PASSWORD. Fails closed if missing.", "app/contact.server.ts"],
+      ["AS-H4", "product", "blocker", "Make Contact email the listing support inbox", "Repo-complete: SMTP to SUPPORT_EMAIL. Set Fly secrets SUPPORT_EMAIL, SMTP_HOST, SMTP_USER, SMTP_PASSWORD. Fails closed if missing.", "app/contact.server.ts"],
       ["AS-H5", "product", "blocker", "Drop unused write_products", "Repo-complete: scopes omit write_products. Seed script uses a separate custom-app token.", "shopify.app.toml"],
       ["AS-H6", "product", "medium", "Keep listing copy to shippable MVP", "Repo-complete: docs/partner-listing-copy.md. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing-copy.md"],
       ["AS-H7", "product", "later", "Refresh stale docs (search is implemented)", "Still open: docs/build-order.md and docs/mvp-guide.md still say search is not started.", "docs/build-order.md, docs/mvp-guide.md"],
