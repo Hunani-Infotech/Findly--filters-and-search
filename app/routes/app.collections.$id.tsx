@@ -8,7 +8,6 @@ import {
   Form,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useRouteError,
   useSubmit,
@@ -31,7 +30,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ensureShopAccess } from "../billing.server";
-import { metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
 import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields, hasCollectionAssignment } from "../shop.server";
 import { toCollectionGid } from "../settings.server";
 import { isMutationBusy } from "../components/admin-loading";
@@ -39,6 +38,7 @@ import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
+import { useEmbeddedNavigate } from "../admin-path";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -92,17 +92,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const hasSpecific = await hasCollectionAssignment(shop.id, collectionGid);
 
   const valueCatalog = await getListFacetValueCatalog(shop.id, collectionGid);
-  const mappedFacets = (await getMetafieldMappings(shop.id))
-    .filter((mapping) => mapping.enabled)
-    .map((mapping) => ({
-      key: metafieldFacetKey(
-        mapping.namespace,
-        mapping.key,
-        mapping.ownerType === "VARIANT" ? "VARIANT" : "PRODUCT",
-      ),
-      label: mapping.displayLabel || mapping.key,
-      filterType: mapping.filterType,
-    }));
+  const mappedFacets = mappedFacetsForAdmin(await getMetafieldMappings(shop.id));
   const listMetafields = mappedFacets.filter(
     (mapping) => mapping.filterType === "LIST",
   );
@@ -294,7 +284,7 @@ export default function CollectionFilterConfigPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
   const [config, setConfig] = useState<ConfigState>(data.config);

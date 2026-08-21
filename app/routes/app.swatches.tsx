@@ -14,7 +14,6 @@ import {
   useActionData,
   useFetcher,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useSearchParams,
   useSubmit,
@@ -47,6 +46,7 @@ import {
   type SwatchRow,
 } from "../color-swatches.server";
 import { listShopImages, uploadShopImage } from "../shopify-files.server";
+import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
 const PAGE_SIZE = 10;
 const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
@@ -321,7 +321,7 @@ export default function SwatchesPage() {
   const { optionKey, label, rows, options, shopFiles, filesError } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const submit = useSubmit();
@@ -551,7 +551,10 @@ export default function SwatchesPage() {
               <Banner tone="info" title="No color options yet">
                 <p>
                   Run a{" "}
-                  <Link url="/app/sync" removeUnderline>
+                  <Link
+                    url={withEmbeddedParams("/app/sync", searchParams)}
+                    removeUnderline
+                  >
                     product sync
                   </Link>{" "}
                   so Findly can list variant option names (Color, Finish, and

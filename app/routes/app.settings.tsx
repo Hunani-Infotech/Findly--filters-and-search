@@ -8,7 +8,6 @@ import {
   Form,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useSubmit,
 } from "react-router";
@@ -67,6 +66,14 @@ import {
   type WidgetPosition,
 } from "../app-settings";
 import { getAppSettings, saveAppSettings } from "../settings.server";
+import { useEmbeddedNavigate } from "../admin-path";
+import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
+import {
+  loadSettingsMetafields,
+  parseDeclaredMetafieldRows,
+  saveDeclaredMetafields,
+  syncShopifyMetafieldDefinitions,
+} from "../settings-metafields.server";
 
 const FONT_OPTIONS = [
   { label: "Match the theme (recommended)", value: "theme" },
@@ -236,10 +243,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await ensureShopAccess(session.shop);
   const settings = await getAppSettings(shop.id);
   const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
+  const metafields = await loadSettingsMetafields(shop.id);
 
   return {
     tab,
     shopDomain: session.shop,
+    metafields,
     settings: toSettingsState({
       widgetPosition: settings.widgetPosition,
       accentColor: settings.accentColor,
@@ -273,11 +282,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const form = await request.formData();
+  const intent = String(form.get("intent") || "");
 
-  if (form.get("intent") === "reset") {
+  if (intent === "save-metafields") {
+    const parsed = parseDeclaredMetafieldRows(String(form.get("mappings") || "[]"));
+    if (!parsed.ok) return { error: parsed.error };
+    const result = await saveDeclaredMetafields(shop.id, parsed.rows);
+    if ("error" in result) return { error: result.error };
+    return { ok: true, intent: "save-metafields" as const, rows: result.rows };
+  }
+
+  if (intent === "sync-metafields") {
+    const parsed = parseDeclaredMetafieldRows(String(form.get("mappings") || "[]"));
+    const existing = parsed.ok
+      ? parsed.rows
+      : (await loadSettingsMetafields(shop.id)).rows;
+    try {
+      const result = await syncShopifyMetafieldDefinitions(
+        shop.id,
+        admin,
+        existing,
+      );
+      return {
+        ok: true,
+        intent: "sync-metafields" as const,
+        added: result.added,
+        extras: result.extras,
+      };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not sync metafield definitions from Shopify.",
+      };
+    }
+  }
+
+  if (intent === "reset") {
     await saveAppSettings(shop.id, { ...DEFAULT_APP_SETTINGS });
     return { ok: true, reset: true };
   }
@@ -346,11 +391,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { ok: true };
 };
 
+export function shouldRevalidate({
+  formData,
+  defaultShouldRevalidate,
+}: {
+  formData?: FormData;
+  defaultShouldRevalidate: boolean;
+}) {
+  if (formData?.get("intent") === "sync-metafields") return false;
+  return defaultShouldRevalidate;
+}
+
 export default function SettingsPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
@@ -370,7 +426,7 @@ export default function SettingsPage() {
   const saving = isMutationBusy(navigation);
 
   useEffect(() => {
-    if (actionData && "ok" in actionData && actionData.ok) {
+    if (actionData && "ok" in actionData && actionData.ok && !("intent" in actionData)) {
       shopify.toast.show(
         "reset" in actionData && actionData.reset
           ? "Settings reset to defaults"
@@ -436,28 +492,36 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="General, filter panel, product cards, metafields, and theme setup."
       backAction={{ content: "Filters", onAction: () => navigate("/app") }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "settings-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
-      secondaryActions={[
-        {
-          content: "Default filters",
-          url: "/app/collections/default",
-        },
-        {
-          content: "Reset defaults",
-          disabled: saving,
-          onAction: handleReset,
-        },
-      ]}
+      primaryAction={
+        selectedTab === "metafields"
+          ? undefined
+          : {
+              content: saving ? "Saving…" : "Save",
+              loading: saving,
+              disabled: saving,
+              onAction: () => {
+                const form = document.getElementById(
+                  "settings-form",
+                ) as HTMLFormElement | null;
+                form?.requestSubmit();
+              },
+            }
+      }
+      secondaryActions={
+        selectedTab === "metafields"
+          ? undefined
+          : [
+              {
+                content: "Default filters",
+                onAction: () => navigate("/app/collections/default"),
+              },
+              {
+                content: "Reset defaults",
+                disabled: saving,
+                onAction: handleReset,
+              },
+            ]
+      }
     >
       <Layout>
         <Layout.Section>
@@ -989,35 +1053,19 @@ export default function SettingsPage() {
                   </BlockStack>
                 </Card>
               </div>
-
+            </BlockStack>
+          </Form>
               <div
                 id="settings-metafields"
                 role="tabpanel"
                 style={tabPanelStyle(selectedTab === "metafields")}
               >
-                <Card>
-                  <BlockStack gap="300">
-                    <Text as="h2" variant="headingMd">
-                      Metafields
-                    </Text>
-                    <Banner tone="info">
-                      <p>
-                        List metafields to search, filter, and display on the
-                        Metafields page.
-                      </p>
-                    </Banner>
-                    <Button url="/app/metafields" variant="primary">
-                      Open metafield mappings
-                    </Button>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Map namespace/key and choose List, Range, or Yes/No.
-                      Enabled mappings then appear in Filters display order.
-                    </Text>
-                  </BlockStack>
-                </Card>
+                <SettingsMetafieldsCard
+                  initialRows={data.metafields.rows}
+                  plan={data.metafields.plan}
+                  filterLimit={data.metafields.filterLimit}
+                />
               </div>
-            </BlockStack>
-          </Form>
             <div
               id="settings-theme"
               role="tabpanel"

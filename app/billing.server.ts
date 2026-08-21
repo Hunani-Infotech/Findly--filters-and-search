@@ -95,7 +95,7 @@ export async function enforcePlanLimits(shopId: string) {
 
   const [productCount, filterCount] = await Promise.all([
     prisma.productFacet.count({ where: { shopId } }),
-    prisma.metafieldMapping.count({ where: { shopId } }),
+    prisma.metafieldMapping.count({ where: { shopId, enabled: true } }),
   ]);
 
   const withinLimits =

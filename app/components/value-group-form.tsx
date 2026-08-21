@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Form, useNavigate, useNavigation, useSubmit } from "react-router";
+import { Form, useNavigation, useSubmit } from "react-router";
+import { useEmbeddedNavigate } from "../admin-path";
 import {
   BlockStack,
   Button,
@@ -56,7 +57,7 @@ export function ValueGroupFormPage({
   group: ValueGroupDraft | null;
   error?: string;
 }) {
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const submit = useSubmit();
   const { ask, dialog } = useConfirmDelete();

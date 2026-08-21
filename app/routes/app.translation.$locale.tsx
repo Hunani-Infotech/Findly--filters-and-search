@@ -4,9 +4,10 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { redirect, useFetcher, useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { redirect, useFetcher, useLoaderData, useSearchParams } from "react-router";
 import { Card, Layout, Page } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { useEmbeddedNavigate } from "../admin-path";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import {
@@ -161,7 +162,7 @@ export default function TranslationLocalePage() {
   const { lang, strings, labelFields, customFields } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTranslationTab(searchParams.get("tab"));
   const snapshot = JSON.stringify(strings);

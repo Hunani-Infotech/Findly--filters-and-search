@@ -31,7 +31,7 @@ import {
 import { getFilterTree, updateFilterTree } from "./filter-trees.server";
 import {
   catalogOptionRows,
-  metafieldFacetKey,
+  mappedFacetsForAdmin,
   parseDisplayTypes,
   withMappedFacetKeys,
 } from "./filters.server";
@@ -135,17 +135,9 @@ async function loadCatalogContext(shopId: string) {
       options: (product.options as Record<string, string[]>) || {},
     })),
   );
-  const mappedFacets: MappedFacet[] = (await getMetafieldMappings(shopId))
-    .filter((mapping) => mapping.enabled)
-    .map((mapping) => ({
-      key: metafieldFacetKey(
-        mapping.namespace,
-        mapping.key,
-        mapping.ownerType === "VARIANT" ? "VARIANT" : "PRODUCT",
-      ),
-      label: mapping.displayLabel || mapping.key,
-      filterType: mapping.filterType,
-    }));
+  const mappedFacets: MappedFacet[] = mappedFacetsForAdmin(
+    await getMetafieldMappings(shopId),
+  );
   return { valueCatalog, catalogOptions, mappedFacets };
 }
 

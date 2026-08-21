@@ -4,7 +4,12 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router";
+import {
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
+  useSearchParams,
+} from "react-router";
 import {
   Banner,
   BlockStack,
@@ -23,6 +28,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
 import { enqueueSyncJob } from "../queues.server";
+import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -65,6 +71,8 @@ export default function SyncPage() {
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
   const shopify = useAppBridge();
+  const navigate = useEmbeddedNavigate();
+  const [searchParams] = useSearchParams();
   const revalidatorRef = useRef(revalidator);
   useEffect(() => {
     revalidatorRef.current = revalidator;
@@ -122,7 +130,10 @@ export default function SyncPage() {
                 <p>
                   Product limit reached ({data.productCount}/
                   {data.productLimit} on {data.plan}). Upgrade on{" "}
-                  <Link url="/app/billing">Billing</Link> for a higher cap.
+                  <Link url={withEmbeddedParams("/app/billing", searchParams)}>
+                    Billing
+                  </Link>{" "}
+                  for a higher cap.
                 </p>
               </Banner>
             )}
@@ -132,14 +143,24 @@ export default function SyncPage() {
                 tone="success"
                 action={{
                   content: "Set default filters",
-                  url: "/app/collections/default",
+                  onAction: () => navigate("/app/collections/default"),
                 }}
               >
                 <p>
                   Catalog is ready. Next:{" "}
-                  <Link url="/app/metafields">map metafields</Link> if you use
-                  custom attributes, then set shop-wide default filters, then
-                  open <Link url="/app/settings">Settings</Link> for layout,
+                  <Link
+                    url={withEmbeddedParams("/app/settings?tab=metafields", searchParams)}
+                  >
+                    map metafields
+                  </Link>{" "}
+                  if you use custom attributes, then set shop-wide default
+                  filters, then open{" "}
+                  <Link
+                    url={withEmbeddedParams("/app/settings", searchParams)}
+                  >
+                    Settings
+                  </Link>{" "}
+                  for layout,
                   search, and sort.
                 </p>
               </Banner>

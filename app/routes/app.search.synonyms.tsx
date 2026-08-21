@@ -30,6 +30,7 @@ import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { parseSynonyms } from "../instant-search";
 import { getAppSettings, saveSearchSettings } from "../settings.server";
+import { useEmbeddedNavigate } from "../admin-path";
 
 type SynonymDraft = {
   id: string;
@@ -83,6 +84,7 @@ export default function SearchSynonymsPage() {
   const navigation = useNavigation();
   const submit = useSubmit();
   const shopify = useAppBridge();
+  const navigate = useEmbeddedNavigate();
   const { ask, dialog } = useConfirmDelete();
   const [rows, setRows] = useState<SynonymDraft[]>(data.rows);
   const [loaderRows, setLoaderRows] = useState(data.rows);
@@ -117,7 +119,7 @@ export default function SearchSynonymsPage() {
   return (
     <Page
       title="Synonyms"
-      backAction={{ content: "Search", url: "/app/search" }}
+      backAction={{ content: "Search", onAction: () => navigate("/app/search") }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,

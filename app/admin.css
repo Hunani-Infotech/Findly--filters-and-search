@@ -1213,3 +1213,135 @@
   line-height: 1;
 }
 
+.findly-meta-card {
+  background: #fff;
+  border: 1px solid #e3e3e3;
+  border-radius: 12px;
+  padding: 16px 16px 20px;
+}
+
+.findly-meta-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.findly-meta-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px 16px 24px;
+}
+
+.findly-meta-empty__art {
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.findly-meta-empty__bar {
+  display: block;
+  height: 18px;
+  border-radius: 6px;
+}
+
+.findly-meta-empty__bar--teal {
+  width: 100%;
+  background: #0d9488;
+}
+
+.findly-meta-empty__bar--orange {
+  width: 82%;
+  background: #f97316;
+}
+
+.findly-meta-empty__bar--red {
+  width: 64%;
+  background: #ef4444;
+}
+
+.findly-meta-table {
+  display: grid;
+  gap: 10px;
+}
+
+.findly-meta-table__head,
+.findly-meta-table__row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 1.3fr) 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.findly-meta-table__head {
+  color: #616161;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.findly-meta-table__remove {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #8c9196;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.findly-meta-table__remove:hover:not(:disabled) {
+  background: #f1f2f4;
+  color: #202223;
+}
+
+.findly-meta-table__remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.findly-meta-applies {
+  appearance: none;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #8c9196;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  font: 13px/20px inherit;
+  color: #202223;
+  cursor: pointer;
+}
+
+.findly-meta-applies:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.findly-meta-applies__menu {
+  padding: 12px;
+  min-width: 180px;
+}
+
+@media (max-width: 720px) {
+  .findly-meta-table__head {
+    display: none;
+  }
+
+  .findly-meta-table__row {
+    grid-template-columns: 1fr;
+    padding: 8px 0 12px;
+    border-bottom: 1px solid #e3e3e3;
+  }
+}
+

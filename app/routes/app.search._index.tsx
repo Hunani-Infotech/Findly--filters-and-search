@@ -8,7 +8,6 @@ import {
   Form,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useSubmit,
 } from "react-router";
@@ -57,6 +56,7 @@ import {
   type SearchExtras,
 } from "../instant-search";
 import { getAppSettings, saveSearchSettings } from "../settings.server";
+import { useEmbeddedNavigate } from "../admin-path";
 
 const SEARCH_TABS = [
   { id: "settings", content: "Settings", panelID: "search-settings" },
@@ -176,7 +176,7 @@ export default function SearchPage() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const shopify = useAppBridge();
   const [state, setState] = useState<SearchPageState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);

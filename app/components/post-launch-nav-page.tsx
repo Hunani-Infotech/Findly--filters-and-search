@@ -1,5 +1,5 @@
 import { Banner, BlockStack, Card, Layout, Page, Text } from "@shopify/polaris";
-import { useNavigate } from "react-router";
+import { useEmbeddedNavigate } from "../admin-path";
 
 export function PostLaunchNavPage({
   title,
@@ -10,7 +10,7 @@ export function PostLaunchNavPage({
   stepId: string;
   summary: string;
 }) {
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   return (
     <Page
       title={title}

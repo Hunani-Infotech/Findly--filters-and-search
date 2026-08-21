@@ -158,21 +158,25 @@ export async function saveMetafieldMappings(
     enabled: boolean;
     sortOrder: number;
     ownerType?: MetafieldOwnerTypeValue | string;
+    appliesTo?: string[];
   }>,
 ) {
-  await prisma.metafieldMapping.deleteMany({ where: { shopId } });
-  if (!mappings.length) return [];
-  await prisma.metafieldMapping.createMany({
-    data: mappings.map((m) => ({
-      shopId,
-      namespace: m.namespace,
-      key: m.key,
-      displayLabel: m.displayLabel,
-      filterType: m.filterType,
-      enabled: m.enabled,
-      sortOrder: m.sortOrder,
-      ownerType: normalizeMetafieldOwnerType(m.ownerType),
-    })) as Prisma.MetafieldMappingCreateManyInput[],
+  await prisma.$transaction(async (tx) => {
+    await tx.metafieldMapping.deleteMany({ where: { shopId } });
+    if (!mappings.length) return;
+    await tx.metafieldMapping.createMany({
+      data: mappings.map((m) => ({
+        shopId,
+        namespace: m.namespace,
+        key: m.key,
+        displayLabel: m.displayLabel,
+        filterType: m.filterType,
+        enabled: m.enabled,
+        appliesTo: Array.isArray(m.appliesTo) ? m.appliesTo : [],
+        sortOrder: m.sortOrder,
+        ownerType: normalizeMetafieldOwnerType(m.ownerType),
+      })) as Prisma.MetafieldMappingCreateManyInput[],
+    });
   });
   return getMetafieldMappings(shopId);
 }
@@ -243,6 +247,7 @@ export async function getListFacetValueCatalog(
     status: product.status,
     imageUrl: product.imageUrl,
     metafields: (product.metafields as Record<string, string>) || {},
+    variantMetafields: (product.variantMetafields as Record<string, string>) || {},
   }));
 
   return listFacetValueCatalog(rows, config, mappings);

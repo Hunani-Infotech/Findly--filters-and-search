@@ -31,7 +31,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { catalogOptionRows, metafieldFacetKey, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, withMappedFacetKeys, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
 import {
   parseExcludeCollectionGids,
   parseFacetSettings,
@@ -131,17 +131,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       options: (product.options as Record<string, string[]>) || {},
     })),
   );
-  const mappedFacets = (await getMetafieldMappings(shop.id))
-    .filter((mapping) => mapping.enabled)
-    .map((mapping) => ({
-      key: metafieldFacetKey(
-        mapping.namespace,
-        mapping.key,
-        mapping.ownerType === "VARIANT" ? "VARIANT" : "PRODUCT",
-      ),
-      label: mapping.displayLabel || mapping.key,
-      filterType: mapping.filterType,
-    }));
+  const mappedFacets = mappedFacetsForAdmin(await getMetafieldMappings(shop.id));
   const facetSettings = parseFacetSettings(
     config && "facetSettings" in config ? config.facetSettings : {},
   );

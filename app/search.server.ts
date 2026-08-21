@@ -13,6 +13,7 @@ import {
   parseSearchExtras,
 } from "./instant-search";
 import { getAppSettings } from "./settings.server";
+import { mappingAppliesToSearch } from "./metafield-applies";
 import { getMetafieldMappings } from "./shop.server";
 
 const DEFAULT_TAKE = 24;
@@ -50,10 +51,15 @@ function flattenedOptionValues(options: unknown): string[] {
 }
 
 export function enabledMetafieldPaths(
-  mappings: Array<{ enabled: boolean; namespace: string; key: string }>,
+  mappings: Array<{
+    enabled?: boolean;
+    appliesTo?: unknown;
+    namespace: string;
+    key: string;
+  }>,
 ): string[] {
   return mappings
-    .filter((mapping) => mapping.enabled)
+    .filter((mapping) => mappingAppliesToSearch(mapping))
     .map((mapping) => `${mapping.namespace}.${mapping.key}`);
 }
 
@@ -67,17 +73,22 @@ function metafieldRecord(
 }
 
 function metafieldsMatch(
-  row: Pick<ProductFacet, "metafields">,
+  row: Pick<ProductFacet, "metafields" | "variantMetafields">,
   query: string,
   paths: string[],
 ): boolean {
   if (paths.length === 0) return false;
-  const record = metafieldRecord(row.metafields);
-  for (const path of paths) {
-    const raw = record[path];
-    const values = metafieldListValues(raw == null ? null : String(raw));
-    if (values.some((value) => containsInsensitive(value, query))) {
-      return true;
+  const records = [
+    metafieldRecord(row.metafields),
+    metafieldRecord(row.variantMetafields),
+  ];
+  for (const record of records) {
+    for (const path of paths) {
+      const raw = record[path];
+      const values = metafieldListValues(raw == null ? null : String(raw));
+      if (values.some((value) => containsInsensitive(value, query))) {
+        return true;
+      }
     }
   }
   return false;
@@ -85,7 +96,14 @@ function metafieldsMatch(
 
 type SearchableRow = Pick<
   ProductFacet,
-  "title" | "vendor" | "productType" | "tags" | "skus" | "options" | "metafields"
+  | "title"
+  | "vendor"
+  | "productType"
+  | "tags"
+  | "skus"
+  | "options"
+  | "metafields"
+  | "variantMetafields"
 >;
 
 export function fieldMatches(

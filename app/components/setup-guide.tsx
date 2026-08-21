@@ -1,5 +1,6 @@
 import { Badge, BlockStack, Button, Card, InlineStack, Text } from "@shopify/polaris";
-import { useNavigate, useNavigation } from "react-router";
+import { useNavigation } from "react-router";
+import { useEmbeddedNavigate } from "../admin-path";
 import type { SetupProgress, SetupStep } from "../setup-progress.server";
 import { isNavigatingTo } from "./admin-loading";
 
@@ -14,7 +15,7 @@ function statusBadge(step: SetupStep) {
 }
 
 export function SetupGuide({ progress }: { progress: SetupProgress }) {
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const next = progress.nextStep;
 

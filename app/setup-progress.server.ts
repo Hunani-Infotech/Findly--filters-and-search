@@ -81,7 +81,7 @@ export async function getSetupProgress(
       title: "Map metafield filters",
       description:
         "Optional. Enable product or variant metafields as List, Range, or Yes/No filters.",
-      href: "/app/metafields",
+      href: "/app/settings?tab=metafields",
       actionLabel: "Open metafields",
       status:
         mappedFilterCount > 0

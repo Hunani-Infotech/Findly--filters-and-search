@@ -7,7 +7,6 @@ import type {
 import {
   useFetcher,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useRevalidator,
   useSearchParams,
@@ -31,6 +30,7 @@ import {
   importValueGroups,
   listValueGroups,
 } from "../value-groups.server";
+import { useEmbeddedNavigate } from "../admin-path";
 
 function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -92,7 +92,7 @@ export default function ValueGroupsPage() {
   const { groups } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const [searchParams] = useSearchParams();
@@ -166,7 +166,7 @@ export default function ValueGroupsPage() {
       }}
       primaryAction={{
         content: "Add group",
-        url: "/app/groups/new",
+        onAction: () => navigate("/app/groups/new"),
         loading: creating,
       }}
       secondaryActions={[
@@ -200,7 +200,10 @@ export default function ValueGroupsPage() {
                 <Text as="p">
                   Light Blue, Dark Blue, Midnight Blue to Blue
                 </Text>
-                <Button url="/app/groups/new" variant="primary">
+                <Button
+                  variant="primary"
+                  onClick={() => navigate("/app/groups/new")}
+                >
                   Add group
                 </Button>
               </BlockStack>

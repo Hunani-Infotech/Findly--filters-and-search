@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   Badge,
   Banner,
@@ -29,6 +29,7 @@ import {
   saveAdminNavExtras,
   type AdminLocaleRow,
 } from "../admin-nav-extras.server";
+import { useEmbeddedNavigate } from "../admin-path";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import {
@@ -323,7 +324,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function TranslationPage() {
   const { langs, i18n } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
   const busy = fetcher.state !== "idle";

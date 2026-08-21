@@ -11,7 +11,6 @@ import {
   redirect,
   useFetcher,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useSubmit,
 } from "react-router";
@@ -45,7 +44,10 @@ import { ensureShopAccess } from "../billing.server";
 import { ensureShop } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
-import { withEmbeddedParamsFromRequest } from "../admin-path";
+import {
+  useEmbeddedNavigate,
+  withEmbeddedParamsFromRequest,
+} from "../admin-path";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   deleteAbandonedDraftTrees,
@@ -258,7 +260,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Index() {
   const data = useLoaderData<typeof loader>();
   const navigation = useNavigation();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const submit = useSubmit();
   const shopify = useAppBridge();
   const exportFetcher = useFetcher<typeof action>();

@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   Banner,
   BlockStack,
@@ -24,6 +24,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { UnderConstructionGate } from "../components/under-construction";
+import { useEmbeddedNavigate } from "../admin-path";
 import { getAdminNavExtras, saveAdminNavExtras } from "../admin-nav-extras.server";
 import {
   DEFAULT_YMM_FIELDS,
@@ -123,7 +124,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function VehicleFinderPage() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const shopify = useAppBridge();
   const { ask, dialog } = useConfirmDelete();
   const fileInputRef = useRef<HTMLInputElement>(null);

@@ -195,6 +195,8 @@ model MetafieldMapping {
   /// PRODUCT = product metafield; VARIANT = any-variant match
   ownerType    MetafieldOwnerType  @default(PRODUCT)
   enabled      Boolean             @default(true)
+  /// Globo Settings > Metafields: display | search | filter | sort
+  appliesTo    String[]            @default([])
   sortOrder    Int                 @default(0)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt

@@ -29,6 +29,7 @@ import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { parseRedirects } from "../instant-search";
 import { getAppSettings, saveSearchSettings } from "../settings.server";
+import { useEmbeddedNavigate } from "../admin-path";
 
 type RedirectDraft = {
   id: string;
@@ -82,6 +83,7 @@ export default function SearchRedirectsPage() {
   const navigation = useNavigation();
   const submit = useSubmit();
   const shopify = useAppBridge();
+  const navigate = useEmbeddedNavigate();
   const { ask, dialog } = useConfirmDelete();
   const [rows, setRows] = useState<RedirectDraft[]>(data.rows);
   const [loaderRows, setLoaderRows] = useState(data.rows);
@@ -116,7 +118,7 @@ export default function SearchRedirectsPage() {
   return (
     <Page
       title="Redirects"
-      backAction={{ content: "Search", url: "/app/search" }}
+      backAction={{ content: "Search", onAction: () => navigate("/app/search") }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",
         loading: saving,

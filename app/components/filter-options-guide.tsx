@@ -1,12 +1,12 @@
 import { Banner, BlockStack, List, Text } from "@shopify/polaris";
-import { useNavigate } from "react-router";
+import { useEmbeddedNavigate } from "../admin-path";
 
 export function FilterOptionsGuide({
   variant,
 }: {
   variant: "default" | "collection";
 }) {
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
 
   return (
     <Banner
@@ -18,7 +18,7 @@ export function FilterOptionsGuide({
       }
       action={{
         content: "Map metafields",
-        onAction: () => navigate("/app/metafields"),
+        onAction: () => navigate("/app/settings?tab=metafields"),
       }}
     >
       <BlockStack gap="200">

@@ -1,4 +1,5 @@
 import type { FilterConfig, MetafieldFilterType, MetafieldMapping } from "@prisma/client";
+import { mappingAppliesToFilter } from "./metafield-applies";
 
 export type FacetSource =
   | "vendor"
@@ -170,6 +171,34 @@ export function metafieldFacetKey(
   return ownerType === "VARIANT"
     ? `mf_v_${namespace}_${key}`
     : `mf_${namespace}_${key}`;
+}
+
+export function mappedFacetsForAdmin(
+  mappings: Array<{
+    enabled?: boolean;
+    appliesTo?: unknown;
+    namespace: string;
+    key: string;
+    displayLabel: string;
+    filterType: MetafieldFilterType;
+    ownerType?: string | null;
+    sortOrder?: number;
+  }>,
+) {
+  return mappings
+    .filter((mapping) => mappingAppliesToFilter(mapping))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((mapping) => {
+      const ownerType = mapping.ownerType === "VARIANT" ? "VARIANT" as const : "PRODUCT" as const;
+      return {
+        key: metafieldFacetKey(mapping.namespace, mapping.key, ownerType),
+        label: mapping.displayLabel || mapping.key,
+        filterType: mapping.filterType,
+        namespace: mapping.namespace,
+        metafieldKey: mapping.key,
+        ownerType,
+      };
+    });
 }
 
 export function metafieldValuesForProduct(
@@ -567,44 +596,8 @@ export function facetsFromConfig(
     },
   };
 
-  const ordered: FacetDef[] = [];
-  for (const key of order) {
-    if (key.startsWith("opt_")) {
-      if (ordered.some((item) => item.key === key)) continue;
-      const label = key.replace(/^opt_/, "").replace(/_/g, " ");
-      ordered.push({
-        key,
-        source: "option",
-        label,
-        type: "checkbox",
-        enabled: config?.enableOptions ?? true,
-        optionName: label,
-        displayType: displayTypeForFacet(
-          { key, source: "option", label, type: "checkbox" },
-          displayTypes,
-        ),
-        matchMode: matchModeForFacet({ key, source: "option" }, matchModes),
-      });
-      continue;
-    }
-    const facet = builtIns[key] ?? builtIns[key === "tag" ? "tags" : key];
-    if (facet && !ordered.some((item) => item.key === facet.key)) {
-      ordered.push(facet);
-    }
-  }
-
-  for (const facet of Object.values(builtIns)) {
-    if (
-      facet.key === "options" &&
-      ordered.some((item) => item.key.startsWith("opt_"))
-    ) {
-      continue;
-    }
-    if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
-  }
-
   const metafieldFacets = mappings
-    .filter((mapping) => mapping.enabled)
+    .filter((mapping) => mappingAppliesToFilter(mapping))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((mapping) => {
       const ownerType =
@@ -631,8 +624,54 @@ export function facetsFromConfig(
         matchMode: matchModeForFacet({ key, source: "metafield" }, matchModes),
       };
     });
+  const metafieldByKey = new Map(metafieldFacets.map((facet) => [facet.key, facet]));
 
-  return [...ordered, ...metafieldFacets];
+  const ordered: FacetDef[] = [];
+  for (const key of order) {
+    if (key.startsWith("opt_")) {
+      if (ordered.some((item) => item.key === key)) continue;
+      const label = key.replace(/^opt_/, "").replace(/_/g, " ");
+      ordered.push({
+        key,
+        source: "option",
+        label,
+        type: "checkbox",
+        enabled: config?.enableOptions ?? true,
+        optionName: label,
+        displayType: displayTypeForFacet(
+          { key, source: "option", label, type: "checkbox" },
+          displayTypes,
+        ),
+        matchMode: matchModeForFacet({ key, source: "option" }, matchModes),
+      });
+      continue;
+    }
+    const mapped = metafieldByKey.get(key);
+    if (mapped) {
+      if (!ordered.some((item) => item.key === mapped.key)) ordered.push(mapped);
+      continue;
+    }
+    const facet = builtIns[key] ?? builtIns[key === "tag" ? "tags" : key];
+    if (facet && !ordered.some((item) => item.key === facet.key)) {
+      ordered.push(facet);
+    }
+  }
+
+  for (const facet of Object.values(builtIns)) {
+    if (
+      facet.key === "options" &&
+      ordered.some((item) => item.key.startsWith("opt_"))
+    ) {
+      continue;
+    }
+    if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
+  }
+
+  for (const facet of metafieldFacets) {
+    if (!ordered.some((item) => item.key === facet.key)) ordered.push(facet);
+  }
+
+  return ordered;
 }
 
 function metafieldTypeToFacetType(

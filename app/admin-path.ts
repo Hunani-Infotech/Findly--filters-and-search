@@ -1,3 +1,10 @@
+import { useCallback } from "react";
+import {
+  useNavigate,
+  useSearchParams,
+  type NavigateOptions,
+} from "react-router";
+
 /** Query keys Shopify auth needs on document requests in the admin iframe. */
 const EMBEDDED_KEYS = [
   "shop",
@@ -39,4 +46,21 @@ export function withEmbeddedParamsFromRequest(
   pathname: string,
 ): string {
   return withEmbeddedParams(pathname, new URL(request.url).searchParams);
+}
+
+/**
+ * Client navigate that always keeps shop/host (and related) query params.
+ * Use this instead of useNavigate() for in-app /app/... links.
+ * Do not put those paths on Polaris `url=` — that does a full reload
+ * without params and App Bridge logs `shop: null`.
+ */
+export function useEmbeddedNavigate() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  return useCallback(
+    (to: string, options?: NavigateOptions) => {
+      navigate(withEmbeddedParams(to, searchParams), options);
+    },
+    [navigate, searchParams],
+  );
 }

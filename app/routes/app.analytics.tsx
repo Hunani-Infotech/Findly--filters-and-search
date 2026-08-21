@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { useLoaderData, useSearchParams } from "react-router";
 import {
   Banner,
   BlockStack,
@@ -21,6 +21,7 @@ import {
 } from "../analytics.server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { useEmbeddedNavigate } from "../admin-path";
 
 const DATE_RANGE_OPTIONS = [
   { label: "This month", value: "this_month" },
@@ -140,7 +141,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function AnalyticsPage() {
   const dashboard = useLoaderData<typeof loader>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
+  const [searchParams] = useSearchParams();
   const shopify = useAppBridge();
   const [tab, setTab] = useState<AnalyticsTabId>("filter");
   const selectedTabIndex = Math.max(
@@ -202,7 +204,7 @@ export default function AnalyticsPage() {
               options={DATE_RANGE_OPTIONS}
               value={dashboard.range}
               onChange={(value) => {
-                const params = new URLSearchParams();
+                const params = new URLSearchParams(searchParams);
                 params.set("range", value);
                 navigate(`/app/analytics?${params.toString()}`);
               }}

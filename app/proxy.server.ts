@@ -19,6 +19,7 @@ import { applyFacetValueFilter, applyFacetValueLabel, parseFacetSettings } from 
 import { resolveStorefrontSort, sortProductRows } from "./sort.server";
 import { normalizeSearchFields, normalizeSortOptions, parseSortOption } from "./app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
+import { mappingAppliesToFilter } from "./metafield-applies";
 import { swatchMapForShop } from "./color-swatches.server";
 import {
   expandSelectedWithGroups,
@@ -254,7 +255,7 @@ async function buildFacetPayload(input: {
   ]);
   const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
   const cappedMappings = mappings
-    .filter((mapping) => mapping.enabled)
+    .filter((mapping) => mappingAppliesToFilter(mapping))
     .slice(0, limits.filterLimit);
   const settings = {
     showProductCounts: appSettings.showProductCounts,

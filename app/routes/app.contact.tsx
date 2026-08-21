@@ -8,7 +8,6 @@ import {
   Form,
   useActionData,
   useLoaderData,
-  useNavigate,
   useNavigation,
 } from "react-router";
 import {
@@ -26,6 +25,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { isMutationBusy } from "../components/admin-loading";
+import { useEmbeddedNavigate } from "../admin-path";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
@@ -86,7 +86,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function ContactNavPage() {
   const draft = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const navigate = useNavigate();
+  const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const submitting = isMutationBusy(navigation);
