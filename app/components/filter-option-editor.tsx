@@ -302,7 +302,9 @@ export function FilterOptionEditorPage({
   }));
 
   return (
+    <div className="findly-option-editor-page">
     <Page
+      fullWidth
       title={isEdit ? "Edit filter option" : "Add filter option"}
       backAction={{
         content: "Filter",
@@ -664,6 +666,7 @@ export function FilterOptionEditorPage({
       </Layout>
       {dialog}
     </Page>
+    </div>
   );
 }
 
@@ -736,15 +739,15 @@ function buildPreviewItems(input: {
       return label.startsWith(input.prefix) || value.startsWith(input.prefix);
     });
     items = labeled(filtered.length ? filtered : input.catalogValues);
-  } else if (input.catalogValues.length) {
-    items = labeled(input.catalogValues);
-  }
-  if (!items.length && input.sourceKey === "collection" && input.treeItems.length) {
+  } else if (input.sourceKey === "collection" && input.treeItems.length) {
     items = input.treeItems.map((item) => ({
       value: item.value,
       label: item.label,
     }));
-  } else {
+  } else if (input.catalogValues.length) {
+    items = labeled(input.catalogValues);
+  }
+  if (!items.length) {
     items = fallbackPreviewLabels(input.sourceKey).map((label) => ({
       value: label,
       label,
@@ -805,12 +808,8 @@ function FilterOptionPreview({
   tooltip: string;
 }) {
   const [open, setOpen] = useState(true);
-  const [buttonOpen, setButtonOpen] = useState(false);
 
   const isSlider = displayType === "slider";
-  const visibleLimit =
-    showMore === "button" && !buttonOpen ? 3 : showMore === "scrollbar" ? 6 : 8;
-  const visible = items.slice(0, visibleLimit);
   const valueIds = items.map((item) => item.value);
   const transformStyle: { textTransform: "none" | "capitalize" | "uppercase" | "lowercase" } =
     textTransform === "none" ||
@@ -821,7 +820,6 @@ function FilterOptionPreview({
       : { textTransform: "none" };
   const valuesClass = [
     "findly-option-preview__values",
-    showMore === "scrollbar" ? "findly-option-preview__values--scroll" : "",
     displayType === "swatch" || displayType === "swatch-text"
       ? "findly-option-preview__values--swatches"
       : "",
@@ -838,7 +836,6 @@ function FilterOptionPreview({
         {item.label}
       </span>
     );
-    if (displayType === "dropdown") return null;
     if (displayType === "collection") {
       return (
         <span
@@ -948,19 +945,13 @@ function FilterOptionPreview({
             </div>
           ) : displayType === "dropdown" ? (
             <div className="findly-option-preview__dropdown">
-              {visible[0]?.label || "Any"}
+              {items[0]?.label || "Any"}
             </div>
           ) : (
-            <div className={valuesClass}>{visible.map(renderValue)}</div>
+            <div className={valuesClass}>{items.map(renderValue)}</div>
           )}
-          {!isSlider && displayType !== "dropdown" && showMore === "button" && items.length > 3 ? (
-            <button
-              type="button"
-              className="findly-option-preview__more"
-              onClick={() => setButtonOpen((next) => !next)}
-            >
-              {buttonOpen ? "Show less" : "Show more"}
-            </button>
+          {!isSlider && displayType !== "dropdown" && showMore === "button" ? (
+            <span className="findly-option-preview__more">Show more</span>
           ) : null}
         </div>
       ) : null}

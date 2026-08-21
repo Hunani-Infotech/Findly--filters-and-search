@@ -25,8 +25,15 @@
   min-width: 0;
 }
 
-.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section--oneThird {
+.findly-admin-shell .findly-option-editor-page .Polaris-Page,
+.findly-admin-shell .findly-option-editor-page .Polaris-Page--fullWidth {
+  max-width: 78rem;
+}
+
+.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section--oneThird,
+.findly-option-editor-page .Polaris-Layout__Section--oneThird {
   min-width: 0;
+  flex-grow: 1;
   align-self: start;
 }
 
@@ -1085,18 +1092,21 @@
   color: #8c9196;
 }
 
-.findly-option-preview-wrap {
-  position: sticky;
-  top: 1rem;
-  align-self: start;
-  min-width: 0;
-}
-
 .findly-option-preview {
   border: 1px solid #e3e3e3;
   border-radius: 8px;
   background: #fff;
-  overflow: hidden;
+}
+
+.findly-option-preview-wrap {
+  min-width: 0;
+}
+
+.findly-option-preview__values {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 2px 36px;
 }
 
 .findly-option-preview__header {
@@ -1164,19 +1174,6 @@
   background: #fafafa;
   color: #8c9196;
   font-size: 13px;
-}
-
-.findly-option-preview__values {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 14px 2px 36px;
-}
-
-.findly-option-preview__values--scroll {
-  max-height: 148px;
-  overflow-y: auto;
-  padding-right: 10px;
 }
 
 .findly-option-preview__values--swatches {
@@ -1277,8 +1274,6 @@
   background: none;
   color: #005bd3;
   font-size: 13px;
-  cursor: pointer;
-  text-align: left;
 }
 
 .findly-option-preview__slider {
