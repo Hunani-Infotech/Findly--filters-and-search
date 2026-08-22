@@ -110,6 +110,86 @@ export function verifyAppProxySignature(url: URL): boolean {
 
 export const FILTER_PAGE_SIZE_MAX = 48;
 
+const FILTER_PAYLOAD_CACHE_TTL_MS = 20_000;
+const FILTER_PAYLOAD_CACHE_MAX = 80;
+
+const productFacetFilterSelect = {
+  productGid: true,
+  handle: true,
+  title: true,
+  vendor: true,
+  productType: true,
+  tags: true,
+  options: true,
+  priceMin: true,
+  priceMax: true,
+  compareAtMin: true,
+  compareAtMax: true,
+  salePct: true,
+  available: true,
+  inventoryLocations: true,
+  status: true,
+  imageUrl: true,
+  variantImages: true,
+  metafields: true,
+  variantMetafields: true,
+  publishedAt: true,
+  marketPrices: true,
+} as const;
+
+type CachedFilterPayload = {
+  expires: number;
+  result: Awaited<ReturnType<typeof loadCollectionFilterPayload>>;
+};
+
+const filterPayloadCache = new Map<string, CachedFilterPayload>();
+
+function pruneFilterPayloadCache() {
+  const now = Date.now();
+  for (const [key, entry] of filterPayloadCache) {
+    if (entry.expires <= now) filterPayloadCache.delete(key);
+  }
+  if (filterPayloadCache.size <= FILTER_PAYLOAD_CACHE_MAX) return;
+  const extra = filterPayloadCache.size - FILTER_PAYLOAD_CACHE_MAX;
+  const keys = filterPayloadCache.keys();
+  for (let i = 0; i < extra; i += 1) {
+    const key = keys.next().value;
+    if (key == null) break;
+    filterPayloadCache.delete(key);
+  }
+}
+
+function collectionFilterCacheKey(input: {
+  shopDomain: string;
+  collectionId?: string | null;
+  collectionGid?: string | null;
+  selected: SelectedFilters;
+  sort?: string | null;
+  query?: string | null;
+  locale?: string | null;
+  page?: number;
+  pageSize?: number;
+  country?: string | null;
+  currency?: string | null;
+  companyLocationId?: string | null;
+  company_location?: string | null;
+}) {
+  return JSON.stringify({
+    shop: input.shopDomain,
+    cid: input.collectionId || "",
+    gid: input.collectionGid || "",
+    selected: input.selected,
+    sort: input.sort || "",
+    query: input.query || "",
+    locale: input.locale || "",
+    page: input.page || 1,
+    pageSize: input.pageSize || 0,
+    country: input.country || "",
+    currency: input.currency || "",
+    loc: input.companyLocationId || input.company_location || "",
+  });
+}
+
 /** 1-based page; invalid values become 1. */
 export function parseFilterPage(value: unknown): number {
   const n = Number(value);
@@ -287,6 +367,33 @@ export async function getCollectionFilterPayload(input: {
   page?: number;
   pageSize?: number;
 } & MarketRequestFields) {
+  pruneFilterPayloadCache();
+  const cacheKey = collectionFilterCacheKey(input);
+  const cached = filterPayloadCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return cached.result;
+  }
+  const result = await loadCollectionFilterPayload(input);
+  if (!("error" in result && result.error)) {
+    filterPayloadCache.set(cacheKey, {
+      expires: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
+      result,
+    });
+  }
+  return result;
+}
+
+async function loadCollectionFilterPayload(input: {
+  shopDomain: string;
+  collectionId?: string | null;
+  collectionGid?: string | null;
+  selected: SelectedFilters;
+  sort?: string | null;
+  query?: string | null;
+  locale?: string | null;
+  page?: number;
+  pageSize?: number;
+} & MarketRequestFields) {
   const shop = await prisma.shop.findUnique({
     where: { domain: input.shopDomain },
   });
@@ -321,10 +428,14 @@ export async function getCollectionFilterPayload(input: {
     };
   }
 
-  const memberships = await prisma.collectionMembership.findMany({
-    where: { shopId: shop.id, collectionGid },
-    select: { productGid: true, position: true },
-  });
+  const variantSplit = Boolean(config.enableVariantsAsProducts);
+  const [memberships, appSettings] = await Promise.all([
+    prisma.collectionMembership.findMany({
+      where: { shopId: shop.id, collectionGid },
+      select: { productGid: true, position: true },
+    }),
+    getAppSettings(shop.id),
+  ]);
   const productGids = memberships.map((m) => m.productGid);
   const positionByGid = new Map(
     memberships.map((m) => [m.productGid, m.position]),
@@ -333,10 +444,12 @@ export async function getCollectionFilterPayload(input: {
   const productsDb = productGids.length
     ? await prisma.productFacet.findMany({
         where: { shopId: shop.id, productGid: { in: productGids } },
+        select: variantSplit
+          ? { ...productFacetFilterSelect, variants: true }
+          : productFacetFilterSelect,
       })
     : [];
 
-  const appSettings = await getAppSettings(shop.id);
   const extras = parseSearchExtras(appSettings.searchExtras);
   const collectionQuery = appSettings.enableCollectionSearch
     ? normalizeSearchQuery(input.query ?? "")
@@ -388,6 +501,7 @@ export async function getCollectionFilterPayload(input: {
     page: input.page,
     pageSize: input.pageSize,
     currency: payloadCurrency(context, allRows),
+    appSettings,
   });
 }
 
@@ -404,10 +518,13 @@ async function buildFacetPayload(input: {
   page?: number;
   pageSize?: number;
   currency?: string | null;
+  appSettings?: Awaited<ReturnType<typeof getAppSettings>>;
 }) {
   const [mappings, appSettings, limits, valueGroups, swatches, extras] = await Promise.all([
     getMetafieldMappings(input.shopId),
-    getAppSettings(input.shopId),
+    input.appSettings
+      ? Promise.resolve(input.appSettings)
+      : getAppSettings(input.shopId),
     enforcePlanLimits(input.shopId),
     listValueGroups(input.shopId),
     swatchMapForShop(input.shopId),
@@ -715,6 +832,7 @@ export async function getSearchFilterPayload(input: {
     page: input.page,
     pageSize: input.pageSize,
     currency: payloadCurrency(context, allRows),
+    appSettings,
   });
 }
 

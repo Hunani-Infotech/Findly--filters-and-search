@@ -136,6 +136,59 @@
   background: #fafaf9;
 }
 
+.smart-filter__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 0.2rem 0 0.35rem;
+}
+
+.smart-filter__skeleton-facet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.smart-filter__skeleton-label,
+.smart-filter__skeleton-line {
+  display: block;
+  border-radius: 6px;
+  background: #ecebea;
+  background: color-mix(in srgb, currentColor 9%, #fff);
+}
+
+.smart-filter__skeleton-label {
+  width: 38%;
+  height: 0.7rem;
+}
+
+.smart-filter__skeleton-line {
+  width: 100%;
+  height: 0.82rem;
+}
+
+.smart-filter__skeleton-line.is-short {
+  width: 64%;
+}
+
+.smart-filter__skeleton-label,
+.smart-filter__skeleton-line {
+  animation: sf-skeleton-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes sf-skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smart-filter__skeleton-label,
+  .smart-filter__skeleton-line {
+    animation: none;
+  }
+}
+
 .smart-filter__facets {
   display: flex;
   flex-direction: column;
