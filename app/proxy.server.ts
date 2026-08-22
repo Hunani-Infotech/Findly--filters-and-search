@@ -120,6 +120,7 @@ const productFacetFilterSelect = {
   vendor: true,
   productType: true,
   tags: true,
+  skus: true,
   options: true,
   priceMin: true,
   priceMax: true,
