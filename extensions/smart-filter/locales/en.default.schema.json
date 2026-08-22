@@ -31,6 +31,48 @@
         },
         "show_counts": {
           "label": "Show product counts"
+        },
+        "headers": {
+          "layout": "Layout",
+          "theme_integration": "Theme integration",
+          "custom_code": "Custom code",
+          "custom_templates": "Custom templates"
+        },
+        "product_grid_selector": {
+          "label": "Product grid selector",
+          "info": "CSS selector for the collection product list (e.g. #product-grid). Leave blank to auto-detect."
+        },
+        "use_quickview_template": {
+          "label": "Use custom quickview template",
+          "info": "Adds a Quick view button on product cards. Uses [data-findly-quickview] from the product template when present."
+        },
+        "custom_javascript": {
+          "label": "Custom javascript",
+          "info": "Runs on the storefront after Findly loads. Merchant-owned code."
+        },
+        "custom_css": {
+          "label": "Custom css",
+          "info": "Add custom styles to Filter and the app product grid."
+        },
+        "product_template": {
+          "label": "Load Custom Product Template",
+          "info": "HTML for each product card. Placeholders: {{product.title}}, {{product.url}}, {{product.image}}, {{product.price}}, {{product.vendor}}, {{product.handle}}, {{product.id}}, {{product.available}}. When filled, Findly renders this instead of hiding/showing theme cards."
+        },
+        "tree_template": {
+          "label": "Load Custom Tree Template",
+          "info": "Optional HTML wrapper for the filter panel. Include an element with data-facets. Placeholders: {{title}}."
+        },
+        "sort_template": {
+          "label": "Load Custom Sort Template",
+          "info": "Optional HTML for the sort control. Must include a select with data-sort."
+        },
+        "search_template": {
+          "label": "Load Custom Search Template",
+          "info": "Optional HTML for in-collection search. Must include an input with data-collection-search."
+        },
+        "variables": {
+          "label": "Variables",
+          "info": "Liquid rendered into the embed config (e.g. {{ theme.id }}). Available in templates as {{variables}}."
         }
       }
     },

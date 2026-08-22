@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import prisma from "./db.server";
+import { createTtlCache } from "./read-cache.server";
 import {
   defaultUrlHandle,
   parseFacetSettings,
@@ -31,7 +32,6 @@ import {
 } from "./filter-option-rows";
 import { getFilterTree, updateFilterTree } from "./filter-trees.server";
 import {
-  catalogOptionRows,
   mappedFacetsForAdmin,
   parseDisplayTypes,
 } from "./filters.server";
@@ -193,26 +193,23 @@ function pageFilterOptionCatalog(
   };
 }
 
-async function loadCatalogContext(shopId: string) {
-  const [valueCatalog, collections, optionProducts, mappings] = await Promise.all([
+async function loadCatalogContextUncached(shopId: string) {
+  const [valueCatalog, collections, mappings] = await Promise.all([
     getListFacetValueCatalog(shopId, ""),
     prisma.collection.findMany({
       where: { shopId },
       select: { collectionGid: true, title: true, handle: true },
       orderBy: { title: "asc" },
-    }),
-    prisma.productFacet.findMany({
-      where: { shopId, status: "ACTIVE" },
-      take: 500,
-      select: { options: true },
+      take: 400,
     }),
     getMetafieldMappings(shopId),
   ]);
-  const catalogOptions = catalogOptionRows(
-    optionProducts.map((product) => ({
-      options: (product.options as Record<string, string[]>) || {},
-    })),
-  );
+  const catalogOptions = valueCatalog
+    .filter(
+      (item) =>
+        item.key.startsWith("opt_") || item.key.startsWith("option:"),
+    )
+    .map((item) => ({ key: item.key, label: item.label }));
   const mappedFacets: MappedFacet[] = mappedFacetsForAdmin(mappings);
   const collectionValues = collections.map((row) => row.collectionGid);
   const collectionLabels = Object.fromEntries(
@@ -236,6 +233,13 @@ async function loadCatalogContext(shopId: string) {
     collectionLabels,
     collectionTreeItems: collectionTreeItemsFromRows(collections),
   };
+}
+
+type CatalogContext = Awaited<ReturnType<typeof loadCatalogContextUncached>>;
+const catalogContextCache = createTtlCache<CatalogContext>(30_000);
+
+async function loadCatalogContext(shopId: string) {
+  return catalogContextCache.wrap(shopId, () => loadCatalogContextUncached(shopId));
 }
 
 export async function loadFilterOptionCatalogPage(

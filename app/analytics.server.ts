@@ -1,5 +1,7 @@
 import prisma from "./db.server";
 import { getShopPlan, isDevUnlockLimits, isPaidPlanKey } from "./billing.server";
+import { createTtlCache } from "./read-cache.server";
+import { findShopCached } from "./shop-cache.server";
 
 export const ANALYTICS_KINDS = ["search", "filter", "click", "visit"] as const;
 export type AnalyticsKind = (typeof ANALYTICS_KINDS)[number];
@@ -48,22 +50,15 @@ function normalizeHandle(raw: string): string {
   return value.replace(/\/+$/, "").slice(0, 100);
 }
 
+const ANALYTICS_PRUNE_TTL_MS = 10 * 60 * 1000;
+const lastAnalyticsPrune = new Map<string, number>();
+
 export async function ingestAnalyticsEvent(input: IngestInput) {
   const kind = String(input.kind || "").trim();
   if (!isKind(kind)) return { ok: false as const, error: "Invalid kind" };
 
-  const shop = await prisma.shop.findUnique({
-    where: { domain: input.shopDomain },
-    include: { subscription: true },
-  });
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) return { ok: false as const, error: "Shop not synced" };
-
-  const plan = getShopPlan(shop);
-  const days = retentionDaysForPlan(plan);
-  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  await prisma.analyticsEvent.deleteMany({
-    where: { shopId: shop.id, createdAt: { lt: cutoff } },
-  });
 
   const query = clip(String(input.query || "").toLowerCase(), 120);
   const combo = clip(String(input.combo || ""), 240);
@@ -76,6 +71,17 @@ export async function ingestAnalyticsEvent(input: IngestInput) {
   if (kind === "filter" && !combo) return { ok: true as const, skipped: true };
   if ((kind === "click" || kind === "visit") && !handle) {
     return { ok: true as const, skipped: true };
+  }
+
+  const lastPrune = lastAnalyticsPrune.get(shop.id) ?? 0;
+  if (Date.now() - lastPrune > ANALYTICS_PRUNE_TTL_MS) {
+    lastAnalyticsPrune.set(shop.id, Date.now());
+    const plan = getShopPlan(shop);
+    const days = retentionDaysForPlan(plan);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    void prisma.analyticsEvent.deleteMany({
+      where: { shopId: shop.id, createdAt: { lt: cutoff } },
+    });
   }
 
   await prisma.analyticsEvent.create({
@@ -111,7 +117,7 @@ function topCounts(
     .map(([label, count]) => ({ label, count }));
 }
 
-export async function loadAnalyticsDashboard(
+async function loadAnalyticsDashboardUncached(
   shopId: string,
   range: AnalyticsRange,
   plan: string,
@@ -125,6 +131,8 @@ export async function loadAnalyticsDashboard(
 
   const events = await prisma.analyticsEvent.findMany({
     where: { shopId, createdAt: { gte: start } },
+    take: 4000,
+    orderBy: { createdAt: "desc" },
     select: {
       kind: true,
       query: true,
@@ -198,4 +206,19 @@ export async function loadAnalyticsDashboard(
     filterCombos: topCounts(filters.map((e) => ({ key: e.combo }))),
     mostVisited: topCounts(clicks.map((e) => ({ key: e.handle }))),
   };
+}
+
+type AnalyticsDashboard = Awaited<
+  ReturnType<typeof loadAnalyticsDashboardUncached>
+>;
+const analyticsDashCache = createTtlCache<AnalyticsDashboard>(30_000);
+
+export async function loadAnalyticsDashboard(
+  shopId: string,
+  range: AnalyticsRange,
+  plan: string,
+) {
+  return analyticsDashCache.wrap(`${shopId}:${range}:${plan}`, () =>
+    loadAnalyticsDashboardUncached(shopId, range, plan),
+  );
 }

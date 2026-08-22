@@ -27,7 +27,6 @@ import { ensureShopAccess } from "../billing.server";
 import { isNavigatingTo } from "../components/admin-loading";
 import {
   importValueGroups,
-  listCatalogSources,
   listValueGroups,
 } from "../value-groups.server";
 import { useEmbeddedNavigate } from "../admin-path";
@@ -50,22 +49,29 @@ function downloadJson(filename: string, payload: unknown) {
   URL.revokeObjectURL(url);
 }
 
+function labelForSourceKey(key: string) {
+  if (key === "vendor") return "Vendor";
+  if (key === "productType") return "Product type";
+  if (key === "tags") return "Tag";
+  if (key.startsWith("opt_")) {
+    return key.slice(4).replace(/[-_]+/g, " ");
+  }
+  if (key.startsWith("option:")) {
+    return key.slice(7).replace(/[-_]+/g, " ");
+  }
+  return key;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const [groups, sources] = await Promise.all([
-    listValueGroups(shop.id),
-    listCatalogSources(shop.id),
-  ]);
-  const sourceLabels = Object.fromEntries(
-    sources.map((source) => [source.key, source.label]),
-  );
+  const groups = await listValueGroups(shop.id);
   return {
     groups: groups.map((group) => ({
       id: group.id,
       name: group.name,
       sourceKey: group.sourceKey,
-      sourceLabel: sourceLabels[group.sourceKey] || group.sourceKey,
+      sourceLabel: labelForSourceKey(group.sourceKey),
       values: group.values,
       valueCount: group.values.length,
     })),

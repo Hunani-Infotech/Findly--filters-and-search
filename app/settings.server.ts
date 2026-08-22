@@ -1,3 +1,4 @@
+import type { AppSettings } from "@prisma/client";
 import prisma from "./db.server";
 import {
   DEFAULT_APP_SETTINGS,
@@ -30,6 +31,7 @@ import {
   sanitizeCustomCss,
   sanitizeProductListLiquid,
 } from "./widget-code";
+import { createTtlCache } from "./read-cache.server";
 
 export { DEFAULT_APP_SETTINGS };
 
@@ -61,6 +63,7 @@ export type AppSettingsInput = {
   hideSingleValueFacets?: boolean;
   showMatchingVariantImage?: boolean;
   showRefineBy?: boolean;
+  autoApplyFilters?: boolean;
   showSuggestionsOnEmptyQuery?: boolean;
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: string[] | string;
@@ -91,15 +94,7 @@ async function persistSearchExtrasColumn(shopId: string, extras: SearchExtras) {
   );
 }
 
-export async function getAppSettings(shopId: string) {
-  const row = await prisma.appSettings.upsert({
-    where: { shopId },
-    create: {
-      shopId,
-      searchFields: [...DEFAULT_APP_SETTINGS.searchFields],
-    },
-    update: {},
-  });
+async function mapAppSettings(shopId: string, row: AppSettings) {
   return {
     ...row,
     searchFields: normalizeSearchFields(row.searchFields),
@@ -120,6 +115,41 @@ export async function getAppSettings(shopId: string) {
       false,
     searchExtras: await loadSearchExtrasColumn(shopId, row),
   };
+}
+
+export type HydratedAppSettings = Awaited<ReturnType<typeof mapAppSettings>>;
+
+const appSettingsCache = createTtlCache<HydratedAppSettings>(30_000);
+
+/** Read-only hydrate for storefront proxy — never upserts. */
+export async function settingsFromRow(
+  shopId: string,
+  row: AppSettings | null,
+): Promise<HydratedAppSettings> {
+  if (!row) {
+    return {
+      id: "",
+      shopId,
+      ...DEFAULT_APP_SETTINGS,
+      searchExtras: parseSearchExtras(undefined),
+    } as HydratedAppSettings;
+  }
+  return mapAppSettings(shopId, row);
+}
+
+export async function getAppSettings(shopId: string) {
+  return appSettingsCache.wrap(shopId, async () => {
+    let row = await prisma.appSettings.findUnique({ where: { shopId } });
+    if (!row) {
+      row = await prisma.appSettings.create({
+        data: {
+          shopId,
+          searchFields: [...DEFAULT_APP_SETTINGS.searchFields],
+        },
+      });
+    }
+    return mapAppSettings(shopId, row);
+  });
 }
 
 export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
@@ -170,6 +200,8 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     DEFAULT_APP_SETTINGS.showMatchingVariantImage;
   const showRefineBy =
     input.showRefineBy ?? DEFAULT_APP_SETTINGS.showRefineBy;
+  const autoApplyFilters =
+    input.autoApplyFilters ?? DEFAULT_APP_SETTINGS.autoApplyFilters;
   const showSuggestionsOnEmptyQuery =
     input.showSuggestionsOnEmptyQuery ??
     DEFAULT_APP_SETTINGS.showSuggestionsOnEmptyQuery;
@@ -230,6 +262,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       hideSingleValueFacets,
       showMatchingVariantImage,
       showRefineBy,
+      autoApplyFilters,
       showSuggestionsOnEmptyQuery,
       showSuggestionsOnNoResults,
       suggestionProductHandles,
@@ -275,6 +308,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
         ? { showMatchingVariantImage }
         : {}),
       ...(input.showRefineBy !== undefined ? { showRefineBy } : {}),
+      ...(input.autoApplyFilters !== undefined ? { autoApplyFilters } : {}),
       ...(input.showSuggestionsOnEmptyQuery !== undefined
         ? { showSuggestionsOnEmptyQuery }
         : {}),
@@ -294,6 +328,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   if (input.searchExtras !== undefined) {
     await persistSearchExtrasColumn(shopId, searchExtras);
   }
+  appSettingsCache.del(shopId);
   return row;
 }
 
@@ -348,6 +383,7 @@ export async function saveSearchSettings(
       parseSearchExtras(input.searchExtras),
     );
   }
+  appSettingsCache.del(shopId);
   return row;
 }
 

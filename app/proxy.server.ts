@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { FilterConfig } from "@prisma/client";
+import type { FilterConfig, MetafieldMapping, Prisma } from "@prisma/client";
 import prisma from "./db.server";
 import {
   applyHideOutOfStock,
@@ -29,7 +29,7 @@ import {
   parsePaginationStyle,
   parseSortOption,
 } from "./app-settings";
-import { getFilterConfig, getMetafieldMappings } from "./shop.server";
+import { getFilterConfig, getMetafieldMappings, normalizeMetafieldOwnerType } from "./shop.server";
 import { mappingAppliesToFilter } from "./metafield-applies";
 import { swatchMapForShop } from "./color-swatches.server";
 import {
@@ -45,10 +45,10 @@ import {
   shopifyNumericId,
   variantCardKey,
 } from "./variants-as-products";
-import { getAppSettings } from "./settings.server";
+import { getAppSettings, settingsFromRow } from "./settings.server";
 import { sanitizeCustomCss, sanitizeProductListLiquid, scopeCustomCss } from "./widget-code";
-import { enforcePlanLimits } from "./billing.server";
-import { getAdminNavExtras } from "./admin-nav-extras.server";
+import { resolveFilterLimit } from "./billing.server";
+import { getAdminNavExtras, parseAdminNavExtras, type AdminNavExtras } from "./admin-nav-extras.server";
 import { resolveWidgetChrome } from "./widget-i18n";
 import { withWidgetChrome } from "./filters.server";
 import {
@@ -76,6 +76,8 @@ import {
   stripStopWordsFromQuery,
 } from "./instant-search";
 import { applyMarketPricesToRow, parseMarketContext } from "./markets.server";
+import { findShopCached } from "./shop-cache.server";
+import { createTtlCache } from "./read-cache.server";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
 export function verifyAppProxySignature(url: URL): boolean {
@@ -109,6 +111,171 @@ export function verifyAppProxySignature(url: URL): boolean {
 }
 
 export const FILTER_PAGE_SIZE_MAX = 48;
+export const FILTER_PAGE_SIZE_DEFAULT = 24;
+
+const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
+const FILTER_PAYLOAD_CACHE_MAX = 80;
+const shopCollectionsCache = createTtlCache<ShopCollection[]>(45_000);
+const collectionMembershipCache = createTtlCache<
+  Array<{ productGid: string; position: number | null }>
+>(45_000);
+
+function productFacetSelectForRequest(opts: {
+  config: FilterConfig;
+  mappings: MetafieldMapping[];
+  enableMarkets: boolean;
+  needsKeywordSearch: boolean;
+  searchFields: string[];
+  sort?: string | null;
+  selected: SelectedFilters;
+  showMatchingVariantImage: boolean;
+}): Prisma.ProductFacetSelect {
+  const variantSplit = Boolean(opts.config.enableVariantsAsProducts);
+  const filterMappings = opts.mappings.filter((mapping) =>
+    mappingAppliesToFilter(mapping),
+  );
+  const needMetafields =
+    Boolean(opts.config.enableRating) ||
+    filterMappings.length > 0 ||
+    (opts.needsKeywordSearch && opts.searchFields.includes("metafields")) ||
+    Boolean(opts.sort && String(opts.sort).startsWith("mf_"));
+  const needVariantMetafields = filterMappings.some(
+    (mapping) => normalizeMetafieldOwnerType(mapping.ownerType) === "VARIANT",
+  );
+  const hasOptionFilters = Object.keys(opts.selected || {}).some((key) =>
+    key.startsWith("opt_"),
+  );
+
+  const select: Record<string, true> = {
+    productGid: true,
+    handle: true,
+    title: true,
+    vendor: true,
+    productType: true,
+    tags: true,
+    skus: true,
+    options: true,
+    priceMin: true,
+    priceMax: true,
+    available: true,
+    status: true,
+  };
+  if (opts.config.enableSale) select.salePct = true;
+  if (opts.config.enableLocation) select.inventoryLocations = true;
+  if (needMetafields) select.metafields = true;
+  if (needVariantMetafields) select.variantMetafields = true;
+  if (opts.enableMarkets) select.marketPrices = true;
+  if (variantSplit) select.variants = true;
+  if (opts.needsKeywordSearch && opts.searchFields.includes("skus")) {
+    select.skus = true;
+  }
+  if (opts.sort === "date_asc" || opts.sort === "date_desc") {
+    select.publishedAt = true;
+  }
+  if (opts.showMatchingVariantImage && hasOptionFilters) {
+    select.variantImages = true;
+  }
+  select.imageUrl = true;
+  return select as Prisma.ProductFacetSelect;
+}
+
+function selectFingerprint(select: Prisma.ProductFacetSelect) {
+  return Object.entries(select)
+    .filter(([, enabled]) => Boolean(enabled))
+    .map(([key]) => key)
+    .sort()
+    .join(",");
+}
+
+async function loadCollectionMemberships(shopId: string, collectionGid: string) {
+  return collectionMembershipCache.wrap(`${shopId}:${collectionGid}`, () =>
+    prisma.collectionMembership.findMany({
+      where: { shopId, collectionGid },
+      select: { productGid: true, position: true },
+    }),
+  );
+}
+
+async function loadCollectionProductFacetsUncached(
+  shopId: string,
+  productGids: string[],
+  select: Prisma.ProductFacetSelect,
+) {
+  return prisma.productFacet.findMany({
+    where: { shopId, productGid: { in: productGids } },
+    select,
+  });
+}
+
+const collectionFacetCache = createTtlCache<
+  Awaited<ReturnType<typeof loadCollectionProductFacetsUncached>>
+>(45_000);
+
+async function loadCollectionProductFacets(
+  shopId: string,
+  collectionGid: string,
+  productGids: string[],
+  select: Prisma.ProductFacetSelect,
+) {
+  if (!productGids.length) return [];
+  return collectionFacetCache.wrap(
+    `${shopId}:${collectionGid}:${selectFingerprint(select)}`,
+    () => loadCollectionProductFacetsUncached(shopId, productGids, select),
+  );
+}
+
+type CachedFilterPayload = {
+  expires: number;
+  result: Awaited<ReturnType<typeof loadCollectionFilterPayload>>;
+};
+
+const filterPayloadCache = new Map<string, CachedFilterPayload>();
+
+function pruneFilterPayloadCache() {
+  const now = Date.now();
+  for (const [key, entry] of filterPayloadCache) {
+    if (entry.expires <= now) filterPayloadCache.delete(key);
+  }
+  if (filterPayloadCache.size <= FILTER_PAYLOAD_CACHE_MAX) return;
+  const extra = filterPayloadCache.size - FILTER_PAYLOAD_CACHE_MAX;
+  const keys = filterPayloadCache.keys();
+  for (let i = 0; i < extra; i += 1) {
+    const key = keys.next().value;
+    if (key == null) break;
+    filterPayloadCache.delete(key);
+  }
+}
+
+function collectionFilterCacheKey(input: {
+  shopDomain: string;
+  collectionId?: string | null;
+  collectionGid?: string | null;
+  selected: SelectedFilters;
+  sort?: string | null;
+  query?: string | null;
+  locale?: string | null;
+  page?: number;
+  pageSize?: number;
+  country?: string | null;
+  currency?: string | null;
+  companyLocationId?: string | null;
+  company_location?: string | null;
+}) {
+  return JSON.stringify({
+    shop: input.shopDomain,
+    cid: input.collectionId || "",
+    gid: input.collectionGid || "",
+    selected: input.selected,
+    sort: input.sort || "",
+    query: input.query || "",
+    locale: input.locale || "",
+    page: input.page || 1,
+    pageSize: input.pageSize || 0,
+    country: input.country || "",
+    currency: input.currency || "",
+    loc: input.companyLocationId || input.company_location || "",
+  });
+}
 
 /** 1-based page; invalid values become 1. */
 export function parseFilterPage(value: unknown): number {
@@ -190,10 +357,10 @@ function toRow(p: {
   available: boolean;
   inventoryLocations?: unknown;
   status?: string | null;
-  imageUrl: string | null;
+  imageUrl?: string | null;
   variantImages?: unknown;
   variants?: unknown;
-  metafields: unknown;
+  metafields?: unknown;
   variantMetafields?: unknown;
   publishedAt?: Date | null;
 }): ProductFacetRow {
@@ -228,7 +395,7 @@ function toRow(p: {
       ? p.inventoryLocations.filter((n) => typeof n === "string" && n)
       : [],
     status: p.status || "ACTIVE",
-    imageUrl: p.imageUrl,
+    imageUrl: p.imageUrl ?? null,
     variantImages: parseVariantImages(p.variantImages),
     variants: parseStoredVariants(p.variants),
     metafields: (p.metafields as Record<string, string>) || {},
@@ -240,16 +407,19 @@ function toRow(p: {
 }
 
 async function loadShopCollections(shopId: string): Promise<ShopCollection[]> {
-  const rows = await prisma.collection.findMany({
-    where: { shopId },
-    select: { collectionGid: true, title: true, handle: true },
-    orderBy: { title: "asc" },
+  return shopCollectionsCache.wrap(shopId, async () => {
+    const rows = await prisma.collection.findMany({
+      where: { shopId },
+      select: { collectionGid: true, title: true, handle: true },
+      orderBy: { title: "asc" },
+      take: 400,
+    });
+    return rows.map((row) => ({
+      collectionGid: row.collectionGid,
+      title: row.title,
+      handle: row.handle,
+    }));
   });
-  return rows.map((row) => ({
-    collectionGid: row.collectionGid,
-    title: row.title,
-    handle: row.handle,
-  }));
 }
 
 async function attachCollectionGids(
@@ -287,9 +457,34 @@ export async function getCollectionFilterPayload(input: {
   page?: number;
   pageSize?: number;
 } & MarketRequestFields) {
-  const shop = await prisma.shop.findUnique({
-    where: { domain: input.shopDomain },
-  });
+  pruneFilterPayloadCache();
+  const cacheKey = collectionFilterCacheKey(input);
+  const cached = filterPayloadCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return cached.result;
+  }
+  const result = await loadCollectionFilterPayload(input);
+  if (!("error" in result && result.error)) {
+    filterPayloadCache.set(cacheKey, {
+      expires: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
+      result,
+    });
+  }
+  return result;
+}
+
+async function loadCollectionFilterPayload(input: {
+  shopDomain: string;
+  collectionId?: string | null;
+  collectionGid?: string | null;
+  selected: SelectedFilters;
+  sort?: string | null;
+  query?: string | null;
+  locale?: string | null;
+  page?: number;
+  pageSize?: number;
+} & MarketRequestFields) {
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
   }
@@ -306,7 +501,11 @@ export async function getCollectionFilterPayload(input: {
 
   const config = await getFilterConfig(shop.id, collectionGid);
   if (!config?.enabled) {
-    const extras = await getAdminNavExtras(shop.id);
+    const settingsRow = await prisma.appSettings.findUnique({
+      where: { shopId: shop.id },
+      select: { adminExtras: true },
+    });
+    const extras = parseAdminNavExtras(settingsRow?.adminExtras);
     const resolved = resolveWidgetChrome(extras.i18n, input.locale);
     return {
       data: {
@@ -321,29 +520,47 @@ export async function getCollectionFilterPayload(input: {
     };
   }
 
-  const memberships = await prisma.collectionMembership.findMany({
-    where: { shopId: shop.id, collectionGid },
-    select: { productGid: true, position: true },
-  });
+  const [memberships, settingsRow, mappings, filterLimit, valueGroups, swatches] =
+    await Promise.all([
+      loadCollectionMemberships(shop.id, collectionGid),
+      prisma.appSettings.findUnique({ where: { shopId: shop.id } }),
+      getMetafieldMappings(shop.id),
+      resolveFilterLimit(shop.id),
+      listValueGroups(shop.id),
+      swatchMapForShop(shop.id),
+    ]);
+  const appSettings = await settingsFromRow(shop.id, settingsRow);
+  const navExtras = parseAdminNavExtras(settingsRow?.adminExtras);
   const productGids = memberships.map((m) => m.productGid);
   const positionByGid = new Map(
     memberships.map((m) => [m.productGid, m.position]),
   );
 
-  const productsDb = productGids.length
-    ? await prisma.productFacet.findMany({
-        where: { shopId: shop.id, productGid: { in: productGids } },
-      })
-    : [];
-
-  const appSettings = await getAppSettings(shop.id);
+  const searchFields = normalizeSearchFields(appSettings.searchFields);
   const extras = parseSearchExtras(appSettings.searchExtras);
   const collectionQuery = appSettings.enableCollectionSearch
     ? normalizeSearchQuery(input.query ?? "")
     : "";
-  const searchFields = normalizeSearchFields(appSettings.searchFields);
+  const enableMarkets = appSettings.enableMarkets !== false;
+  const productsDb = await loadCollectionProductFacets(
+    shop.id,
+    collectionGid,
+    productGids,
+    productFacetSelectForRequest({
+      config,
+      mappings,
+      enableMarkets,
+      needsKeywordSearch: Boolean(collectionQuery),
+      searchFields,
+      sort: input.sort,
+      selected: input.selected,
+      showMatchingVariantImage:
+        appSettings.showMatchingVariantImage !== false,
+    }),
+  );
+
   const metafieldPaths = searchFields.includes("metafields")
-    ? enabledMetafieldPaths(await getMetafieldMappings(shop.id))
+    ? enabledMetafieldPaths(mappings)
     : [];
 
   const scopedProducts = collectionQuery
@@ -362,14 +579,13 @@ export async function getCollectionFilterPayload(input: {
       )
     : productsDb;
 
-  const enableMarkets = appSettings.enableMarkets !== false;
   const context = parseMarketContext(input);
   const allRows = scopedProducts
     .filter((product) => (product.status || "ACTIVE") === "ACTIVE")
     .map((product) => ({
       ...applyMarketPricesToRow(
         toRow(product),
-        product.marketPrices,
+        "marketPrices" in product ? product.marketPrices : undefined,
         context,
         enableMarkets,
       ),
@@ -388,6 +604,12 @@ export async function getCollectionFilterPayload(input: {
     page: input.page,
     pageSize: input.pageSize,
     currency: payloadCurrency(context, allRows),
+    appSettings,
+    extras: navExtras,
+    mappings,
+    filterLimit,
+    valueGroups,
+    swatches,
   });
 }
 
@@ -404,20 +626,41 @@ async function buildFacetPayload(input: {
   page?: number;
   pageSize?: number;
   currency?: string | null;
+  appSettings?: Awaited<ReturnType<typeof getAppSettings>>;
+  extras?: AdminNavExtras;
+  mappings?: MetafieldMapping[];
+  filterLimit?: number;
+  valueGroups?: Awaited<ReturnType<typeof listValueGroups>>;
+  swatches?: Awaited<ReturnType<typeof swatchMapForShop>>;
 }) {
-  const [mappings, appSettings, limits, valueGroups, swatches, extras] = await Promise.all([
-    getMetafieldMappings(input.shopId),
-    getAppSettings(input.shopId),
-    enforcePlanLimits(input.shopId),
-    listValueGroups(input.shopId),
-    swatchMapForShop(input.shopId),
-    getAdminNavExtras(input.shopId),
-  ]);
+  const [mappings, appSettings, filterLimit, valueGroups, swatches, extras] =
+    await Promise.all([
+      input.mappings
+        ? Promise.resolve(input.mappings)
+        : getMetafieldMappings(input.shopId),
+      input.appSettings
+        ? Promise.resolve(input.appSettings)
+        : prisma.appSettings
+            .findUnique({ where: { shopId: input.shopId } })
+            .then((row) => settingsFromRow(input.shopId, row)),
+      input.filterLimit != null
+        ? Promise.resolve(input.filterLimit)
+        : resolveFilterLimit(input.shopId),
+      input.valueGroups
+        ? Promise.resolve(input.valueGroups)
+        : listValueGroups(input.shopId),
+      input.swatches
+        ? Promise.resolve(input.swatches)
+        : swatchMapForShop(input.shopId),
+      input.extras
+        ? Promise.resolve(input.extras)
+        : getAdminNavExtras(input.shopId),
+    ]);
   const { locale, chrome } = resolveWidgetChrome(extras.i18n, input.locale);
   const cappedMappings = mappings
     .filter((mapping) => mappingAppliesToFilter(mapping))
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .slice(0, limits.filterLimit);
+    .slice(0, filterLimit);
   const metafieldSortOptions = listMetafieldSortOptions(mappings);
   const settings = {
     showProductCounts: appSettings.showProductCounts,
@@ -449,6 +692,7 @@ async function buildFacetPayload(input: {
       appSettings.showMatchingVariantImage ?? true,
     ),
     showRefineBy: Boolean(appSettings.showRefineBy ?? true),
+    autoApplyFilters: appSettings.autoApplyFilters !== false,
     customCss: scopeCustomCss(sanitizeCustomCss(appSettings.customCss)),
     productListLiquid: sanitizeProductListLiquid(appSettings.productListLiquid),
     metafieldSortOptions,
@@ -586,9 +830,49 @@ async function buildFacetPayload(input: {
       ...facet,
       label: setting.label || facet.label,
       collectionTree: Boolean(setting.collectionTree),
+      hasMergedValues: Boolean(
+        valueGroups?.some((group) => group.sourceKey === sourceKey),
+      ),
       values: nextValues,
     };
   });
+
+  const productCard = (product: (typeof filtered)[number]) => {
+    const variantId = shopifyNumericId(product.variantGid || "");
+    const variantImage = product.variantGid
+      ? product.imageUrl || ""
+      : settings.showMatchingVariantImage
+        ? matchingVariantImageUrl(product.variantImages ?? [], optionGroups)
+        : "";
+    return {
+      id: product.variantGid || product.productGid,
+      handle: product.handle,
+      title: product.title,
+      vendor: product.vendor,
+      productType: product.productType,
+      available: product.available,
+      priceMin: product.priceMin,
+      priceMax: product.priceMax,
+      imageUrl: product.imageUrl,
+      variantImageUrl: variantImage,
+      variantId: variantId || undefined,
+      cardKey: variantId
+        ? variantCardKey(product.handle, product.variantGid || "")
+        : product.handle,
+      url: variantId
+        ? `/products/${product.handle}?variant=${variantId}`
+        : `/products/${product.handle}`,
+    };
+  };
+  const productHandle = (product: (typeof filtered)[number]) => {
+    const variantId = shopifyNumericId(product.variantGid || "");
+    return variantId
+      ? variantCardKey(product.handle, product.variantGid || "")
+      : product.handle;
+  };
+
+  const pageSize = input.pageSize ?? FILTER_PAGE_SIZE_DEFAULT;
+  const paged = sliceFilterProducts(filtered, input.page, pageSize);
 
   const data = {
     enabled: true as const,
@@ -596,51 +880,19 @@ async function buildFacetPayload(input: {
     i18n: chrome,
     settings,
     facets: aggregations,
-    products: filtered.map((product) => {
-      const variantId = shopifyNumericId(product.variantGid || "");
-      const variantImage = product.variantGid
-        ? product.imageUrl || ""
-        : settings.showMatchingVariantImage
-          ? matchingVariantImageUrl(product.variantImages ?? [], optionGroups)
-          : "";
-      return {
-        id: product.variantGid || product.productGid,
-        handle: product.handle,
-        title: product.title,
-        available: product.available,
-        priceMin: product.priceMin,
-        priceMax: product.priceMax,
-        imageUrl: product.imageUrl,
-        variantImageUrl: variantImage,
-        variantId: variantId || undefined,
-        cardKey: variantId
-          ? variantCardKey(product.handle, product.variantGid || "")
-          : product.handle,
-        url: variantId
-          ? `/products/${product.handle}?variant=${variantId}`
-          : `/products/${product.handle}`,
-      };
-    }),
+    handles: filtered.map(productHandle),
+    products: paged.products.map(productCard),
     sort: resolved.sort,
+    total: paged.total,
+    page: paged.page ?? 1,
+    pageSize: paged.pageSize ?? pageSize,
+    hasNext: paged.hasNext ?? false,
     ...(input.collectionGid != null ? { collectionGid: input.collectionGid } : {}),
     ...(input.query != null ? { query: input.query } : {}),
   };
 
-  const paged = sliceFilterProducts(data.products, input.page, input.pageSize);
-
   return {
-    data: {
-      ...data,
-      products: paged.products,
-      total: paged.total,
-      ...(paged.pageSize != null
-        ? {
-            page: paged.page,
-            pageSize: paged.pageSize,
-            hasNext: paged.hasNext,
-          }
-        : {}),
-    },
+    data,
     status: 200 as const,
   };
 }
@@ -654,14 +906,15 @@ export async function getSearchFilterPayload(input: {
   page?: number;
   pageSize?: number;
 } & MarketRequestFields) {
-  const shop = await prisma.shop.findUnique({
-    where: { domain: input.shopDomain },
-  });
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const appSettings = await getAppSettings(shop.id);
+  const settingsRow = await prisma.appSettings.findUnique({
+    where: { shopId: shop.id },
+  });
+  const appSettings = await settingsFromRow(shop.id, settingsRow);
   if (!(appSettings.enableFiltersOnSearch ?? true)) {
     return {
       data: {
@@ -715,6 +968,7 @@ export async function getSearchFilterPayload(input: {
     page: input.page,
     pageSize: input.pageSize,
     currency: payloadCurrency(context, allRows),
+    appSettings,
   });
 }
 
@@ -723,13 +977,14 @@ export async function getInstantSearchWidgetPayload(
     shopDomain: string;
   } & MarketRequestFields,
 ) {
-  const shop = await prisma.shop.findUnique({
-    where: { domain: input.shopDomain },
-  });
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
   }
-  const settings = await getAppSettings(shop.id);
+  const settingsRow = await prisma.appSettings.findUnique({
+    where: { shopId: shop.id },
+  });
+  const settings = await settingsFromRow(shop.id, settingsRow);
   const extras = parseSearchExtras(settings.searchExtras);
   const context = parseMarketContext(input);
   return {
@@ -753,14 +1008,15 @@ export async function getSearchPayload(input: {
   locale?: string | null;
   take?: number;
 } & MarketRequestFields) {
-  const shop = await prisma.shop.findUnique({
-    where: { domain: input.shopDomain },
-  });
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const settings = await getAppSettings(shop.id);
+  const settingsRow = await prisma.appSettings.findUnique({
+    where: { shopId: shop.id },
+  });
+  const settings = await settingsFromRow(shop.id, settingsRow);
   const extras = parseSearchExtras(settings.searchExtras);
   const normalizedQuery = normalizeSearchQuery(input.query);
   const queryKey = normalizeSearchQueryKey(normalizedQuery);

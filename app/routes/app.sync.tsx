@@ -26,26 +26,43 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { enforcePlanLimits, ensureShopAccess } from "../billing.server";
+import { resolvePlanCaps, ensureShopAccess } from "../billing.server";
 import { enqueueSyncJob } from "../queues.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
+
+const PRODUCT_COUNT_TTL_MS = 30_000;
+const productCountCache = new Map<string, { count: number; expires: number }>();
+
+async function countedProducts(shopId: string) {
+  const hit = productCountCache.get(shopId);
+  if (hit && hit.expires > Date.now()) return hit.count;
+  const count = await prisma.productFacet.count({ where: { shopId } });
+  productCountCache.set(shopId, {
+    count,
+    expires: Date.now() + PRODUCT_COUNT_TTL_MS,
+  });
+  return count;
+}
 
 export { SyncPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const syncJob = await prisma.syncJob.findUnique({
-    where: { shopId: shop.id },
-  });
-  const limits = await enforcePlanLimits(shop.id);
+  const [syncJob, caps, productCount] = await Promise.all([
+    prisma.syncJob.findUnique({
+      where: { shopId: shop.id },
+    }),
+    resolvePlanCaps(shop.id),
+    countedProducts(shop.id),
+  ]);
 
   return {
     syncJob,
-    productCount: limits.productCount,
-    productLimit: limits.productLimit,
-    plan: limits.plan,
-    overProductLimit: limits.overProductLimit,
+    productCount,
+    productLimit: caps.productLimit,
+    plan: caps.plan,
+    overProductLimit: productCount > caps.productLimit,
   };
 };
 

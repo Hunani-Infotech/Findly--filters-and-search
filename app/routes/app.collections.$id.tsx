@@ -92,11 +92,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     };
   }
 
-  const config = await getFilterConfig(shop.id, collectionGid);
-  const hasSpecific = await hasCollectionAssignment(shop.id, collectionGid);
-
-  const valueCatalog = await getListFacetValueCatalog(shop.id, collectionGid);
-  const mappedFacets = mappedFacetsForAdmin(await getMetafieldMappings(shop.id));
+  const [config, hasSpecific, valueCatalog, mappings] = await Promise.all([
+    getFilterConfig(shop.id, collectionGid),
+    hasCollectionAssignment(shop.id, collectionGid),
+    getListFacetValueCatalog(shop.id, collectionGid),
+    getMetafieldMappings(shop.id),
+  ]);
+  const mappedFacets = mappedFacetsForAdmin(mappings);
   const listMetafields = mappedFacets.filter(
     (mapping) => mapping.filterType === "LIST",
   );

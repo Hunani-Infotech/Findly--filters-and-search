@@ -89,7 +89,28 @@ function themeStatus(done: boolean): SetupStepStatus {
   return done ? "complete" : "todo";
 }
 
+const SETUP_PROGRESS_TTL_MS = 30_000;
+const setupProgressCache = new Map<
+  string,
+  { value: SetupProgress; expires: number }
+>();
+
 export async function getSetupProgress(
+  shopId: string,
+  shopDomain: string,
+): Promise<SetupProgress> {
+  const cacheKey = `${shopId}:${shopDomain}`;
+  const hit = setupProgressCache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const value = await loadSetupProgress(shopId, shopDomain);
+  setupProgressCache.set(cacheKey, {
+    value,
+    expires: Date.now() + SETUP_PROGRESS_TTL_MS,
+  });
+  return value;
+}
+
+async function loadSetupProgress(
   shopId: string,
   shopDomain: string,
 ): Promise<SetupProgress> {
@@ -229,4 +250,7 @@ export async function setThemeStepComplete(
     where: { shopId },
     data: { adminExtras: extras as Prisma.InputJsonValue },
   });
+  for (const key of [...setupProgressCache.keys()]) {
+    if (key.startsWith(`${shopId}:`)) setupProgressCache.delete(key);
+  }
 }

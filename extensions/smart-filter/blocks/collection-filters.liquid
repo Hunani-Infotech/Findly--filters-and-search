@@ -54,7 +54,10 @@
     aria-labelledby="smart-filter-title"
   >
     <div class="smart-filter__panel-head">
-      <div class="smart-filter__title" id="smart-filter-title" data-title>Filter:</div>
+      <div class="smart-filter__title" id="smart-filter-title" data-title>Filter</div>
+      <button type="button" class="smart-filter__clear-all" data-clear-all disabled>
+        Clear All
+      </button>
       <button
         type="button"
         class="smart-filter__close"
@@ -64,7 +67,27 @@
         ×
       </button>
     </div>
-    <div class="smart-filter__facets" data-facets></div>
+    <div class="smart-filter__facets" data-facets>
+      <div class="smart-filter__skeleton" data-skeleton aria-hidden="true">
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+      </div>
+    </div>
     <div class="smart-filter__status" data-status aria-live="polite"></div>
   </div>
 </div>
@@ -77,7 +100,7 @@
     "templates": ["collection", "search"]
   },
   "stylesheet": "smart-filter.css",
-  "javascript": "smart-filter.js",
+  "javascript": "smart-filter.min.js",
   "settings": [
     {
       "type": "select",

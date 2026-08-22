@@ -1,8 +1,39 @@
+<script type="application/json" id="findly-embed-config">
+{
+  "productGridSelector": {{ block.settings.product_grid_selector | json }},
+  "useQuickviewTemplate": {{ block.settings.use_quickview_template | json }},
+  "customCss": {{ block.settings.custom_css | json }},
+  "customJavascript": {{ block.settings.custom_javascript | json }},
+  "productTemplate": {{ block.settings.product_template | json }},
+  "treeTemplate": {{ block.settings.tree_template | json }},
+  "sortTemplate": {{ block.settings.sort_template | json }},
+  "searchTemplate": {{ block.settings.search_template | json }},
+  "variables": {{ block.settings.variables | json }},
+  "themeId": {{ theme.id | json }}
+}
+</script>
+
+{% if block.settings.custom_css != blank %}
+<style id="findly-embed-css">{{ block.settings.custom_css }}</style>
+{% endif %}
+
+{% if block.settings.custom_javascript != blank %}
+<script>
+window.__findlyEmbedJsRan = true;
+try {
+{{ block.settings.custom_javascript | replace: '</script', '<\/script' }}
+} catch (e) {}
+</script>
+{% endif %}
+
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
 <div
   id="smart-filter-embed"
   class="smart-filter smart-filter--{{ block.settings.position }}"
   data-embed="true"
+  data-embed-config="findly-embed-config"
+  data-product-grid-selector="{{ block.settings.product_grid_selector | escape }}"
+  data-use-quickview="{% if block.settings.use_quickview_template %}true{% else %}false{% endif %}"
   data-collection-id="{% if template contains 'collection' %}{{ collection.id }}{% endif %}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
@@ -56,7 +87,10 @@
     aria-labelledby="smart-filter-embed-title"
   >
     <div class="smart-filter__panel-head">
-      <div class="smart-filter__title" id="smart-filter-embed-title" data-title>Filter:</div>
+      <div class="smart-filter__title" id="smart-filter-embed-title" data-title>Filter</div>
+      <button type="button" class="smart-filter__clear-all" data-clear-all disabled>
+        Clear All
+      </button>
       <button
         type="button"
         class="smart-filter__close"
@@ -66,7 +100,26 @@
         ×
       </button>
     </div>
-    <div class="smart-filter__facets" data-facets></div>
+    <div class="smart-filter__facets" data-facets>
+      <div class="smart-filter__skeleton" data-skeleton aria-hidden="true">
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+        <div class="smart-filter__skeleton-facet">
+          <span class="smart-filter__skeleton-label"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line"></span>
+          <span class="smart-filter__skeleton-line is-short"></span>
+        </div>
+      </div>
+    </div>
     <div class="smart-filter__status" data-status aria-live="polite"></div>
   </div>
 </div>
@@ -77,8 +130,12 @@
   "name": "t:blocks.collection_filters_embed.name",
   "target": "body",
   "stylesheet": "smart-filter.css",
-  "javascript": "smart-filter.js",
+  "javascript": "smart-filter.min.js",
   "settings": [
+    {
+      "type": "header",
+      "content": "t:blocks.collection_filters_embed.settings.headers.layout"
+    },
     {
       "type": "select",
       "id": "position",
@@ -108,6 +165,73 @@
       "id": "show_counts",
       "label": "t:blocks.collection_filters_embed.settings.show_counts.label",
       "default": true
+    },
+    {
+      "type": "header",
+      "content": "t:blocks.collection_filters_embed.settings.headers.theme_integration"
+    },
+    {
+      "type": "text",
+      "id": "product_grid_selector",
+      "label": "t:blocks.collection_filters_embed.settings.product_grid_selector.label",
+      "info": "t:blocks.collection_filters_embed.settings.product_grid_selector.info"
+    },
+    {
+      "type": "checkbox",
+      "id": "use_quickview_template",
+      "label": "t:blocks.collection_filters_embed.settings.use_quickview_template.label",
+      "info": "t:blocks.collection_filters_embed.settings.use_quickview_template.info",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "t:blocks.collection_filters_embed.settings.headers.custom_code"
+    },
+    {
+      "type": "textarea",
+      "id": "custom_javascript",
+      "label": "t:blocks.collection_filters_embed.settings.custom_javascript.label",
+      "info": "t:blocks.collection_filters_embed.settings.custom_javascript.info"
+    },
+    {
+      "type": "textarea",
+      "id": "custom_css",
+      "label": "t:blocks.collection_filters_embed.settings.custom_css.label",
+      "info": "t:blocks.collection_filters_embed.settings.custom_css.info"
+    },
+    {
+      "type": "header",
+      "content": "t:blocks.collection_filters_embed.settings.headers.custom_templates"
+    },
+    {
+      "type": "textarea",
+      "id": "product_template",
+      "label": "t:blocks.collection_filters_embed.settings.product_template.label",
+      "info": "t:blocks.collection_filters_embed.settings.product_template.info"
+    },
+    {
+      "type": "textarea",
+      "id": "tree_template",
+      "label": "t:blocks.collection_filters_embed.settings.tree_template.label",
+      "info": "t:blocks.collection_filters_embed.settings.tree_template.info"
+    },
+    {
+      "type": "textarea",
+      "id": "sort_template",
+      "label": "t:blocks.collection_filters_embed.settings.sort_template.label",
+      "info": "t:blocks.collection_filters_embed.settings.sort_template.info"
+    },
+    {
+      "type": "textarea",
+      "id": "search_template",
+      "label": "t:blocks.collection_filters_embed.settings.search_template.label",
+      "info": "t:blocks.collection_filters_embed.settings.search_template.info"
+    },
+    {
+      "type": "liquid",
+      "id": "variables",
+      "label": "t:blocks.collection_filters_embed.settings.variables.label",
+      "info": "t:blocks.collection_filters_embed.settings.variables.info"
     }
   ]
 }

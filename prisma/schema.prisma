@@ -122,6 +122,8 @@ model AppSettings {
   showMatchingVariantImage Boolean @default(true)
   /// Show applied “Refine by” chips
   showRefineBy Boolean @default(true)
+  /// Instant AJAX filter on option click (true) vs wait for Apply now (false)
+  autoApplyFilters Boolean @default(true)
   /// F5: use Shopify Markets / B2B catalog prices instead of shop default currency
   enableMarkets Boolean @default(true)
   /// C9: show pinned products/collections on empty search focus

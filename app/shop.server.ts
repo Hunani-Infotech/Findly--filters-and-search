@@ -1,6 +1,8 @@
-import { Prisma, type MetafieldFilterType } from "@prisma/client";
+import { findShopCached, rememberShop } from "./shop-cache.server";
+import { createTtlCache } from "./read-cache.server";
+import { Prisma, type MetafieldFilterType, type MetafieldMapping } from "@prisma/client";
 import prisma from "./db.server";
-import { enforcePlanLimits } from "./billing.server";
+import { resolveFilterLimit } from "./billing.server";
 import { listFacetValueCatalog, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, type ProductFacetRow, type ValueSortMap } from "./filters.server";
 import {
   ensureDefaultFilterTree,
@@ -25,11 +27,18 @@ export {
 };
 
 export async function ensureShop(domain: string) {
+  const cached = await findShopCached(domain);
+  if (cached && !cached.uninstalledAt) {
+    return cached;
+  }
+
   const shop = await prisma.shop.upsert({
     where: { domain },
     create: { domain, plan: "free" },
     update: { uninstalledAt: null },
+    include: { subscription: true },
   });
+  rememberShop(shop);
 
   await prisma.syncJob.upsert({
     where: { shopId: shop.id },
@@ -62,11 +71,18 @@ export async function getFilterConfig(
   return resolveFilterTreeForSearch(shopId);
 }
 
+const mappingsCache = createTtlCache<MetafieldMapping[]>(30_000);
+const facetCatalogCache = createTtlCache<
+  Array<{ key: string; label: string; values: string[] }>
+>(30_000);
+
 export async function getMetafieldMappings(shopId: string) {
-  return prisma.metafieldMapping.findMany({
-    where: { shopId },
-    orderBy: { sortOrder: "asc" },
-  });
+  return mappingsCache.wrap(shopId, () =>
+    prisma.metafieldMapping.findMany({
+      where: { shopId },
+      orderBy: { sortOrder: "asc" },
+    }),
+  );
 }
 
 export type FilterConfigInput = {
@@ -153,6 +169,7 @@ export async function saveFilterConfig(shopId: string, input: FilterConfigInput)
     await replaceTreeCollections(shopId, tree.id, input.collectionGids);
   }
 
+  facetCatalogCache.deletePrefix(`${shopId}:`);
   return updated;
 }
 
@@ -186,6 +203,8 @@ export async function saveMetafieldMappings(
       })) as Prisma.MetafieldMappingCreateManyInput[],
     });
   });
+  mappingsCache.del(shopId);
+  facetCatalogCache.deletePrefix(`${shopId}:`);
   return getMetafieldMappings(shopId);
 }
 
@@ -210,24 +229,43 @@ export function filterConfigPriceFields(config: {
   };
 }
 
+const CATALOG_FACET_SELECT = {
+  vendor: true,
+  productType: true,
+  tags: true,
+  options: true,
+  priceMin: true,
+  priceMax: true,
+  available: true,
+  status: true,
+  metafields: true,
+  variantMetafields: true,
+} as const;
+
 export async function getListFacetValueCatalog(
   shopId: string,
   collectionGid = "",
 ) {
-  const [mappings, config, limits] = await Promise.all([
+  return facetCatalogCache.wrap(`${shopId}:${collectionGid}`, () =>
+    loadListFacetValueCatalog(shopId, collectionGid),
+  );
+}
+
+async function loadListFacetValueCatalog(shopId: string, collectionGid: string) {
+  const [mappings, config, filterLimit] = await Promise.all([
     getMetafieldMappings(shopId),
     getFilterConfig(shopId, collectionGid || ""),
-    enforcePlanLimits(shopId),
+    resolveFilterLimit(shopId),
   ]);
   const cappedMappings = mappings
     .filter((mapping) => mappingAppliesToFilter(mapping))
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .slice(0, limits.filterLimit);
+    .slice(0, filterLimit);
   let products;
   if (collectionGid) {
     const memberships = await prisma.collectionMembership.findMany({
       where: { shopId, collectionGid },
-      take: 500,
+      take: 200,
       select: { productGid: true },
     });
     products = await prisma.productFacet.findMany({
@@ -235,33 +273,33 @@ export async function getListFacetValueCatalog(
         shopId,
         productGid: { in: memberships.map((row) => row.productGid) },
       },
+      select: CATALOG_FACET_SELECT,
     });
   } else {
     products = await prisma.productFacet.findMany({
       where: { shopId, status: "ACTIVE" },
-      take: 500,
+      take: 200,
+      select: CATALOG_FACET_SELECT,
     });
   }
 
-  const rows: ProductFacetRow[] = products.map((product) => ({
-    productGid: product.productGid,
-    handle: product.handle,
-    title: product.title,
+  const rows: ProductFacetRow[] = products.map((product, index) => ({
+    productGid: `catalog:${index}`,
+    handle: "",
+    title: "",
     vendor: product.vendor,
     productType: product.productType,
     tags: product.tags,
     options: (product.options as Record<string, string[]>) || {},
     priceMin: Number(product.priceMin),
     priceMax: Number(product.priceMax),
-    compareAtMin:
-      product.compareAtMin == null ? null : Number(product.compareAtMin),
-    compareAtMax:
-      product.compareAtMax == null ? null : Number(product.compareAtMax),
-    salePct: Number(product.salePct),
+    compareAtMin: null,
+    compareAtMax: null,
+    salePct: 0,
     available: product.available,
-    inventoryLocations: product.inventoryLocations ?? [],
+    inventoryLocations: [],
     status: product.status,
-    imageUrl: product.imageUrl,
+    imageUrl: null,
     metafields: (product.metafields as Record<string, string>) || {},
     variantMetafields: (product.variantMetafields as Record<string, string>) || {},
   }));

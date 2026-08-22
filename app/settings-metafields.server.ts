@@ -1,6 +1,6 @@
 import type { MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
-import { enforcePlanLimits } from "./billing.server";
+import { resolvePlanCaps } from "./billing.server";
 import {
   DEFAULT_NEW_APPLIES,
   appliesToForMapping,
@@ -78,16 +78,19 @@ export function declaredMetafieldsFromMappings(
 }
 
 export async function loadSettingsMetafields(shopId: string) {
-  const [mappings, limits] = await Promise.all([
+  const [mappings, caps] = await Promise.all([
     getMetafieldMappings(shopId),
-    enforcePlanLimits(shopId),
+    resolvePlanCaps(shopId),
   ]);
+  const filterCount = mappings.filter((mapping) =>
+    mappingAppliesToFilter(mapping),
+  ).length;
   return {
     rows: declaredMetafieldsFromMappings(mappings),
-    filterCount: limits.filterCount,
-    filterLimit: limits.filterLimit,
-    plan: limits.plan,
-    overFilterLimit: limits.overFilterLimit,
+    filterCount,
+    filterLimit: caps.filterLimit,
+    plan: caps.plan,
+    overFilterLimit: filterCount > caps.filterLimit,
   };
 }
 
@@ -177,10 +180,10 @@ export async function saveDeclaredMetafields(
   }
   const declared = [...unique.values()];
   const filterRows = declared.filter((row) => mappingAppliesToFilter(row));
-  const limits = await enforcePlanLimits(shopId);
-  if (filterRows.length > limits.filterLimit) {
+  const caps = await resolvePlanCaps(shopId);
+  if (filterRows.length > caps.filterLimit) {
     return {
-      error: `Your ${limits.plan} plan allows up to ${limits.filterLimit} metafield filters (selected ${filterRows.length}). Remove Filter from some rows or upgrade on Billing.`,
+      error: `Your ${caps.plan} plan allows up to ${caps.filterLimit} metafield filters (selected ${filterRows.length}). Remove Filter from some rows or upgrade on Billing.`,
     };
   }
 

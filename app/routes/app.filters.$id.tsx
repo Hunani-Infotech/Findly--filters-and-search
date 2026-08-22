@@ -115,13 +115,19 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       config && "facetSettings" in config ? config.facetSettings : {},
     ),
   ];
-  const [picker, otherTrees] = await Promise.all([
+  const [picker, otherTrees, optionProducts, mappedFacets] = await Promise.all([
     listCollectionsForPicker(shop.id, {
       page: 1,
       pageSize: COLLECTION_PICKER_PAGE_SIZE,
       includeGids,
     }),
     listFilterTrees(shop.id),
+    prisma.productFacet.findMany({
+      where: { shopId: shop.id, status: "ACTIVE" },
+      take: 120,
+      select: { options: true },
+    }),
+    getMetafieldMappings(shop.id),
   ]);
   const usedElsewhere: Record<string, boolean> = {};
   let allCollectionsUsedElsewhere = false;
@@ -137,17 +143,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       usedElsewhere[tree.collectionGid] = true;
     }
   }
-  const optionProducts = await prisma.productFacet.findMany({
-    where: { shopId: shop.id, status: "ACTIVE" },
-    take: 500,
-    select: { options: true },
-  });
   const catalogOptions = catalogOptionRows(
     optionProducts.map((product) => ({
       options: (product.options as Record<string, string[]>) || {},
     })),
   );
-  const mappedFacets = mappedFacetsForAdmin(await getMetafieldMappings(shop.id));
+  const mappedFacetRows = mappedFacetsForAdmin(mappedFacets);
   const facetSettings = parseFacetSettings(
     config && "facetSettings" in config ? config.facetSettings : {},
   );
@@ -163,7 +164,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     usedElsewhere,
     allCollectionsUsedElsewhere,
     catalogOptions,
-    mappedFacets,
+    mappedFacets: mappedFacetRows,
     facetSettings,
     config: config
       ? {

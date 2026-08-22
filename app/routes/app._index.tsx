@@ -42,7 +42,6 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
-import { ensureShop, getMetafieldMappings } from "../shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
 import {
@@ -53,16 +52,13 @@ import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { slicePage } from "../admin-list-page";
 import {
-  deleteAbandonedDraftTrees,
   deleteFilterTrees,
   duplicateFilterTrees,
   exportFilterTreesPayload,
   listFilterTrees,
   reorderFilterTrees,
   setFilterTreesEnabled,
-  syncMappedMetafieldKeysOnTrees,
 } from "../filter-trees.server";
-import { mappedFacetsForAdmin } from "../filters.server";
 import {
   getSetupProgress,
   isThemeStepId,
@@ -193,18 +189,12 @@ function appliesToMarkup(tree: FilterListTree) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const shop = await ensureShop(session.shop);
-  await ensureShopAccess(session.shop);
-  await deleteAbandonedDraftTrees(shop.id);
-  await syncMappedMetafieldKeysOnTrees(
-    shop.id,
-    mappedFacetsForAdmin(await getMetafieldMappings(shop.id)).map(
-      (facet) => facet.key,
-    ),
-  );
+  const { shop } = await ensureShopAccess(session.shop);
 
-  const trees = await listFilterTrees(shop.id);
-  const setup = await getSetupProgress(shop.id, session.shop);
+  const [trees, setup] = await Promise.all([
+    listFilterTrees(shop.id),
+    getSetupProgress(shop.id, session.shop),
+  ]);
   const assignedGids = [
     ...new Set(
       trees.flatMap((tree) =>
@@ -242,8 +232,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const shop = await ensureShop(session.shop);
-  await ensureShopAccess(session.shop);
+  const { shop } = await ensureShopAccess(session.shop);
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   const ids = parseIdList(form.get("ids"));
