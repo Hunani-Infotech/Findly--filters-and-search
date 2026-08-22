@@ -49,7 +49,7 @@ export const FACET_DISPLAY_TYPE_LABELS: Record<FacetDisplayType, string> = {
   slider: "Slider",
   radio: "Radio",
   box: "Box",
-  collection: "Collection",
+  collection: "Collection redirect",
 };
 
 export type FacetDef = {

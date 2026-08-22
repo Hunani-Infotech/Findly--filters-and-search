@@ -374,6 +374,7 @@ export async function ingestBulkOperation(
   const toIngest = truncated ? products.slice(0, productLimit) : products;
 
   let upserted = 0;
+  log.info(`[sync] ingesting ${toIngest.length} products (limit ${productLimit})`);
   for (const product of toIngest) {
     const { facet, collectionGids } = mapProductToFacet(shop.id, product);
     await prisma.productFacet.upsert({
@@ -419,6 +420,24 @@ export async function ingestBulkOperation(
 
     await syncProductMemberships(shop.id, facet.productGid, collectionGids);
     upserted += 1;
+    if (upserted === 1 || upserted % 25 === 0 || upserted === toIngest.length) {
+      log.info(`[sync] upserted ${upserted}/${toIngest.length}`);
+    }
+  }
+
+  let pruned = 0;
+  if (!truncated && toIngest.length > 0) {
+    const keepGids = toIngest.map((product) => product.id);
+    const removed = await prisma.productFacet.deleteMany({
+      where: { shopId: shop.id, productGid: { notIn: keepGids } },
+    });
+    await prisma.collectionMembership.deleteMany({
+      where: { shopId: shop.id, productGid: { notIn: keepGids } },
+    });
+    pruned = removed.count;
+    if (pruned) {
+      log.info(`[sync] pruned ${pruned} products missing from bulk catalog`);
+    }
   }
 
   try {
@@ -438,15 +457,23 @@ export async function ingestBulkOperation(
       where: { shopId: shop.id },
       select: { collectionGid: true },
     });
+    log.info(`[sync] rebuilding ${collections.length} collections`);
+    let rebuilt = 0;
     for (const collection of collections) {
       await rebuildCollection(shopDomain, collection.collectionGid);
+      rebuilt += 1;
+      if (rebuilt === 1 || rebuilt % 10 === 0 || rebuilt === collections.length) {
+        log.info(`[sync] rebuilt collections ${rebuilt}/${collections.length}`);
+      }
     }
   } catch (error) {
     log.error("Post-ingest collection order sync failed", error);
   }
 
   try {
+    log.info("[sync] syncing market prices");
     await syncShopMarketPrices(admin, shop.id);
+    log.info("[sync] market prices done");
   } catch (error) {
     log.error("Post-ingest market prices sync failed", error);
   }
@@ -462,7 +489,7 @@ export async function ingestBulkOperation(
     bulkOperationId: op.id,
   });
 
-  return { upserted, truncated, productLimit };
+  return { upserted, truncated, pruned, productLimit };
 }
 
 export async function upsertProduct(shopDomain: string, productGid: string) {
