@@ -1090,7 +1090,6 @@ export function productMatchesFilters(
         break;
       }
       case "collection": {
-        if (facet.displayType === "collection") break;
         if (
           !productInSelectedCollections(
             product.collectionGids,

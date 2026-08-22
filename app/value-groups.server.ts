@@ -14,6 +14,8 @@ const valueCatalogCache = createTtlCache<
   ReturnType<typeof collectCatalogFromProducts>
 >(30_000);
 
+const valueGroupsCache = createTtlCache<ValueGroupRow[]>(30_000);
+
 export async function getFilterValueCatalog(shopId: string) {
   return valueCatalogCache.wrap(shopId, async () => {
     const products = await prisma.productFacet.findMany({
@@ -97,16 +99,18 @@ export async function listMatchingCatalogValues(
 }
 
 export async function listValueGroups(shopId: string): Promise<ValueGroupRow[]> {
-  const rows = await prisma.valueGroup.findMany({
-    where: { shopId },
-    orderBy: { updatedAt: "desc" },
+  return valueGroupsCache.wrap(shopId, async () => {
+    const rows = await prisma.valueGroup.findMany({
+      where: { shopId },
+      orderBy: { updatedAt: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      sourceKey: row.sourceKey,
+      values: row.values,
+    }));
   });
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    sourceKey: row.sourceKey,
-    values: row.values,
-  }));
 }
 
 export async function getValueGroup(shopId: string, id: string) {
@@ -129,6 +133,7 @@ export async function createValueGroup(
       values,
     },
   });
+  valueGroupsCache.del(shopId);
   return { ok: true as const, id: row.id };
 }
 
@@ -147,11 +152,13 @@ export async function updateValueGroup(
     where: { id },
     data: { name, sourceKey: input.sourceKey.trim().slice(0, 80), values },
   });
+  valueGroupsCache.del(shopId);
   return { ok: true as const };
 }
 
 export async function deleteValueGroup(shopId: string, id: string) {
   await prisma.valueGroup.deleteMany({ where: { id, shopId } });
+  valueGroupsCache.del(shopId);
 }
 
 export async function importValueGroups(shopId: string, payload: unknown) {

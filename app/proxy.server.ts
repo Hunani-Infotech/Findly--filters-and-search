@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { FilterConfig, MetafieldMapping, Prisma } from "@prisma/client";
+import { Prisma, type FilterConfig, type MetafieldMapping } from "@prisma/client";
 import prisma from "./db.server";
 import {
   applyHideOutOfStock,
@@ -48,7 +48,7 @@ import {
 import { getAppSettings, settingsFromRow } from "./settings.server";
 import { sanitizeCustomCss, sanitizeProductListLiquid, scopeCustomCss } from "./widget-code";
 import { resolveFilterLimit } from "./billing.server";
-import { getAdminNavExtras, parseAdminNavExtras, type AdminNavExtras } from "./admin-nav-extras.server";
+import { getAdminNavExtras, type AdminNavExtras } from "./admin-nav-extras.server";
 import { resolveWidgetChrome } from "./widget-i18n";
 import { withWidgetChrome } from "./filters.server";
 import {
@@ -80,6 +80,50 @@ import { findShopCached } from "./shop-cache.server";
 import { createTtlCache } from "./read-cache.server";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
+function hmacMessageFromSearchParams(searchParams: URLSearchParams): string {
+  const params: string[] = [];
+  searchParams.forEach((value, key) => {
+    if (key !== "signature") params.push(`${key}=${value}`);
+  });
+  params.sort();
+  return params.join("");
+}
+
+function hmacMessageFromRawQuery(search: string): string {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params: string[] = [];
+  for (const part of raw.split("&")) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    const encodedKey = eq === -1 ? part : part.slice(0, eq);
+    const encodedValue = eq === -1 ? "" : part.slice(eq + 1);
+    let key = encodedKey;
+    let value = encodedValue;
+    try {
+      key = decodeURIComponent(encodedKey.replace(/\+/g, " "));
+      value = decodeURIComponent(encodedValue.replace(/\+/g, " "));
+    } catch {
+      key = encodedKey;
+      value = encodedValue;
+    }
+    if (key === "signature") continue;
+    params.push(`${key}=${value}`);
+  }
+  params.sort();
+  return params.join("");
+}
+
+function signaturesMatch(digest: string, signature: string): boolean {
+  try {
+    const left = Buffer.from(digest, "utf8");
+    const right = Buffer.from(signature, "utf8");
+    if (left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
+}
+
 export function verifyAppProxySignature(url: URL): boolean {
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret) return false;
@@ -87,27 +131,14 @@ export function verifyAppProxySignature(url: URL): boolean {
   const signature = url.searchParams.get("signature");
   if (!signature) return false;
 
-  const params: string[] = [];
-  url.searchParams.forEach((value, key) => {
-    if (key !== "signature") {
-      params.push(`${key}=${value}`);
-    }
+  const messages = [
+    hmacMessageFromSearchParams(url.searchParams),
+    hmacMessageFromRawQuery(url.search),
+  ];
+  return messages.some((message) => {
+    const digest = crypto.createHmac("sha256", secret).update(message).digest("hex");
+    return signaturesMatch(digest, signature);
   });
-  params.sort();
-  const message = params.join("");
-  const digest = crypto
-    .createHmac("sha256", secret)
-    .update(message)
-    .digest("hex");
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(digest, "utf8"),
-      Buffer.from(signature, "utf8"),
-    );
-  } catch {
-    return false;
-  }
 }
 
 export const FILTER_PAGE_SIZE_MAX = 48;
@@ -116,9 +147,6 @@ export const FILTER_PAGE_SIZE_DEFAULT = 24;
 const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
 const FILTER_PAYLOAD_CACHE_MAX = 80;
 const shopCollectionsCache = createTtlCache<ShopCollection[]>(45_000);
-const collectionMembershipCache = createTtlCache<
-  Array<{ productGid: string; position: number | null }>
->(45_000);
 
 function productFacetSelectForRequest(opts: {
   config: FilterConfig;
@@ -127,8 +155,6 @@ function productFacetSelectForRequest(opts: {
   needsKeywordSearch: boolean;
   searchFields: string[];
   sort?: string | null;
-  selected: SelectedFilters;
-  showMatchingVariantImage: boolean;
 }): Prisma.ProductFacetSelect {
   const variantSplit = Boolean(opts.config.enableVariantsAsProducts);
   const filterMappings = opts.mappings.filter((mapping) =>
@@ -142,10 +168,6 @@ function productFacetSelectForRequest(opts: {
   const needVariantMetafields = filterMappings.some(
     (mapping) => normalizeMetafieldOwnerType(mapping.ownerType) === "VARIANT",
   );
-  const hasOptionFilters = Object.keys(opts.selected || {}).some((key) =>
-    key.startsWith("opt_"),
-  );
-
   const select: Record<string, true> = {
     productGid: true,
     handle: true,
@@ -153,7 +175,6 @@ function productFacetSelectForRequest(opts: {
     vendor: true,
     productType: true,
     tags: true,
-    skus: true,
     options: true,
     priceMin: true,
     priceMax: true,
@@ -172,9 +193,6 @@ function productFacetSelectForRequest(opts: {
   if (opts.sort === "date_asc" || opts.sort === "date_desc") {
     select.publishedAt = true;
   }
-  if (opts.showMatchingVariantImage && hasOptionFilters) {
-    select.variantImages = true;
-  }
   select.imageUrl = true;
   return select as Prisma.ProductFacetSelect;
 }
@@ -187,40 +205,103 @@ function selectFingerprint(select: Prisma.ProductFacetSelect) {
     .join(",");
 }
 
-async function loadCollectionMemberships(shopId: string, collectionGid: string) {
-  return collectionMembershipCache.wrap(`${shopId}:${collectionGid}`, () =>
-    prisma.collectionMembership.findMany({
-      where: { shopId, collectionGid },
-      select: { productGid: true, position: true },
-    }),
-  );
+/** Whitelist of ProductFacet columns allowed in the collection JOIN. */
+const FACET_SQL_COLUMNS: Record<string, string> = {
+  productGid: 'pf."productGid"',
+  handle: 'pf."handle"',
+  title: 'pf."title"',
+  vendor: 'pf."vendor"',
+  productType: 'pf."productType"',
+  tags: 'pf."tags"',
+  skus: 'pf."skus"',
+  options: 'pf."options"',
+  priceMin: 'pf."priceMin"',
+  priceMax: 'pf."priceMax"',
+  compareAtMin: 'pf."compareAtMin"',
+  compareAtMax: 'pf."compareAtMax"',
+  salePct: 'pf."salePct"',
+  available: 'pf."available"',
+  inventoryLocations: 'pf."inventoryLocations"',
+  status: 'pf."status"',
+  imageUrl: 'pf."imageUrl"',
+  variantImages: 'pf."variantImages"',
+  variants: 'pf."variants"',
+  metafields: 'pf."metafields"',
+  variantMetafields: 'pf."variantMetafields"',
+  marketPrices: 'pf."marketPrices"',
+  publishedAt: 'pf."publishedAt"',
+};
+
+type CollectionFacetDbRow = {
+  productGid: string;
+  handle?: string;
+  title?: string;
+  vendor?: string;
+  productType?: string;
+  tags?: string[];
+  skus?: string[];
+  options?: unknown;
+  priceMin?: string | number | { toNumber?: () => number } | null;
+  priceMax?: string | number | { toNumber?: () => number } | null;
+  compareAtMin?: string | number | { toNumber?: () => number } | null;
+  compareAtMax?: string | number | { toNumber?: () => number } | null;
+  salePct?: string | number | { toNumber?: () => number } | null;
+  available?: boolean;
+  inventoryLocations?: unknown;
+  status?: string | null;
+  imageUrl?: string | null;
+  variantImages?: unknown;
+  variants?: unknown;
+  metafields?: unknown;
+  variantMetafields?: unknown;
+  marketPrices?: unknown;
+  publishedAt?: Date | null;
+  position: number | null;
+};
+
+function selectedFacetColumnSql(select: Prisma.ProductFacetSelect): Prisma.Sql[] {
+  const cols: Prisma.Sql[] = [];
+  const seen = new Set<string>();
+  for (const [key, enabled] of Object.entries(select)) {
+    if (!enabled) continue;
+    const expr = FACET_SQL_COLUMNS[key];
+    if (!expr || seen.has(expr)) continue;
+    seen.add(expr);
+    cols.push(Prisma.raw(expr));
+  }
+  if (!seen.has(FACET_SQL_COLUMNS.productGid)) {
+    cols.unshift(Prisma.raw(FACET_SQL_COLUMNS.productGid));
+  }
+  return cols;
 }
 
 async function loadCollectionProductFacetsUncached(
   shopId: string,
-  productGids: string[],
+  collectionGid: string,
   select: Prisma.ProductFacetSelect,
-) {
-  return prisma.productFacet.findMany({
-    where: { shopId, productGid: { in: productGids } },
-    select,
-  });
+): Promise<CollectionFacetDbRow[]> {
+  const columns = selectedFacetColumnSql(select);
+  if (!columns.length) return [];
+  return prisma.$queryRaw<CollectionFacetDbRow[]>(Prisma.sql`
+    SELECT ${Prisma.join(columns)}, cm."position" AS "position"
+    FROM "CollectionMembership" cm
+    INNER JOIN "ProductFacet" pf
+      ON pf."shopId" = cm."shopId" AND pf."productGid" = cm."productGid"
+    WHERE cm."shopId" = ${shopId}
+      AND cm."collectionGid" = ${collectionGid}
+  `);
 }
 
-const collectionFacetCache = createTtlCache<
-  Awaited<ReturnType<typeof loadCollectionProductFacetsUncached>>
->(45_000);
+const collectionFacetCache = createTtlCache<CollectionFacetDbRow[]>(45_000);
 
 async function loadCollectionProductFacets(
   shopId: string,
   collectionGid: string,
-  productGids: string[],
   select: Prisma.ProductFacetSelect,
 ) {
-  if (!productGids.length) return [];
   return collectionFacetCache.wrap(
     `${shopId}:${collectionGid}:${selectFingerprint(select)}`,
-    () => loadCollectionProductFacetsUncached(shopId, productGids, select),
+    () => loadCollectionProductFacetsUncached(shopId, collectionGid, select),
   );
 }
 
@@ -244,6 +325,10 @@ function pruneFilterPayloadCache() {
     if (key == null) break;
     filterPayloadCache.delete(key);
   }
+}
+
+export function clearFilterPayloadCache() {
+  filterPayloadCache.clear();
 }
 
 function collectionFilterCacheKey(input: {
@@ -343,18 +428,18 @@ function payloadCurrency(
 
 function toRow(p: {
   productGid: string;
-  handle: string;
-  title: string;
-  vendor: string;
-  productType: string;
-  tags: string[];
-  options: unknown;
-  priceMin: { toNumber?: () => number } | number | string;
-  priceMax: { toNumber?: () => number } | number | string;
+  handle?: string | null;
+  title?: string | null;
+  vendor?: string | null;
+  productType?: string | null;
+  tags?: string[] | null;
+  options?: unknown;
+  priceMin?: { toNumber?: () => number } | number | string | null;
+  priceMax?: { toNumber?: () => number } | number | string | null;
   compareAtMin?: { toNumber?: () => number } | number | string | null;
   compareAtMax?: { toNumber?: () => number } | number | string | null;
   salePct?: { toNumber?: () => number } | number | string | null;
-  available: boolean;
+  available?: boolean | null;
   inventoryLocations?: unknown;
   status?: string | null;
   imageUrl?: string | null;
@@ -364,20 +449,21 @@ function toRow(p: {
   variantMetafields?: unknown;
   publishedAt?: Date | null;
 }): ProductFacetRow {
-  const num = (v: { toNumber?: () => number } | number | string) => {
+  const num = (v: { toNumber?: () => number } | number | string | null | undefined) => {
+    if (v == null || v === "") return 0;
     if (typeof v === "number") return v;
     if (typeof v === "string") return Number(v);
-    if (v && typeof v.toNumber === "function") return v.toNumber();
+    if (typeof v.toNumber === "function") return v.toNumber();
     return Number(v);
   };
 
   return {
     productGid: p.productGid,
-    handle: p.handle,
-    title: p.title,
-    vendor: p.vendor,
-    productType: p.productType,
-    tags: p.tags,
+    handle: p.handle || "",
+    title: p.title || "",
+    vendor: p.vendor || "",
+    productType: p.productType || "",
+    tags: Array.isArray(p.tags) ? p.tags : [],
     options: (p.options as Record<string, string[]>) || {},
     priceMin: num(p.priceMin),
     priceMax: num(p.priceMax),
@@ -390,7 +476,7 @@ function toRow(p: {
         ? null
         : num(p.compareAtMax),
     salePct: p.salePct == null || p.salePct === "" ? 0 : num(p.salePct),
-    available: p.available,
+    available: Boolean(p.available),
     inventoryLocations: Array.isArray(p.inventoryLocations)
       ? p.inventoryLocations.filter((n) => typeof n === "string" && n)
       : [],
@@ -515,14 +601,25 @@ async function loadCollectionFilterPayload(input: {
     return { error: "collection_id required", status: 400 as const };
   }
 
-  const config = await getFilterConfig(shop.id, collectionGid);
+  const [
+    config,
+    appSettings,
+    mappings,
+    filterLimit,
+    valueGroups,
+    swatches,
+    navExtras,
+  ] = await Promise.all([
+    getFilterConfig(shop.id, collectionGid),
+    getAppSettings(shop.id),
+    getMetafieldMappings(shop.id),
+    resolveFilterLimit(shop.id),
+    listValueGroups(shop.id),
+    swatchMapForShop(shop.id),
+    getAdminNavExtras(shop.id),
+  ]);
   if (!config?.enabled) {
-    const settingsRow = await prisma.appSettings.findUnique({
-      where: { shopId: shop.id },
-      select: { adminExtras: true },
-    });
-    const extras = parseAdminNavExtras(settingsRow?.adminExtras);
-    const resolved = resolveWidgetChrome(extras.i18n, input.locale);
+    const resolved = resolveWidgetChrome(navExtras.i18n, input.locale);
     return {
       data: {
         enabled: false,
@@ -536,22 +633,6 @@ async function loadCollectionFilterPayload(input: {
     };
   }
 
-  const [memberships, settingsRow, mappings, filterLimit, valueGroups, swatches] =
-    await Promise.all([
-      loadCollectionMemberships(shop.id, collectionGid),
-      prisma.appSettings.findUnique({ where: { shopId: shop.id } }),
-      getMetafieldMappings(shop.id),
-      resolveFilterLimit(shop.id),
-      listValueGroups(shop.id),
-      swatchMapForShop(shop.id),
-    ]);
-  const appSettings = await settingsFromRow(shop.id, settingsRow);
-  const navExtras = parseAdminNavExtras(settingsRow?.adminExtras);
-  const productGids = memberships.map((m) => m.productGid);
-  const positionByGid = new Map(
-    memberships.map((m) => [m.productGid, m.position]),
-  );
-
   const searchFields = normalizeSearchFields(appSettings.searchFields);
   const extras = parseSearchExtras(appSettings.searchExtras);
   const collectionQuery = appSettings.enableCollectionSearch
@@ -561,7 +642,6 @@ async function loadCollectionFilterPayload(input: {
   const productsDb = await loadCollectionProductFacets(
     shop.id,
     collectionGid,
-    productGids,
     productFacetSelectForRequest({
       config,
       mappings,
@@ -569,9 +649,6 @@ async function loadCollectionFilterPayload(input: {
       needsKeywordSearch: Boolean(collectionQuery),
       searchFields,
       sort: input.sort,
-      selected: input.selected,
-      showMatchingVariantImage:
-        appSettings.showMatchingVariantImage !== false,
     }),
   );
 
@@ -579,10 +656,20 @@ async function loadCollectionFilterPayload(input: {
     ? enabledMetafieldPaths(mappings)
     : [];
 
-  const scopedProducts = collectionQuery
+  const keywordMatched = collectionQuery
     ? productsDb.filter((product) =>
         productMatchesKeyword(
-          product,
+          {
+            title: product.title || "",
+            vendor: product.vendor || "",
+            productType: product.productType || "",
+            tags: product.tags || [],
+            skus: product.skus || [],
+            options: (product.options as Record<string, string[]>) || {},
+            metafields: (product.metafields as Record<string, string>) || {},
+            variantMetafields:
+              (product.variantMetafields as Record<string, string>) || {},
+          },
           collectionQuery,
           searchFields,
           metafieldPaths,
@@ -596,16 +683,16 @@ async function loadCollectionFilterPayload(input: {
     : productsDb;
 
   const context = parseMarketContext(input);
-  const allRows = scopedProducts
+  const allRows = keywordMatched
     .filter((product) => (product.status || "ACTIVE") === "ACTIVE")
     .map((product) => ({
       ...applyMarketPricesToRow(
         toRow(product),
-        "marketPrices" in product ? product.marketPrices : undefined,
+        product.marketPrices,
         context,
         enableMarkets,
       ),
-      sortPosition: positionByGid.get(product.productGid) ?? 0,
+      sortPosition: product.position ?? 0,
     }));
 
   return buildFacetPayload({

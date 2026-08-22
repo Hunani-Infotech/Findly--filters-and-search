@@ -15,6 +15,7 @@ import {
 } from "../app/collection-facet.ts";
 
 const SHOP_DOMAIN = "d3-verify.myshopify.com";
+const ALL_GID = "gid://shopify/Collection/9303000";
 const PARENT_GID = "gid://shopify/Collection/9303001";
 const CHILD_GID = "gid://shopify/Collection/9303002";
 const OTHER_GID = "gid://shopify/Collection/9303003";
@@ -66,6 +67,32 @@ function assertStaticMarkers() {
     !widget.includes("window.location.assign")
   ) {
     fail("smart-filter.js missing Collection display-type redirect");
+  }
+  if (
+    !widget.includes("shouldNavigateCollectionFacet") ||
+    !widget.includes("isAllProductsCollectionHandle")
+  ) {
+    fail(
+      "smart-filter.js missing collections/all AJAX vs other-collection permalink navigation",
+    );
+  }
+  const liquid = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters.liquid",
+  );
+  const embed = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters-embed.liquid",
+  );
+  if (
+    !liquid.includes("data-collection-handle") ||
+    !embed.includes("data-collection-handle")
+  ) {
+    fail("collection filter blocks missing data-collection-handle");
   }
   if (!widget.includes("smart-filter__tree-children")) {
     fail("smart-filter.js missing nested collection tree markup");
@@ -151,6 +178,11 @@ try {
   });
 
   await addCollection(shop.id, {
+    gid: ALL_GID,
+    title: "All",
+    handle: "all",
+  });
+  await addCollection(shop.id, {
     gid: PARENT_GID,
     title: "Parent",
     handle: "parent",
@@ -191,22 +223,27 @@ try {
     gid: "gid://shopify/Product/93030011",
     handle: "alpha",
     title: "Alpha",
-    collections: [PARENT_GID, CHILD_GID],
+    collections: [ALL_GID, PARENT_GID, CHILD_GID],
   });
   await addProduct(shop.id, {
     gid: "gid://shopify/Product/93030012",
     handle: "beta",
     title: "Beta",
-    collections: [PARENT_GID],
+    collections: [ALL_GID, PARENT_GID],
   });
   await addProduct(shop.id, {
     gid: "gid://shopify/Product/93030013",
     handle: "gamma",
     title: "Gamma",
-    collections: [OTHER_GID],
+    collections: [ALL_GID, OTHER_GID],
   });
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { clearFilterPayloadCache, getCollectionFilterPayload } = await import(
+    "../app/proxy.server.ts"
+  );
+  const { invalidateFilterTreeResolveCache } = await import(
+    "../app/filter-trees.server.ts"
+  );
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -258,6 +295,21 @@ try {
       },
     },
   });
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: ALL_GID,
+    displayTypes: { collection: "collection" },
+    displayOrder: ["collection"],
+    enablePrice: false,
+    enableAvailability: false,
+    enableVendor: false,
+    enableProductType: false,
+    enableTags: false,
+    enableOptions: false,
+    enableSale: false,
+    enableRating: false,
+  });
+  invalidateFilterTreeResolveCache(shop.id);
+  clearFilterPayloadCache();
 
   const redirectMode = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -283,8 +335,20 @@ try {
     );
   }
 
+  const catalogAjax = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: ALL_GID,
+    selected: { collection: [CHILD_GID] },
+  });
+  if (titles(catalogAjax).join(",") !== "Alpha") {
+    fail(
+      `collections/all AJAX should filter by collection membership, got ${titles(catalogAjax)}`,
+    );
+  }
+
   log.info("Checkbox mode filters in place by collection membership");
   log.info("Collection display type lists all collections with redirect URLs");
+  log.info("collections/all AJAX still applies collection membership");
   log.info("Nested parent/child collections render");
   log.info("STEPD3_OK");
 } catch (error) {

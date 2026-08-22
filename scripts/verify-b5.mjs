@@ -61,6 +61,39 @@ function assertThemeSeoAndUi() {
   if (/history\.(push|replace)State[\s\S]{0,200}\?sf=/.test(filterJs)) {
     fail("filter state must not be written as ?sf= query params");
   }
+  if (!filterJs.includes("ensureThemeBridgeStyles")) {
+    fail("smart-filter.js must inject global theme-bridge CSS for layout + hidden cards");
+  }
+  if (!filterJs.includes("setCardHidden")) {
+    fail("smart-filter.js must hide product cards with inline display:none !important");
+  }
+  if (!filterJs.includes("bindNativeFacetGuard")) {
+    fail("smart-filter.js must neutralize native Dawn/Horizon facet forms");
+  }
+  if (!filterJs.includes("stripNativeCollectionParams")) {
+    fail("smart-filter.js must strip native filter.v.* URL params so Findly AJAX owns the grid");
+  }
+  if (!filterJs.includes("sorting-filter")) {
+    fail("smart-filter.js must hide Horizon .sorting-filter chrome");
+  }
+  if (!filterJs.includes("isFragileLayoutHost")) {
+    fail("smart-filter.js must avoid reparenting Horizon results-list");
+  }
+  if (!filterJs.includes("hasPersistableHashState")) {
+    fail("smart-filter.js must not write #sf=sortmanual when only default sort is set");
+  }
+  if (!filterJs.includes("watchThemeGrid")) {
+    fail("smart-filter.js must re-apply visibility when Horizon/Dawn re-renders the grid");
+  }
+  if (!filterJs.includes("isLikelyProductCard(viaSel)") && !filterJs.includes("isLikelyProductCard(node)")) {
+    fail("closestProductCard must reject fat grid wrappers so each product can hide");
+  }
+  if (!filterJs.includes("facets-form") || !filterJs.includes("facet-filters-form")) {
+    fail("smart-filter.js must recognize Horizon/Dawn native facet hosts");
+  }
+  if (!filterCss.includes("max-width: 280px")) {
+    fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
+  }
   if (!filterJs.includes("renderChips") || !filterJs.includes("clearFilters")) {
     fail("theme missing chips or clear filters");
   }
