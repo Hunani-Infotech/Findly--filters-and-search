@@ -51,6 +51,22 @@ function wouldCycle(
   return false;
 }
 
+/** Shop-wide collection sizes when provided; otherwise overlap with `products`. */
+export function collectionFacetCounts(
+  products: Array<{ collectionGids?: string[] }>,
+  shopTotals?: Map<string, number> | null,
+): Map<string, number> {
+  if (shopTotals) return new Map(shopTotals);
+  const counts = new Map<string, number>();
+  for (const product of products) {
+    for (const gid of product.collectionGids || []) {
+      if (!gid) continue;
+      counts.set(gid, (counts.get(gid) || 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export function nestCollectionValues(
   values: CollectionFacetValue[],
   parents: Record<string, string>,

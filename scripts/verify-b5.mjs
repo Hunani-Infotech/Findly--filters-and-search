@@ -85,8 +85,23 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("watchThemeGrid")) {
     fail("smart-filter.js must re-apply visibility when Horizon/Dawn re-renders the grid");
   }
+  if (!filterJs.includes("closestGridHost")) {
+    fail("closestProductCard must walk the real product grid, not a fat .product-grid wrapper");
+  }
   if (!filterJs.includes("isLikelyProductCard(viaSel)") && !filterJs.includes("isLikelyProductCard(node)")) {
     fail("closestProductCard must reject fat grid wrappers so each product can hide");
+  }
+  if (!filterJs.includes("sf-sort-host")) {
+    fail("Findly sort must mount in an owned host, not theme facet chrome");
+  }
+  if (!read("app/proxy.server.ts").includes("hmacMessageFromRawQueryEncoded")) {
+    fail("app proxy HMAC must also accept encoded query signatures");
+  }
+  if (!read("app/routes/apps.smart-filter.filters.tsx").includes("private, no-store")) {
+    fail("filter proxy responses must not be publicly cached");
+  }
+  if (!filterJs.includes("facets-form-component")) {
+    fail("smart-filter.js must lift/hide Horizon facets-form-component");
   }
   if (!filterJs.includes("facets-form") || !filterJs.includes("facet-filters-form")) {
     fail("smart-filter.js must recognize Horizon/Dawn native facet hosts");

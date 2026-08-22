@@ -42,6 +42,50 @@ const FACET_MAX_TAKE = 500;
 const MAX_QUERY_LENGTH = 80;
 const CANDIDATE_TAKE = 500;
 
+const SEARCH_FACET_SELECT = {
+  productGid: true,
+  handle: true,
+  title: true,
+  vendor: true,
+  productType: true,
+  tags: true,
+  skus: true,
+  options: true,
+  priceMin: true,
+  priceMax: true,
+  available: true,
+  status: true,
+  imageUrl: true,
+  metafields: true,
+  variantMetafields: true,
+  marketPrices: true,
+} satisfies Prisma.ProductFacetSelect;
+
+type SearchFacetRow = Pick<
+  ProductFacet,
+  | "productGid"
+  | "handle"
+  | "title"
+  | "vendor"
+  | "productType"
+  | "tags"
+  | "skus"
+  | "options"
+  | "priceMin"
+  | "priceMax"
+  | "available"
+  | "status"
+  | "imageUrl"
+  | "metafields"
+  | "variantMetafields"
+  | "marketPrices"
+>;
+
+function isFullCatalogWhere(where: Prisma.ProductFacetWhereInput): boolean {
+  const { shopId, status, ...rest } = where;
+  return Boolean(shopId) && status === "ACTIVE" && Object.keys(rest).length === 0;
+}
+
 function toNumber(value: { toNumber?: () => number } | number | string | null | undefined): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number(value);
@@ -364,7 +408,7 @@ function hitScore(
 }
 
 function rankHits(
-  rows: ProductFacet[],
+  rows: SearchFacetRow[],
   tokens: string[],
   fields: SearchFieldKey[],
   metafieldPaths: string[],
@@ -386,13 +430,13 @@ function rankHits(
 }
 
 type RankedHitsResult = {
-  rows: ProductFacet[];
+  rows: SearchFacetRow[];
   tokens: string[];
   usedFallback: boolean;
   didYouMean: string | null;
 };
 
-const rankedHitsCache = createTtlCache<RankedHitsResult>(10_000);
+const rankedHitsCache = createTtlCache<RankedHitsResult>(45_000);
 
 function uniqueTokenSets(sets: string[][]): string[][] {
   const seen = new Set<string>();
@@ -408,8 +452,8 @@ function uniqueTokenSets(sets: string[][]): string[][] {
 }
 
 function mergeRanked(
-  merged: Map<string, { row: ProductFacet; score: number }>,
-  hits: Array<{ row: ProductFacet; score: number }>,
+  merged: Map<string, { row: SearchFacetRow; score: number }>,
+  hits: Array<{ row: SearchFacetRow; score: number }>,
 ) {
   for (const hit of hits) {
     const current = merged.get(hit.row.productGid);
@@ -420,8 +464,8 @@ function mergeRanked(
 }
 
 function sortedMergedRows(
-  merged: Map<string, { row: ProductFacet; score: number }>,
-): ProductFacet[] {
+  merged: Map<string, { row: SearchFacetRow; score: number }>,
+): SearchFacetRow[] {
   return [...merged.values()]
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -516,27 +560,42 @@ async function fetchRankedHitsUncached(
   );
   if (tokenSets.length === 0) return { ...empty, tokens };
 
-  const candidateTake = Math.max(take, CANDIDATE_TAKE);
+  const candidateTake =
+    take <= 24
+      ? Math.min(CANDIDATE_TAKE, Math.max(take * 10, 80))
+      : Math.max(take, CANDIDATE_TAKE);
+
+  let catalog: SearchFacetRow[] | null = null;
+  async function loadCatalog() {
+    if (!catalog) {
+      catalog = (await prisma.productFacet.findMany({
+        where: { shopId, status: "ACTIVE" },
+        select: SEARCH_FACET_SELECT,
+        take: Math.max(take, candidateTake),
+      })) as SearchFacetRow[];
+    }
+    return catalog;
+  }
 
   const hitsForTokens = async (
     fuzzy: boolean,
     mode: SearchMatchMode,
-  ): Promise<ProductFacet[]> => {
-    const merged = new Map<string, { row: ProductFacet; score: number }>();
-    let scanned: ProductFacet[] | null = null;
-    if (fuzzy) {
-      scanned = await prisma.productFacet.findMany({
-        where: { shopId, status: "ACTIVE" },
-        take: CANDIDATE_TAKE,
-      });
-    }
+  ): Promise<SearchFacetRow[]> => {
+    const merged = new Map<string, { row: SearchFacetRow; score: number }>();
     for (const set of tokenSets) {
-      const rows =
-        scanned ??
-        (await prisma.productFacet.findMany({
-          where: keywordSearchWhereForTokens(shopId, set, fields, mode),
-          take: candidateTake,
-        }));
+      let rows: SearchFacetRow[];
+      if (fuzzy || catalog) {
+        rows = await loadCatalog();
+      } else {
+        const where = keywordSearchWhereForTokens(shopId, set, fields, mode);
+        rows = isFullCatalogWhere(where)
+          ? await loadCatalog()
+          : ((await prisma.productFacet.findMany({
+              where,
+              select: SEARCH_FACET_SELECT,
+              take: candidateTake,
+            })) as SearchFacetRow[]);
+      }
       mergeRanked(
         merged,
         rankHits(rows, set, fields, metafieldPaths, fuzzy, mode),
@@ -579,14 +638,15 @@ async function fetchRankedHitsUncached(
 
 async function applyPinnedHandles(
   shopId: string,
-  ranked: ProductFacet[],
+  ranked: SearchFacetRow[],
   handles: string[],
-): Promise<ProductFacet[]> {
-  const pinnedRows = await prisma.productFacet.findMany({
+): Promise<SearchFacetRow[]> {
+  const pinnedRows = (await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE", handle: { in: handles } },
-  });
+    select: SEARCH_FACET_SELECT,
+  })) as SearchFacetRow[];
   const byHandle = new Map(pinnedRows.map((row) => [row.handle, row]));
-  const pinned: ProductFacet[] = [];
+  const pinned: SearchFacetRow[] = [];
   const seen = new Set<string>();
   for (const handle of handles) {
     const row = byHandle.get(handle);
@@ -728,7 +788,7 @@ export async function searchProducts(
   return products;
 }
 
-function toSearchProductCard(row: ProductFacet) {
+function toSearchProductCard(row: SearchFacetRow) {
   return {
     productGid: row.productGid,
     handle: row.handle,
@@ -762,17 +822,28 @@ export async function getPinnedSearchSuggestions(shopId: string): Promise<{
     settings.suggestionCollectionHandles,
   );
 
+  const [productRows, collectionRows] = await Promise.all([
+    productHandles.length > 0
+      ? prisma.productFacet.findMany({
+          where: {
+            shopId,
+            status: "ACTIVE",
+            handle: { in: productHandles },
+          },
+          select: SEARCH_FACET_SELECT,
+        })
+      : Promise.resolve([] as SearchFacetRow[]),
+    collectionHandles.length > 0
+      ? prisma.collection.findMany({
+          where: { shopId, handle: { in: collectionHandles } },
+        })
+      : Promise.resolve([]),
+  ]);
+
   const products: SearchSuggestionProduct[] = [];
   if (productHandles.length > 0) {
-    const rows = await prisma.productFacet.findMany({
-      where: {
-        shopId,
-        status: "ACTIVE",
-        handle: { in: productHandles },
-      },
-    });
     const visible = excludeHiddenTaggedProducts(
-      rows,
+      productRows as SearchFacetRow[],
       normalizeHideProductTags(settings.hideProductTags),
     );
     const byHandle = new Map(visible.map((row) => [row.handle, row]));
@@ -784,10 +855,7 @@ export async function getPinnedSearchSuggestions(shopId: string): Promise<{
 
   const collections: SearchSuggestionCollection[] = [];
   if (collectionHandles.length > 0) {
-    const rows = await prisma.collection.findMany({
-      where: { shopId, handle: { in: collectionHandles } },
-    });
-    const byHandle = new Map(rows.map((row) => [row.handle, row]));
+    const byHandle = new Map(collectionRows.map((row) => [row.handle, row]));
     for (const handle of collectionHandles) {
       const row = byHandle.get(handle);
       if (!row) continue;

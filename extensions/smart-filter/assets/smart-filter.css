@@ -12,8 +12,8 @@
   --sf-focus: var(--sf-accent);
   --sf-radius: 8px;
   --sf-space: 1.25rem;
-  --sf-gutter: 1.5rem;
-  --sf-check-size: 1.05em;
+  --sf-gutter: 1.15rem;
+  --sf-check-size: 16px;
   --sf-row-pad: 0.8em;
   --sf-tree-indent: 1.45em;
   --sf-shadow: none;
@@ -264,7 +264,7 @@
 }
 
 .smart-filter__facet-label:hover {
-  color: var(--sf-ink);
+  opacity: 0.72;
 }
 
 .smart-filter__facet-label-text {
@@ -433,13 +433,25 @@
 .smart-filter__collection-link {
   text-decoration: none;
   color: inherit;
+  background: transparent;
 }
 
 .smart-filter__collection-link:hover {
   text-decoration: none;
+  background: transparent;
 }
 
-.smart-filter__options--collection-nav > li.is-current > .smart-filter__collection-link {
+.smart-filter__options--collection-nav li.is-current > .smart-filter__collection-link,
+.smart-filter__collection-link.is-current,
+.smart-filter__collection-link[aria-current="page"] {
+  font-weight: 600;
+  color: inherit;
+  background: transparent;
+}
+
+.smart-filter__options--collection-nav li.is-current > .smart-filter__collection-link .smart-filter__option-text,
+.smart-filter__collection-link.is-current .smart-filter__option-text,
+.smart-filter__collection-link[aria-current="page"] .smart-filter__option-text {
   font-weight: 600;
 }
 
@@ -469,6 +481,14 @@
 
 .smart-filter__option:hover {
   background: transparent;
+}
+
+.smart-filter__options:not(.smart-filter__options--swatches):not(.smart-filter__options--pills)
+  .smart-filter__option:hover
+  .smart-filter__option-text,
+.smart-filter__collection-link:hover .smart-filter__option-text {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
 }
 
 .smart-filter__option:has(input:checked) {
@@ -525,9 +545,11 @@
   max-width: var(--sf-check-size) !important;
   flex-shrink: 0;
   margin: 0.12em 0 0 !important;
-  border: 1px solid #cfcfcf;
+  border: 1px solid #cfcfcf !important;
   border-radius: 2px;
-  background: #fff;
+  background: #fff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
   display: inline-grid !important;
   place-content: center;
   cursor: pointer;
@@ -1016,9 +1038,11 @@
 }
 
 .smart-filter__sort--toolbar {
-  margin: 0 0 0.85rem auto;
+  display: inline-flex;
+  margin: 0;
+  margin-inline-start: auto;
   justify-content: flex-end;
-  width: auto;
+  width: fit-content;
   max-width: 100%;
   flex-wrap: nowrap;
 }
@@ -1028,7 +1052,19 @@
   min-width: 12rem;
 }
 
+.sf-sort-host {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin: 0 0 0.85rem;
+}
+
+.sf-sort-host .smart-filter__sort {
+  margin: 0;
+}
+
 .sf-collection-layout__main > .smart-filter__sort,
+.sf-sort-host .smart-filter__sort,
 .facet-filters .smart-filter__sort,
 .facets-container .smart-filter__sort {
   margin: 0 0 0 auto;
@@ -1218,7 +1254,7 @@
 
   .smart-filter--left,
   .smart-filter--right {
-    max-width: 20rem;
+    max-width: 280px;
   }
 
   .smart-filter--left {
@@ -1342,16 +1378,16 @@
     gap: 2.75rem;
   }
 
-  .sf-collection-layout--left > .sf-collection-layout__aside,
-  .sf-collection-layout--right > .sf-collection-layout__aside,
-  .sf-collection-layout--left > .smart-filter,
-  .sf-collection-layout--left > .shopify-block:has(.smart-filter),
-  .sf-collection-layout--right > .smart-filter,
-  .sf-collection-layout--right > .shopify-block:has(.smart-filter) {
-    flex: 0 0 20rem;
-    max-width: 20rem;
-    min-width: 16.5rem;
-    width: 20rem;
+  .sf-collection-layout--left .sf-collection-layout__aside,
+  .sf-collection-layout--right .sf-collection-layout__aside,
+  .sf-collection-layout--left .smart-filter,
+  .sf-collection-layout--left .shopify-block:has(.smart-filter),
+  .sf-collection-layout--right .smart-filter,
+  .sf-collection-layout--right .shopify-block:has(.smart-filter) {
+    flex: 0 0 280px;
+    max-width: 280px;
+    min-width: 280px;
+    width: 280px;
   }
 
   .sf-collection-layout--left > .sf-collection-layout__main,
@@ -1365,7 +1401,8 @@
   .sf-collection-layout--right .smart-filter--right {
     margin-inline-start: 0;
     margin-inline-end: 0;
-    max-width: 20rem;
+    max-width: 280px;
+    width: 100%;
   }
 
   .sf-collection-layout--top {

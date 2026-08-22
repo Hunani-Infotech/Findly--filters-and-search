@@ -42,7 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
   });
 
-  if ("error" in result && result.error) {
+  if ("error" in result) {
     return new Response(JSON.stringify({ error: result.error }), {
       status: result.status,
       headers: corsHeaders,

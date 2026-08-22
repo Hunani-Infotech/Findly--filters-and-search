@@ -113,6 +113,21 @@ function hmacMessageFromRawQuery(search: string): string {
   return params.join("");
 }
 
+function hmacMessageFromRawQueryEncoded(search: string): string {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params: string[] = [];
+  for (const part of raw.split("&")) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    const encodedKey = eq === -1 ? part : part.slice(0, eq);
+    const encodedValue = eq === -1 ? "" : part.slice(eq + 1);
+    if (encodedKey === "signature") continue;
+    params.push(`${encodedKey}=${encodedValue}`);
+  }
+  params.sort();
+  return params.join("");
+}
+
 function signaturesMatch(digest: string, signature: string): boolean {
   try {
     const left = Buffer.from(digest, "utf8");
@@ -134,6 +149,7 @@ export function verifyAppProxySignature(url: URL): boolean {
   const messages = [
     hmacMessageFromSearchParams(url.searchParams),
     hmacMessageFromRawQuery(url.search),
+    hmacMessageFromRawQueryEncoded(url.search),
   ];
   return messages.some((message) => {
     const digest = crypto.createHmac("sha256", secret).update(message).digest("hex");
@@ -147,6 +163,7 @@ export const FILTER_PAGE_SIZE_DEFAULT = 24;
 const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
 const FILTER_PAYLOAD_CACHE_MAX = 80;
 const shopCollectionsCache = createTtlCache<ShopCollection[]>(45_000);
+const collectionProductCountsCache = createTtlCache<Map<string, number>>(45_000);
 
 function productFacetSelectForRequest(opts: {
   config: FilterConfig;
@@ -329,6 +346,7 @@ function pruneFilterPayloadCache() {
 
 export function clearFilterPayloadCache() {
   filterPayloadCache.clear();
+  collectionProductCountsCache.deletePrefix("");
 }
 
 function collectionFilterCacheKey(input: {
@@ -505,6 +523,30 @@ async function loadShopCollections(shopId: string): Promise<ShopCollection[]> {
       title: row.title,
       handle: row.handle,
     }));
+  });
+}
+
+/** Full product counts per collection (not overlap with the current page). */
+async function loadCollectionProductCounts(
+  shopId: string,
+): Promise<Map<string, number>> {
+  return collectionProductCountsCache.wrap(shopId, async () => {
+    const rows = await prisma.$queryRaw<
+      Array<{ collectionGid: string; count: number | bigint }>
+    >(Prisma.sql`
+      SELECT cm."collectionGid", COUNT(*)::int AS count
+      FROM "CollectionMembership" cm
+      INNER JOIN "ProductFacet" pf
+        ON pf."shopId" = cm."shopId" AND pf."productGid" = cm."productGid"
+      WHERE cm."shopId" = ${shopId}
+        AND pf.status = 'ACTIVE'
+      GROUP BY cm."collectionGid"
+    `);
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.collectionGid, Number(row.count) || 0);
+    }
+    return counts;
   });
 }
 
@@ -814,15 +856,25 @@ async function buildFacetPayload(input: {
     ? (input.config.displayOrder as string[])
     : [];
   const wantsCollection = displayOrder.includes(COLLECTION_FACET_KEY);
+  const selectedCollection = Boolean(
+    input.selected &&
+      Array.isArray(input.selected[COLLECTION_FACET_KEY]) &&
+      input.selected[COLLECTION_FACET_KEY].length,
+  );
   let visibleRows = visibleBase;
   let collectionCatalog: ShopCollection[] = [];
-  if (wantsCollection) {
-    const [withGids, catalog] = await Promise.all([
+  let collectionTotals: Map<string, number> | null = null;
+  if (wantsCollection || selectedCollection) {
+    const [withGids, catalog, totals] = await Promise.all([
       attachCollectionGids(input.shopId, visibleBase),
       loadShopCollections(input.shopId),
+      input.isSearch
+        ? Promise.resolve(null)
+        : loadCollectionProductCounts(input.shopId),
     ]);
     visibleRows = withGids;
     collectionCatalog = catalog;
+    collectionTotals = totals;
   }
   const variantSplit = Boolean(
     (input.config as { enableVariantsAsProducts?: boolean })
@@ -895,7 +947,7 @@ async function buildFacetPayload(input: {
       input.config && "valueSort" in input.config ? input.config.valueSort : {},
     ), parseRangeBounds(
       input.config && "rangeBounds" in input.config ? input.config.rangeBounds : {},
-    ), collectionCatalog),
+    ), collectionCatalog, collectionTotals),
   ).map((facet) => {
     const sourceKey = sourceKeyForFacet(facet);
     const values = facet.values
@@ -1014,10 +1066,23 @@ async function loadSearchFilterPayload(input: {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const settingsRow = await prisma.appSettings.findUnique({
-    where: { shopId: shop.id },
-  });
-  const appSettings = await settingsFromRow(shop.id, settingsRow);
+  const [
+    appSettings,
+    config,
+    mappings,
+    filterLimit,
+    valueGroups,
+    swatches,
+    navExtras,
+  ] = await Promise.all([
+    getAppSettings(shop.id),
+    getFilterConfig(shop.id, ""),
+    getMetafieldMappings(shop.id),
+    resolveFilterLimit(shop.id),
+    listValueGroups(shop.id),
+    swatchMapForShop(shop.id),
+    getAdminNavExtras(shop.id),
+  ]);
   if (!(appSettings.enableFiltersOnSearch ?? true)) {
     return {
       data: {
@@ -1039,7 +1104,6 @@ async function loadSearchFilterPayload(input: {
     };
   }
 
-  const config = await getFilterConfig(shop.id, "");
   if (!config?.enabled) {
     return {
       data: { enabled: false, facets: [], products: [], total: 0 },
@@ -1072,6 +1136,11 @@ async function loadSearchFilterPayload(input: {
     pageSize: input.pageSize,
     currency: payloadCurrency(context, allRows),
     appSettings,
+    extras: navExtras,
+    mappings,
+    filterLimit,
+    valueGroups,
+    swatches,
   });
 }
 
@@ -1105,10 +1174,7 @@ export async function getInstantSearchWidgetPayload(
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
   }
-  const settingsRow = await prisma.appSettings.findUnique({
-    where: { shopId: shop.id },
-  });
-  const settings = await settingsFromRow(shop.id, settingsRow);
+  const settings = await getAppSettings(shop.id);
   const extras = parseSearchExtras(settings.searchExtras);
   const context = parseMarketContext(input);
   return {
@@ -1137,38 +1203,35 @@ export async function getSearchPayload(input: {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const settingsRow = await prisma.appSettings.findUnique({
-    where: { shopId: shop.id },
-  });
-  const settings = await settingsFromRow(shop.id, settingsRow);
+  const settings = await getAppSettings(shop.id);
   const extras = parseSearchExtras(settings.searchExtras);
   const normalizedQuery = normalizeSearchQuery(input.query);
   const queryKey = normalizeSearchQueryKey(normalizedQuery);
   const redirect = extras.redirects.find((row) => row.query === queryKey);
 
   const take = Math.min(Math.max(input.take ?? 24, 1), 48);
-  const { products, meta } = await searchProductsWithMeta(
-    shop.id,
-    input.query,
-    { take },
-  );
   const collectionQuery = stripStopWordsFromQuery(
     input.query,
     extras.stopWords,
   );
-
   const fields = normalizeSearchFields(settings.searchFields);
-  const liveCollections =
-    extras.instant.showCollections || fields.includes("collectionTitle")
-      ? await searchCollections(shop.id, collectionQuery, { take: 6 })
-      : [];
+  const wantCollections =
+    extras.instant.showCollections || fields.includes("collectionTitle");
 
-  const pages = extras.instant.showPages
-    ? await searchPages(shop.id, input.query, { take: 6 })
-    : [];
-  const articles = extras.instant.showBlogPosts
-    ? await searchArticles(shop.id, input.query, { take: 6 })
-    : [];
+  const [{ products, meta }, liveCollections, pages, articles, extrasNav] =
+    await Promise.all([
+      searchProductsWithMeta(shop.id, input.query, { take }),
+      wantCollections
+        ? searchCollections(shop.id, collectionQuery, { take: 6 })
+        : Promise.resolve([]),
+      extras.instant.showPages
+        ? searchPages(shop.id, input.query, { take: 6 })
+        : Promise.resolve([]),
+      extras.instant.showBlogPosts
+        ? searchArticles(shop.id, input.query, { take: 6 })
+        : Promise.resolve([]),
+      getAdminNavExtras(shop.id),
+    ]);
 
   const wantSuggestions =
     (!normalizedQuery && settings.showSuggestionsOnEmptyQuery) ||
@@ -1190,7 +1253,6 @@ export async function getSearchPayload(input: {
     6,
   );
 
-  const extrasNav = await getAdminNavExtras(shop.id);
   const { locale, chrome } = resolveWidgetChrome(extrasNav.i18n, input.locale);
 
   const enableMarkets = settings.enableMarkets !== false;
