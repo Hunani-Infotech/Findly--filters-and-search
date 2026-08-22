@@ -6,14 +6,15 @@
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
   var MSG_NO_MATCH = "No matching products.";
   var MSG_DISABLED = "Filters are not enabled for this collection.";
-  var MSG_CLEAR = "Clear filters";
+  var MSG_CLEAR = "Clear All";
   var MSG_MIN = "Min";
   var MSG_MAX = "Max";
-  var MSG_APPLY = "Apply";
+  var MSG_APPLY_NOW = "Apply now";
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
   var FILTER_CACHE_TTL_MS = 5 * 60 * 1000;
   var CARD_SELECTOR = [
+    ".sf-app-card",
     "[data-product-id]",
     ".product-card",
     ".card-wrapper",
@@ -187,6 +188,35 @@
 
   function escapeCssUrl(url) {
     return String(url || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function displayTitle(value, fallback) {
+    var text = String(value == null || value === "" ? fallback || "Filter" : value).trim();
+    return text.replace(/:\s*$/, "").trim() || fallback || "Filter";
+  }
+
+  function valuesHaveChildren(values) {
+    return (values || []).some(function (item) {
+      return item && item.children && item.children.length;
+    });
+  }
+
+  function facetTypeTag(facet) {
+    if (!facet) return "";
+    if (facet.hasMergedValues) return "Merged values";
+    if (
+      (facet.values || []).some(function (item) {
+        return item && item.merged;
+      })
+    ) {
+      return "Merged values";
+    }
+    if (facet.collectionTree || (facet.source === "collection" && valuesHaveChildren(facet.values))) {
+      return "Nested tree";
+    }
+    if (facet.source === "option" || facet.source === "variant") return "Variant filter";
+    if (facet.source === "metafield") return "Metafield";
+    return "";
   }
 
   function applyFacetSwatch(label, item, labelText, value) {
@@ -742,7 +772,7 @@
     if (
       matchesSel(
         el,
-        "[data-product-id], .product-card, .card-wrapper, .grid__item, .product-grid-item, .product-grid__item, .productgrid--item, .product-item, .ProductItem, .grid-product, .grid-view-item, .productitem",
+        ".sf-app-card, [data-product-id], .product-card, .card-wrapper, .grid__item, .product-grid-item, .product-grid__item, .productgrid--item, .product-item, .ProductItem, .grid-product, .grid-view-item, .productitem",
       )
     ) {
       return true;
@@ -895,6 +925,8 @@
   }
 
   function discoverGridParent() {
+    var selected = gridFromSelector(readEmbedConfig().productGridSelector);
+    if (selected) return selected;
     var hints = document.querySelectorAll(GRID_HINT_SELECTOR);
     var best = null;
     var bestCount = 0;
@@ -1220,6 +1252,8 @@
           isProductPrice: isProductPrice,
           source: source,
           valueSortMode: facet.valueSortMode || "auto",
+          collectionTree: Boolean(facet.collectionTree),
+          hasMergedValues: Boolean(facet.hasMergedValues),
           values: Array.isArray(facet.values) ? facet.values : [],
           min: Number(
             range.min != null ? range.min : facet.min != null ? facet.min : NaN,
@@ -1276,11 +1310,256 @@
     return [];
   }
 
+  var embedConfigCache = null;
+
+  function readEmbedConfig() {
+    if (embedConfigCache) return embedConfigCache;
+    var out = {
+      productGridSelector: "",
+      useQuickviewTemplate: false,
+      customCss: "",
+      customJavascript: "",
+      productTemplate: "",
+      treeTemplate: "",
+      sortTemplate: "",
+      searchTemplate: "",
+      variables: "",
+      themeId: "",
+    };
+    var script = document.getElementById("findly-embed-config");
+    if (script) {
+      try {
+        var parsed = JSON.parse(script.textContent || "{}");
+        if (parsed && typeof parsed === "object") {
+          out.productGridSelector = String(parsed.productGridSelector || "");
+          out.useQuickviewTemplate =
+            parsed.useQuickviewTemplate === true ||
+            parsed.useQuickviewTemplate === "true" ||
+            parsed.useQuickviewTemplate === 1;
+          out.customCss = String(parsed.customCss || "");
+          out.customJavascript = String(parsed.customJavascript || "");
+          out.productTemplate = String(parsed.productTemplate || "");
+          out.treeTemplate = String(parsed.treeTemplate || "");
+          out.sortTemplate = String(parsed.sortTemplate || "");
+          out.searchTemplate = String(parsed.searchTemplate || "");
+          out.variables =
+            parsed.variables == null ? "" : String(parsed.variables);
+          out.themeId =
+            parsed.themeId == null ? "" : String(parsed.themeId);
+        }
+      } catch (err) {
+        /* invalid JSON */
+      }
+    }
+    var root =
+      document.getElementById("smart-filter-embed") ||
+      document.getElementById("smart-filter-root");
+    if (root) {
+      var sel = root.getAttribute("data-product-grid-selector");
+      if (sel && !String(out.productGridSelector).trim()) {
+        out.productGridSelector = sel;
+      }
+      var qv = root.getAttribute("data-use-quickview");
+      if (qv === "true" || qv === "1") out.useQuickviewTemplate = true;
+    }
+    embedConfigCache = out;
+    return out;
+  }
+
+  function gridLooksLikeGrid(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (matchesSel(el, GRID_HINT_SELECTOR)) return true;
+    if (isProductCardGrid(el)) return true;
+    if (countProductCards(el) > 0) return true;
+    var hint = String(el.id || "") + " " + String(el.className || "");
+    if (/product|grid|collection/i.test(hint)) return true;
+    if (typeof window.getComputedStyle === "function") {
+      try {
+        var display = String(
+          window.getComputedStyle(el).display || "",
+        ).toLowerCase();
+        if (display === "grid" || display === "flex" || display === "inline-flex") {
+          return true;
+        }
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    return false;
+  }
+
+  function gridFromSelector(selector) {
+    var raw = String(selector || "").trim();
+    if (!raw) return null;
+    var node = null;
+    try {
+      node = document.querySelector(raw);
+    } catch (err) {
+      return null;
+    }
+    if (!node || node === document || isDocumentRoot(node)) return null;
+    if (isSkippedRegion(node)) return null;
+    if (countProductCards(node) > 0 || gridLooksLikeGrid(node)) return node;
+    if (String(readEmbedConfig().productTemplate || "").trim()) return node;
+    return null;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function lookupPath(ctx, path) {
+    var parts = String(path || "").split(".");
+    var cur = ctx;
+    var i;
+    for (i = 0; i < parts.length; i++) {
+      if (cur == null || typeof cur !== "object") return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+
+  function interpolateTemplate(tpl, ctx) {
+    var out = String(tpl || "");
+    out = out.replace(
+      /\{\{#([\w.]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,
+      function (_, key, inner) {
+        var val = lookupPath(ctx, key);
+        var truthy =
+          val === true ||
+          val === "true" ||
+          val === 1 ||
+          val === "1" ||
+          (typeof val === "string" && val && val !== "false");
+        if (val && typeof val === "object") truthy = true;
+        if (!val && val !== 0) truthy = false;
+        if (val === false || val === "false" || val === 0 || val === "0") {
+          truthy = false;
+        }
+        return truthy ? interpolateTemplate(inner, ctx) : "";
+      },
+    );
+    out = out.replace(
+      /\{\{\s*([\w.]+)(\s*\|\s*raw)?\s*\}\}/g,
+      function (_, key, raw) {
+        var val = lookupPath(ctx, key);
+        if (val == null || val === false) return "";
+        if (val === true) return "true";
+        var str = String(val);
+        return raw ? str : escapeHtml(str);
+      },
+    );
+    return out;
+  }
+
+  function chromeTemplateContext(widget) {
+    var embed = (widget && widget.embedConfig) || readEmbedConfig();
+    var titleText =
+      (widget && widget.titleEl && widget.titleEl.textContent) ||
+      (widget && widget.t && widget.t("filter", "")) ||
+      "";
+    return {
+      title: titleText,
+      variables: embed.variables || "",
+      theme: { id: embed.themeId || "" },
+      themeId: embed.themeId || "",
+      product: {},
+    };
+  }
+
+  function productTemplateContext(product, widget) {
+    var item = product || {};
+    var handle = String(item.handle || "");
+    var url =
+      item.url ||
+      (handle
+        ? "/products/" +
+          handle +
+          (item.variantId ? "?variant=" + item.variantId : "")
+        : "");
+    var image = item.imageUrl || item.featured_image || item.image || "";
+    var priceMin = item.priceMin != null ? item.priceMin : item.price;
+    var priceMax = item.priceMax != null ? item.priceMax : priceMin;
+    var currency = widget && widget.currency;
+    var money = function (v) {
+      return formatMoney(v, currency);
+    };
+    var compare =
+      item.compareAtPrice != null
+        ? item.compareAtPrice
+        : item.compare_at_price;
+    var chrome = chromeTemplateContext(widget);
+    return {
+      product: {
+        title: item.title || "",
+        url: url,
+        handle: handle,
+        id: item.id != null ? item.id : "",
+        vendor: item.vendor || "",
+        image: image,
+        featured_image: image,
+        price: money(priceMin),
+        price_min: money(priceMin),
+        price_max: money(priceMax),
+        compare_at_price: compare != null && compare !== "" ? money(compare) : "",
+        available: item.available,
+        product_type: item.productType || item.product_type || "",
+      },
+      title: chrome.title,
+      variables: chrome.variables,
+      theme: chrome.theme,
+      themeId: chrome.themeId,
+    };
+  }
+
+  function maybeRunEmbedJs(config) {
+    try {
+      if (window.__findlyEmbedJsRan) return;
+      if (
+        document.getElementById("findly-embed-js") ||
+        document.querySelector("script[data-findly-embed-js]")
+      ) {
+        window.__findlyEmbedJsRan = true;
+        return;
+      }
+      var code = config && String(config.customJavascript || "").trim();
+      if (!code) {
+        window.__findlyEmbedJsRan = true;
+        return;
+      }
+      window.__findlyEmbedJsRan = true;
+      var blob = new Blob([code], { type: "text/javascript" });
+      var el = document.createElement("script");
+      el.setAttribute("data-findly-embed-js", "1");
+      el.src = URL.createObjectURL(blob);
+      el.onload = function () {
+        try {
+          URL.revokeObjectURL(el.src);
+        } catch (errRevoke) {
+          /* ignore */
+        }
+      };
+      (document.body || document.documentElement).appendChild(el);
+    } catch (err) {
+      try {
+        window.__findlyEmbedJsRan = true;
+      } catch (errFlag) {
+        /* ignore */
+      }
+    }
+  }
+
   function Widget(root) {
     this.root = root;
     this.facetsEl = qs(root, "[data-facets]");
     this.statusEl = qs(root, "[data-status]");
     this.titleEl = qs(root, "[data-title]");
+    this.clearAllEl = qs(root, "[data-clear-all]");
     this.proxyBase = (root.getAttribute("data-proxy-base") || "/apps/smart-filter").replace(
       /\/$/,
       "",
@@ -1310,6 +1589,8 @@
     this.collapsedState = {};
     this.selected = {};
     this.price = { min: "", max: "" };
+    this.autoApplyFilters = true;
+    this._appliedSnapshot = "";
     this.sortKey = "";
     this.sortWrap = qs(root, "[data-sort-wrap]");
     this.sortEl = qs(root, "[data-sort]");
@@ -1357,13 +1638,23 @@
     this._layoutFallbackDone = false;
     this._lateGridObserver = null;
     this._lateGridTimer = null;
+    this.embedConfig = readEmbedConfig();
+    this._adminProductTemplate = "";
+    this._nativeGridBackup = null;
+    this._appGridActive = false;
+    this._embedChromeApplied = false;
+    this._quickviewEl = null;
+    this._pendingAppGrid = null;
     root.classList.add("smart-filter--" + this.position);
     root.setAttribute("data-position", this.position);
+    this.applyEmbedChrome();
     this.inheritThemeType();
     this.syncCollectionLayout();
     this.bindDrawer();
     this.bindSort();
     this.bindCollectionSearch();
+    this.bindClearAll();
+    maybeRunEmbedJs(this.embedConfig);
   }
 
   Widget.prototype.t = function (key, fallback) {
@@ -1381,16 +1672,14 @@
 
   Widget.prototype.applyI18nChrome = function () {
     if (this.i18n.filter && this.titleEl) {
-      this.titleEl.textContent = this.i18n.filter;
-      this.titleEl.hidden = !String(this.i18n.filter).trim();
+      this.titleEl.textContent = displayTitle(this.i18n.filter, "Filter");
+      this.titleEl.hidden = !String(this.titleEl.textContent).trim();
     }
     var toggle = this.root.querySelector("[data-drawer-toggle]");
     if (toggle && this.i18n.filter) {
-      toggle.setAttribute(
-        "data-title",
-        this.t("filter", "Filter:").replace(/:\s*$/, "").trim(),
-      );
+      toggle.setAttribute("data-title", displayTitle(this.i18n.filter, "Filter"));
     }
+    this.syncClearAll();
   };
 
   Widget.prototype.productCountLabel = function (n) {
@@ -1451,7 +1740,7 @@
     this.inheritThemeType();
 
     if (typeof settings.widgetTitle === "string" && this.titleEl) {
-      var title = settings.widgetTitle.trim();
+      var title = displayTitle(settings.widgetTitle, "Filter");
       this.titleEl.textContent = title;
       this.titleEl.hidden = !title;
     }
@@ -1520,6 +1809,8 @@
         : Boolean(settings.showMatchingVariantImage);
     this.showRefineBy =
       settings.showRefineBy == null ? true : Boolean(settings.showRefineBy);
+    this.autoApplyFilters =
+      settings.autoApplyFilters == null ? true : Boolean(settings.autoApplyFilters);
 
     this.root.hidden = Boolean(this.searchQuery) && this.enableFiltersOnSearch === false;
 
@@ -1529,6 +1820,10 @@
 
     this.defaultSort = settings.defaultSort || "manual";
     this.paginationStyle = normalizePaginationStyle(settings.paginationStyle);
+
+    if (typeof settings.productListLiquid === "string") {
+      this._adminProductTemplate = settings.productListLiquid.trim();
+    }
 
     this.renderSortSelect(settings);
     this.renderCollectionSearch(settings);
@@ -1638,6 +1933,386 @@
     }, this);
   };
 
+  Widget.prototype.applyEmbedChrome = function () {
+    if (this._embedChromeApplied) return;
+    this._embedChromeApplied = true;
+    var config = this.embedConfig || readEmbedConfig();
+    this.applyTreeTemplate(config.treeTemplate);
+    this.applySortTemplate(config.sortTemplate);
+    this.applySearchTemplate(config.searchTemplate);
+  };
+
+  Widget.prototype.applyTreeTemplate = function (html) {
+    var raw = String(html || "");
+    if (!raw.trim() || raw.indexOf("data-facets") === -1) return;
+    if (!this.facetsEl || !this.facetsEl.parentNode) return;
+    var box = document.createElement("div");
+    box.innerHTML = interpolateTemplate(raw, chromeTemplateContext(this));
+    var nextFacets = box.querySelector("[data-facets]");
+    if (!nextFacets) return;
+    var nextStatus = box.querySelector("[data-status]");
+    this.facetsEl.parentNode.replaceChild(nextFacets, this.facetsEl);
+    this.facetsEl = nextFacets;
+    if (nextStatus) {
+      if (this.statusEl && this.statusEl.parentNode) {
+        this.statusEl.parentNode.replaceChild(nextStatus, this.statusEl);
+      } else if (this.facetsEl.parentNode) {
+        this.facetsEl.parentNode.appendChild(nextStatus);
+      }
+      this.statusEl = nextStatus;
+    }
+  };
+
+  Widget.prototype.applySortTemplate = function (html) {
+    var raw = String(html || "");
+    if (!raw.trim() || raw.indexOf("data-sort") === -1) return;
+    var wrap = this.sortWrap || qs(this.root, "[data-sort-wrap]");
+    if (!wrap) return;
+    var box = document.createElement("div");
+    box.innerHTML = interpolateTemplate(raw, chromeTemplateContext(this));
+    var tplSort = box.querySelector("[data-sort]");
+    if (!tplSort) return;
+    var tplWrap = box.querySelector("[data-sort-wrap]");
+    wrap.innerHTML = "";
+    if (tplWrap) {
+      while (tplWrap.firstChild) wrap.appendChild(tplWrap.firstChild);
+    } else {
+      wrap.appendChild(tplSort);
+    }
+    this.sortWrap = wrap;
+    this.sortEl = qs(wrap, "[data-sort]") || qs(this.root, "[data-sort]");
+    if (this.sortEl) this.sortEl.removeAttribute("data-sf-bound");
+  };
+
+  Widget.prototype.applySearchTemplate = function (html) {
+    var raw = String(html || "");
+    if (!raw.trim() || raw.indexOf("data-collection-search") === -1) return;
+    var wrap =
+      this.collectionSearchWrap || qs(this.root, "[data-collection-search-wrap]");
+    if (!wrap) return;
+    var box = document.createElement("div");
+    box.innerHTML = interpolateTemplate(raw, chromeTemplateContext(this));
+    var tplInput = box.querySelector("[data-collection-search]");
+    if (!tplInput) return;
+    var tplWrap = box.querySelector("[data-collection-search-wrap]");
+    wrap.innerHTML = "";
+    if (tplWrap) {
+      while (tplWrap.firstChild) wrap.appendChild(tplWrap.firstChild);
+    } else {
+      wrap.appendChild(tplInput);
+    }
+    this.collectionSearchWrap = wrap;
+    this.collectionSearchEl =
+      qs(wrap, "[data-collection-search]") ||
+      qs(this.root, "[data-collection-search]");
+    if (this.collectionSearchEl) {
+      this.collectionSearchEl.removeAttribute("data-sf-bound");
+    }
+  };
+
+  Widget.prototype.appGridTemplate = function () {
+    var embed = this.embedConfig || readEmbedConfig();
+    var fromEmbed = String((embed && embed.productTemplate) || "").trim();
+    if (fromEmbed) return fromEmbed;
+    return String(this._adminProductTemplate || "").trim();
+  };
+
+  Widget.prototype.isAppGridMode = function () {
+    return Boolean(this.appGridTemplate());
+  };
+
+  Widget.prototype.backupNativeGrid = function (parent) {
+    if (!parent || this._nativeGridBackup) return;
+    var backup = [];
+    var i;
+    for (i = 0; i < parent.childNodes.length; i++) {
+      backup.push(parent.childNodes[i]);
+    }
+    this._nativeGridBackup = backup;
+  };
+
+  Widget.prototype.restoreNativeGrid = function () {
+    var parent = this._gridParent;
+    if (!parent) return;
+    var apps = parent.querySelectorAll(".sf-app-card");
+    var i;
+    for (i = 0; i < apps.length; i++) {
+      if (apps[i].parentNode) apps[i].parentNode.removeChild(apps[i]);
+    }
+    if (parent.classList) parent.classList.remove("sf-app-grid");
+    var backup = this._nativeGridBackup;
+    if (backup && backup.length) {
+      for (i = 0; i < backup.length; i++) {
+        var node = backup[i];
+        if (!node) continue;
+        if (node.parentNode !== parent) parent.appendChild(node);
+        if (node.nodeType === 1) {
+          node.hidden = false;
+          node.removeAttribute("data-smart-filter-hidden");
+        }
+      }
+    } else {
+      var kids = parent.children;
+      for (i = 0; i < kids.length; i++) {
+        kids[i].hidden = false;
+        kids[i].removeAttribute("data-smart-filter-hidden");
+      }
+    }
+    this._appGridActive = false;
+  };
+
+  Widget.prototype.hideNativeGridCards = function (parent) {
+    if (!parent || !parent.children) return;
+    var i;
+    for (i = 0; i < parent.children.length; i++) {
+      var child = parent.children[i];
+      if (!child || child.nodeType !== 1) continue;
+      if (child.classList && child.classList.contains("sf-app-card")) continue;
+      child.hidden = true;
+      child.setAttribute("data-smart-filter-hidden", "true");
+    }
+  };
+
+  var DEFAULT_APP_CARD =
+    '<a class="sf-app-card__link" href="{{product.url}}">' +
+    '<span class="sf-app-card__media">' +
+    '<img src="{{product.image}}" alt="{{product.title}}">' +
+    "</span>" +
+    '<p class="sf-app-card__title">{{product.title}}</p>' +
+    '<p class="sf-app-card__price">{{product.price}}</p>' +
+    '<p class="sf-app-card__vendor">{{product.vendor}}</p>' +
+    "</a>";
+
+  Widget.prototype.renderAppCard = function (product) {
+    var tpl = this.appGridTemplate() || DEFAULT_APP_CARD;
+    var html = interpolateTemplate(tpl, productTemplateContext(product, this)).trim();
+    if (!html) {
+      html = interpolateTemplate(
+        DEFAULT_APP_CARD,
+        productTemplateContext(product, this),
+      );
+    }
+    var wrap = document.createElement("div");
+    wrap.className = "sf-app-card";
+    wrap.innerHTML = html;
+    var item = product || {};
+    var handle = String(item.handle || "").toLowerCase();
+    var key = String(item.cardKey || handle).toLowerCase();
+    if (key) wrap.setAttribute("data-sf-card-key", key);
+    if (handle) wrap.setAttribute("data-product-handle", handle);
+    if (item.id != null && item.id !== "") {
+      wrap.setAttribute("data-product-id", String(item.id));
+    }
+    var url =
+      item.url ||
+      (handle
+        ? "/products/" +
+          handle +
+          (item.variantId ? "?variant=" + item.variantId : "")
+        : "");
+    if (url && !wrap.querySelector('a[href*="/products/"]')) {
+      var a = document.createElement("a");
+      a.setAttribute("href", url);
+      while (wrap.firstChild) a.appendChild(wrap.firstChild);
+      wrap.appendChild(a);
+    }
+    return wrap;
+  };
+
+  Widget.prototype.applyAppGrid = function (data, handles, append) {
+    var parent = this.ensureGridParent();
+    if (!parent) return false;
+    this.backupNativeGrid(parent);
+    if (parent.classList) parent.classList.add("sf-app-grid");
+    this._appGridActive = true;
+    if (!append) {
+      var stale = parent.querySelectorAll(".sf-app-card");
+      var s;
+      for (s = 0; s < stale.length; s++) {
+        if (stale[s].parentNode) stale[s].parentNode.removeChild(stale[s]);
+      }
+      this.hideNativeGridCards(parent);
+    } else {
+      this.hideNativeGridCards(parent);
+    }
+    var products = (data && data.products) || [];
+    if (!products.length && handles && handles.length) {
+      products = handles.map(function (h) {
+        var key = String(h || "");
+        var handle = key.split("::")[0];
+        return { handle: handle, cardKey: key, url: "/products/" + handle };
+      });
+    }
+    var shown = append ? this._shownHandles.slice() : [];
+    var i;
+    for (i = 0; i < products.length; i++) {
+      var product = products[i];
+      if (typeof product === "string") {
+        product = {
+          handle: product,
+          cardKey: product,
+          url: "/products/" + product,
+        };
+      }
+      if (!product) continue;
+      var card = this.renderAppCard(product);
+      var key =
+        (card.getAttribute && card.getAttribute("data-sf-card-key")) ||
+        String(product.cardKey || product.handle || "").toLowerCase();
+      if (key) this._cardCache[key] = card;
+      parent.appendChild(card);
+      if (key && shown.indexOf(key) === -1) shown.push(key);
+    }
+    this._shownHandles = shown;
+    return shown.length > 0 || products.length === 0;
+  };
+
+  Widget.prototype.ensureQuickviewModal = function () {
+    if (this._quickviewEl && this._quickviewEl.parentNode) return this._quickviewEl;
+    var existing = document.querySelector(".sf-quickview");
+    if (existing) {
+      this._quickviewEl = existing;
+      return existing;
+    }
+    var modal = document.createElement("div");
+    modal.className = "sf-quickview";
+    modal.hidden = true;
+    modal.innerHTML =
+      '<div class="sf-quickview__overlay" data-findly-quickview-overlay></div>' +
+      '<div class="sf-quickview__dialog" role="dialog" aria-modal="true">' +
+      '<button type="button" class="sf-quickview__close" data-findly-quickview-close aria-label="Close">×</button>' +
+      '<div class="sf-quickview__body" data-findly-quickview-body></div>' +
+      "</div>";
+    document.body.appendChild(modal);
+    var self = this;
+    modal.addEventListener("click", function (event) {
+      if (event.target === modal) self.closeQuickview();
+    });
+    var overlay = modal.querySelector("[data-findly-quickview-overlay]");
+    if (overlay) {
+      overlay.addEventListener("click", function () {
+        self.closeQuickview();
+      });
+    }
+    modal
+      .querySelector("[data-findly-quickview-close]")
+      .addEventListener("click", function () {
+        self.closeQuickview();
+      });
+    if (!this._onQuickviewKey) {
+      this._onQuickviewKey = function (event) {
+        if (event.key === "Escape") self.closeQuickview();
+      };
+    }
+    this._quickviewEl = modal;
+    return modal;
+  };
+
+  Widget.prototype.closeQuickview = function () {
+    var modal = this._quickviewEl;
+    if (!modal) return;
+    modal.hidden = true;
+    document.removeEventListener("keydown", this._onQuickviewKey);
+  };
+
+  Widget.prototype.openQuickview = function (card) {
+    if (!card) return;
+    var modal = this.ensureQuickviewModal();
+    var body = modal.querySelector("[data-findly-quickview-body]");
+    if (!body) return;
+    body.innerHTML = "";
+    var custom = card.querySelector("[data-findly-quickview]");
+    if (custom) {
+      body.appendChild(custom.cloneNode(true));
+    } else {
+      var img = card.querySelector("img");
+      var heading = card.querySelector(
+        ".card__heading, .card__title, .product-card-title, h3, h2, h1",
+      );
+      var priceEl = card.querySelector(
+        ".price, .product-card__price, [data-price], .sf-app-card__price, .sf-app-card-price",
+      );
+      var link = card.querySelector('a[href*="/products/"]');
+      if (img) {
+        var media = document.createElement("div");
+        media.className = "sf-quickview__image";
+        var photo = document.createElement("img");
+        photo.src = img.currentSrc || img.src || "";
+        photo.alt = img.alt || "";
+        media.appendChild(photo);
+        body.appendChild(media);
+      }
+      var title = document.createElement("div");
+      title.className = "sf-quickview__title";
+      title.textContent =
+        (heading && heading.textContent.trim()) ||
+        (link && link.textContent.trim()) ||
+        "";
+      body.appendChild(title);
+      if (priceEl && priceEl.textContent.trim()) {
+        var price = document.createElement("div");
+        price.className = "sf-quickview__price";
+        price.textContent = priceEl.textContent.trim();
+        body.appendChild(price);
+      }
+      if (link) {
+        var view = document.createElement("a");
+        view.className = "sf-quickview__product";
+        view.href = link.getAttribute("href") || "";
+        view.textContent = this.t("product.view_details", "View product");
+        body.appendChild(view);
+      }
+    }
+    modal.hidden = false;
+    document.addEventListener("keydown", this._onQuickviewKey);
+  };
+
+  Widget.prototype.ensureQuickviewButtons = function () {
+    var config = this.embedConfig || readEmbedConfig();
+    if (!config.useQuickviewTemplate) return;
+    var parent = this.ensureGridParent();
+    if (!parent) return;
+    var self = this;
+    eachProductCard(parent, function (handle, card) {
+      if (!card || card.hidden) return;
+      if (card.getAttribute && card.getAttribute("data-smart-filter-hidden") === "true") {
+        return;
+      }
+      if (card.closest) {
+        var hiddenHost = card.closest("[hidden], [data-smart-filter-hidden='true']");
+        if (hiddenHost && hiddenHost !== card) return;
+      }
+      if (card.querySelector && card.querySelector("[data-findly-quickview-open]")) {
+        return;
+      }
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sf-quickview-btn";
+      btn.setAttribute("data-findly-quickview-open", "");
+      btn.textContent = self.t("product.quick_view", "Quick view");
+      card.appendChild(btn);
+    });
+    if (!this._quickviewClickBound) {
+      this._quickviewClickBound = true;
+      document.addEventListener(
+        "click",
+        function (event) {
+          var node = event.target;
+          if (node && node.nodeType !== 1) node = node.parentElement;
+          var btn =
+            node && node.closest && node.closest("[data-findly-quickview-open]");
+          if (!btn) return;
+          event.preventDefault();
+          var card =
+            (btn.closest && btn.closest(".sf-app-card")) ||
+            closestProductCard(btn);
+          self.openQuickview(card);
+        },
+        true,
+      );
+    }
+  };
+
   Widget.prototype.restoreFromHash = function () {
     var parsed = parseHash(window.location.hash);
     if (!parsed) return;
@@ -1682,13 +2357,10 @@
       params.set("company_location", this.companyLocation);
     }
 
-    this._sentPagingParams = false;
-    if (this.shouldInterceptPaging()) {
-      this.ensurePageSize();
-      params.set("page", String(Math.max(1, this.page || 1)));
-      params.set("pageSize", String(this.pageSize || 24));
-      this._sentPagingParams = true;
-    }
+    this._sentPagingParams = true;
+    this.ensurePageSize();
+    params.set("page", String(Math.max(1, this.page || 1)));
+    params.set("pageSize", String(this.pageSize || 24));
 
     return this.proxyBase + "/filters?" + params.toString();
   };
@@ -1795,6 +2467,7 @@
   };
 
   Widget.prototype.shouldInterceptPaging = function () {
+    if (this.isAppGridMode()) return true;
     if (this._pagingFallback) return false;
     if (
       this.paginationStyle === "load_more" ||
@@ -1813,7 +2486,15 @@
     ) {
       return this._gridParent;
     }
-    this._gridParent = discoverGridParent();
+    var selected = null;
+    try {
+      selected = gridFromSelector(
+        (this.embedConfig || readEmbedConfig()).productGridSelector,
+      );
+    } catch (err) {
+      selected = null;
+    }
+    this._gridParent = selected || discoverGridParent();
     return this._gridParent;
   };
 
@@ -1973,11 +2654,20 @@
     var target = findMainFallbackEl() || document.body;
     if (!target) return;
     this._lateGridObserver = new MutationObserver(function () {
-      var found = discoverGridParent();
+      var found = null;
+      try {
+        found = gridFromSelector(
+          (self.embedConfig || readEmbedConfig()).productGridSelector,
+        );
+      } catch (errSel) {
+        found = null;
+      }
+      if (!found) found = discoverGridParent();
       if (!found) return;
       self._gridParent = found;
       self.disconnectLateGridObserver();
       self.syncCollectionLayout();
+      self.replayAppGridIfNeeded();
     });
     this._lateGridObserver.observe(target, { childList: true, subtree: true });
     this._lateGridTimer = window.setTimeout(function () {
@@ -2054,6 +2744,7 @@
     if (!host) {
       this.placeAtMainFallback(mount);
       this.markFilterPlaced();
+      this.replayAppGridIfNeeded();
       return;
     }
 
@@ -2080,6 +2771,7 @@
       hideEmptyShopifySection(originSection, mount);
       this.markFilterPlaced();
       this.inheritThemeType();
+      this.replayAppGridIfNeeded();
       return;
     }
 
@@ -2087,12 +2779,26 @@
     if (!layout) {
       this.placeAtMainFallback(mount);
       this.markFilterPlaced();
+      this.replayAppGridIfNeeded();
       return;
     }
 
     hideEmptyShopifySection(originSection, mount);
     this.markFilterPlaced();
     this.inheritThemeType();
+    this.replayAppGridIfNeeded();
+  };
+
+  Widget.prototype.replayAppGridIfNeeded = function () {
+    if (!this.isAppGridMode() || this._appGridActive || !this._pendingAppGrid) {
+      return;
+    }
+    if (!this.ensureGridParent()) return;
+    var pending = this._pendingAppGrid;
+    this.applyAppGrid(pending.data, pending.handles, false);
+    this.setThemePagerHidden(true);
+    this.renderPager();
+    this.ensureQuickviewButtons();
   };
 
   Widget.prototype.markFilterPlaced = function () {
@@ -2326,6 +3032,7 @@
       );
       dispatchUpdate(handles);
       if (data) this.updateStatus(data, handles);
+      this.ensureQuickviewButtons();
     }
   };
 
@@ -2581,6 +3288,8 @@
     this._shownHandles = [];
     this._lastProducts = [];
     this._hasNext = false;
+    if (this._appGridActive) this.restoreNativeGrid();
+    this._pendingAppGrid = null;
     this.restoreThemePaging();
   };
 
@@ -2619,8 +3328,14 @@
       setStatus(this.statusEl, this.t("loading", MSG_LOADING), false);
     }
     writeHash(this.selected, this.price, this.sortKey, this.collectionQuery);
-    this.cacheNativeCards();
     this.ensurePageSize();
+    if (!append && this.autoApplyFilters === false && this.facetsEl) {
+      var applyNowBtn = this.facetsEl.querySelector(".smart-filter__apply-now");
+      if (applyNowBtn) {
+        applyNowBtn.disabled = true;
+        applyNowBtn.setAttribute("aria-busy", "true");
+      }
+    }
 
     return fetch(this.buildProxyUrl(), {
       credentials: "same-origin",
@@ -2659,22 +3374,28 @@
 
           if (!append) {
             this.facets = normalizeFacets(data);
+            this.markFiltersApplied();
             this.renderFacets();
           }
 
-          var handles = extractHandles(data);
-          this.readPagingMeta(data, handles);
-          if (
-            this._sentPagingParams &&
-            handles.length > this.pageSize &&
-            data.page == null &&
-            data.hasNext == null
-          ) {
-            this._pageTotal = handles.length;
-            var sliceStart = (Math.max(1, this.page) - 1) * this.pageSize;
-            handles = handles.slice(sliceStart, sliceStart + this.pageSize);
-            this._hasNext = sliceStart + this.pageSize < this._pageTotal;
+          var intercept = this.shouldInterceptPaging();
+          var allHandles = extractHandles(data);
+          var handles = allHandles;
+          if (intercept) {
+            handles = extractHandles({
+              products: data && data.products ? data.products : [],
+            });
+            if (!handles.length && allHandles.length) {
+              this.ensurePageSize();
+              var sliceStart =
+                (Math.max(1, this.page) - 1) * (this.pageSize || 24);
+              handles = allHandles.slice(
+                sliceStart,
+                sliceStart + (this.pageSize || 24),
+              );
+            }
           }
+          this.readPagingMeta(data, intercept ? handles : allHandles);
           if (append) {
             this._lastProducts = (this._lastProducts || []).concat(
               data && data.products ? data.products : [],
@@ -2684,7 +3405,6 @@
           }
           writeFilterCache(this.filterCacheKey(), data);
 
-          var intercept = this.shouldInterceptPaging();
           var self = this;
 
           function afterGrid(visible) {
@@ -2694,6 +3414,7 @@
             dispatchUpdate(visible);
             self.updateStatus(data, visible);
             self.syncDrawerBadge();
+            self.ensureQuickviewButtons();
             if (!append) {
               var tracked = activeFilterCombo(self.selected, self.price);
               if (tracked.facetCount >= 2) {
@@ -2704,6 +3425,19 @@
               }
             }
           }
+
+          if (this.isAppGridMode()) {
+            this._loadingPage = false;
+            this._appending = false;
+            this._pendingAppGrid = { data: data, handles: handles };
+            this.applyAppGrid(data, handles, append);
+            this.setThemePagerHidden(true);
+            this.renderPager();
+            afterGrid(this._shownHandles.length ? this._shownHandles : handles);
+            return;
+          }
+
+          this._pendingAppGrid = null;
 
           if (!intercept) {
             this._loadingPage = false;
@@ -2747,6 +3481,7 @@
             this.renderPager();
             return;
           }
+          if (this.autoApplyFilters === false) this.renderApplyBar();
           if (this.facetsEl && this.facetsEl.querySelector(".smart-filter__facet")) {
             return;
           }
@@ -2831,6 +3566,36 @@
     }
   };
 
+  Widget.prototype.selectionSnapshot = function () {
+    return JSON.stringify({ s: this.selected, p: this.price });
+  };
+
+  Widget.prototype.markFiltersApplied = function () {
+    this._appliedSnapshot = this.selectionSnapshot();
+  };
+
+  Widget.prototype.hasPendingFilterChanges = function () {
+    return this.selectionSnapshot() !== this._appliedSnapshot;
+  };
+
+  Widget.prototype.commitFilters = function (keepFacets) {
+    if (this.autoApplyFilters !== false) {
+      this.fetchFilters();
+      return;
+    }
+    if (keepFacets) {
+      this.renderApplyBar();
+    } else {
+      this.renderFacets();
+    }
+    this.syncDrawerBadge();
+    this.syncClearAll();
+  };
+
+  Widget.prototype.applyPendingFilters = function () {
+    this.fetchFilters();
+  };
+
   Widget.prototype.toggleValue = function (key, value, checked) {
     if (!this.selected[key]) this.selected[key] = [];
     var list = this.selected[key];
@@ -2841,13 +3606,34 @@
       list.splice(index, 1);
     }
     if (!list.length) delete this.selected[key];
-    this.fetchFilters();
+    this.commitFilters();
   };
 
   Widget.prototype.clearFilters = function () {
     this.selected = {};
     this.price = { min: "", max: "" };
     this.fetchFilters();
+  };
+
+  Widget.prototype.bindClearAll = function () {
+    if (!this.clearAllEl) return;
+    this.clearAllEl.addEventListener(
+      "click",
+      function () {
+        this.clearFilters();
+      }.bind(this),
+    );
+    this.syncClearAll();
+  };
+
+  Widget.prototype.syncClearAll = function () {
+    var el = this.clearAllEl;
+    if (!el) return;
+    el.textContent = this.t("clear", MSG_CLEAR);
+    var active = this.hasActiveFilters();
+    el.disabled = !active;
+    el.classList.toggle("is-disabled", !active);
+    el.setAttribute("aria-disabled", String(!active));
   };
 
   Widget.prototype.isFacetCollapsed = function (key) {
@@ -2897,7 +3683,7 @@
           '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
         rangeChip.addEventListener("click", function () {
           delete self.selected[key];
-          self.fetchFilters();
+          self.commitFilters();
         });
         wrap.appendChild(rangeChip);
         return;
@@ -2935,7 +3721,7 @@
         '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
       priceChip.addEventListener("click", function () {
         self.price = { min: "", max: "" };
-        self.fetchFilters();
+        self.commitFilters();
       });
       wrap.appendChild(priceChip);
     }
@@ -2979,11 +3765,12 @@
         var labelText = document.createElement("span");
         labelText.className = "smart-filter__facet-label-text";
         labelText.appendChild(document.createTextNode(facet.label));
-        if (selectedCount) {
-          var badge = document.createElement("span");
-          badge.className = "smart-filter__facet-selected";
-          badge.textContent = String(selectedCount);
-          labelText.appendChild(badge);
+        var typeTag = facetTypeTag(facet);
+        if (typeTag) {
+          var tag = document.createElement("span");
+          tag.className = "smart-filter__facet-tag";
+          tag.textContent = typeTag;
+          labelText.appendChild(tag);
         }
         var chevron = document.createElement("span");
         chevron.className = "smart-filter__chevron";
@@ -3015,19 +3802,34 @@
       }.bind(this),
     );
 
-    if (this.hasActiveFilters()) {
-      var clear = document.createElement("button");
-      clear.type = "button";
-      clear.className = "smart-filter__btn smart-filter__clear";
-      clear.textContent = this.t("clear", MSG_CLEAR);
-      clear.addEventListener(
-        "click",
-        function () {
-          this.clearFilters();
-        }.bind(this),
-      );
-      this.facetsEl.appendChild(clear);
+    this.syncClearAll();
+    this.renderApplyBar();
+  };
+
+  Widget.prototype.renderApplyBar = function () {
+    if (!this.facetsEl) return;
+    var existing = this.facetsEl.querySelectorAll(".smart-filter__apply-bar");
+    for (var i = 0; i < existing.length; i += 1) {
+      existing[i].parentNode.removeChild(existing[i]);
     }
+    if (this.autoApplyFilters !== false) return;
+
+    var bar = document.createElement("div");
+    bar.className = "smart-filter__apply-bar";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "smart-filter__btn smart-filter__btn--primary smart-filter__apply-now";
+    btn.textContent = this.t("apply_now", MSG_APPLY_NOW);
+    btn.disabled = !this.hasPendingFilterChanges();
+    btn.addEventListener(
+      "click",
+      function () {
+        this.applyPendingFilters();
+      }.bind(this),
+    );
+    bar.appendChild(btn);
+    this.facetsEl.appendChild(bar);
   };
 
   Widget.prototype.renderDropdownFacet = function (facet) {
@@ -3056,7 +3858,7 @@
       function () {
         if (!select.value) delete this.selected[facet.key];
         else this.selected[facet.key] = [select.value];
-        this.fetchFilters();
+        this.commitFilters();
       }.bind(this),
     );
     wrap.appendChild(select);
@@ -3086,11 +3888,24 @@
         var href =
           item.url ||
           (item.handle ? "/collections/" + String(item.handle).replace(/^\/+|\/+$/g, "") : "");
+        var count = item.count;
         var li = document.createElement("li");
+        if (item.children && item.children.length) {
+          li.classList.add("smart-filter__tree-node");
+        }
         var link = document.createElement("a");
         link.className = "smart-filter__option smart-filter__collection-link";
         link.href = href || "#";
-        link.textContent = labelText;
+        var text = document.createElement("span");
+        text.className = "smart-filter__option-text";
+        text.textContent = labelText;
+        link.appendChild(text);
+        if (this.showCounts && typeof count === "number") {
+          var countEl = document.createElement("span");
+          countEl.className = "smart-filter__option-count";
+          countEl.textContent = String(count);
+          link.appendChild(countEl);
+        }
         if (href) {
           link.addEventListener("click", function (event) {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -3100,6 +3915,18 @@
         }
         li.appendChild(link);
         if (item.children && item.children.length) {
+          var toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "smart-filter__tree-toggle";
+          toggle.setAttribute("aria-expanded", "true");
+          toggle.setAttribute("aria-label", "Toggle " + labelText);
+          toggle.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var collapsed = li.classList.toggle("is-tree-collapsed");
+            toggle.setAttribute("aria-expanded", String(!collapsed));
+          });
+          li.appendChild(toggle);
           var nested = document.createElement("ul");
           nested.className = "smart-filter__tree-children";
           this.appendCollectionNavItems(nested, item.children);
@@ -3139,7 +3966,9 @@
       (asRating ? " smart-filter__options--stars" : "") +
       (asSwatchText ? " smart-filter__options--swatch-text" : "") +
       (asPlainList ? " smart-filter__options--list" : "") +
-      (facet.collectionTree || facet.source === "collection"
+      (facet.collectionTree ||
+      facet.source === "collection" ||
+      valuesHaveChildren(facet.values)
         ? " smart-filter__options--collection-tree"
         : "");
     var selected = this.selected[facet.key] || [];
@@ -3189,6 +4018,9 @@
         var empty = typeof count === "number" && count === 0;
 
         var li = document.createElement("li");
+        if (item.children && item.children.length) {
+          li.classList.add("smart-filter__tree-node");
+        }
         var label = document.createElement("label");
         label.className = "smart-filter__option";
         if (asColor) label.className += " smart-filter__swatch";
@@ -3211,7 +4043,7 @@
             if (asRadio) {
               this.selected[facet.key] = event.target.checked ? [value] : [];
               if (!this.selected[facet.key].length) delete this.selected[facet.key];
-              this.fetchFilters();
+              this.commitFilters();
               return;
             }
             this.toggleValue(facet.key, value, event.target.checked);
@@ -3240,7 +4072,7 @@
         label.appendChild(input);
         label.appendChild(text);
 
-        if (showCounts && typeof count === "number") {
+        if (showCounts && typeof count === "number" && !asSize) {
           var countEl = document.createElement("span");
           countEl.className = "smart-filter__option-count";
           countEl.textContent = String(count);
@@ -3249,6 +4081,18 @@
 
         li.appendChild(label);
         if (item.children && item.children.length) {
+          var toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "smart-filter__tree-toggle";
+          toggle.setAttribute("aria-expanded", "true");
+          toggle.setAttribute("aria-label", "Toggle " + labelText);
+          toggle.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var collapsed = li.classList.toggle("is-tree-collapsed");
+            toggle.setAttribute("aria-expanded", String(!collapsed));
+          });
+          li.appendChild(toggle);
           var nested = document.createElement("ul");
           nested.className = "smart-filter__tree-children";
           addItems(nested, item.children);
@@ -3272,7 +4116,7 @@
     } else {
       this.selected[facet.key] = [min, max];
     }
-    this.fetchFilters();
+    this.commitFilters(true);
   };
 
   Widget.prototype.renderPriceFacet = function (facet) {
@@ -3297,6 +4141,68 @@
       liveMin = liveMax;
       liveMax = swap;
     }
+
+    var minField = document.createElement("div");
+    minField.className = "smart-filter__price-field";
+    var minInput = document.createElement("input");
+    minInput.type = "number";
+    minInput.inputMode = "decimal";
+    minInput.setAttribute("aria-label", this.t("min", MSG_MIN));
+    if (hasBounds) {
+      minInput.min = String(boundMin);
+      minInput.max = String(boundMax);
+      minInput.placeholder = String(Math.round(boundMin));
+    } else {
+      minInput.placeholder = this.t("min", MSG_MIN);
+    }
+    minInput.value =
+      current[0] !== "" && current[0] != null
+        ? String(current[0])
+        : hasBounds
+          ? String(Math.round(boundMin))
+          : "";
+    minField.appendChild(minInput);
+
+    var sep = document.createElement("span");
+    sep.className = "smart-filter__price-sep";
+    sep.setAttribute("aria-hidden", "true");
+    sep.textContent = "–";
+
+    var maxField = document.createElement("div");
+    maxField.className = "smart-filter__price-field";
+    var maxInput = document.createElement("input");
+    maxInput.type = "number";
+    maxInput.inputMode = "decimal";
+    maxInput.setAttribute("aria-label", this.t("max", MSG_MAX));
+    if (hasBounds) {
+      maxInput.min = String(boundMin);
+      maxInput.max = String(boundMax);
+      maxInput.placeholder = String(Math.round(boundMax));
+    } else {
+      maxInput.placeholder = this.t("max", MSG_MAX);
+    }
+    maxInput.value =
+      current[1] !== "" && current[1] != null
+        ? String(current[1])
+        : hasBounds
+          ? String(Math.round(boundMax))
+          : "";
+    maxField.appendChild(maxInput);
+
+    wrap.appendChild(minField);
+    wrap.appendChild(sep);
+    wrap.appendChild(maxField);
+
+    var self = this;
+    var debounceId = 0;
+    var commitFromInputs = function () {
+      self.applyRangeValues(
+        facet,
+        minInput.value.trim(),
+        maxInput.value.trim(),
+        isProductPrice,
+      );
+    };
 
     if (hasBounds) {
       var slider = document.createElement("div");
@@ -3333,8 +4239,16 @@
       slider.appendChild(high);
       wrap.appendChild(slider);
 
-      var debounceId = 0;
-      var self = this;
+      var bounds = document.createElement("div");
+      bounds.className = "smart-filter__price-bounds";
+      var boundLow = document.createElement("span");
+      boundLow.textContent = formatMoney(boundMin, this.currency);
+      var boundHigh = document.createElement("span");
+      boundHigh.textContent = formatMoney(boundMax, this.currency);
+      bounds.appendChild(boundLow);
+      bounds.appendChild(boundHigh);
+      wrap.appendChild(bounds);
+
       var commitFromSlider = function () {
         var a = Number(low.value);
         var b = Number(high.value);
@@ -3348,6 +4262,10 @@
         minInput.value = String(a);
         maxInput.value = String(b);
         updateFill();
+        if (self.autoApplyFilters === false) {
+          self.applyRangeValues(facet, String(a), String(b), isProductPrice);
+          return;
+        }
         window.clearTimeout(debounceId);
         debounceId = window.setTimeout(function () {
           self.applyRangeValues(facet, String(a), String(b), isProductPrice);
@@ -3357,66 +4275,27 @@
       high.addEventListener("input", commitFromSlider);
     }
 
-    var minField = document.createElement("div");
-    minField.className = "smart-filter__price-field";
-    var minLabel = document.createElement("span");
-    minLabel.className = "smart-filter__field-label";
-    minLabel.textContent = this.t("min", MSG_MIN);
-    var minInput = document.createElement("input");
-    minInput.type = "number";
-    minInput.inputMode = "decimal";
-    if (hasBounds) {
-      minInput.min = String(boundMin);
-      minInput.max = String(boundMax);
-      minInput.placeholder = String(boundMin);
+    if (this.autoApplyFilters === false) {
+      minInput.addEventListener("input", commitFromInputs);
+      maxInput.addEventListener("input", commitFromInputs);
+      minInput.addEventListener("change", commitFromInputs);
+      maxInput.addEventListener("change", commitFromInputs);
     } else {
-      minInput.placeholder = this.t("min", MSG_MIN);
+      var onNumberCommit = function () {
+        window.clearTimeout(debounceId);
+        debounceId = window.setTimeout(commitFromInputs, 300);
+      };
+      minInput.addEventListener("input", onNumberCommit);
+      maxInput.addEventListener("input", onNumberCommit);
+      minInput.addEventListener("change", function () {
+        window.clearTimeout(debounceId);
+        commitFromInputs();
+      });
+      maxInput.addEventListener("change", function () {
+        window.clearTimeout(debounceId);
+        commitFromInputs();
+      });
     }
-    minInput.value = current[0] || "";
-    minField.appendChild(minLabel);
-    minField.appendChild(minInput);
-
-    var maxField = document.createElement("div");
-    maxField.className = "smart-filter__price-field";
-    var maxLabel = document.createElement("span");
-    maxLabel.className = "smart-filter__field-label";
-    maxLabel.textContent = this.t("max", MSG_MAX);
-    var maxInput = document.createElement("input");
-    maxInput.type = "number";
-    maxInput.inputMode = "decimal";
-    if (hasBounds) {
-      maxInput.min = String(boundMin);
-      maxInput.max = String(boundMax);
-      maxInput.placeholder = String(boundMax);
-    } else {
-      maxInput.placeholder = this.t("max", MSG_MAX);
-    }
-    maxInput.value = current[1] || "";
-    maxField.appendChild(maxLabel);
-    maxField.appendChild(maxInput);
-
-    var actions = document.createElement("div");
-    actions.className = "smart-filter__price-actions";
-    var apply = document.createElement("button");
-    apply.type = "button";
-    apply.className = "smart-filter__btn smart-filter__btn--primary";
-    apply.textContent = this.t("apply", MSG_APPLY);
-    apply.addEventListener(
-      "click",
-      function () {
-        this.applyRangeValues(
-          facet,
-          minInput.value.trim(),
-          maxInput.value.trim(),
-          isProductPrice,
-        );
-      }.bind(this),
-    );
-    actions.appendChild(apply);
-
-    wrap.appendChild(minField);
-    wrap.appendChild(maxField);
-    wrap.appendChild(actions);
     return wrap;
   };
 
@@ -3451,6 +4330,7 @@
     this.applySettings(cached.settings);
     this.applyI18nChrome();
     this.facets = normalizeFacets(cached);
+    this.markFiltersApplied();
     this.renderFacets();
     setStatus(this.statusEl, "", false);
     return true;
@@ -3461,11 +4341,12 @@
       setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
       return;
     }
-    this.syncCollectionLayout();
-    this.inheritThemeType();
     this.restoreFromHash();
+    this.markFiltersApplied();
     this.hydrateFromCache();
     this.fetchFilters();
+    this.syncCollectionLayout();
+    this.inheritThemeType();
   };
 
   function boot() {

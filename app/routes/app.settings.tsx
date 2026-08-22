@@ -157,6 +157,7 @@ type SettingsState = {
   hideSingleValueFacets: boolean;
   showMatchingVariantImage: boolean;
   showRefineBy: boolean;
+  autoApplyFilters: boolean;
   showSuggestionsOnEmptyQuery: boolean;
   showSuggestionsOnNoResults: boolean;
   suggestionProductHandles: string[];
@@ -193,6 +194,7 @@ function toSettingsState(settings: {
   hideSingleValueFacets?: boolean;
   showMatchingVariantImage?: boolean;
   showRefineBy?: boolean;
+  autoApplyFilters?: boolean;
   showSuggestionsOnEmptyQuery?: boolean;
   showSuggestionsOnNoResults?: boolean;
   suggestionProductHandles?: unknown;
@@ -240,6 +242,7 @@ function toSettingsState(settings: {
     hideSingleValueFacets: Boolean(settings.hideSingleValueFacets),
     showMatchingVariantImage: settings.showMatchingVariantImage ?? true,
     showRefineBy: settings.showRefineBy ?? true,
+    autoApplyFilters: settings.autoApplyFilters ?? true,
     showSuggestionsOnEmptyQuery: Boolean(settings.showSuggestionsOnEmptyQuery),
     showSuggestionsOnNoResults: Boolean(settings.showSuggestionsOnNoResults),
     suggestionProductHandles: normalizeHandleList(
@@ -266,9 +269,11 @@ function toColorInputValue(value: string) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const settings = await getAppSettings(shop.id);
+  const [settings, metafields] = await Promise.all([
+    getAppSettings(shop.id),
+    loadSettingsMetafields(shop.id),
+  ]);
   const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
-  const metafields = await loadSettingsMetafields(shop.id);
 
   return {
     tab,
@@ -301,6 +306,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       hideSingleValueFacets: settings.hideSingleValueFacets,
       showMatchingVariantImage: settings.showMatchingVariantImage,
       showRefineBy: settings.showRefineBy,
+      autoApplyFilters: settings.autoApplyFilters,
       showSuggestionsOnEmptyQuery: settings.showSuggestionsOnEmptyQuery,
       showSuggestionsOnNoResults: settings.showSuggestionsOnNoResults,
       suggestionProductHandles: settings.suggestionProductHandles,
@@ -442,6 +448,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("showMatchingVariantImage") === "on",
     showRefineBy:
       form.get("showRefineBy") === "true" || form.get("showRefineBy") === "on",
+    autoApplyFilters:
+      form.get("autoApplyFilters") === "true" ||
+      form.get("autoApplyFilters") === "on",
     customCss: String(form.get("customCss") ?? ""),
     productListLiquid: String(form.get("productListLiquid") ?? ""),
   });
@@ -450,14 +459,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
   formData,
+  formMethod,
   defaultShouldRevalidate,
 }: {
+  currentUrl: URL;
+  nextUrl: URL;
   formData?: FormData;
+  formMethod?: string;
   defaultShouldRevalidate: boolean;
 }) {
   const intent = formData?.get("intent");
   if (intent === "sync-metafields" || intent === "save-metafields") return false;
+  const method = formMethod?.toUpperCase();
+  if (method && method !== "GET") return defaultShouldRevalidate;
+  if (currentUrl.pathname === nextUrl.pathname) {
+    const currentTab = currentUrl.searchParams.get("tab") || "";
+    const nextTab = nextUrl.searchParams.get("tab") || "";
+    const restUnchanged = [...new Set([
+      ...currentUrl.searchParams.keys(),
+      ...nextUrl.searchParams.keys(),
+    ])].every((key) => {
+      if (key === "tab") return true;
+      return currentUrl.searchParams.get(key) === nextUrl.searchParams.get(key);
+    });
+    if (restUnchanged && currentTab !== nextTab) return false;
+    if (currentUrl.search === nextUrl.search) return false;
+  }
   return defaultShouldRevalidate;
 }
 
@@ -531,6 +561,7 @@ export default function SettingsPage() {
       String(next.showMatchingVariantImage),
     );
     formData.set("showRefineBy", String(next.showRefineBy));
+    formData.set("autoApplyFilters", String(next.autoApplyFilters));
     formData.set("customCss", next.customCss);
     formData.set("productListLiquid", next.productListLiquid);
     submit(formData, { method: "POST" });
@@ -930,6 +961,28 @@ export default function SettingsPage() {
                           }))
                         }
                       />
+                      <Select
+                        label="Apply filters"
+                        options={[
+                          {
+                            label: "Instantly when an option is selected",
+                            value: "instant",
+                          },
+                          {
+                            label: "When shoppers click Apply now",
+                            value: "apply",
+                          },
+                        ]}
+                        value={settings.autoApplyFilters ? "instant" : "apply"}
+                        helpText="Instant updates the product grid over AJAX as soon as a shopper picks a value. Apply now lets them select several options first, then confirm."
+                        disabled={saving}
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            autoApplyFilters: value === "instant",
+                          }))
+                        }
+                      />
                     </BlockStack>
                   </Card>
                   <Card>
@@ -1194,7 +1247,7 @@ export default function SettingsPage() {
                         multiline={6}
                         value={settings.productListLiquid}
                         disabled={saving}
-                        helpText="Optional snippet for the app product grid (D8). Not applied to the live theme grid yet. Script tags are stripped on save."
+                        helpText="Optional HTML for the app product grid. Placeholders like {{product.title}} work the same as the theme App embed product template. Script tags are stripped on save."
                         onChange={(value) =>
                           setSettings((s) => ({
                             ...s,

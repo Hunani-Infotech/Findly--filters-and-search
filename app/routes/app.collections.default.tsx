@@ -65,9 +65,12 @@ type ConfigState = {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
-  const config = await getFilterConfig(shop.id, "");
-  const valueCatalog = await getListFacetValueCatalog(shop.id, "");
-  const mappedFacets = mappedFacetsForAdmin(await getMetafieldMappings(shop.id));
+  const [config, valueCatalog, mappings] = await Promise.all([
+    getFilterConfig(shop.id, ""),
+    getListFacetValueCatalog(shop.id, ""),
+    getMetafieldMappings(shop.id),
+  ]);
+  const mappedFacets = mappedFacetsForAdmin(mappings);
   const listMetafields = mappedFacets.filter(
     (mapping) => mapping.filterType === "LIST",
   );

@@ -1,4 +1,6 @@
 import prisma from "./db.server";
+import { findShopByIdCached, findShopCached, rememberShop } from "./shop-cache.server";
+import { createTtlCache } from "./read-cache.server";
 
 export const PLANS = {
   free: {
@@ -71,12 +73,17 @@ export function isDevUnlockLimits() {
 }
 
 async function getOrCreateShop(domain: string) {
-  return prisma.shop.upsert({
+  const cached = await findShopCached(domain);
+  if (cached && !cached.uninstalledAt) return cached;
+
+  const shop = await prisma.shop.upsert({
     where: { domain },
     create: { domain, plan: PLANS.free.key },
     update: { uninstalledAt: null },
     include: { subscription: true },
   });
+  rememberShop(shop);
+  return shop;
 }
 
 export function hasActivePaidSubscription(subscription: {
@@ -109,11 +116,42 @@ export function getShopPlan(shop: {
   return fromName === "free" ? "pro" : fromName;
 }
 
-export async function enforcePlanLimits(shopId: string) {
-  const shop = await prisma.shop.findUnique({
-    where: { id: shopId },
-    include: { subscription: true },
-  });
+/** Plan caps only — no catalog COUNT. Use on storefront/admin reads. */
+export async function resolvePlanCaps(shopId: string): Promise<{
+  plan: PlanKey;
+  filterLimit: number;
+  productLimit: number;
+}> {
+  const shop = await findShopByIdCached(shopId);
+  if (!shop) {
+    return {
+      plan: "free",
+      filterLimit: PLANS.free.filterLimit,
+      productLimit: PLANS.free.productLimit,
+    };
+  }
+  const planKey = getShopPlan(shop);
+  const unlocked = isDevUnlockLimits();
+  const plan = unlocked ? PLANS.pro : PLANS[planKey];
+  const productLimit = unlocked
+    ? PLANS.pro.productLimit
+    : planKey !== "free" && shop.subscription?.productLimit
+      ? shop.subscription.productLimit
+      : plan.productLimit;
+  const filterLimit = unlocked
+    ? PLANS.pro.filterLimit
+    : planKey !== "free" && shop.subscription?.filterLimit
+      ? shop.subscription.filterLimit
+      : plan.filterLimit;
+  return { plan: planKey, filterLimit, productLimit };
+}
+
+export async function resolveFilterLimit(shopId: string): Promise<number> {
+  return (await resolvePlanCaps(shopId)).filterLimit;
+}
+
+async function loadPlanLimits(shopId: string) {
+  const shop = await findShopByIdCached(shopId);
   if (!shop) {
     throw new Error(`Shop not found: ${shopId}`);
   }
@@ -162,6 +200,14 @@ export async function enforcePlanLimits(shopId: string) {
   };
 }
 
+const planUsageCache = createTtlCache<Awaited<ReturnType<typeof loadPlanLimits>>>(
+  30_000,
+);
+
+export async function enforcePlanLimits(shopId: string) {
+  return planUsageCache.wrap(shopId, () => loadPlanLimits(shopId));
+}
+
 /**
  * Free plan always has access; paid Standard/Pro unlock higher limits.
  * App use is never hard-blocked for billing — limits are enforced elsewhere.
@@ -171,11 +217,8 @@ export async function ensureShopAccess(shopDomain: string) {
   const plan = getShopPlan(shop);
 
   if (shop.plan !== plan) {
-    await prisma.shop.update({
-      where: { id: shop.id },
-      data: { plan },
-    });
     shop.plan = plan;
+    rememberShop(shop);
   }
 
   return {

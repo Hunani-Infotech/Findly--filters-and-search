@@ -153,6 +153,7 @@ export const TRANSLATION_FIELDS: Record<
     { key: "filter.show_more", reference: "Show more", defaultValue: "Show more" },
     { key: "filter.show_less", reference: "Show less", defaultValue: "Show less" },
     { key: "apply", reference: "Apply", defaultValue: "Apply" },
+    { key: "apply_now", reference: "Apply now", defaultValue: "Apply now" },
     { key: "min", reference: "Min", defaultValue: "Min" },
     { key: "max", reference: "Max", defaultValue: "Max" },
     { key: "any", reference: "Any", defaultValue: "Any" },

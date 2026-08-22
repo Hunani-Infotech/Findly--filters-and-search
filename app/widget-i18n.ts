@@ -1,6 +1,7 @@
 export const WIDGET_I18N_KEYS = [
   "filter",
   "apply",
+  "apply_now",
   "clear",
   "min",
   "max",
@@ -36,9 +37,10 @@ export const WIDGET_I18N_KEYS = [
 export type WidgetI18nKey = (typeof WIDGET_I18N_KEYS)[number];
 
 export const DEFAULT_WIDGET_I18N: Record<WidgetI18nKey, string> = {
-  filter: "Filter:",
+  filter: "Filter",
   apply: "Apply",
-  clear: "Clear filters",
+  apply_now: "Apply now",
+  clear: "Clear All",
   min: "Min",
   max: "Max",
   any: "Any",
@@ -73,7 +75,8 @@ export const DEFAULT_WIDGET_I18N: Record<WidgetI18nKey, string> = {
 export const WIDGET_I18N_LABELS: Record<WidgetI18nKey, string> = {
   filter: "Filter title",
   apply: "Apply",
-  clear: "Clear filters",
+  apply_now: "Apply now",
+  clear: "Clear All",
   min: "Min",
   max: "Max",
   any: "Any",

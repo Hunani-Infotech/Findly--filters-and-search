@@ -2,6 +2,7 @@ import prisma from "./db.server";
 import { ADMIN_TABLE_PAGE_SIZE, slicePage } from "./admin-list-page";
 import { optionKeyFromName } from "./filter-catalog";
 import { hexFromColorName, isSwatchFilled } from "./color-autofill";
+import { createTtlCache } from "./read-cache.server";
 
 export type SwatchKind = "solid" | "dual" | "image";
 
@@ -37,11 +38,17 @@ type SavedSwatch = {
   imageUrl: string;
 };
 
+const colorOptionsCache = createTtlCache<ColorOptionEntry[]>(30_000);
+
 async function collectColorOptions(shopId: string): Promise<ColorOptionEntry[]> {
+  return colorOptionsCache.wrap(shopId, () => loadColorOptions(shopId));
+}
+
+async function loadColorOptions(shopId: string): Promise<ColorOptionEntry[]> {
   const products = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
     select: { options: true },
-    take: 2000,
+    take: 200,
   });
   const keys = new Map<string, { optionKey: string; label: string; values: Set<string> }>();
   for (const product of products) {

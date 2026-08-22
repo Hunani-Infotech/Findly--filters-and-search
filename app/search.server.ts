@@ -26,6 +26,7 @@ import {
   type SearchMatchMode,
 } from "./search-query";
 import { getMetafieldMappings } from "./shop.server";
+import { createTtlCache } from "./read-cache.server";
 
 export {
   DEFAULT_STOP_WORDS,
@@ -391,6 +392,8 @@ type RankedHitsResult = {
   didYouMean: string | null;
 };
 
+const rankedHitsCache = createTtlCache<RankedHitsResult>(10_000);
+
 function uniqueTokenSets(sets: string[][]): string[][] {
   const seen = new Set<string>();
   const next: string[][] = [];
@@ -468,6 +471,16 @@ function didYouMeanFromHit(
 }
 
 async function fetchRankedHits(
+  shopId: string,
+  query: string,
+  take: number,
+): Promise<RankedHitsResult> {
+  return rankedHitsCache.wrap(`${shopId}:${query}:${take}`, () =>
+    fetchRankedHitsUncached(shopId, query, take),
+  );
+}
+
+async function fetchRankedHitsUncached(
   shopId: string,
   query: string,
   take: number,

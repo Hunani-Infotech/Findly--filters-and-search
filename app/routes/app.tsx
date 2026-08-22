@@ -35,21 +35,20 @@ export function shouldRevalidate({
   currentUrl,
   nextUrl,
   formMethod,
-  defaultShouldRevalidate,
 }: {
   currentUrl: URL;
   nextUrl: URL;
   formMethod?: string;
   defaultShouldRevalidate: boolean;
 }) {
-  if (currentUrl.pathname !== nextUrl.pathname) {
-    return defaultShouldRevalidate;
-  }
   const method = formMethod?.toUpperCase();
   if (method && method !== "GET") {
-    return defaultShouldRevalidate;
+    return true;
   }
-  return false;
+  if (currentUrl.pathname.startsWith("/app") && nextUrl.pathname.startsWith("/app")) {
+    return false;
+  }
+  return currentUrl.pathname !== nextUrl.pathname;
 }
 
 export default function App() {

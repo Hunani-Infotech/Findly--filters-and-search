@@ -189,6 +189,18 @@ try {
   log.info("[dev] Starting Findly stack: infra + worker + Shopify app");
   await ensureInfra();
   preparePrisma();
+
+  log.info("[dev] Minifying theme extension JS (100 KB app-block limit)…");
+  const minifyScript = path.join(root, "scripts", "minify-theme-extension.mjs");
+  const minifyOnce = spawnSync(process.execPath, [minifyScript], {
+    cwd: root,
+    env: process.env,
+    stdio: "inherit",
+  });
+  if ((minifyOnce.status ?? 1) !== 0) {
+    throw new Error("theme extension minify failed");
+  }
+  spawnTracked(process.execPath, [minifyScript, "--watch"], { tag: "minify" });
 } catch (error) {
   log.error(`[dev] ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);

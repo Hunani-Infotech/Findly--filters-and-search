@@ -387,6 +387,21 @@
   background: #fff;
 }
 
+.preview .applyNow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--sf-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  pointer-events: none;
+}
+
 @media (max-width: 52rem) {
   .layoutGrid {
     grid-template-columns: 1fr;

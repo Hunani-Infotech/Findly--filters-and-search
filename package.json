@@ -4,7 +4,9 @@
   "scripts": {
     "build": "react-router build",
     "dev": "node ./scripts/dev.mjs",
-    "dev:shopify": "node ./node_modules/@shopify/cli/bin/run.js app dev",
+    "dev:shopify": "node ./scripts/minify-theme-extension.mjs && node ./node_modules/@shopify/cli/bin/run.js app dev",
+    "theme:minify": "node ./scripts/minify-theme-extension.mjs",
+    "predeploy": "node ./scripts/minify-theme-extension.mjs",
     "dev:infra": "node ./scripts/start-local-infra.mjs",
     "dev:web": "node ./node_modules/@react-router/dev/bin.js dev",
     "config:link": "shopify app config link",
@@ -55,6 +57,7 @@
     "verify:d4": "node ./scripts/verify-d4.mjs",
     "verify:d5": "node ./scripts/verify-d5.mjs",
     "verify:d7": "node ./scripts/verify-d7.mjs",
+    "verify:d8": "node ./scripts/verify-d8.mjs",
     "verify:d9": "node ./scripts/verify-d9.mjs",
     "verify:d10": "node ./scripts/verify-d10.mjs",
     "verify:d11": "node ./scripts/verify-d11.mjs",

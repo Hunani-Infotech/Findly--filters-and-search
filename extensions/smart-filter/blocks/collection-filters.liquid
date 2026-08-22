@@ -54,7 +54,10 @@
     aria-labelledby="smart-filter-title"
   >
     <div class="smart-filter__panel-head">
-      <div class="smart-filter__title" id="smart-filter-title" data-title>Filter:</div>
+      <div class="smart-filter__title" id="smart-filter-title" data-title>Filter</div>
+      <button type="button" class="smart-filter__clear-all" data-clear-all disabled>
+        Clear All
+      </button>
       <button
         type="button"
         class="smart-filter__close"
@@ -97,7 +100,7 @@
     "templates": ["collection", "search"]
   },
   "stylesheet": "smart-filter.css",
-  "javascript": "smart-filter.js",
+  "javascript": "smart-filter.min.js",
   "settings": [
     {
       "type": "select",

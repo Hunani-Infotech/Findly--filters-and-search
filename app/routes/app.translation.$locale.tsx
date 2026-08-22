@@ -294,5 +294,34 @@ export default function TranslationLocalePage() {
   );
 }
 
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL;
+  nextUrl: URL;
+  formMethod?: string;
+  defaultShouldRevalidate: boolean;
+}) {
+  const method = formMethod?.toUpperCase();
+  if (method && method !== "GET") return defaultShouldRevalidate;
+  if (currentUrl.pathname === nextUrl.pathname) {
+    const currentTab = currentUrl.searchParams.get("tab") || "";
+    const nextTab = nextUrl.searchParams.get("tab") || "";
+    const restUnchanged = [...new Set([
+      ...currentUrl.searchParams.keys(),
+      ...nextUrl.searchParams.keys(),
+    ])].every((key) => {
+      if (key === "tab") return true;
+      return currentUrl.searchParams.get(key) === nextUrl.searchParams.get(key);
+    });
+    if (restUnchanged && currentTab !== nextTab) return false;
+    if (currentUrl.search === nextUrl.search) return false;
+  }
+  return defaultShouldRevalidate;
+}
+
 export const headers: HeadersFunction = (headersArgs) =>
   boundary.headers(headersArgs);

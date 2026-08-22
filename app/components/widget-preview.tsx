@@ -17,6 +17,7 @@ export type WidgetPreviewSettings = {
   enableCollectionSearch?: boolean;
   hideSingleValueFacets?: boolean;
   showRefineBy?: boolean;
+  autoApplyFilters?: boolean;
 };
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
@@ -295,6 +296,9 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
           </>
         )}
       </div>
+      {settings.autoApplyFilters === false ? (
+        <div className={styles.applyNow}>Apply now</div>
+      ) : null}
     </div>
   );
 }

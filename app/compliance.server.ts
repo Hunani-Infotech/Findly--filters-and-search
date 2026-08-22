@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import prisma from "./db.server";
+import { forgetShop } from "./shop-cache.server";
 import { log } from "./log.server";
 import { enqueueSyncJobWithTimeout } from "./queues.server";
 
@@ -19,6 +20,7 @@ export async function purgeShopData(shopDomain: string) {
   const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
 
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
+  forgetShop(shopDomain);
 
   if (!shop) {
     log.info(`[compliance] purgeShopData: no Shop row for ${shopDomain}`);

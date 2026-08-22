@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "./db.server";
+import { createTtlCache } from "./read-cache.server";
 import {
   parseWidgetI18nMap,
   type WidgetI18nMap,
@@ -103,13 +104,16 @@ export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
     : { recOn, recs, ymm, langs, i18n, translationCustom };
 }
 
+const extrasCache = createTtlCache<AdminNavExtras>(30_000);
+
 export async function getAdminNavExtras(shopId: string): Promise<AdminNavExtras> {
-  const row = await prisma.appSettings.upsert({
-    where: { shopId },
-    create: { shopId },
-    update: {},
+  return extrasCache.wrap(shopId, async () => {
+    const row = await prisma.appSettings.findUnique({
+      where: { shopId },
+      select: { adminExtras: true },
+    });
+    return parseAdminNavExtras(row?.adminExtras);
   });
-  return parseAdminNavExtras(row.adminExtras);
 }
 
 export async function saveAdminNavExtras(
@@ -130,5 +134,6 @@ export async function saveAdminNavExtras(
     create: { shopId, adminExtras: payload },
     update: { adminExtras: payload },
   });
+  extrasCache.del(shopId);
   return parseAdminNavExtras(row.adminExtras);
 }

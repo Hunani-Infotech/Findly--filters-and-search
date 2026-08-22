@@ -24,6 +24,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { forgetShop } from "../shop-cache.server";
 import {
   PLANS,
   createAppSubscription,
@@ -37,25 +38,33 @@ import {
 
 export { BillingPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
+const BILLING_SYNC_TTL_MS = 120_000;
+const lastBillingSyncAt = new Map<string, number>();
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
+  let { shop } = await ensureShopAccess(session.shop);
 
-  try {
-    await syncActiveSubscriptions(admin, shop.id);
-  } catch {
-    // ignore refresh errors in loader
+  const lastSync = lastBillingSyncAt.get(shop.id) ?? 0;
+  if (Date.now() - lastSync > BILLING_SYNC_TTL_MS) {
+    try {
+      await syncActiveSubscriptions(admin, shop.id);
+      lastBillingSyncAt.set(shop.id, Date.now());
+      forgetShop(session.shop);
+      shop = (await ensureShopAccess(session.shop)).shop;
+    } catch {
+      // ignore refresh errors in loader
+    }
   }
 
-  const refreshed = await ensureShopAccess(session.shop);
-  const limits = await enforcePlanLimits(refreshed.shop.id);
+  const limits = await enforcePlanLimits(shop.id);
 
   return {
     plans: PLANS,
     currentPlan: limits.plan,
     testMode: isBillingTestMode(),
     devUnlockLimits: isDevUnlockLimits(),
-    subscription: refreshed.shop.subscription,
+    subscription: shop.subscription,
     usage: {
       productCount: limits.productCount,
       productLimit: limits.productLimit,

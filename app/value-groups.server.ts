@@ -1,6 +1,7 @@
 import prisma from "./db.server";
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import { collectCatalogFromProducts } from "./filter-catalog";
+import { createTtlCache } from "./read-cache.server";
 
 export type ValueGroupRow = {
   id: string;
@@ -9,13 +10,19 @@ export type ValueGroupRow = {
   values: string[];
 };
 
+const valueCatalogCache = createTtlCache<
+  ReturnType<typeof collectCatalogFromProducts>
+>(30_000);
+
 export async function getFilterValueCatalog(shopId: string) {
-  const products = await prisma.productFacet.findMany({
-    where: { shopId, status: "ACTIVE" },
-    select: { vendor: true, productType: true, tags: true, options: true },
-    take: 2000,
+  return valueCatalogCache.wrap(shopId, async () => {
+    const products = await prisma.productFacet.findMany({
+      where: { shopId, status: "ACTIVE" },
+      select: { vendor: true, productType: true, tags: true, options: true },
+      take: 200,
+    });
+    return collectCatalogFromProducts(products);
   });
-  return collectCatalogFromProducts(products);
 }
 
 export async function listCatalogSources(shopId: string) {
@@ -219,6 +226,7 @@ export function mergeFacetValuesWithGroups(
     value,
     label: row.label,
     count: row.count,
+    merged: relevant.some((group) => group.name === value),
   }));
 }
 

@@ -77,7 +77,7 @@ try {
   if (mergeWidgetChrome({ apply: "Appliquer" }).apply !== "Appliquer") {
     fail("mergeWidgetChrome should override apply");
   }
-  if (mergeWidgetChrome({ apply: "Appliquer" }).clear !== "Clear filters") {
+  if (mergeWidgetChrome({ apply: "Appliquer" }).clear !== "Clear All") {
     fail("mergeWidgetChrome should keep English defaults for missing keys");
   }
   if (resolveWidgetChrome({ fr: { apply: "Appliquer" } }, "fr").chrome.apply !== "Appliquer") {
