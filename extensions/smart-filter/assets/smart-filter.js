@@ -557,10 +557,259 @@
 
   var THEME_PAGER_SELECTOR =
     "nav.pagination, .pagination, .pagination-wrapper, [data-pagination]";
-  var GRID_HINT_SELECTOR =
-    "#product-grid, [data-id='product-grid'], ul.product-grid, .product-grid, [data-product-grid]";
+  var GRID_HINT_SELECTOR = [
+    "#product-grid",
+    "[data-id='product-grid']",
+    "[data-product-grid]",
+    "ul.product-grid",
+    "ul[id*='product-grid']",
+    "ul[class*='product-grid']",
+    ".product-grid",
+    "[product-grid-view]",
+    "#ProductGridContainer",
+    "#CollectionProductGrid",
+    "#CollectionAjaxContent",
+    "#collection-products",
+    "#CollectionLoop",
+    "#product-loop",
+    "#product-list",
+    "product-list",
+    ".ProductList",
+    ".ProductList--grid",
+    ".product-list",
+    ".product-list__inner",
+    ".product-listing",
+    ".collection-grid",
+    ".collection-products",
+    ".grid-uniform",
+    ".grid--uniform",
+    ".grid--view-items",
+    ".grid-products",
+    ".products-grid",
+    ".products-list",
+    "[data-collection-products]",
+    "[data-products-grid]",
+    "[data-product-list]",
+    ".collection__products",
+    ".collection-product-list",
+    "#main-collection-product-grid",
+    ".productgrid--items",
+    ".boost-sd-grid",
+    ".sf-grid",
+  ].join(", ");
+  var SKIP_REGION_SELECTOR = [
+    "header",
+    "footer",
+    ".header",
+    ".footer",
+    ".announcement-bar",
+    "[id*='announcement']",
+    ".related-products",
+    "product-recommendations",
+    ".product-recommendations",
+    "#product-recommendations",
+    "[data-related-products]",
+    "[class*='related-product']",
+    ".recently-viewed",
+    "[data-recently-viewed]",
+    ".complementary-products",
+    "#shopify-section-footer",
+    "[id*='footer']",
+    ".collection-banner",
+    ".collection-hero",
+    ".collection-header",
+    ".slideshow",
+    ".shopify-section-group-header-group",
+  ].join(", ");
+  var MAIN_FALLBACK_SELECTOR = [
+    "#MainContent",
+    "#main",
+    "#Main",
+    "main",
+    "[role='main']",
+    "#PageContainer",
+    "#page-content",
+    "#PageContent",
+    "#MainContentWrapper",
+    ".main-content",
+    "#content",
+    "#Content",
+  ].join(", ");
+  var LAYOUT_HOST_SELECTOR = [
+    "#ProductGridContainer",
+    "[class*='product-grid-container']",
+    "results-list",
+    ".product-grid-container",
+    ".main-collection-grid",
+    ".collection-wrapper",
+    ".CollectionInner",
+    ".CollectionMain",
+    ".CollectionInner__Products",
+    ".ProductListWrapper",
+    "#CollectionProductGrid",
+    "#CollectionAjaxContent",
+    ".CollectionAjaxContent",
+    ".collection-content",
+    ".collection-grid__wrapper",
+    "#CollectionSection",
+    ".productgrid",
+    ".collection__content",
+    ".collection-main",
+    ".main-collection",
+    "#main-collection-product-grid",
+    "[data-section-type='collection']",
+    "[data-section-type='collection-template']",
+  ].join(", ");
+  var LAYOUT_WALK_MAX = 8;
+  var LAYOUT_RETRY_MAX = 15;
+  var LAYOUT_RETRY_MS = 250;
+  var LATE_GRID_OBSERVE_MS = 4000;
   var THEME_PAGE_FETCH_MAX = 40;
   var PAGING_STYLES = { pagination: true, load_more: true, infinite: true };
+
+  function matchesSel(el, selector) {
+    if (!el || el.nodeType !== 1) return false;
+    var fn = el.matches || el.msMatchesSelector || el.webkitMatchesSelector;
+    if (!fn) return false;
+    try {
+      return fn.call(el, selector);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function isSkippedRegion(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.closest) return Boolean(el.closest(SKIP_REGION_SELECTOR));
+    return matchesSel(el, SKIP_REGION_SELECTOR);
+  }
+
+  function isMainLike(el) {
+    if (!el || !el.tagName) return false;
+    if (matchesSel(el, MAIN_FALLBACK_SELECTOR)) return true;
+    return String(el.tagName).toLowerCase() === "main";
+  }
+
+  function findMainFallbackEl() {
+    var nodes = document.querySelectorAll(MAIN_FALLBACK_SELECTOR);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i] && !isDocumentRoot(nodes[i])) return nodes[i];
+    }
+    return null;
+  }
+
+  function isInsideMainLike(el) {
+    if (!el) return false;
+    if (el.closest) return Boolean(el.closest(MAIN_FALLBACK_SELECTOR));
+    var cur = el;
+    while (cur && cur.nodeType === 1) {
+      if (isMainLike(cur)) return true;
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
+  function isLikelyProductCard(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (
+      matchesSel(
+        el,
+        "[data-product-id], .product-card, .card-wrapper, .grid__item, .product-grid-item, .product-grid__item, .productgrid--item, .product-item, .ProductItem, .grid-product, .grid-view-item, .productitem",
+      )
+    ) {
+      return true;
+    }
+    if (!el.querySelector || !el.querySelector('a[href*="/products/"]')) return false;
+    var nested = 0;
+    var i;
+    for (i = 0; i < el.children.length; i++) {
+      var child = el.children[i];
+      if (child && child.querySelector && child.querySelector('a[href*="/products/"]')) {
+        nested += 1;
+      }
+    }
+    return nested <= 1;
+  }
+
+  function countDirectProductCards(el) {
+    if (!el || !el.children) return 0;
+    var n = 0;
+    var i;
+    for (i = 0; i < el.children.length; i++) {
+      if (isLikelyProductCard(el.children[i])) n += 1;
+    }
+    return n;
+  }
+
+  function isProductCardGrid(el) {
+    if (!el || !el.children || isDocumentRoot(el)) return false;
+    var childCount = el.children.length;
+    if (!childCount) return false;
+    var cards = countDirectProductCards(el);
+    if (cards >= 1 && cards / childCount >= 0.5) return true;
+    var display = "";
+    if (typeof window.getComputedStyle === "function") {
+      try {
+        display = String(window.getComputedStyle(el).display || "").toLowerCase();
+      } catch (err) {
+        display = "";
+      }
+    }
+    if (
+      (display === "grid" || display === "flex" || display === "inline-flex") &&
+      cards >= 2
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function countProductCards(el) {
+    var n = 0;
+    eachProductCard(el, function () {
+      n += 1;
+    });
+    return n;
+  }
+
+  function hasPaginationOrSort(el) {
+    if (!el || !el.querySelector) return false;
+    return Boolean(
+      el.querySelector(THEME_PAGER_SELECTOR) ||
+        el.querySelector(
+          "[name='sort_by'], .facet-filters__sort, .collection-filters, select[name='sortBy']",
+        ),
+    );
+  }
+
+  function ancestorWrapsBanner(el, grid) {
+    if (!el || !el.querySelector || !grid) return false;
+    var extras = el.querySelectorAll(
+      ".collection-banner, .collection-hero, .collection-header, .slideshow, .banner",
+    );
+    var i;
+    for (i = 0; i < extras.length; i++) {
+      if (!grid.contains(extras[i])) return true;
+    }
+    return false;
+  }
+
+  function preferGridHint(current, next, currentCount, nextCount, currentMain, nextMain) {
+    if (!current) return true;
+    if (nextCount > currentCount) return true;
+    if (nextCount < currentCount) return false;
+    if (nextMain && !currentMain) return true;
+    if (!nextMain && currentMain) return false;
+    if (current.contains && current.contains(next) && isProductCardGrid(next)) {
+      return true;
+    }
+    if (next.contains && next.contains(current) && isProductCardGrid(current)) {
+      return false;
+    }
+    if (isProductCardGrid(next) && !isProductCardGrid(current)) return true;
+    return false;
+  }
 
   function normalizePaginationStyle(value) {
     var style = String(value || "").toLowerCase();
@@ -620,21 +869,33 @@
 
   function discoverGridParent() {
     var hints = document.querySelectorAll(GRID_HINT_SELECTOR);
+    var best = null;
+    var bestCount = 0;
+    var bestMain = false;
     var i;
     for (i = 0; i < hints.length; i++) {
-      if (isPagingChrome(hints[i])) continue;
-      var count = 0;
-      eachProductCard(hints[i], function () {
-        count += 1;
-      });
-      if (count) return hints[i];
+      var hint = hints[i];
+      if (isPagingChrome(hint) || isSkippedRegion(hint)) continue;
+      var count = countProductCards(hint);
+      if (count < 1) continue;
+      var inMain = isInsideMainLike(hint);
+      if (preferGridHint(best, hint, bestCount, count, bestMain, inMain)) {
+        best = hint;
+        bestCount = count;
+        bestMain = inMain;
+      }
     }
+    if (best) return best;
+
     var bestParent = null;
-    var bestCount = 0;
+    var tallyBest = 0;
+    var tallyMain = false;
     var tally = [];
     eachProductCard(document, function (handle, card) {
       if (!card.parentNode) return;
+      if (isSkippedRegion(card) || isSkippedRegion(card.parentNode)) return;
       var parent = card.parentNode;
+      if (parent.nodeType !== 1) return;
       var group = null;
       for (var g = 0; g < tally.length; g++) {
         if (tally[g].parent === parent) {
@@ -647,28 +908,51 @@
         tally.push(group);
       }
       group.count += 1;
-      if (group.count > bestCount) {
-        bestCount = group.count;
+      var inMainParent = isInsideMainLike(parent);
+      if (
+        preferGridHint(
+          bestParent,
+          parent,
+          tallyBest,
+          group.count,
+          tallyMain,
+          inMainParent,
+        )
+      ) {
+        tallyBest = group.count;
         bestParent = parent;
+        tallyMain = inMainParent;
       }
     });
-    return bestCount ? bestParent : null;
+    return tallyBest ? bestParent : null;
+  }
+
+  function collectionIdFromPage(page) {
+    if (!page) return "";
+    var type = String(page.resourceType || "").toLowerCase();
+    if (
+      type === "collection" &&
+      page.resourceId != null &&
+      String(page.resourceId) !== ""
+    ) {
+      var id = String(page.resourceId);
+      if (/^\d+$/.test(id)) return id;
+    }
+    return "";
   }
 
   function inferCollectionId() {
     try {
       var meta = window.ShopifyAnalytics && window.ShopifyAnalytics.meta;
-      var page = meta && meta.page;
-      if (!page) return "";
-      var type = String(page.resourceType || "").toLowerCase();
-      if (
-        type === "collection" &&
-        page.resourceId != null &&
-        String(page.resourceId) !== ""
-      ) {
-        return String(page.resourceId);
-      }
+      var fromAnalytics = collectionIdFromPage(meta && meta.page);
+      if (fromAnalytics) return fromAnalytics;
     } catch (err) {
+      /* ignore */
+    }
+    try {
+      var fromMeta = collectionIdFromPage(window.meta && window.meta.page);
+      if (fromMeta) return fromMeta;
+    } catch (errMeta) {
       /* ignore */
     }
     return "";
@@ -1043,6 +1327,8 @@
     this._layoutAttempts = 0;
     this._layoutRetryTimer = null;
     this._layoutFallbackDone = false;
+    this._lateGridObserver = null;
+    this._lateGridTimer = null;
     root.classList.add("smart-filter--" + this.position);
     root.setAttribute("data-position", this.position);
     this.inheritThemeType();
@@ -1492,48 +1778,101 @@
   };
 
   Widget.prototype.ensureGridParent = function () {
-    if (this._gridParent && this._gridParent.parentNode) return this._gridParent;
+    if (
+      this._gridParent &&
+      this._gridParent.parentNode &&
+      !isSkippedRegion(this._gridParent)
+    ) {
+      return this._gridParent;
+    }
     this._gridParent = discoverGridParent();
     return this._gridParent;
   };
 
   Widget.prototype.findLayoutHost = function (grid) {
     if (!grid) return null;
+    if (isSkippedRegion(grid)) return null;
 
-    function wrapsGrid(el) {
-      if (isDocumentRoot(el)) return false;
-      return el === grid || (el.contains && el.contains(grid));
+    function wrapIfCardGrid(el) {
+      if (!el || isDocumentRoot(el) || isSkippedRegion(el)) return null;
+      if (isProductCardGrid(el)) {
+        var parent = el.parentElement;
+        if (
+          parent &&
+          !isDocumentRoot(parent) &&
+          !isSkippedRegion(parent) &&
+          !isProductCardGrid(parent)
+        ) {
+          return parent;
+        }
+        return null;
+      }
+      return el;
     }
 
-    var byId = document.getElementById("ProductGridContainer");
-    if (wrapsGrid(byId)) return byId;
-
+    var known = document.querySelectorAll(LAYOUT_HOST_SELECTOR);
     var i;
-    var containers = document.querySelectorAll(
-      "[class*='product-grid-container']",
-    );
-    for (i = 0; i < containers.length; i++) {
-      if (wrapsGrid(containers[i])) return containers[i];
+    for (i = 0; i < known.length; i++) {
+      var el = known[i];
+      if (!el || isDocumentRoot(el) || isSkippedRegion(el)) continue;
+      if (!(el === grid || (el.contains && el.contains(grid)))) continue;
+      if (ancestorWrapsBanner(el, grid)) continue;
+      var host = wrapIfCardGrid(el);
+      if (host) return host;
     }
 
-    var collections = document.querySelectorAll(".collection");
-    for (i = 0; i < collections.length; i++) {
-      if (wrapsGrid(collections[i])) return collections[i];
+    var closestSafe = null;
+    var chromeSafe = null;
+    var ancestor = grid.parentElement;
+    var levels = 0;
+    while (ancestor && !isDocumentRoot(ancestor) && levels < LAYOUT_WALK_MAX) {
+      if (isMainLike(ancestor)) break;
+      if (isSkippedRegion(ancestor)) {
+        ancestor = ancestor.parentElement;
+        levels += 1;
+        continue;
+      }
+      if (isProductCardGrid(ancestor)) {
+        ancestor = ancestor.parentElement;
+        levels += 1;
+        continue;
+      }
+      if (!closestSafe) closestSafe = ancestor;
+      if (
+        !chromeSafe &&
+        hasPaginationOrSort(ancestor) &&
+        !ancestorWrapsBanner(ancestor, grid)
+      ) {
+        chromeSafe = ancestor;
+      }
+      ancestor = ancestor.parentElement;
+      levels += 1;
     }
 
-    var sections = document.querySelectorAll("main .shopify-section");
-    for (i = 0; i < sections.length; i++) {
-      if (wrapsGrid(sections[i])) return sections[i];
+    if (chromeSafe) return chromeSafe;
+    if (closestSafe) return closestSafe;
+    if (
+      grid.parentElement &&
+      !isDocumentRoot(grid.parentElement) &&
+      !isSkippedRegion(grid.parentElement)
+    ) {
+      return wrapIfCardGrid(grid.parentElement) || grid.parentElement;
     }
-
-    var parent = grid.parentElement;
-    if (parent && !isDocumentRoot(parent)) return parent;
-    return null;
+    return grid;
   };
 
   Widget.prototype.inheritThemeType = function () {
-    var sample = this.ensureGridParent() || document.body;
-    if (!sample || typeof window.getComputedStyle !== "function") return;
+    if (typeof window.getComputedStyle !== "function") return;
+    var grid = this.ensureGridParent();
+    var sample = null;
+    if (grid && grid.querySelector) {
+      sample = grid.querySelector(
+        ".card__heading a, .card__heading, .product-card-title, a[href*='/products/']",
+      );
+    }
+    if (!sample) sample = grid;
+    if (!sample) sample = document.body;
+    if (!sample) return;
     var cs = window.getComputedStyle(sample);
     this.root.style.setProperty("--sf-ink", cs.color);
     var fontMode = this.widgetFontMode || "theme";
@@ -1541,6 +1880,36 @@
     if (useThemeFace) {
       this.root.style.fontFamily = cs.fontFamily;
       this.root.style.fontSize = cs.fontSize;
+      var bodyVar = "";
+      try {
+        var rootCs = window.getComputedStyle(document.documentElement);
+        var keys = [
+          "--font-body-family",
+          "--font-body--family",
+          "--font-primary-family",
+          "--font-base",
+          "--type-body-font-family",
+          "--typeBasePrimary",
+          "--element-text-font-family--body",
+          "--font-stack-body",
+          "--body-font-family",
+        ];
+        var k;
+        for (k = 0; k < keys.length; k++) {
+          var raw = String(rootCs.getPropertyValue(keys[k]) || "").trim();
+          if (
+            raw &&
+            raw.length <= 180 &&
+            !/url\s*\(|expression|@import|[<>]|javascript:/i.test(raw)
+          ) {
+            bodyVar = raw;
+            break;
+          }
+        }
+      } catch (errFont) {
+        bodyVar = "";
+      }
+      if (bodyVar) this.root.style.setProperty("--sf-font-body", bodyVar);
     } else {
       this.root.style.fontFamily = "";
       this.root.style.fontSize = cs.fontSize;
@@ -1550,19 +1919,47 @@
   Widget.prototype.scheduleLayoutRetry = function () {
     var self = this;
     if (this._layoutRetryTimer) return;
-    if (this._layoutAttempts >= 8) return;
+    if (this._layoutAttempts >= LAYOUT_RETRY_MAX) return;
     this._layoutRetryTimer = window.setTimeout(function () {
       self._layoutRetryTimer = null;
       self._layoutAttempts += 1;
       self.syncCollectionLayout();
-    }, 150);
+    }, LAYOUT_RETRY_MS);
+  };
+
+  Widget.prototype.disconnectLateGridObserver = function () {
+    if (this._lateGridObserver) {
+      this._lateGridObserver.disconnect();
+      this._lateGridObserver = null;
+    }
+    if (this._lateGridTimer) {
+      window.clearTimeout(this._lateGridTimer);
+      this._lateGridTimer = null;
+    }
+  };
+
+  Widget.prototype.observeLateGrid = function () {
+    var self = this;
+    if (this._lateGridObserver) return;
+    if (typeof MutationObserver !== "function") return;
+    var target = findMainFallbackEl() || document.body;
+    if (!target) return;
+    this._lateGridObserver = new MutationObserver(function () {
+      var found = discoverGridParent();
+      if (!found) return;
+      self._gridParent = found;
+      self.disconnectLateGridObserver();
+      self.syncCollectionLayout();
+    });
+    this._lateGridObserver.observe(target, { childList: true, subtree: true });
+    this._lateGridTimer = window.setTimeout(function () {
+      self.disconnectLateGridObserver();
+    }, LATE_GRID_OBSERVE_MS);
   };
 
   Widget.prototype.placeAtMainFallback = function (mount) {
     if (!mount || this._layoutFallbackDone) return false;
-    var main =
-      document.getElementById("MainContent") ||
-      document.querySelector("main");
+    var main = findMainFallbackEl();
     if (!main || isDocumentRoot(main)) return false;
     this._layoutFallbackDone = true;
     var originSection = mount.closest ? mount.closest(".shopify-section") : null;
@@ -1575,6 +1972,30 @@
     return true;
   };
 
+  Widget.prototype.wrapHostWithLayout = function (host, mount, position) {
+    var layout =
+      closestLayoutEl(mount) ||
+      closestLayoutEl(host) ||
+      (host.parentNode &&
+      host.parentNode.classList &&
+      host.parentNode.classList.contains("sf-collection-layout")
+        ? host.parentNode
+        : null);
+    if (!layout) {
+      var parent = host.parentNode;
+      if (!parent) return null;
+      layout = document.createElement("div");
+      parent.insertBefore(layout, host);
+    }
+    applyLayoutPositionClass(layout, position);
+    if (host.parentNode !== layout) {
+      layout.appendChild(host);
+    }
+    if (host.classList) host.classList.add("sf-collection-layout__main");
+    placeMountInLayout(layout, mount, position);
+    return layout;
+  };
+
   Widget.prototype.syncCollectionLayout = function () {
     var mount = widgetMountNode(this.root);
     if (!mount) return;
@@ -1584,7 +2005,8 @@
 
     if (!grid) {
       this.placeAtMainFallback(mount);
-      if (this._layoutAttempts >= 8) {
+      this.observeLateGrid();
+      if (this._layoutAttempts >= LAYOUT_RETRY_MAX) {
         this.markFilterPlaced();
         return;
       }
@@ -1597,6 +2019,7 @@
       window.clearTimeout(this._layoutRetryTimer);
       this._layoutRetryTimer = null;
     }
+    this.disconnectLateGridObserver();
 
     var host = this.findLayoutHost(grid);
     if (!host && grid && !isDocumentRoot(grid)) host = grid;
@@ -1606,41 +2029,37 @@
       return;
     }
 
-    var originSection = mount.closest ? mount.closest(".shopify-section") : null;
-    var layout;
+    if (isProductCardGrid(host)) {
+      var hostParent = host.parentElement;
+      if (
+        hostParent &&
+        !isDocumentRoot(hostParent) &&
+        !isSkippedRegion(hostParent)
+      ) {
+        host = hostParent;
+      }
+    }
 
-    if (host.contains(mount)) {
+    var originSection = mount.closest ? mount.closest(".shopify-section") : null;
+
+    if (
+      host.classList &&
+      host.classList.contains("sf-collection-layout") &&
+      !isProductCardGrid(host)
+    ) {
       applyLayoutPositionClass(host, position);
       placeMountInLayout(host, mount, position);
-      layout = host;
-    } else {
-      layout =
-        closestLayoutEl(mount) ||
-        closestLayoutEl(host) ||
-        (host.parentNode &&
-        host.parentNode.classList &&
-        host.parentNode.classList.contains("sf-collection-layout")
-          ? host.parentNode
-          : null);
-      if (layout) {
-        applyLayoutPositionClass(layout, position);
-        if (host.parentNode !== layout) {
-          layout.appendChild(host);
-        }
-        placeMountInLayout(layout, mount, position);
-      } else {
-        var parent = host.parentNode;
-        if (!parent) {
-          this.placeAtMainFallback(mount);
-          this.markFilterPlaced();
-          return;
-        }
-        layout = document.createElement("div");
-        applyLayoutPositionClass(layout, position);
-        parent.insertBefore(layout, host);
-        layout.appendChild(host);
-        placeMountInLayout(layout, mount, position);
-      }
+      hideEmptyShopifySection(originSection, mount);
+      this.markFilterPlaced();
+      this.inheritThemeType();
+      return;
+    }
+
+    var layout = this.wrapHostWithLayout(host, mount, position);
+    if (!layout) {
+      this.placeAtMainFallback(mount);
+      this.markFilterPlaced();
+      return;
     }
 
     hideEmptyShopifySection(originSection, mount);

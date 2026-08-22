@@ -13,8 +13,23 @@
   --sf-radius: 12px;
   --sf-space: 0.75rem;
   --sf-shadow: 0 8px 24px rgb(28 25 23 / 6%);
-  --sf-font-body: var(--font-body-family, inherit);
-  --sf-font-heading: var(--font-heading-family, var(--font-body-family, inherit));
+  --sf-font-body: var(
+    --font-body-family,
+    var(
+      --font-body--family,
+      var(
+        --font-heading-family,
+        var(
+          --font-primary-family,
+          var(--font-base, var(--type-body-font-family, var(--typeBasePrimary, inherit)))
+        )
+      )
+    )
+  );
+  --sf-font-heading: var(
+    --font-heading-family,
+    var(--font-heading--family, var(--sf-font-body, inherit))
+  );
 
   box-sizing: border-box;
   color: inherit;
@@ -890,40 +905,54 @@
 /* Collection page layout wrapper (JS adds these classes) */
 .sf-collection-layout {
   display: block;
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.sf-collection-layout > * {
+.sf-collection-layout__aside,
+.sf-collection-layout__main {
+  box-sizing: border-box;
+}
+
+.sf-collection-layout__aside {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sf-collection-layout__main {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
 }
 
 @media (min-width: 750px) {
   .sf-collection-layout--left,
   .sf-collection-layout--right {
-    display: flex;
+    display: flex !important;
     align-items: flex-start;
     gap: 1.5rem;
   }
 
-  .sf-collection-layout--left > *,
-  .sf-collection-layout--right > * {
-    flex: 1 1 auto;
-    min-width: 0;
-    width: auto;
-    max-width: none;
-  }
-
+  .sf-collection-layout--left > .sf-collection-layout__aside,
+  .sf-collection-layout--right > .sf-collection-layout__aside,
   .sf-collection-layout--left > .smart-filter,
   .sf-collection-layout--left > .shopify-block:has(.smart-filter),
-  .sf-collection-layout--left > .sf-collection-layout__aside,
   .sf-collection-layout--right > .smart-filter,
-  .sf-collection-layout--right > .shopify-block:has(.smart-filter),
-  .sf-collection-layout--right > .sf-collection-layout__aside {
+  .sf-collection-layout--right > .shopify-block:has(.smart-filter) {
     flex: 0 0 16.5rem;
     max-width: 16.5rem;
     min-width: 15rem;
     width: 16.5rem;
+  }
+
+  .sf-collection-layout--left > .sf-collection-layout__main,
+  .sf-collection-layout--right > .sf-collection-layout__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .sf-collection-layout--left .smart-filter--left,
@@ -940,11 +969,18 @@
   }
 
   .sf-collection-layout--top > .smart-filter,
-  .sf-collection-layout--top > .shopify-block:has(.smart-filter) {
+  .sf-collection-layout--top > .shopify-block:has(.smart-filter),
+  .sf-collection-layout--top > .sf-collection-layout__aside {
     flex: 0 0 auto;
     width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .sf-collection-layout--top > .sf-collection-layout__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .sf-collection-layout--offcanvas {
@@ -952,7 +988,9 @@
   }
 
   .sf-collection-layout--offcanvas > .smart-filter,
-  .sf-collection-layout--offcanvas > .shopify-block:has(.smart-filter) {
+  .sf-collection-layout--offcanvas > .shopify-block:has(.smart-filter),
+  .sf-collection-layout--offcanvas > .sf-collection-layout__aside,
+  .sf-collection-layout--offcanvas > .sf-collection-layout__main {
     flex: none;
     width: 100%;
     max-width: 100%;
