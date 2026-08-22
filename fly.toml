@@ -3,7 +3,7 @@
 # After DNS CNAME findly → findly-smart-filters-search.fly.dev:
 #   fly certs add findly.hunaniinfotech.com
 # Secrets (via `fly secrets set`): SHOPIFY_API_SECRET, DATABASE_URL, DIRECT_URL, REDIS_URL, BILLING_TEST_MODE,
-# SUPPORT_EMAIL, SMTP_HOST, SMTP_USER, SMTP_PASSWORD
+# GMAIL_USER, GMAIL_APP_PASSWORD
 # Non-secret env below; set SHOPIFY_API_KEY after `fly launch`
 # If SHOPIFY_APP_URL was previously set as a Fly secret, update it to this origin.
 

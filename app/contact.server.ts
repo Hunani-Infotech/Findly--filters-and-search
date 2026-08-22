@@ -20,6 +20,16 @@ function trimEnv(name: string) {
 }
 
 function smtpConfig() {
+  const gmailUser = trimEnv("GMAIL_USER");
+  const gmailPass = trimEnv("GMAIL_APP_PASSWORD").replace(/\s+/g, "");
+  if (gmailUser && gmailPass) {
+    const host = trimEnv("SMTP_HOST") || "smtp.gmail.com";
+    const local = isLocalSmtpHost(host);
+    const port = Number(trimEnv("SMTP_PORT") || (local ? "587" : "465"));
+    const to = trimEnv("SUPPORT_EMAIL") || gmailUser;
+    return { to, host, user: gmailUser, pass: gmailPass, port, from: gmailUser };
+  }
+
   const to = trimEnv("SUPPORT_EMAIL");
   const host = trimEnv("SMTP_HOST");
   const user = trimEnv("SMTP_USER");
@@ -96,9 +106,7 @@ export async function deliverContactMessage(
     return { ok: false, error: "Message is too long" };
   }
   if (!contactDeliveryConfigured()) {
-    console.error(
-      "Contact form has no SUPPORT_EMAIL / SMTP_HOST / SMTP_USER / SMTP_PASSWORD",
-    );
+    console.error("Contact form has no GMAIL_USER / GMAIL_APP_PASSWORD");
     return {
       ok: false,
       error: "Could not send your message. Findly support is not configured yet.",
