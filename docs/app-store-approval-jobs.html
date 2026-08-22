@@ -112,7 +112,54 @@
     th { position: sticky; top: 0; background: #fafaf9; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
     tr:last-child td { border-bottom: 0; }
     tr.done td { opacity: 0.62; }
-    tr.done td:first-child { opacity: 1; }
+    tr.done td.idx, tr.done td.step { opacity: 1; }
+    td.idx, th.idx {
+      width: 44px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-weight: 700;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .job-index {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px 8px;
+      margin: 0 0 20px;
+    }
+    .job-index-lane { margin: 0 0 12px; }
+    .job-index-lane h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .job-index-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .idx-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      background: #fafaf9;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font: 12px/1.3 ui-monospace, Consolas, monospace;
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .idx-chip:hover { border-color: #a8a29e; }
+    .idx-chip.done { background: var(--ok-bg); color: var(--ok); border-color: #86efac; }
+    .idx-chip .n { color: var(--muted); font-weight: 700; }
+    .idx-chip.done .n { color: var(--ok); }
+    .plan-idx {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
     .pill {
       display: inline-block;
       font-size: 12px;
@@ -199,9 +246,12 @@
   <div class="wrap">
     <h1>Shopify App Store approval jobs</h1>
     <p class="lede">
-      Checklist re-verified 21 Aug 2026 against the current repo (not a live storefront).
+      Checklist re-verified 22 Aug 2026 against the current repo (not a live storefront).
+      Locked checkmarks were re-audited in code the same day (storage key v3).
       Launch filters, search, billing API (Free / Standard / Pro), GDPR handlers,
-      and the Theme App Extension are in code. Mark a job when it is
+      and the Theme App Extension are in code. Production target is
+      <strong>Hostinger CloudLinux Node</strong> (not Fly): Supabase Postgres + Upstash Redis.
+      Mark a job when it is
       <strong>done for submission</strong> (live on a real store or Partner Dashboard), not when it merely compiles.
       Grey locked checkboxes are <strong>repo-complete</strong> and cannot be unchecked.
       Checks save in this browser via <code>localStorage</code>. Open in Chrome or Edge.
@@ -220,7 +270,9 @@
       Shopify reviews the production app only. Code-complete is not the same as storefront-verified.
       Production host (AS-P2 config): <code>https://findly.hunaniinfotech.com</code> —
       App URL, OAuth redirect, and app proxy all use this host.
-      After DNS + Fly certs, re-run <code>shopify app deploy</code> so Partner Dashboard matches (AS-P3).
+      Postgres is Supabase (<code>DATABASE_URL</code> pooler :6543 + <code>DIRECT_URL</code> :5432).
+      Redis is Upstash (<code>REDIS_URL</code> must be <code>rediss://</code>, not <code>redis://</code>).
+      After DNS + Hostinger SSL, re-run <code>shopify app deploy</code> so Partner Dashboard matches (AS-P3).
     </div>
     <div class="note">
       Official docs:
@@ -292,6 +344,12 @@
       </table>
     </div>
 
+    <div class="h2" id="indexTitle">Job index</div>
+    <p class="lede" style="margin-bottom: 10px;">
+      Stable numbers for every job (plans 1–3, then AS-P1 = 4). Green chips are marked done. Click a chip to open that row.
+    </p>
+    <div class="job-index" id="jobIndex"></div>
+
     <div class="h2" id="tableTitle">Jobs</div>
     <span class="filter-label">View</span>
     <div class="filters" id="viewFilters"></div>
@@ -308,6 +366,7 @@
       <table>
         <thead>
           <tr>
+            <th class="idx">#</th>
             <th>Done</th>
             <th>Lane</th>
             <th>Severity</th>
@@ -322,8 +381,9 @@
 
     <div class="h2">Suggested order</div>
     <ol>
-      <li>DNS CNAME <code>findly</code> → Fly, <code>fly certs add</code>, then <code>fly deploy</code> + <code>shopify app deploy</code>.</li>
-      <li>Set Fly secrets: <code>BILLING_TEST_MODE=false</code>, <code>SUPPORT_EMAIL</code>, <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code>.</li>
+      <li>On Hostinger CloudLinux (Node ≥22.12): install Linux <code>node_modules</code> with <code>npm ci --omit=dev</code> (do not upload a Windows <code>node_modules</code>). Run <code>npx prisma generate</code> so <code>libquery_engine-rhel-openssl-1.1.x.so.node</code> is present, then <code>npm run build</code> if you did not upload <code>build/</code>.</li>
+      <li>Set Hostinger env: <code>DATABASE_URL</code>, <code>DIRECT_URL</code>, <code>REDIS_URL</code> (<code>rediss://default:…@….upstash.io:6379</code>), Shopify keys, <code>SHOPIFY_APP_URL=https://findly.hunaniinfotech.com</code>, <code>BILLING_TEST_MODE=false</code>, <code>GMAIL_USER</code>, <code>GMAIL_APP_PASSWORD</code>.</li>
+      <li>Run <strong>two</strong> processes: web <code>npm start</code> (<code>react-router-serve ./build/server/index.js</code>) and worker <code>node --import tsx app/workers/index.ts</code> (not <code>npm run worker</code> — that flag is <code>--watch</code> for local). Then <code>shopify app deploy</code>.</li>
       <li>Live theme QA (collection filters + search + instant search) and live billing Free → Standard → Pro.</li>
       <li>Partner listing: icon, screenshots, paste <code>docs/partner-listing-copy.md</code>, privacy/terms URLs.</li>
       <li>Automated checks, then submit.</li>
@@ -331,17 +391,21 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "findly-app-store-jobs-v2";
+    const STORAGE_KEY = "findly-app-store-jobs-v3";
 
-    /** Jobs completed in the repo (always checked; localStorage cannot uncheck them). */
+    /** Jobs completed in the repo (always checked; localStorage cannot uncheck them).
+     *  Re-audited 22 Aug 2026 against current code. Live/deploy/Partner jobs stay open. */
     const REPO_DONE = [
       "AS-P2",
+      "AS-P7",
+      "AS-P10",
+      "AS-P11",
       "AS-H1", "AS-H2", "AS-H3", "AS-H4", "AS-H5", "AS-H6",
       "AS-B1", "AS-B2", "AS-B3", "AS-B4", "AS-B8", "AS-B9",
       "AS-C1", "AS-C2", "AS-C3", "AS-C4", "AS-C5", "AS-C7",
       "PLAN-free", "PLAN-standard", "PLAN-pro",
     ];
-    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v2";
+    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v3";
 
     const LANES = {
       production: "Production",
@@ -396,15 +460,19 @@
     ];
 
     const JOBS = [
-      ["AS-P1", "production", "blocker", "Deploy Fly.io web + worker with Postgres and Redis", "Config exists (fly.toml web + worker). Not marked done until machines are actually running against production Postgres/Redis.", "fly.toml, Fly secrets"],
-      ["AS-P2", "production", "blocker", "App URL config is https://findly.hunaniinfotech.com", "Repo-complete: shopify.app.toml + fly.toml HOST/SHOPIFY_APP_URL + privacy/terms. Live DNS/certs is AS-P9.", "shopify.app.toml, fly.toml, app/public-origin.ts"],
+      ["AS-P1", "production", "blocker", "Deploy Hostinger CloudLinux web + worker (Supabase + Upstash)", "Checked 22 Aug 2026: code is ready (npm start, Prisma rhel-openssl-1.1.x, local build/server/index.js) but NOT deployed. Hostinger API lists 0 Node.js websites; findly.hunaniinfotech.com is missing; hunaniinfotech.com is WordPress. /health timed out. Not done until web + worker stay up on the server.", "package.json, Hostinger Node app, https://findly.hunaniinfotech.com/health"],
+      ["AS-P2", "production", "blocker", "App URL config is https://findly.hunaniinfotech.com", "Repo-complete: shopify.app.toml + HOST/SHOPIFY_APP_URL + privacy/terms. Live DNS/certs is AS-P9.", "shopify.app.toml, app/public-origin.ts"],
       ["AS-P3", "production", "blocker", "Re-run shopify app deploy after the custom-domain URL change", "Earlier version as-p3-2026-08-21 was before findly.hunaniinfotech.com. Partner Dashboard still needs a new deploy for App URL + proxy + webhooks.", "Shopify CLI"],
-      ["AS-P4", "production", "blocker", "Set BILLING_TEST_MODE=false in production", "Code still defaults to true. Set the Fly secret before charging real merchants.", "billing.server.ts, Fly secrets"],
-      ["AS-P5", "production", "medium", "Align fly.toml SCOPES with shopify.app.toml", "toml has inventory, locations, content, markets. fly.toml [env] SCOPES is still the short list.", "fly.toml vs shopify.app.toml"],
-      ["AS-P6", "production", "medium", "Dockerfile Node 20 → engines ≥22.12", "package.json requires Node 22.12; Dockerfile and docker-compose worker still use Node 20.", "Dockerfile, docker-compose.yml"],
-      ["AS-P7", "production", "medium", "Commit package-lock.json so Fly npm ci works", ".gitignore still ignores the lockfile; no package-lock.json in the repo. Dockerfile runs npm ci.", ".gitignore, Dockerfile"],
-      ["AS-P8", "production", "later", "Health check should probe Postgres + Redis", "/health still returns { ok: true } only. Fly can mark healthy while the worker is dead.", "app/routes/health.tsx"],
-      ["AS-P9", "production", "blocker", "DNS + TLS for findly.hunaniinfotech.com is live", "CNAME findly → Fly app, then fly certs add. Until this resolves over HTTPS, reviewers cannot reach the app.", "Cloudflare DNS + fly certs"],
+      ["AS-P4", "production", "blocker", "Set BILLING_TEST_MODE=false in Hostinger env", "Code still defaults to true. Set it in the Hostinger Node environment before charging real merchants. Local .env is gitignored and will not reach the server.", "billing.server.ts, Hostinger env"],
+      ["AS-P5", "production", "medium", "Align fly.toml SCOPES with shopify.app.toml", "Open: fly.toml is read_products,read_files,write_files. shopify.app.toml also has read_inventory,read_locations,read_content,read_markets. Leftover if production stays on Hostinger (not Fly).", "fly.toml vs shopify.app.toml"],
+      ["AS-P6", "production", "medium", "Hostinger Node version ≥22.12", "package.json engines requires Node ≥22.12. Set that in hPanel. Dockerfile is still node:20-alpine and is unused on CloudLinux npm hosting.", "package.json engines, Hostinger Node version"],
+      ["AS-P7", "production", "medium", "Commit package-lock.json so production npm ci works", "Repo-complete: package-lock.json is tracked. .gitignore keeps yarn.lock/pnpm-lock.yaml ignored and says the npm lockfile is tracked.", ".gitignore, package-lock.json"],
+      ["AS-P8", "production", "later", "Health check should probe Postgres + Redis", "Open (checked 22 Aug 2026): app/routes/health.tsx returns { ok: true, service } with no Prisma query and no Redis PING. fly.toml HTTP check hits /health, so a dead DB/Upstash/worker still looks healthy. Not a Hostinger deploy blocker; still worth doing before production traffic.", "app/routes/health.tsx, fly.toml"],
+      ["AS-P9", "production", "blocker", "DNS + TLS for findly.hunaniinfotech.com is live", "Point findly at Hostinger and enable HTTPS. Until this resolves, reviewers cannot reach the app.", "DNS + Hostinger SSL"],
+      ["AS-P10", "production", "medium", "Prisma ships a CloudLinux query engine", "Repo-complete: binaryTargets native + rhel-openssl-1.1.x. On the server run npx prisma generate so libquery_engine-rhel-openssl-1.1.x.so.node exists. Do not rely on a Windows-only client if generate was skipped on Linux.", "prisma/schema.prisma"],
+      ["AS-P11", "production", "medium", "BullMQ Redis client matches Upstash TLS rules", "Repo-complete (re-checked 22 Aug 2026): only one new IORedis in app/redis.server.ts. maxRetriesPerRequest null, enableReadyCheck false, tls: {} only when REDIS_URL starts with rediss://. Queue and Worker both call getRedis(). No QueueEvents/FlowProducer. Local redis:// skips TLS.", "app/redis.server.ts, app/queues.server.ts, app/workers/index.ts"],
+      ["AS-P12", "production", "blocker", "Set REDIS_URL=rediss://… on Hostinger (Upstash)", "Checked 22 Aug 2026: local .env uses rediss:// (Upstash host). .env.example documents the scheme. .env is gitignored. Hostinger has no Findly Node site, so REDIS_URL is not set on the server. Do not treat local .env as Hostinger env.", "Hostinger Node env, .env.example"],
+      ["AS-P13", "production", "blocker", "Run the BullMQ worker as a second Hostinger process", "Checked 22 Aug 2026: tsx is in dependencies. npm run worker uses --watch (local only). There is no worker:prod script. fly.toml worker still runs npm run worker (watch). Hostinger lists 0 Node.js sites / 0 worker processes. Production command: node --import tsx app/workers/index.ts. Not done until that second process is actually running.", "package.json, app/workers/index.ts, Hostinger processes"],
 
       ["AS-B1", "billing", "blocker", "Add Standard to the Billing API (Free + Standard + Pro)", "Repo-complete: PLANS.free / standard / pro with $0 / $9.99 / $19.99 and 200 / 1,000 / 5,000 product caps.", "app/billing.server.ts"],
       ["AS-B2", "billing", "blocker", "Pricing page shows Free, Standard, and Pro cards", "Repo-complete: three cards on /app/billing; Standard and Pro create a charge.", "app/routes/app.billing.tsx"],
@@ -419,7 +487,7 @@
       ["AS-H1", "product", "blocker", "Hide or finish Recommendations + Vehicle Finder nav", "Repo-complete: NavMenu no longer links them. Direct URLs still show Under construction — do not advertise those blocks.", "app/routes/app.tsx"],
       ["AS-H2", "product", "blocker", "Do not ship Settings Theme / Product as under construction", "Repo-complete: Settings tabs are General, Filter panel, Metafields only. Old theme/product query params redirect to General.", "app/routes/app.settings.tsx"],
       ["AS-H3", "product", "blocker", "Wire SetupGuide / ThemeSetupCard into Home", "Repo-complete: both render on /app from setup progress.", "app._index.tsx"],
-      ["AS-H4", "product", "blocker", "Make Contact email the listing support inbox", "Repo-complete: SMTP to SUPPORT_EMAIL. Set Fly secrets SUPPORT_EMAIL, SMTP_HOST, SMTP_USER, SMTP_PASSWORD. Fails closed if missing.", "app/contact.server.ts"],
+      ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: GMAIL_USER + GMAIL_APP_PASSWORD send via smtp.gmail.com. Fails closed if missing. cPanel SMTP remains a fallback.", "app/contact.server.ts"],
       ["AS-H5", "product", "blocker", "Drop unused write_products", "Repo-complete: scopes omit write_products. Seed script uses a separate custom-app token.", "shopify.app.toml"],
       ["AS-H6", "product", "medium", "Keep listing copy to shippable MVP", "Repo-complete: docs/partner-listing-copy.md. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing-copy.md"],
       ["AS-H7", "product", "later", "Refresh stale docs (search is implemented)", "Still open: docs/build-order.md and docs/mvp-guide.md still say search is not started.", "docs/build-order.md, docs/mvp-guide.md"],
@@ -459,9 +527,15 @@
       ["AS-S3", "submit", "blocker", "Submit for review only after every blocker above is checked", "Incomplete or beta apps delay or fail.", "Partner Dashboard"],
     ];
 
-    const ROWS = JOBS.map(([id, lane, severity, job, why, where]) => ({
+    const PLAN_ROWS = PLANS.map((p, i) => ({ ...p, idx: i + 1, lane: "billing" }));
+    const ROWS = JOBS.map(([id, lane, severity, job, why, where], i) => ({
       id, lane, severity, job, why, where,
+      idx: PLAN_ROWS.length + i + 1,
     }));
+    const ALL_INDEX = [
+      ...PLAN_ROWS.map((p) => ({ id: p.id, idx: p.idx, lane: "billing", title: p.name })),
+      ...ROWS.map((r) => ({ id: r.id, idx: r.idx, lane: r.lane, title: r.job })),
+    ];
 
     function loadDone() {
       try {
@@ -564,7 +638,7 @@
         if (laneFilter !== "all" && r.lane !== laneFilter) return false;
         if (sevFilter !== "all" && r.severity !== sevFilter) return false;
         if (query) {
-          const hay = [r.id, r.job, r.why, r.where, r.lane, r.severity].join(" ").toLowerCase();
+          const hay = [r.idx, r.id, r.job, r.why, r.where, r.lane, r.severity].join(" ").toLowerCase();
           if (!hay.includes(query)) return false;
         }
         return true;
@@ -592,10 +666,11 @@
 
     function renderPlans() {
       const el = document.getElementById("plans");
-      el.innerHTML = PLANS.map((p) => {
+      el.innerHTML = PLAN_ROWS.map((p) => {
         const isDone = done.has(p.id);
         const locked = REPO_DONE.includes(p.id);
-        return `<article class="plan${p.recommended ? " recommended" : ""}">
+        return `<article class="plan${p.recommended ? " recommended" : ""}" id="job-${esc(p.id)}">
+          <span class="plan-idx">#${String(p.idx).padStart(2, "0")}</span>
           <label class="step-check${isDone ? " done" : ""}">
             <input type="checkbox" class="step-cb" data-id="${esc(p.id)}"${isDone ? " checked" : ""}${locked ? " disabled" : ""}>
             <span class="step">${esc(p.id)}</span>
@@ -609,19 +684,59 @@
       }).join("");
     }
 
+    function renderIndex() {
+      const el = document.getElementById("jobIndex");
+      const byLane = {};
+      ALL_INDEX.forEach((item) => {
+        if (!byLane[item.lane]) byLane[item.lane] = [];
+        byLane[item.lane].push(item);
+      });
+      el.innerHTML = Object.entries(LANES).map(([laneId, label]) => {
+        const items = byLane[laneId] || [];
+        if (!items.length) return "";
+        const chips = items.map((item) => {
+          const isDone = done.has(item.id);
+          return `<button type="button" class="idx-chip${isDone ? " done" : ""}" data-jump="${esc(item.id)}" title="${esc(item.title)}">
+            <span class="n">#${String(item.idx).padStart(2, "0")}</span>
+            ${esc(item.id)}
+          </button>`;
+        }).join("");
+        return `<div class="job-index-lane">
+          <h3>${esc(label)}</h3>
+          <div class="job-index-chips">${chips}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function jumpTo(id) {
+      view = "all";
+      laneFilter = "all";
+      sevFilter = "all";
+      query = id.toLowerCase();
+      const q = document.getElementById("q");
+      if (q) q.value = id;
+      render();
+      requestAnimationFrame(() => {
+        const target = document.getElementById("job-" + id);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+
     function render() {
       [...viewEl.children].forEach((b) => b.classList.toggle("active", b.dataset.id === view));
       [...laneEl.children].forEach((b) => b.classList.toggle("active", b.dataset.lane === laneFilter));
       [...sevEl.children].forEach((b) => b.classList.toggle("active", b.dataset.sev === sevFilter));
       stats();
       renderPlans();
+      renderIndex();
       const rows = visible();
       document.getElementById("tableTitle").textContent =
         view === "remaining" ? "Remaining jobs" : view === "done" ? "Marked done" : "Jobs";
       document.getElementById("tbody").innerHTML = rows.map((r) => {
         const isDone = done.has(r.id);
         const locked = REPO_DONE.includes(r.id);
-        return `<tr class="${isDone ? "done" : ""}">
+        return `<tr class="${isDone ? "done" : ""}" id="job-${esc(r.id)}">
+          <td class="idx">#${String(r.idx).padStart(2, "0")}</td>
           <td class="step">
             <label class="step-check${isDone ? " done" : ""}">
               <input type="checkbox" class="step-cb" data-id="${esc(r.id)}"${isDone ? " checked" : ""}${locked ? " disabled" : ""}>
@@ -636,6 +751,12 @@
         </tr>`;
       }).join("");
     }
+
+    document.getElementById("jobIndex").addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-jump]");
+      if (!chip) return;
+      jumpTo(chip.dataset.jump);
+    });
 
     document.getElementById("plans").addEventListener("change", (e) => {
       const cb = e.target.closest("input.step-cb");
