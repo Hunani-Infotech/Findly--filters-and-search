@@ -575,7 +575,7 @@
   min-height: 2.4rem;
 }
 
-.smart-filter__btn:hover {
+.smart-filter__btn:hover:not(.smart-filter__btn--primary) {
   background: var(--sf-surface-hover);
 }
 
@@ -585,8 +585,13 @@
   color: #fff;
 }
 
-.smart-filter__btn--primary:hover {
-  filter: brightness(0.95);
+.smart-filter .smart-filter__btn--primary:hover,
+.smart-filter .smart-filter__btn--primary:focus,
+.smart-filter .smart-filter__btn--primary:active {
+  background: color-mix(in srgb, var(--sf-accent) 82%, #000);
+  border-color: color-mix(in srgb, var(--sf-accent) 82%, #000);
+  color: #fff;
+  filter: none;
 }
 
 .smart-filter__clear {
