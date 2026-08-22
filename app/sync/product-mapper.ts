@@ -42,6 +42,7 @@ type ShopifyProduct = {
   title: string;
   vendor?: string | null;
   productType?: string | null;
+  product_type?: string | null;
   tags?: string[] | string | null;
   status?: string | null;
   createdAt?: string | null;
@@ -301,7 +302,7 @@ export function mapProductToFacet(
       handle: product.handle,
       title: product.title,
       vendor: product.vendor ?? "",
-      productType: product.productType ?? "",
+      productType: product.productType ?? product.product_type ?? "",
       tags: normalizeTags(product.tags),
       skus,
       options: options as JsonObject,

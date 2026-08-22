@@ -1,6 +1,7 @@
 /**
- * Minify Theme App Extension JS that is referenced by app-block schemas.
- * Shopify's AssetSizeAppBlockJavaScript limit is 100 KB per schema "javascript" file.
+ * Minify Theme App Extension JS assets.
+ * Schema "javascript" files must stay under Shopify's 100 KB AssetSizeAppBlockJavaScript cap;
+ * companion files loaded via Liquid asset_url (e.g. smart-filter-grid.min.js) are not capped here.
  *
  * Usage:
  *   node ./scripts/minify-theme-extension.mjs
@@ -14,13 +15,22 @@ import { transformWithEsbuild } from "vite";
 import { log } from "./terminal-log.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const LIMIT_BYTES = 100000;
-const BANNER = "/* generated from smart-filter.js — do not edit */\n";
+const SCHEMA_JS_LIMIT_BYTES = 100000;
 
 const JOBS = [
   {
     src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter.js"),
     out: path.join(ROOT, "extensions/smart-filter/assets/smart-filter.min.js"),
+    banner: "/* generated from smart-filter.js — do not edit */\n",
+    limitBytes: SCHEMA_JS_LIMIT_BYTES,
+  },
+  {
+    src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-grid.js"),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-grid.min.js",
+    ),
+    banner: "/* generated from smart-filter-grid.js — do not edit */\n",
   },
 ];
 
@@ -37,12 +47,12 @@ async function minifyJob(job) {
     loader: "js",
     legalComments: "none",
   });
-  const output = BANNER + result.code;
+  const output = job.banner + result.code;
   const bytes = Buffer.byteLength(output);
   const relOut = path.relative(ROOT, job.out);
-  if (bytes >= LIMIT_BYTES) {
+  if (job.limitBytes != null && bytes >= job.limitBytes) {
     throw new Error(
-      `${relOut} is ${bytes} B after minify (limit ${LIMIT_BYTES} B). Split the widget before deploying.`,
+      `${relOut} is ${bytes} B after minify (limit ${job.limitBytes} B). Split the widget before deploying.`,
     );
   }
   await writeFile(job.out, output, "utf8");

@@ -1158,9 +1158,10 @@
       ".smart-filter .smart-filter__option input[type=radio]{" +
       "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
       "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
-      "border:1px solid #cfcfcf!important;background:#fff!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
+      "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
       ".sf-app-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;width:100%;list-style:none;margin:0;padding:0}" +
-      "@media(min-width:750px){.sf-app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}";
+      "@media(min-width:750px){.sf-app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}" +
+      ".sf-app-grid>:not(.sf-app-card){display:none!important}";
     var style = document.createElement("style");
     style.id = THEME_BRIDGE_STYLE_ID;
     style.textContent = css;
@@ -1371,6 +1372,13 @@
     return (
       isCollectionFilterKey(facet.key) ||
       String(facet.source || "").toLowerCase() === "collection"
+    );
+  }
+
+  function isCollectionRedirectFacet(facet) {
+    return (
+      isCollectionFacet(facet) &&
+      String(facet.displayType || "").toLowerCase() === "collection"
     );
   }
 
@@ -2021,7 +2029,7 @@
       this.collectionHandle = inferCollectionHandle();
     }
     this.searchQuery = (root.getAttribute("data-search-query") || "").trim();
-    if (!this.searchQuery && !this.collectionId) {
+    if (!this.searchQuery && !this.collectionId && !this.collectionHandle) {
       try {
         this.searchQuery = (
           new URLSearchParams(window.location.search).get("q") || ""
@@ -2740,7 +2748,7 @@
   };
 
   Widget.prototype.isAppGridMode = function () {
-    return Boolean(this.appGridTemplate());
+    return this.appGridTemplate() || this.hasActiveFilters() || this.collectionQuery;
   };
 
   Widget.prototype.backupNativeGrid = function (parent) {
@@ -3050,6 +3058,9 @@
       }
     } else if (this.searchQuery) {
       params.set("q", this.searchQuery);
+    }
+    if (this.collectionHandle) {
+      params.set("collection_handle", this.collectionHandle);
     }
 
     Object.keys(this.selected).forEach(
@@ -4199,6 +4210,7 @@
             return;
           }
 
+          if (this._appGridActive) this.restoreNativeGrid();
           this._pendingAppGrid = null;
 
           if (!intercept) {
@@ -4367,6 +4379,12 @@
   };
 
   Widget.prototype.commitFilters = function (keepFacets) {
+    writeHash(
+      this.selected,
+      this.price,
+      this.sortKey,
+      this.collectionQuery,
+    );
     if (this.autoApplyFilters !== false) {
       this.fetchFilters();
       return;
@@ -4385,8 +4403,9 @@
   };
 
   Widget.prototype.shouldNavigateCollectionFacet = function () {
-    if (this.searchQuery) return false;
     var facet = (this.facets || []).find(isCollectionFacet);
+    if (isCollectionRedirectFacet(facet)) return true;
+    if (this.searchQuery) return false;
     if (facet && facet.displayType && facet.displayType !== "collection") {
       return false;
     }
@@ -4644,12 +4663,10 @@
         } else if (facet.type === "boolean") {
           wrap.appendChild(this.renderBooleanFacet(facet));
         } else if (
-          isCollectionFacet(facet) &&
-          this.shouldNavigateCollectionFacet()
+          isCollectionRedirectFacet(facet) ||
+          (isCollectionFacet(facet) && this.shouldNavigateCollectionFacet())
         ) {
           wrap.appendChild(this.renderCollectionFacet(facet));
-        } else if (facet.displayType === "collection") {
-          wrap.appendChild(this.renderListFacet(facet));
         } else if (facet.displayType === "dropdown") {
           wrap.appendChild(this.renderDropdownFacet(facet));
         } else {
@@ -5225,7 +5242,9 @@
       FILTER_CACHE_PREFIX +
       shopDomain() +
       ":" +
-      (this.collectionId || "q:" + this.searchQuery) +
+      (this.collectionId ||
+        this.collectionHandle ||
+        "q:" + this.searchQuery) +
       ":" +
       JSON.stringify({
         s: this.selected,
@@ -5258,7 +5277,7 @@
   };
 
   Widget.prototype.init = function () {
-    if (!this.collectionId && !this.searchQuery) {
+    if (!this.collectionId && !this.searchQuery && !this.collectionHandle) {
       logFilterError(this.t("error", MSG_ERROR));
       return;
     }

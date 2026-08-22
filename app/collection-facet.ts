@@ -23,6 +23,13 @@ export function collectionStorefrontPath(handle: string): string {
   return cleaned ? `/collections/${cleaned}` : "";
 }
 
+/** Shopify Catalog (`/collections/all`) is a virtual collection, not a synced membership. */
+export function isAllProductsCollectionHandle(
+  handle: string | null | undefined,
+): boolean {
+  return String(handle || "").trim().toLowerCase() === "all";
+}
+
 export function parseCollectionParents(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, string> = {};

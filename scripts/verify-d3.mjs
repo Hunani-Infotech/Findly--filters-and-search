@@ -63,14 +63,16 @@ function assertStaticMarkers() {
   if (
     !helper.includes("nestCollectionValues") ||
     !helper.includes("collectionStorefrontPath") ||
-    !helper.includes("collectionFacetCounts")
+    !helper.includes("collectionFacetCounts") ||
+    !helper.includes("isAllProductsCollectionHandle")
   ) {
     fail("collection-facet.ts missing nest / storefront path / total-count helpers");
   }
   const proxy = readRepo("app", "proxy.server.ts");
   if (
     !proxy.includes("loadCollectionProductCounts") ||
-    !proxy.includes("collectionTotals")
+    !proxy.includes("collectionTotals") ||
+    !proxy.includes("loadShopProductFacets")
   ) {
     fail("proxy.server.ts missing shop-wide collection product counts");
   }
@@ -82,13 +84,21 @@ function assertStaticMarkers() {
   );
   if (
     !widget.includes("renderCollectionFacet") ||
+    !widget.includes("isCollectionRedirectFacet") ||
     !widget.includes("window.location.assign")
   ) {
     fail("smart-filter.js missing Collection display-type redirect");
   }
   if (
+    widget.includes('else if (facet.displayType === "collection")') &&
+    widget.includes("this.renderListFacet(facet)")
+  ) {
+    fail("Collection redirect display type must not fall back to checkbox list");
+  }
+  if (
     !widget.includes("shouldNavigateCollectionFacet") ||
-    !widget.includes("isAllProductsCollectionHandle")
+    !widget.includes("isAllProductsCollectionHandle") ||
+    !widget.includes("collection_handle")
   ) {
     fail(
       "smart-filter.js missing collections/all AJAX vs other-collection permalink navigation",
@@ -405,9 +415,36 @@ try {
     );
   }
 
+  await prisma.collectionMembership.deleteMany({
+    where: { shopId: shop.id, collectionGid: ALL_GID },
+  });
+  clearFilterPayloadCache();
+  const virtualCatalog = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: ALL_GID,
+    collectionHandle: "all",
+    selected: {},
+  });
+  if (titles(virtualCatalog).join(",") !== "Alpha,Beta,Gamma") {
+    fail(
+      `Shopify Catalog /collections/all should load every product when membership is missing, got ${titles(virtualCatalog)}`,
+    );
+  }
+  const handleOnly = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionHandle: "all",
+    selected: {},
+  });
+  if (titles(handleOnly).join(",") !== "Alpha,Beta,Gamma") {
+    fail(
+      `collection_handle=all without collection_id should still load the catalog, got ${titles(handleOnly)}`,
+    );
+  }
+
   log.info("Checkbox mode filters in place by collection membership");
   log.info("Collection display type lists all collections with redirect URLs");
   log.info("collections/all AJAX still applies collection membership");
+  log.info("Shopify Catalog /collections/all loads all products without membership rows");
   log.info("Nested parent/child collections render");
   log.info("Collection option counts are shop-wide totals, not page overlap");
   log.info("STEPD3_OK");

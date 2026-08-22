@@ -30,6 +30,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("shop") || url.searchParams.get("shop_domain") || "";
   const collectionId = url.searchParams.get("collection_id");
   const collectionGid = url.searchParams.get("collection_gid");
+  const collectionHandle =
+    url.searchParams.get("collection_handle") ||
+    url.searchParams.get("handle") ||
+    "";
   const searchQuery =
     url.searchParams.get("q") || url.searchParams.get("query") || "";
   const selected = parseSelectedFromSearchParams(url.searchParams);
@@ -44,7 +48,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("companyLocationId") ||
     url.searchParams.get("company_location");
 
-  const hasCollection = Boolean(collectionId || collectionGid);
+  const hasCollection = Boolean(
+    collectionId || collectionGid || collectionHandle,
+  );
   const result =
     searchQuery.trim() && !hasCollection
       ? await getSearchFilterPayload({
@@ -63,6 +69,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shopDomain,
           collectionId,
           collectionGid,
+          collectionHandle,
           selected,
           sort,
           query: searchQuery,

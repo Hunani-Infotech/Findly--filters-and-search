@@ -53,6 +53,7 @@ import { resolveWidgetChrome } from "./widget-i18n";
 import { withWidgetChrome } from "./filters.server";
 import {
   COLLECTION_FACET_KEY,
+  isAllProductsCollectionHandle,
   nestCollectionValues,
   parseCollectionParents,
   withCollectionMeta,
@@ -310,6 +311,7 @@ async function loadCollectionProductFacetsUncached(
 }
 
 const collectionFacetCache = createTtlCache<CollectionFacetDbRow[]>(45_000);
+const shopProductFacetCache = createTtlCache<CollectionFacetDbRow[]>(45_000);
 
 async function loadCollectionProductFacets(
   shopId: string,
@@ -319,6 +321,29 @@ async function loadCollectionProductFacets(
   return collectionFacetCache.wrap(
     `${shopId}:${collectionGid}:${selectFingerprint(select)}`,
     () => loadCollectionProductFacetsUncached(shopId, collectionGid, select),
+  );
+}
+
+async function loadShopProductFacetsUncached(
+  shopId: string,
+  select: Prisma.ProductFacetSelect,
+): Promise<CollectionFacetDbRow[]> {
+  const columns = selectedFacetColumnSql(select);
+  if (!columns.length) return [];
+  return prisma.$queryRaw<CollectionFacetDbRow[]>(Prisma.sql`
+    SELECT ${Prisma.join(columns)}, 0 AS "position"
+    FROM "ProductFacet" pf
+    WHERE pf."shopId" = ${shopId}
+  `);
+}
+
+async function loadShopProductFacets(
+  shopId: string,
+  select: Prisma.ProductFacetSelect,
+) {
+  return shopProductFacetCache.wrap(
+    `${shopId}:all:${selectFingerprint(select)}`,
+    () => loadShopProductFacetsUncached(shopId, select),
   );
 }
 
@@ -353,6 +378,7 @@ function collectionFilterCacheKey(input: {
   shopDomain: string;
   collectionId?: string | null;
   collectionGid?: string | null;
+  collectionHandle?: string | null;
   selected: SelectedFilters;
   sort?: string | null;
   query?: string | null;
@@ -368,6 +394,7 @@ function collectionFilterCacheKey(input: {
     shop: input.shopDomain,
     cid: input.collectionId || "",
     gid: input.collectionGid || "",
+    handle: input.collectionHandle || "",
     selected: input.selected,
     sort: input.sort || "",
     query: input.query || "",
@@ -583,6 +610,7 @@ export async function getCollectionFilterPayload(input: {
   shopDomain: string;
   collectionId?: string | null;
   collectionGid?: string | null;
+  collectionHandle?: string | null;
   selected: SelectedFilters;
   sort?: string | null;
   query?: string | null;
@@ -621,6 +649,7 @@ async function loadCollectionFilterPayload(input: {
   shopDomain: string;
   collectionId?: string | null;
   collectionGid?: string | null;
+  collectionHandle?: string | null;
   selected: SelectedFilters;
   sort?: string | null;
   query?: string | null;
@@ -633,13 +662,23 @@ async function loadCollectionFilterPayload(input: {
     return { error: "Shop not synced", status: 404 as const };
   }
 
-  const collectionGid =
+  const collectionHandle = (input.collectionHandle || "").trim();
+  const isAll = isAllProductsCollectionHandle(collectionHandle);
+  let collectionGid =
     input.collectionGid ||
     (input.collectionId
       ? `gid://shopify/Collection/${input.collectionId}`
       : null);
 
-  if (!collectionGid) {
+  if (!collectionGid && collectionHandle) {
+    const byHandle = await prisma.collection.findFirst({
+      where: { shopId: shop.id, handle: collectionHandle },
+      select: { collectionGid: true },
+    });
+    collectionGid = byHandle?.collectionGid ?? null;
+  }
+
+  if (!collectionGid && !isAll) {
     return { error: "collection_id required", status: 400 as const };
   }
 
@@ -652,7 +691,7 @@ async function loadCollectionFilterPayload(input: {
     swatches,
     navExtras,
   ] = await Promise.all([
-    getFilterConfig(shop.id, collectionGid),
+    getFilterConfig(shop.id, collectionGid || ""),
     getAppSettings(shop.id),
     getMetafieldMappings(shop.id),
     resolveFilterLimit(shop.id),
@@ -681,18 +720,17 @@ async function loadCollectionFilterPayload(input: {
     ? normalizeSearchQuery(input.query ?? "")
     : "";
   const enableMarkets = appSettings.enableMarkets !== false;
-  const productsDb = await loadCollectionProductFacets(
-    shop.id,
-    collectionGid,
-    productFacetSelectForRequest({
-      config,
-      mappings,
-      enableMarkets,
-      needsKeywordSearch: Boolean(collectionQuery),
-      searchFields,
-      sort: input.sort,
-    }),
-  );
+  const facetSelect = productFacetSelectForRequest({
+    config,
+    mappings,
+    enableMarkets,
+    needsKeywordSearch: Boolean(collectionQuery),
+    searchFields,
+    sort: input.sort,
+  });
+  const productsDb = isAll
+    ? await loadShopProductFacets(shop.id, facetSelect)
+    : await loadCollectionProductFacets(shop.id, collectionGid as string, facetSelect);
 
   const metafieldPaths = searchFields.includes("metafields")
     ? enabledMetafieldPaths(mappings)
