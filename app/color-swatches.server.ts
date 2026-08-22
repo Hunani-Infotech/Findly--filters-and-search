@@ -39,6 +39,9 @@ type SavedSwatch = {
 };
 
 const colorOptionsCache = createTtlCache<ColorOptionEntry[]>(30_000);
+const swatchMapCache = createTtlCache<
+  Record<string, Record<string, SwatchRow>>
+>(30_000);
 
 async function collectColorOptions(shopId: string): Promise<ColorOptionEntry[]> {
   return colorOptionsCache.wrap(shopId, () => loadColorOptions(shopId));
@@ -206,7 +209,7 @@ export async function loadSwatchesAdmin(
 
 export async function upsertSwatch(shopId: string, input: SwatchRow) {
   const kind = parseKind(input.kind);
-  return prisma.colorSwatch.upsert({
+  const row = await prisma.colorSwatch.upsert({
     where: {
       shopId_optionKey_value: {
         shopId,
@@ -230,10 +233,13 @@ export async function upsertSwatch(shopId: string, input: SwatchRow) {
       imageUrl: input.imageUrl.trim().slice(0, 500),
     },
   });
+  swatchMapCache.del(shopId);
+  return row;
 }
 
 export async function clearSwatch(shopId: string, optionKey: string, value: string) {
   await prisma.colorSwatch.deleteMany({ where: { shopId, optionKey, value } });
+  swatchMapCache.del(shopId);
 }
 
 export async function autofillMissingSwatches(shopId: string, optionKey: string) {
@@ -256,20 +262,22 @@ export async function autofillMissingSwatches(shopId: string, optionKey: string)
 }
 
 export async function swatchMapForShop(shopId: string) {
-  const rows = await prisma.colorSwatch.findMany({ where: { shopId } });
-  const map: Record<string, Record<string, SwatchRow>> = {};
-  for (const row of rows) {
-    if (!map[row.optionKey]) map[row.optionKey] = {};
-    map[row.optionKey][row.value] = {
-      optionKey: row.optionKey,
-      value: row.value,
-      kind: parseKind(row.kind),
-      color1: row.color1,
-      color2: row.color2,
-      imageUrl: row.imageUrl,
-    };
-  }
-  return map;
+  return swatchMapCache.wrap(shopId, async () => {
+    const rows = await prisma.colorSwatch.findMany({ where: { shopId } });
+    const map: Record<string, Record<string, SwatchRow>> = {};
+    for (const row of rows) {
+      if (!map[row.optionKey]) map[row.optionKey] = {};
+      map[row.optionKey][row.value] = {
+        optionKey: row.optionKey,
+        value: row.value,
+        kind: parseKind(row.kind),
+        color1: row.color1,
+        color2: row.color2,
+        imageUrl: row.imageUrl,
+      };
+    }
+    return map;
+  });
 }
 
 export async function importSwatches(

@@ -7,6 +7,7 @@ import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { withEmbeddedParamsFromRequest } from "../admin-path";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   createValueGroup,
@@ -29,7 +30,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const input = parseValueGroupForm(form);
   const result = await createValueGroup(shop.id, input);
   if ("error" in result) return { error: result.error };
-  return redirect("/app/groups?notice=saved");
+  return redirect(
+    withEmbeddedParamsFromRequest(request, "/app/groups?notice=saved"),
+  );
 };
 
 export default function NewValueGroupPage() {

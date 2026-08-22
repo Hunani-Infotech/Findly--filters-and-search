@@ -6,13 +6,13 @@ import {
   ymmSearchPayload,
 } from "../ymm.server";
 import { verifyAppProxySignature } from "../proxy.server";
-import { getAdminNavExtras } from "../admin-nav-extras.server";
-import prisma from "../db.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
 };
+
+const YMM_FIELD_CAP = 8;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -45,11 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
-  const fieldCount = shop
-    ? (await getAdminNavExtras(shop.id)).ymm.fields.length
-    : 3;
-  const selected = parseSelectedValues(url.searchParams, fieldCount);
+  const selected = parseSelectedValues(url.searchParams, YMM_FIELD_CAP);
 
   if (intent === "options") {
     const result = await ymmOptionsPayload(shopDomain, selected);

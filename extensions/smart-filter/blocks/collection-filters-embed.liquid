@@ -35,6 +35,7 @@ try {
   data-product-grid-selector="{{ block.settings.product_grid_selector | escape }}"
   data-use-quickview="{% if block.settings.use_quickview_template %}true{% else %}false{% endif %}"
   data-collection-id="{% if template contains 'collection' %}{{ collection.id }}{% endif %}"
+  data-collection-handle="{% if template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
   data-position="{{ block.settings.position }}"

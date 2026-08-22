@@ -1,5 +1,6 @@
 import type { FilterConfig, Prisma } from "@prisma/client";
 import prisma from "./db.server";
+import { createTtlCache } from "./read-cache.server";
 import { DEFAULT_DISPLAY_ORDER, mappedFacetsForAdmin } from "./filters.server";
 import {
   nextDisplayOrderForMetafieldSync,
@@ -14,6 +15,12 @@ import {
 export type FilterTreeWithCollections = FilterConfig & {
   treeCollections: Array<{ collectionGid: string }>;
 };
+
+const filterTreeResolveCache = createTtlCache<FilterConfig | null>(30_000);
+
+export function invalidateFilterTreeResolveCache(shopId: string) {
+  filterTreeResolveCache.deletePrefix(shopId);
+}
 
 function newest(trees: FilterConfig[]): FilterConfig | null {
   if (!trees.length) return null;
@@ -43,14 +50,16 @@ export async function getFilterTree(
 }
 
 async function treesAssignedToCollection(shopId: string, collectionGid: string) {
-  const joins = await prisma.filterTreeCollection.findMany({
-    where: { shopId, collectionGid },
-    include: { tree: true },
-  });
+  const [joins, fromLegacy] = await Promise.all([
+    prisma.filterTreeCollection.findMany({
+      where: { shopId, collectionGid },
+      include: { tree: true },
+    }),
+    prisma.filterConfig.findMany({
+      where: { shopId, collectionGid },
+    }),
+  ]);
   const fromJoin = joins.map((row) => row.tree);
-  const fromLegacy = await prisma.filterConfig.findMany({
-    where: { shopId, collectionGid },
-  });
   const byId = new Map<string, FilterConfig>();
   for (const tree of [...fromJoin, ...fromLegacy]) {
     byId.set(tree.id, tree);
@@ -73,21 +82,25 @@ export async function resolveFilterTreeForCollection(
   shopId: string,
   collectionGid: string,
 ): Promise<FilterConfig | null> {
-  const assigned = newest(await treesAssignedToCollection(shopId, collectionGid));
-  if (assigned) return assigned;
-  return newest(await unassignedTrees(shopId));
+  return filterTreeResolveCache.wrap(`${shopId}:${collectionGid}`, async () => {
+    const assigned = newest(await treesAssignedToCollection(shopId, collectionGid));
+    if (assigned) return assigned;
+    return newest(await unassignedTrees(shopId));
+  });
 }
 
 /** Search page: last-created tree with appliesToSearch. */
 export async function resolveFilterTreeForSearch(
   shopId: string,
 ): Promise<FilterConfig | null> {
-  const trees = await prisma.filterConfig.findMany({
-    where: { shopId, appliesToSearch: true },
+  return filterTreeResolveCache.wrap(`${shopId}:search`, async () => {
+    const trees = await prisma.filterConfig.findMany({
+      where: { shopId, appliesToSearch: true },
+    });
+    const searchTree = newest(trees);
+    if (searchTree) return searchTree;
+    return newest(await unassignedTrees(shopId));
   });
-  const searchTree = newest(trees);
-  if (searchTree) return searchTree;
-  return newest(await unassignedTrees(shopId));
 }
 
 export async function hasCollectionAssignment(
@@ -131,6 +144,7 @@ export async function deleteAbandonedDraftTrees(shopId: string) {
   await prisma.filterConfig.deleteMany({
     where: { shopId, id: { in: toDelete.map((tree) => tree.id) } },
   });
+  invalidateFilterTreeResolveCache(shopId);
 }
 
 async function mappedFilterKeysForShop(shopId: string) {
@@ -182,6 +196,7 @@ export async function syncMappedMetafieldKeysOnTrees(
       });
     }),
   );
+  invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function createFilterTree(
@@ -219,6 +234,7 @@ export async function createFilterTree(
   if (input?.collectionGids?.length) {
     await replaceTreeCollections(shopId, tree.id, input.collectionGids);
   }
+  invalidateFilterTreeResolveCache(shopId);
   return tree;
 }
 
@@ -229,6 +245,7 @@ export async function ensureDefaultFilterTree(shopId: string) {
   });
   if (existing) return;
   await createFilterTree(shopId, { name: "Default Filter", appliesToSearch: true });
+  invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function replaceTreeCollections(
@@ -253,6 +270,7 @@ export async function replaceTreeCollections(
       collectionGid: unique.length === 1 ? unique[0] : "",
     },
   });
+  invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function updateFilterTree(
@@ -283,6 +301,7 @@ export async function updateFilterTree(
   if (collectionGids) {
     await replaceTreeCollections(shopId, treeId, collectionGids);
   }
+  invalidateFilterTreeResolveCache(shopId);
   return getFilterTree(shopId, treeId);
 }
 
@@ -324,6 +343,7 @@ export async function duplicateFilterTree(shopId: string, treeId: string) {
     copy.id,
     source.treeCollections.map((row) => row.collectionGid),
   );
+  invalidateFilterTreeResolveCache(shopId);
   return copy;
 }
 
@@ -338,6 +358,7 @@ export async function deleteFilterTree(shopId: string, treeId: string) {
   });
   if (!existing) return { error: "Filter tree not found." as const };
   await prisma.filterConfig.delete({ where: { id: treeId } });
+  invalidateFilterTreeResolveCache(shopId);
   return { ok: true as const };
 }
 
@@ -359,6 +380,7 @@ export async function reorderFilterTrees(shopId: string, orderedIds: string[]) {
       }),
     ),
   );
+  invalidateFilterTreeResolveCache(shopId);
   return { ok: true as const };
 }
 
@@ -410,6 +432,7 @@ export async function findOrCreateTreeForCollection(
     },
   });
   await replaceTreeCollections(shopId, tree.id, [collectionGid]);
+  invalidateFilterTreeResolveCache(shopId);
   return tree;
 }
 
@@ -440,6 +463,7 @@ export async function setFilterTreesEnabled(
     where: { shopId, id: { in: unique } },
     data: { enabled },
   });
+  invalidateFilterTreeResolveCache(shopId);
   return { updated: result.count };
 }
 

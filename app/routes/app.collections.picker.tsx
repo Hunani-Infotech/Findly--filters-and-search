@@ -30,6 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     total: page.total,
     hasNext: page.hasNext,
     query: page.query,
+    requestId: String(url.searchParams.get("r") || ""),
   };
 };
 

@@ -57,21 +57,22 @@ export async function ingestAnalyticsEvent(input: IngestInput) {
   const kind = String(input.kind || "").trim();
   if (!isKind(kind)) return { ok: false as const, error: "Invalid kind" };
 
-  const shop = await findShopCached(input.shopDomain);
-  if (!shop) return { ok: false as const, error: "Shop not synced" };
-
   const query = clip(String(input.query || "").toLowerCase(), 120);
   const combo = clip(String(input.combo || ""), 240);
   const handle = normalizeHandle(String(input.handle || ""));
-  const visitor = clip(String(input.visitor || ""), 80);
-  const device = String(input.device || "").toLowerCase() === "mobile" ? "mobile" : "desktop";
-  const resultCount = Math.max(0, Math.min(100000, Number(input.resultCount) || 0));
 
   if (kind === "search" && !query) return { ok: true as const, skipped: true };
   if (kind === "filter" && !combo) return { ok: true as const, skipped: true };
   if ((kind === "click" || kind === "visit") && !handle) {
     return { ok: true as const, skipped: true };
   }
+
+  const shop = await findShopCached(input.shopDomain);
+  if (!shop) return { ok: false as const, error: "Shop not synced" };
+
+  const visitor = clip(String(input.visitor || ""), 80);
+  const device = String(input.device || "").toLowerCase() === "mobile" ? "mobile" : "desktop";
+  const resultCount = Math.max(0, Math.min(100000, Number(input.resultCount) || 0));
 
   const lastPrune = lastAnalyticsPrune.get(shop.id) ?? 0;
   if (Date.now() - lastPrune > ANALYTICS_PRUNE_TTL_MS) {

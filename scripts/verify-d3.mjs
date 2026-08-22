@@ -12,9 +12,11 @@ import { seedFilterConfig } from "./seed-filter-config.mjs";
 import {
   nestCollectionValues,
   collectionStorefrontPath,
+  collectionFacetCounts,
 } from "../app/collection-facet.ts";
 
 const SHOP_DOMAIN = "d3-verify.myshopify.com";
+const ALL_GID = "gid://shopify/Collection/9303000";
 const PARENT_GID = "gid://shopify/Collection/9303001";
 const CHILD_GID = "gid://shopify/Collection/9303002";
 const OTHER_GID = "gid://shopify/Collection/9303003";
@@ -40,6 +42,15 @@ function collectionFacet(result) {
   );
 }
 
+function findFacetValue(values, gid) {
+  for (const item of values || []) {
+    if (item.value === gid) return item;
+    const nested = findFacetValue(item.children, gid);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 function assertStaticMarkers() {
   const filters = readRepo("app", "filters.ts");
   if (
@@ -51,9 +62,17 @@ function assertStaticMarkers() {
   const helper = readRepo("app", "collection-facet.ts");
   if (
     !helper.includes("nestCollectionValues") ||
-    !helper.includes("collectionStorefrontPath")
+    !helper.includes("collectionStorefrontPath") ||
+    !helper.includes("collectionFacetCounts")
   ) {
-    fail("collection-facet.ts missing nest / storefront path helpers");
+    fail("collection-facet.ts missing nest / storefront path / total-count helpers");
+  }
+  const proxy = readRepo("app", "proxy.server.ts");
+  if (
+    !proxy.includes("loadCollectionProductCounts") ||
+    !proxy.includes("collectionTotals")
+  ) {
+    fail("proxy.server.ts missing shop-wide collection product counts");
   }
   const widget = readRepo(
     "extensions",
@@ -66,6 +85,35 @@ function assertStaticMarkers() {
     !widget.includes("window.location.assign")
   ) {
     fail("smart-filter.js missing Collection display-type redirect");
+  }
+  if (
+    !widget.includes("shouldNavigateCollectionFacet") ||
+    !widget.includes("isAllProductsCollectionHandle")
+  ) {
+    fail(
+      "smart-filter.js missing collections/all AJAX vs other-collection permalink navigation",
+    );
+  }
+  if (!widget.includes("isCurrentCollectionNavItem")) {
+    fail("smart-filter.js missing current collection nav highlight");
+  }
+  const liquid = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters.liquid",
+  );
+  const embed = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters-embed.liquid",
+  );
+  if (
+    !liquid.includes("data-collection-handle") ||
+    !embed.includes("data-collection-handle")
+  ) {
+    fail("collection filter blocks missing data-collection-handle");
   }
   if (!widget.includes("smart-filter__tree-children")) {
     fail("smart-filter.js missing nested collection tree markup");
@@ -145,11 +193,34 @@ try {
     fail(`storefront path expected /collections/child, got ${collectionStorefrontPath("child")}`);
   }
 
+  const overlapCounts = collectionFacetCounts([
+    { collectionGids: [ALL_GID, PARENT_GID] },
+    { collectionGids: [ALL_GID, PARENT_GID] },
+  ]);
+  if (overlapCounts.get(ALL_GID) !== 2) {
+    fail("overlap collection counts should tally products in the current set");
+  }
+  const shopTotals = collectionFacetCounts(
+    [{ collectionGids: [ALL_GID, PARENT_GID] }],
+    new Map([
+      [ALL_GID, 3],
+      [PARENT_GID, 2],
+    ]),
+  );
+  if (shopTotals.get(ALL_GID) !== 3 || shopTotals.get(PARENT_GID) !== 2) {
+    fail("shop-wide collection totals should replace overlap counts");
+  }
+
   await cleanup();
   const shop = await prisma.shop.create({
     data: { domain: SHOP_DOMAIN, plan: "free" },
   });
 
+  await addCollection(shop.id, {
+    gid: ALL_GID,
+    title: "All",
+    handle: "all",
+  });
   await addCollection(shop.id, {
     gid: PARENT_GID,
     title: "Parent",
@@ -191,22 +262,27 @@ try {
     gid: "gid://shopify/Product/93030011",
     handle: "alpha",
     title: "Alpha",
-    collections: [PARENT_GID, CHILD_GID],
+    collections: [ALL_GID, PARENT_GID, CHILD_GID],
   });
   await addProduct(shop.id, {
     gid: "gid://shopify/Product/93030012",
     handle: "beta",
     title: "Beta",
-    collections: [PARENT_GID],
+    collections: [ALL_GID, PARENT_GID],
   });
   await addProduct(shop.id, {
     gid: "gid://shopify/Product/93030013",
     handle: "gamma",
     title: "Gamma",
-    collections: [OTHER_GID],
+    collections: [ALL_GID, OTHER_GID],
   });
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { clearFilterPayloadCache, getCollectionFilterPayload } = await import(
+    "../app/proxy.server.ts"
+  );
+  const { invalidateFilterTreeResolveCache } = await import(
+    "../app/filter-trees.server.ts"
+  );
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -226,6 +302,26 @@ try {
   );
   if (!nestedChild?.children?.some((child) => child.value === CHILD_GID)) {
     fail("nested parent/child collections did not render on the payload");
+  }
+  const allCount = findFacetValue(checkboxFacet.values, ALL_GID)?.count;
+  const otherCount = findFacetValue(checkboxFacet.values, OTHER_GID)?.count;
+  const parentCount = findFacetValue(checkboxFacet.values, PARENT_GID)?.count;
+  const childCount = findFacetValue(checkboxFacet.values, CHILD_GID)?.count;
+  if (allCount !== 3) {
+    fail(
+      `All collection should show shop total 3 (not overlap 2 on Parent page), got ${allCount}`,
+    );
+  }
+  if (otherCount !== 1) {
+    fail(
+      `Other collection should show shop total 1 on Parent page, got ${otherCount}`,
+    );
+  }
+  if (parentCount !== 2) {
+    fail(`Parent collection should show total 2, got ${parentCount}`);
+  }
+  if (childCount !== 1) {
+    fail(`Child collection should show total 1, got ${childCount}`);
   }
 
   const inPlace = await getCollectionFilterPayload({
@@ -258,6 +354,21 @@ try {
       },
     },
   });
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: ALL_GID,
+    displayTypes: { collection: "collection" },
+    displayOrder: ["collection"],
+    enablePrice: false,
+    enableAvailability: false,
+    enableVendor: false,
+    enableProductType: false,
+    enableTags: false,
+    enableOptions: false,
+    enableSale: false,
+    enableRating: false,
+  });
+  invalidateFilterTreeResolveCache(shop.id);
+  clearFilterPayloadCache();
 
   const redirectMode = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -283,9 +394,22 @@ try {
     );
   }
 
+  const catalogAjax = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: ALL_GID,
+    selected: { collection: [CHILD_GID] },
+  });
+  if (titles(catalogAjax).join(",") !== "Alpha") {
+    fail(
+      `collections/all AJAX should filter by collection membership, got ${titles(catalogAjax)}`,
+    );
+  }
+
   log.info("Checkbox mode filters in place by collection membership");
   log.info("Collection display type lists all collections with redirect URLs");
+  log.info("collections/all AJAX still applies collection membership");
   log.info("Nested parent/child collections render");
+  log.info("Collection option counts are shop-wide totals, not page overlap");
   log.info("STEPD3_OK");
 } catch (error) {
   log.error(error instanceof Error ? error.message : String(error));

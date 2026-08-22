@@ -8,7 +8,6 @@ import {
   useFetcher,
   useLoaderData,
   useNavigation,
-  useRevalidator,
   useSearchParams,
 } from "react-router";
 import {
@@ -98,14 +97,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { ok: true as const, imported: result.imported };
 };
 
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL;
+  nextUrl: URL;
+  formMethod?: string;
+  defaultShouldRevalidate: boolean;
+}) {
+  const method = formMethod?.toUpperCase();
+  if (method && method !== "GET") return defaultShouldRevalidate;
+  if (currentUrl.pathname === nextUrl.pathname) {
+    const restUnchanged = [...new Set([
+      ...currentUrl.searchParams.keys(),
+      ...nextUrl.searchParams.keys(),
+    ])].every((key) => {
+      if (key === "notice") return true;
+      return currentUrl.searchParams.get(key) === nextUrl.searchParams.get(key);
+    });
+    if (restUnchanged) return false;
+  }
+  return defaultShouldRevalidate;
+}
+
 export default function ValueGroupsPage() {
   const { groups } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const revalidator = useRevalidator();
   const navigate = useEmbeddedNavigate();
   const navigation = useNavigation();
   const shopify = useAppBridge();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const handledImport = useRef<typeof fetcher.data>();
 
@@ -113,8 +137,12 @@ export default function ValueGroupsPage() {
     const notice = searchParams.get("notice");
     if (notice === "saved") shopify.toast.show("Group saved");
     if (notice === "deleted") shopify.toast.show("Group deleted");
-    if (notice) navigate("/app/groups", { replace: true });
-  }, [navigate, searchParams, shopify]);
+    if (notice) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("notice");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams, shopify]);
 
   useEffect(() => {
     const data = fetcher.data;
@@ -127,9 +155,8 @@ export default function ValueGroupsPage() {
     }
     if ("ok" in data && data.ok) {
       shopify.toast.show(`Imported ${data.imported} groups`);
-      revalidator.revalidate();
     }
-  }, [fetcher.data, fetcher.state, revalidator, shopify]);
+  }, [fetcher.data, fetcher.state, shopify]);
 
   const creating = isNavigatingTo(navigation, "/app/groups/new");
   const [page, setPage] = useState(0);

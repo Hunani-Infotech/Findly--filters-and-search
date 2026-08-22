@@ -1,5 +1,7 @@
 import prisma from "./db.server";
 import { getAdminNavExtras } from "./admin-nav-extras.server";
+import { createTtlCache } from "./read-cache.server";
+import { findShopCached } from "./shop-cache.server";
 import {
   isRecWidgetId,
   parseHandleList,
@@ -15,6 +17,26 @@ export type RecProduct = {
   available: boolean;
   priceMin: number;
 };
+
+const PRODUCT_SELECT = {
+  handle: true,
+  title: true,
+  imageUrl: true,
+  available: true,
+  priceMin: true,
+} as const;
+
+type RecsSuccess = {
+  status: 200;
+  data: {
+    enabled: boolean;
+    type: RecWidgetId;
+    products: RecProduct[];
+    counts: RecsConfig["counts"];
+  };
+};
+
+const recsPayloadCache = createTtlCache<RecsSuccess>(30_000);
 
 function toProduct(row: {
   handle: string;
@@ -52,6 +74,7 @@ async function productsByHandles(
       status: "ACTIVE",
       handle: { in: handles },
     },
+    select: PRODUCT_SELECT,
   });
   const byHandle = new Map(rows.map((row) => [row.handle.toLowerCase(), row]));
   const out: RecProduct[] = [];
@@ -72,6 +95,7 @@ async function newestProducts(
 ): Promise<RecProduct[]> {
   const rows = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
+    select: PRODUCT_SELECT,
     orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
     take: Math.min(40, Math.max(limit + 8, limit)),
   });
@@ -91,6 +115,7 @@ async function bestsellerProducts(
 ): Promise<RecProduct[]> {
   const rows = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
+    select: PRODUCT_SELECT,
     orderBy: [{ salePct: "desc" }, { publishedAt: "desc" }],
     take: Math.min(40, Math.max(limit + 8, limit)),
   });
@@ -119,70 +144,77 @@ export async function recsPayload(input: {
   handles?: string[];
   limit?: number;
 }) {
-  const shop = await prisma.shop.findUnique({ where: { domain: input.shopDomain } });
+  const shop = await findShopCached(input.shopDomain);
   if (!shop) return { error: "Shop not synced", status: 404 as const };
 
-  const extras = await getAdminNavExtras(shop.id);
-  const recs = extras.recs;
   const type = isRecWidgetId(input.type) ? input.type : "new-products";
-  const enabled = recs.on[type] === true;
   const exclude = (input.productHandle ?? "").trim().toLowerCase();
-  const limit = Math.min(12, Math.max(1, input.limit ?? recs.counts.desktop));
+  const handlesKey = parseHandleList(input.handles ?? [], 24).join(",");
+  const limitKey = input.limit == null ? "auto" : String(input.limit);
 
-  if (!enabled) {
-    return {
-      status: 200 as const,
-      data: {
-        enabled: false,
-        type,
-        products: [] as RecProduct[],
-        counts: recs.counts,
-      },
-    };
-  }
+  return recsPayloadCache.wrap(
+    `${shop.id}|${type}|${exclude}|${limitKey}|${handlesKey}`,
+    async (): Promise<RecsSuccess> => {
+      const extras = await getAdminNavExtras(shop.id);
+      const recs = extras.recs;
+      const limit = Math.min(12, Math.max(1, input.limit ?? recs.counts.desktop));
+      const enabled = recs.on[type] === true;
+      if (!enabled) {
+        return {
+          status: 200 as const,
+          data: {
+            enabled: false,
+            type,
+            products: [] as RecProduct[],
+            counts: recs.counts,
+          },
+        };
+      }
 
-  let products: RecProduct[] = [];
+      let products: RecProduct[] = [];
 
-  if (type === "recently-viewed-products") {
-    products = await productsByHandles(
-      shop.id,
-      parseHandleList(input.handles ?? [], 24),
-      exclude,
-      limit,
-    );
-  } else if (type === "hand-picked-related-products" || type === "frequently-bought-together") {
-    products = await productsByHandles(
-      shop.id,
-      relatedHandles(recs, exclude),
-      exclude,
-      limit,
-    );
-  } else if (type === "new-products" || type === "trending-products") {
-    const picked = recs.picks[type];
-    products = picked?.length
-      ? await productsByHandles(shop.id, picked, exclude, limit)
-      : await newestProducts(shop.id, exclude, limit);
-  } else if (type === "best-sellers") {
-    const picked = recs.picks[type];
-    products = picked?.length
-      ? await productsByHandles(shop.id, picked, exclude, limit)
-      : await bestsellerProducts(shop.id, exclude, limit);
-  } else {
-    const picked = recs.picks[type];
-    products = picked?.length
-      ? await productsByHandles(shop.id, picked, exclude, limit)
-      : await newestProducts(shop.id, exclude, limit);
-  }
+      if (type === "recently-viewed-products") {
+        products = await productsByHandles(
+          shop.id,
+          parseHandleList(input.handles ?? [], 24),
+          exclude,
+          limit,
+        );
+      } else if (type === "hand-picked-related-products" || type === "frequently-bought-together") {
+        products = await productsByHandles(
+          shop.id,
+          relatedHandles(recs, exclude),
+          exclude,
+          limit,
+        );
+      } else if (type === "new-products" || type === "trending-products") {
+        const picked = recs.picks[type];
+        products = picked?.length
+          ? await productsByHandles(shop.id, picked, exclude, limit)
+          : await newestProducts(shop.id, exclude, limit);
+      } else if (type === "best-sellers") {
+        const picked = recs.picks[type];
+        products = picked?.length
+          ? await productsByHandles(shop.id, picked, exclude, limit)
+          : await bestsellerProducts(shop.id, exclude, limit);
+      } else {
+        const picked = recs.picks[type];
+        products = picked?.length
+          ? await productsByHandles(shop.id, picked, exclude, limit)
+          : await newestProducts(shop.id, exclude, limit);
+      }
 
-  return {
-    status: 200 as const,
-    data: {
-      enabled: true,
-      type,
-      products,
-      counts: recs.counts,
+      return {
+        status: 200 as const,
+        data: {
+          enabled: true,
+          type,
+          products,
+          counts: recs.counts,
+        },
+      };
     },
-  };
+  );
 }
 
 export function parseRecType(raw: string | null): RecWidgetId {

@@ -43,7 +43,7 @@ export function shouldRevalidate({
 }) {
   const method = formMethod?.toUpperCase();
   if (method && method !== "GET") {
-    return true;
+    return false;
   }
   if (currentUrl.pathname.startsWith("/app") && nextUrl.pathname.startsWith("/app")) {
     return false;

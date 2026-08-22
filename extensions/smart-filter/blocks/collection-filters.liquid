@@ -2,6 +2,7 @@
   id="smart-filter-root"
   class="smart-filter smart-filter--{{ block.settings.position }}"
   data-collection-id="{% if template contains 'collection' %}{{ collection.id }}{% endif %}"
+  data-collection-handle="{% if template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
   data-position="{{ block.settings.position }}"

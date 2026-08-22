@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BlockStack,
   Button,
@@ -11,6 +11,7 @@ import {
 } from "@shopify/polaris";
 
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "../admin-list-page";
+import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export function CatalogValuePicker({
   values,
@@ -51,19 +52,19 @@ export function CatalogValuePicker({
   const [query, setQuery] = useState(queryProp ?? "");
   const [seenQueryProp, setSeenQueryProp] = useState(queryProp);
   const [page, setPage] = useState(0);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const {
+    run: scheduleServerQuery,
+    flush: flushServerQuery,
+    flushPending,
+  } = useDebouncedCallback((next: string) => {
+    onQueryChange?.(next);
+  });
 
   if (queryProp != null && queryProp !== seenQueryProp) {
     setSeenQueryProp(queryProp);
     setQuery(queryProp);
   }
-
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, []);
 
   const filtered = useMemo(() => {
     if (server) return values;
@@ -98,8 +99,11 @@ export function CatalogValuePicker({
   const handleQueryChange = (next: string) => {
     setQuery(next);
     if (server && onQueryChange) {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => onQueryChange(next), 300);
+      if (!next.trim()) {
+        flushServerQuery("");
+        return;
+      }
+      scheduleServerQuery(next);
       return;
     }
     setPage(0);
@@ -130,6 +134,9 @@ export function CatalogValuePicker({
         placeholder="Find a tag, vendor, type, or metafield value"
         clearButton
         onClearButtonClick={() => handleQueryChange("")}
+        onBlur={() => {
+          if (server && onQueryChange) flushPending();
+        }}
       />
       {onSelectAll && total > 0 ? (
         <Button

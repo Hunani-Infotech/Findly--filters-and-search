@@ -1,5 +1,7 @@
 import prisma from "./db.server";
 import { getAdminNavExtras } from "./admin-nav-extras.server";
+import { createTtlCache } from "./read-cache.server";
+import { findShopCached } from "./shop-cache.server";
 import {
   cascadeOptions,
   parseFitmentBag,
@@ -16,6 +18,23 @@ export type YmmProductHit = {
   available: boolean;
   priceMin: number;
 };
+
+type LoadedFitment = YmmFitmentRow & {
+  title?: string;
+  imageUrl?: string;
+  available?: boolean;
+  priceMin?: number;
+};
+
+const ymmFitmentsCache = createTtlCache<LoadedFitment[]>(45_000);
+
+const PRODUCT_SLIM_SELECT = {
+  handle: true,
+  title: true,
+  imageUrl: true,
+  available: true,
+  priceMin: true,
+} as const;
 
 function metafieldMap(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -35,38 +54,65 @@ function fitmentsFromProduct(
   return tuples.map((values) => ({ handle, values }));
 }
 
-export async function loadYmmFitments(
+function toLoadedFitment(
+  handle: string,
+  values: string[],
+  product?: {
+    handle: string;
+    title: string;
+    imageUrl: string | null;
+    available: boolean;
+    priceMin: { toNumber?: () => number } | number | string;
+  },
+): LoadedFitment {
+  return {
+    handle: product?.handle ?? handle,
+    values,
+    title: product?.title,
+    imageUrl: product?.imageUrl ?? "",
+    available: product?.available,
+    priceMin: product ? Number(product.priceMin) : undefined,
+  };
+}
+
+async function loadYmmFitmentsUncached(
   shopId: string,
   ymm: VehicleFinderAdmin,
-): Promise<Array<YmmFitmentRow & { title?: string; imageUrl?: string; available?: boolean; priceMin?: number }>> {
+): Promise<LoadedFitment[]> {
+  const path = ymm.metafieldPath.trim();
+  const rows: LoadedFitment[] = [];
+
+  if (!path) {
+    const handles = [...new Set(ymm.rows.map((row) => row.handle).filter(Boolean))];
+    const products = handles.length
+      ? await prisma.productFacet.findMany({
+          where: { shopId, status: "ACTIVE", handle: { in: handles } },
+          select: PRODUCT_SLIM_SELECT,
+        })
+      : [];
+    const byHandle = new Map(products.map((product) => [product.handle.toLowerCase(), product]));
+    for (const row of ymm.rows) {
+      rows.push(toLoadedFitment(row.handle, row.values, byHandle.get(row.handle.toLowerCase())));
+    }
+    return rows;
+  }
+
   const products = await prisma.productFacet.findMany({
     where: { shopId, status: "ACTIVE" },
     select: {
-      handle: true,
-      title: true,
-      imageUrl: true,
-      available: true,
-      priceMin: true,
+      ...PRODUCT_SLIM_SELECT,
       metafields: true,
       variantMetafields: true,
     },
   });
   const byHandle = new Map(products.map((product) => [product.handle.toLowerCase(), product]));
-  const rows: Array<
-    YmmFitmentRow & {
-      title?: string;
-      imageUrl?: string;
-      available?: boolean;
-      priceMin?: number;
-    }
-  > = [];
 
   for (const product of products) {
     const fromMf = fitmentsFromProduct(
       product.handle,
       product.metafields,
       product.variantMetafields,
-      ymm.metafieldPath,
+      path,
     );
     for (const row of fromMf) {
       rows.push({
@@ -81,22 +127,21 @@ export async function loadYmmFitments(
   }
 
   for (const row of ymm.rows) {
-    const product = byHandle.get(row.handle.toLowerCase());
-    rows.push({
-      handle: product?.handle ?? row.handle,
-      values: row.values,
-      title: product?.title,
-      imageUrl: product?.imageUrl ?? "",
-      available: product?.available,
-      priceMin: product ? Number(product.priceMin) : undefined,
-    });
+    rows.push(toLoadedFitment(row.handle, row.values, byHandle.get(row.handle.toLowerCase())));
   }
 
   return rows;
 }
 
+export async function loadYmmFitments(
+  shopId: string,
+  ymm: VehicleFinderAdmin,
+): Promise<LoadedFitment[]> {
+  return ymmFitmentsCache.wrap(shopId, () => loadYmmFitmentsUncached(shopId, ymm));
+}
+
 export async function ymmConfigPayload(shopDomain: string) {
-  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  const shop = await findShopCached(shopDomain);
   if (!shop) return { error: "Shop not synced", status: 404 as const };
   const extras = await getAdminNavExtras(shop.id);
   const ymm = extras.ymm;
@@ -125,7 +170,7 @@ export async function ymmConfigPayload(shopDomain: string) {
 }
 
 export async function ymmOptionsPayload(shopDomain: string, selected: string[]) {
-  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  const shop = await findShopCached(shopDomain);
   if (!shop) return { error: "Shop not synced", status: 404 as const };
   const extras = await getAdminNavExtras(shop.id);
   const ymm = extras.ymm;
@@ -138,7 +183,7 @@ export async function ymmOptionsPayload(shopDomain: string, selected: string[]) 
 }
 
 export async function ymmSearchPayload(shopDomain: string, selected: string[]) {
-  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  const shop = await findShopCached(shopDomain);
   if (!shop) return { error: "Shop not synced", status: 404 as const };
   const extras = await getAdminNavExtras(shop.id);
   const ymm = extras.ymm;
@@ -150,24 +195,24 @@ export async function ymmSearchPayload(shopDomain: string, selected: string[]) {
   }
   const fitments = await loadYmmFitments(shop.id, ymm);
   const handles = uniqueHandles(fitments, selected);
-  const handleSet = new Set(handles);
-  const productsDb = await prisma.productFacet.findMany({
-    where: { shopId: shop.id, status: "ACTIVE", handle: { in: [...handleSet] } },
-  });
-  const byHandle = new Map(
-    productsDb.map((product) => [product.handle.toLowerCase(), product]),
-  );
+  const byHandle = new Map<string, LoadedFitment>();
+  for (const row of fitments) {
+    const key = row.handle.toLowerCase();
+    if (!byHandle.has(key)) byHandle.set(key, row);
+  }
   const products: YmmProductHit[] = [];
   for (const handle of handles) {
-    const product = byHandle.get(handle);
-    if (!product) continue;
+    const row = byHandle.get(handle);
+    if (!row) continue;
+    const title = row.title?.trim() || row.handle;
+    if (!title) continue;
     products.push({
-      handle: product.handle,
-      title: product.title,
-      imageUrl: product.imageUrl ?? "",
-      url: `/products/${product.handle}`,
-      available: product.available,
-      priceMin: Number(product.priceMin),
+      handle: row.handle,
+      title,
+      imageUrl: row.imageUrl ?? "",
+      url: `/products/${row.handle}`,
+      available: row.available ?? false,
+      priceMin: Number(row.priceMin ?? 0) || 0,
     });
   }
   return {

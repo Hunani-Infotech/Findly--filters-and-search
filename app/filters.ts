@@ -3,6 +3,7 @@ import { parseKnownMetafieldKeys } from "./facet-settings";
 import { mappingAppliesToFilter } from "./metafield-applies";
 import {
   COLLECTION_FACET_KEY,
+  collectionFacetCounts,
   collectionStorefrontPath,
   productInSelectedCollections,
   type ShopCollection,
@@ -1090,7 +1091,6 @@ export function productMatchesFilters(
         break;
       }
       case "collection": {
-        if (facet.displayType === "collection") break;
         if (
           !productInSelectedCollections(
             product.collectionGids,
@@ -1374,6 +1374,7 @@ export function buildFacetAggregations(
   valueSort: ValueSortMap = {},
   rangeBounds: RangeBoundMap = {},
   collectionCatalog: ShopCollection[] = [],
+  collectionTotals?: Map<string, number> | null,
 ) {
   const result: Array<{
     key: string;
@@ -1459,13 +1460,7 @@ export function buildFacetAggregations(
     }
 
     if (facet.source === "collection") {
-      const counts = new Map<string, number>();
-      for (const product of products) {
-        for (const gid of product.collectionGids || []) {
-          if (!gid) continue;
-          counts.set(gid, (counts.get(gid) || 0) + 1);
-        }
-      }
+      const counts = collectionFacetCounts(products, collectionTotals);
       const showAll = facet.displayType === "collection";
       const fromCatalog = collectionCatalog.length
         ? collectionCatalog
