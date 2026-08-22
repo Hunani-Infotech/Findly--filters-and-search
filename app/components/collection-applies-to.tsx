@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFetcher, useSearchParams } from "react-router";
 import {
   Badge,
@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
 import { withEmbeddedParams } from "../admin-path";
+import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 import {
   COLLECTION_PICKER_BROWSE_SIZE,
   COLLECTION_PICKER_PAGE_SIZE,
@@ -39,6 +40,7 @@ type CollectionPickerResponse = {
   total: number;
   hasNext: boolean;
   query: string;
+  requestId?: string;
 };
 
 type CollectionAppliesToProps = {
@@ -90,11 +92,13 @@ function pickerUrl(
   page: number,
   pageSize: number,
   searchParams: URLSearchParams,
+  requestId: string,
 ) {
   const next = new URLSearchParams();
   if (query) next.set("q", query);
   next.set("page", String(page));
   next.set("pageSize", String(pageSize));
+  next.set("r", requestId);
   return withEmbeddedParams(`/app/collections/picker?${next}`, searchParams);
 }
 
@@ -119,42 +123,56 @@ function useCollectionPickerPages({
   const [hasNext, setHasNext] = useState(initialHasNext);
   const [total, setTotal] = useState(initialTotal);
   const [applied, setApplied] = useState<CollectionPickerResponse | undefined>();
-  const timerRef = useRef<number>(0);
+  const loadSeq = useRef(0);
+  const [issuedRequestId, setIssuedRequestId] = useState("");
 
   const loading = fetcher.state !== "idle";
   const incoming = fetcher.state === "idle" ? fetcher.data : undefined;
 
-  if (
-    incoming &&
-    incoming !== applied &&
-    incoming.query === query.trim()
-  ) {
+  if (incoming && incoming !== applied) {
     setApplied(incoming);
-    setPage(incoming.page);
-    setHasNext(incoming.hasNext);
-    setTotal(incoming.total);
-    setRows(
-      mode === "append" && incoming.page > 1
-        ? mergeChoices(rows, incoming.collections)
-        : incoming.collections,
-    );
+    const incomingId = incoming.requestId || "";
+    const matchesRequest = incomingId
+      ? incomingId === issuedRequestId
+      : incoming.query === query.trim();
+    if (matchesRequest) {
+      setPage(incoming.page);
+      setHasNext(incoming.hasNext);
+      setTotal(incoming.total);
+      setRows(
+        mode === "append" && incoming.page > 1
+          ? mergeChoices(rows, incoming.collections)
+          : incoming.collections,
+      );
+    }
   }
 
   const loadPage = (nextPage: number, nextQuery = query.trim()) => {
-    fetcher.load(pickerUrl(nextQuery, nextPage, pageSize, searchParams));
+    const seq = ++loadSeq.current;
+    setIssuedRequestId(String(seq));
+    fetcher.load(
+      pickerUrl(nextQuery, nextPage, pageSize, searchParams, String(seq)),
+    );
   };
+
+  const {
+    run: scheduleLoad,
+    flush: flushLoad,
+    flushPending,
+    cancel,
+  } = useDebouncedCallback((nextQuery: string) => {
+    loadPage(1, nextQuery);
+  });
 
   const onQueryChange = (value: string) => {
     setQuery(value);
-    window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
-      loadPage(1, value.trim());
-    }, 250);
+    const next = value.trim();
+    if (!next) {
+      flushLoad("");
+      return;
+    }
+    scheduleLoad(next);
   };
-
-  useEffect(() => {
-    return () => window.clearTimeout(timerRef.current);
-  }, []);
 
   const loadMore = () => {
     if (loading || !hasNext) return;
@@ -167,7 +185,7 @@ function useCollectionPickerPages({
   };
 
   const reloadFirstPage = () => {
-    window.clearTimeout(timerRef.current);
+    cancel();
     setQuery("");
     loadPage(1, "");
   };
@@ -183,6 +201,7 @@ function useCollectionPickerPages({
     loadMore,
     goToPage,
     reloadFirstPage,
+    flushPending,
   };
 }
 
@@ -583,6 +602,7 @@ export function CollectionAppliesTo({
                   placeholder="Search for collections"
                   autoComplete="off"
                   onChange={browse.onQueryChange}
+                  onBlur={() => browse.flushPending()}
                 />
                 {browse.rows.length === 0 && !browse.loading ? (
                   <p>{emptyLabel}</p>

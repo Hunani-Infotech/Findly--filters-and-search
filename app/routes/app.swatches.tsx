@@ -47,6 +47,7 @@ import {
 } from "../color-swatches.server";
 import { listShopImages, uploadShopImage } from "../shopify-files.server";
 import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
+import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -386,10 +387,17 @@ export default function SwatchesPage() {
     fetcher.state === "loading";
   const toastSeen = useRef<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastExportKey = useRef<string | null>(null);
 
   const [query, setQuery] = useState(loadedQuery);
+  const {
+    run: scheduleSearch,
+    flush: flushSearch,
+    flushPending,
+  } = useDebouncedCallback((next: string) => {
+    if (next.trim() === loadedQuery.trim()) return;
+    navigate(swatchesHref(searchParams, { q: next }));
+  });
   const [selected, setSelected] = useState<string[]>([]);
   const [drafts, setDrafts] = useState(rows);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
@@ -552,12 +560,6 @@ export default function SwatchesPage() {
       result.payload,
     );
   }, [exportFetcher.data, optionKey]);
-
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, []);
 
   const paged = drafts;
 
@@ -726,11 +728,18 @@ export default function SwatchesPage() {
                 onChange={(event) => {
                   const next = event.target.value;
                   setQuery(next);
-                  if (searchTimer.current) clearTimeout(searchTimer.current);
-                  searchTimer.current = setTimeout(() => {
-                    navigate(swatchesHref(searchParams, { q: next }));
-                  }, 300);
+                  if (!next.trim()) {
+                    flushSearch("");
+                    return;
+                  }
+                  scheduleSearch(next);
                 }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  flushSearch(query);
+                }}
+                onBlur={() => flushPending()}
               />
             </div>
             <select

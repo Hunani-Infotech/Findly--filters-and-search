@@ -514,7 +514,7 @@
     this.activeInput = input;
     var trimmed = String(input.value || "").trim();
     if (!trimmed && this.showSuggestionsOnEmptyQuery) {
-      this.runQuery("");
+      this.scheduleQuery("");
     } else if (trimmed.length >= (this.minChars || DEFAULT_MIN_CHARS)) {
       this.scheduleQuery(trimmed);
     }

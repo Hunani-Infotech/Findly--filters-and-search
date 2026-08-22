@@ -633,7 +633,7 @@
         if (String(self.inputEl.value || "").trim()) return;
         if (self._didEmptyFocus) return;
         self._didEmptyFocus = true;
-        self.fetchSearch("");
+        self.scheduleQuery();
       });
     }
     if (this.formEl) {

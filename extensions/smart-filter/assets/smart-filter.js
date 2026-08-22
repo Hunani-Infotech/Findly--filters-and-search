@@ -2,6 +2,7 @@
   "use strict";
 
   var HASH_KEY = "sf";
+  var DEBOUNCE_MS = 300;
   var MSG_LOADING = "Loading filters…";
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
   var MSG_NO_MATCH = "No matching products.";
@@ -1856,13 +1857,28 @@
     }
     input.addEventListener("input", function () {
       window.clearTimeout(timer);
-      timer = window.setTimeout(applyValue, 250);
+      timer = 0;
+      if (!(input.value || "").trim()) {
+        applyValue();
+        return;
+      }
+      timer = window.setTimeout(function () {
+        timer = 0;
+        applyValue();
+      }, DEBOUNCE_MS);
     });
     input.addEventListener("keydown", function (event) {
       if (event.key === "Enter") {
         window.clearTimeout(timer);
+        timer = 0;
         applyValue();
       }
+    });
+    input.addEventListener("blur", function () {
+      if (!timer) return;
+      window.clearTimeout(timer);
+      timer = 0;
+      applyValue();
     });
   };
 
@@ -4334,7 +4350,7 @@
         window.clearTimeout(debounceId);
         debounceId = window.setTimeout(function () {
           self.applyRangeValues(facet, String(a), String(b), isProductPrice);
-        }, 280);
+        }, DEBOUNCE_MS);
       };
       low.addEventListener("input", commitFromSlider);
       high.addEventListener("input", commitFromSlider);
@@ -4348,7 +4364,7 @@
     } else {
       var onNumberCommit = function () {
         window.clearTimeout(debounceId);
-        debounceId = window.setTimeout(commitFromInputs, 300);
+        debounceId = window.setTimeout(commitFromInputs, DEBOUNCE_MS);
       };
       minInput.addEventListener("input", onNumberCommit);
       maxInput.addEventListener("input", onNumberCommit);

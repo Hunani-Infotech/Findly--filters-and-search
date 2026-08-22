@@ -7,6 +7,7 @@
   var MSG_ERROR = "Vehicle finder could not be loaded. Please try again.";
   var MSG_NO_MATCH = "No matching products.";
   var MSG_NEED_SELECTION = "Select at least one field to search.";
+  var DEBOUNCE_MS = 300;
   var EMPTY_MARKUP =
     '<h2 class="smart-filter-ymm__heading" data-ymm-heading></h2>' +
     '<input class="smart-filter-ymm__q" type="search" data-ymm-q placeholder="Search" autocomplete="off" hidden>' +
@@ -489,13 +490,31 @@
     }
     if (this.searchEl) {
       this.searchEl.addEventListener("input", function () {
-        self.applyKeywordFilter(true);
+        window.clearTimeout(self._filterTimer);
+        self._filterTimer = 0;
+        if (!String(self.searchEl.value || "").trim()) {
+          self.applyKeywordFilter(true);
+          return;
+        }
+        self._filterTimer = window.setTimeout(function () {
+          self._filterTimer = 0;
+          self.applyKeywordFilter(true);
+        }, DEBOUNCE_MS);
       });
       this.searchEl.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
           event.preventDefault();
+          window.clearTimeout(self._filterTimer);
+          self._filterTimer = 0;
+          self.applyKeywordFilter(true);
           self.search();
         }
+      });
+      this.searchEl.addEventListener("blur", function () {
+        if (!self._filterTimer) return;
+        window.clearTimeout(self._filterTimer);
+        self._filterTimer = 0;
+        self.applyKeywordFilter(true);
       });
     }
     setStatus(this.statusEl, MSG_LOADING, false);
