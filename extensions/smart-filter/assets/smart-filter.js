@@ -178,6 +178,14 @@
     }
   }
 
+  function logFilterError(message, err) {
+    if (typeof console === "undefined" || typeof console.error !== "function") {
+      return;
+    }
+    if (err) console.error("[Findly]", message, err);
+    else console.error("[Findly]", message);
+  }
+
   function hashHue(value) {
     var hash = 2166136261;
     var text = String(value || "").toLowerCase();
@@ -3814,6 +3822,8 @@
   };
 
   Widget.prototype.readPagingMeta = function (data, handles) {
+    data = data || {};
+    handles = handles || [];
     if (typeof data.page === "number" && data.page >= 1) {
       this.page = Math.floor(data.page);
     }
@@ -4115,6 +4125,7 @@
             this.facets = normalizeFacets(data);
             this.markFiltersApplied();
             this.renderFacets();
+            setStatus(this.statusEl, "", false);
           }
 
           var intercept = this.shouldInterceptPaging();
@@ -4226,20 +4237,15 @@
           if (err && err.name === "AbortError") return;
           if (reqId !== this._reqId) return;
           this.setGridBusy(false);
-          var hasFacets =
-            this.facetsEl && this.facetsEl.querySelector(".smart-filter__facet");
+          logFilterError(this.t("error", MSG_ERROR), err);
           if (append) {
             this.page = Math.max(1, (this.page || 1) - 1);
             this._loadingPage = false;
             this._appending = false;
             this.renderPager();
-            if (!hasFacets) {
-              setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
-            }
             return;
           }
           if (this.autoApplyFilters === false) this.renderApplyBar();
-          setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
           if (Array.isArray(this._visibleHandles)) {
             applyProductVisibility(this._visibleHandles);
             this.hideThemeDuplicateChrome();
@@ -5253,7 +5259,7 @@
 
   Widget.prototype.init = function () {
     if (!this.collectionId && !this.searchQuery) {
-      setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
+      logFilterError(this.t("error", MSG_ERROR));
       return;
     }
     this.restoreFromHash();
