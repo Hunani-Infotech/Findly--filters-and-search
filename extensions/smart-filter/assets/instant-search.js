@@ -443,6 +443,14 @@
 
   InstantSearch.prototype.runQuery = function (rawQuery) {
     var query = String(rawQuery || "").trim();
+    if (query === this._lastQuery) {
+      if (this.root.hasAttribute("hidden") && this.panel && this.panel.childNodes.length) {
+        setHidden(this.root, false);
+        this.position();
+      }
+      return;
+    }
+    this._lastQuery = query;
     var self = this;
     var reqId = ++this._reqId;
     var limit = (this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
@@ -468,6 +476,7 @@
       .catch(function (err) {
         if (err && err.name === "AbortError") return;
         if (reqId !== self._reqId) return;
+        if (self._lastQuery === query) self._lastQuery = undefined;
       });
   };
 
@@ -507,7 +516,7 @@
     if (!trimmed && this.showSuggestionsOnEmptyQuery) {
       this.runQuery("");
     } else if (trimmed.length >= (this.minChars || DEFAULT_MIN_CHARS)) {
-      this.runQuery(trimmed);
+      this.scheduleQuery(trimmed);
     }
   };
 

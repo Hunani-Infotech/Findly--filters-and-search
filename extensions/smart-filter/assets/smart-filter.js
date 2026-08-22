@@ -100,7 +100,20 @@
     }
   }
 
+  var lastAnalyticsStamp = "";
+  var lastAnalyticsAt = 0;
+
   function fireAnalytics(proxyBase, fields) {
+    var stamp =
+      String(fields.kind || "") +
+      "|" +
+      String(fields.combo || "") +
+      "|" +
+      String(fields.q || "");
+    var now = Date.now();
+    if (stamp === lastAnalyticsStamp && now - lastAnalyticsAt < 2000) return;
+    lastAnalyticsStamp = stamp;
+    lastAnalyticsAt = now;
     var url =
       String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
       "/analytics?kind=" +
@@ -1845,7 +1858,6 @@
       window.clearTimeout(timer);
       timer = window.setTimeout(applyValue, 250);
     });
-    input.addEventListener("search", applyValue);
     input.addEventListener("keydown", function (event) {
       if (event.key === "Enter") {
         window.clearTimeout(timer);
@@ -3323,7 +3335,6 @@
       this._loadingPage = false;
     }
 
-    var reqId = append ? this._reqId : ++this._reqId;
     if (!append && !this.hasFacetChrome()) {
       setStatus(this.statusEl, this.t("loading", MSG_LOADING), false);
     }
@@ -3337,9 +3348,29 @@
       }
     }
 
-    return fetch(this.buildProxyUrl(), {
+    var url = this.buildProxyUrl();
+    if (!append && this._inflightUrl === url && this._inflight) {
+      return this._inflight;
+    }
+
+    var reqId = append ? this._reqId : ++this._reqId;
+    if (!append && this._abortCtrl) {
+      try {
+        this._abortCtrl.abort();
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    var ctrl =
+      !append && typeof AbortController === "function"
+        ? new AbortController()
+        : null;
+    if (ctrl) this._abortCtrl = ctrl;
+
+    var request = fetch(url, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
+      signal: ctrl ? ctrl.signal : undefined,
     })
       .then(
         function (response) {
@@ -3471,7 +3502,8 @@
         }.bind(this),
       )
       .catch(
-        function () {
+        function (err) {
+          if (err && err.name === "AbortError") return;
           if (reqId !== this._reqId) return;
           setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
           if (append) {
@@ -3488,6 +3520,28 @@
           this.enterPagingFallback(null);
         }.bind(this),
       );
+
+    if (!append) {
+      this._inflightUrl = url;
+      this._inflight = request.then(
+        function (value) {
+          if (this._inflightUrl === url) {
+            this._inflight = null;
+            this._inflightUrl = "";
+          }
+          return value;
+        }.bind(this),
+        function (err) {
+          if (this._inflightUrl === url) {
+            this._inflight = null;
+            this._inflightUrl = "";
+          }
+          throw err;
+        }.bind(this),
+      );
+      return this._inflight;
+    }
+    return request;
   };
 
   Widget.prototype.bindDrawer = function () {
@@ -4108,13 +4162,24 @@
   };
 
   Widget.prototype.applyRangeValues = function (facet, min, max, isProductPrice) {
+    var nextMin = String(min || "");
+    var nextMax = String(max || "");
     if (isProductPrice) {
-      this.price.min = min;
-      this.price.max = max;
-    } else if (!min && !max) {
-      delete this.selected[facet.key];
+      if (this.price.min === nextMin && this.price.max === nextMax) return;
+      this.price.min = nextMin;
+      this.price.max = nextMax;
     } else {
-      this.selected[facet.key] = [min, max];
+      var current = this.selected[facet.key] || ["", ""];
+      if (
+        !nextMin &&
+        !nextMax &&
+        !this.selected[facet.key]
+      ) {
+        return;
+      }
+      if (current[0] === nextMin && current[1] === nextMax) return;
+      if (!nextMin && !nextMax) delete this.selected[facet.key];
+      else this.selected[facet.key] = [nextMin, nextMax];
     }
     this.commitFilters(true);
   };
@@ -4350,6 +4415,7 @@
   };
 
   function boot() {
+    if (window.__FINDLY_FILTER_BOOTED) return;
     var block = document.getElementById("smart-filter-root");
     var embed = document.getElementById("smart-filter-embed");
     if (block && embed && embed !== block) {
@@ -4357,8 +4423,29 @@
     }
     var root = block || embed;
     if (!root) return;
+    if (root.getAttribute("data-findly-ready") === "1") return;
+    window.__FINDLY_FILTER_BOOTED = true;
+    root.setAttribute("data-findly-ready", "1");
     new Widget(root).init();
   }
+
+  document.addEventListener("shopify:section:load", function (event) {
+    var scope = event && event.target;
+    if (!scope || !scope.querySelector) return;
+    if (
+      !scope.querySelector(
+        "#smart-filter-root, #smart-filter-embed, .smart-filter",
+      )
+    ) {
+      return;
+    }
+    window.__FINDLY_FILTER_BOOTED = false;
+    var next =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    if (next) next.removeAttribute("data-findly-ready");
+    boot();
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

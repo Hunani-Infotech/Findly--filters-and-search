@@ -7,6 +7,7 @@ import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
+import { withEmbeddedParamsFromRequest } from "../admin-path";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   deleteValueGroup,
@@ -21,10 +22,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const id = params.id;
-  if (!id) return redirect("/app/groups");
+  if (!id) return redirect(withEmbeddedParamsFromRequest(request, "/app/groups"));
 
   const group = await getValueGroup(shop.id, id);
-  if (!group) return redirect("/app/groups");
+  if (!group) return redirect(withEmbeddedParamsFromRequest(request, "/app/groups"));
 
   const catalog = await getCatalogValuesPage(shop.id, group.sourceKey);
   return {
@@ -42,19 +43,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
   const id = params.id;
-  if (!id) return redirect("/app/groups");
+  if (!id) return redirect(withEmbeddedParamsFromRequest(request, "/app/groups"));
 
   const form = await request.formData();
   const intent = String(form.get("intent") || "save");
   if (intent === "delete") {
     await deleteValueGroup(shop.id, id);
-    return redirect("/app/groups?notice=deleted");
+    return redirect(
+      withEmbeddedParamsFromRequest(request, "/app/groups?notice=deleted"),
+    );
   }
 
   const input = parseValueGroupForm(form);
   const result = await updateValueGroup(shop.id, id, input);
   if ("error" in result) return { error: result.error };
-  return redirect("/app/groups?notice=saved");
+  return redirect(
+    withEmbeddedParamsFromRequest(request, "/app/groups?notice=saved"),
+  );
 };
 
 export default function EditValueGroupPage() {

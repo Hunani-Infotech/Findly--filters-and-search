@@ -446,6 +446,11 @@ async function attachCollectionGids(
   }));
 }
 
+const filterPayloadInflight = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof loadCollectionFilterPayload>>>
+>();
+
 export async function getCollectionFilterPayload(input: {
   shopDomain: string;
   collectionId?: string | null;
@@ -463,14 +468,25 @@ export async function getCollectionFilterPayload(input: {
   if (cached && cached.expires > Date.now()) {
     return cached.result;
   }
-  const result = await loadCollectionFilterPayload(input);
-  if (!("error" in result && result.error)) {
-    filterPayloadCache.set(cacheKey, {
-      expires: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
-      result,
+  const pending = filterPayloadInflight.get(cacheKey);
+  if (pending) return pending;
+  const promise = loadCollectionFilterPayload(input)
+    .then((result) => {
+      if (!("error" in result && result.error)) {
+        filterPayloadCache.set(cacheKey, {
+          expires: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
+          result,
+        });
+      }
+      filterPayloadInflight.delete(cacheKey);
+      return result;
+    })
+    .catch((error) => {
+      filterPayloadInflight.delete(cacheKey);
+      throw error;
     });
-  }
-  return result;
+  filterPayloadInflight.set(cacheKey, promise);
+  return promise;
 }
 
 async function loadCollectionFilterPayload(input: {
@@ -897,7 +913,7 @@ async function buildFacetPayload(input: {
   };
 }
 
-export async function getSearchFilterPayload(input: {
+async function loadSearchFilterPayload(input: {
   shopDomain: string;
   query: string;
   selected: SelectedFilters;
@@ -970,6 +986,27 @@ export async function getSearchFilterPayload(input: {
     currency: payloadCurrency(context, allRows),
     appSettings,
   });
+}
+
+type SearchFilterPayload = Awaited<ReturnType<typeof loadSearchFilterPayload>>;
+const searchPayloadCache = createTtlCache<SearchFilterPayload>(45_000);
+
+export async function getSearchFilterPayload(
+  input: Parameters<typeof loadSearchFilterPayload>[0],
+) {
+  const cacheKey = `search:${collectionFilterCacheKey({
+    shopDomain: input.shopDomain,
+    selected: input.selected,
+    sort: input.sort,
+    query: input.query,
+    locale: input.locale,
+    page: input.page,
+    pageSize: input.pageSize,
+    country: input.country,
+    currency: input.currency,
+    companyLocationId: input.companyLocationId,
+  })}`;
+  return searchPayloadCache.wrap(cacheKey, () => loadSearchFilterPayload(input));
 }
 
 export async function getInstantSearchWidgetPayload(
