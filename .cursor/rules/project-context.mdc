@@ -12,7 +12,7 @@ Shopify embedded app. **Launch MVP = solid collection filters + storefront searc
 - Polaris (admin UI)
 - Theme App Extension for storefront (not script tags)
 - Admin **GraphQL** API only — never REST
-- PostgreSQL + Prisma
+- PostgreSQL + Prisma (hosted: Supabase; `DATABASE_URL` pooler :6543 + `DIRECT_URL` direct :5432)
 - Redis + BullMQ for sync jobs
 - Fly.io hosting target
 - Shopify Billing API for plans

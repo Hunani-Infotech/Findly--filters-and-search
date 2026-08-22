@@ -10,6 +10,7 @@ declare namespace NodeJS {
     SHOPIFY_FLAG_STORE?: string;
     SHOP_CUSTOM_DOMAIN?: string;
     DATABASE_URL?: string;
+    DIRECT_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
     SUPPORT_EMAIL?: string;

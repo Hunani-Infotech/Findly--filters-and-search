@@ -16,7 +16,7 @@ If work drifts into these, stop and return to the current step below. There is n
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Scaffold + Prisma + Postgres connection | **VERIFIED** — `verify-step1.mjs` → `STEP1_OK` (Postgres `localhost:5432` + Redis `localhost:6379`; keep `npm run dev` running) |
+| 1 | Scaffold + Prisma + Postgres connection | **VERIFIED** (data copied to **Supabase**). Re-run `verify-step1.mjs` after restart so it hits `DATABASE_URL`, not the old localhost copy. Redis stays `localhost:6379`. |
 | 2 | Auth/session E2E install on dev store | **VERIFIED** — `verify-step2.mjs` → `STEP2_OK` (offline Session for `findly-test-store.myshopify.com`) |
 | 3 | Data models + migrations applied | Waiting on step 1 |
 | 4 | Bulk sync on install (50+ products) | Waiting on steps 1–3 |
@@ -34,15 +34,18 @@ If work drifts into these, stop and return to the current step below. There is n
 
 Pick one:
 
-1. **No Docker (default):** from the project root, `npm install` then `npm run dev`. That starts local Postgres + Redis, runs Prisma migrations, the worker, and the Shopify app. Data stays in gitignored `.local/`.
-2. Install Docker Desktop, then:
+1. **Supabase (current):** set both URLs in `.env`, then `npm install` and `npm run dev`.
+   - `DATABASE_URL` — pooled (port 6543) with `pgbouncer=true&sslmode=require`
+   - `DIRECT_URL` — direct (port 5432) with `sslmode=require`
+   Redis still runs locally. `npm run dev` may also start unused local Postgres on `5432` if that port is free; Prisma ignores it while `.env` points at Supabase. Catalog was copied from local `smart_filter` — do not drop the local DB until the app is confirmed.
+2. **No Docker (local rollback):** comment the Supabase URLs, restore `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_filter?schema=public`, and `npm run dev`. Data stays in gitignored `.local/`.
+3. Install Docker Desktop, then:
    ```powershell
    docker compose up -d
    npm run setup
    ```
-3. Or set `DATABASE_URL` in `.env` to a hosted Postgres (Neon/Supabase/Fly) and run `npm run setup`.
 
-Verify:
+Verify (uses whatever `DATABASE_URL` / `DIRECT_URL` are in `.env`):
 ```powershell
 node .\node_modules\prisma\build\index.js migrate deploy
 node .\scripts\verify-step1.mjs

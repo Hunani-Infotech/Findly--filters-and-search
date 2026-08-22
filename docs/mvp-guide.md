@@ -37,7 +37,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Admin UI | Polaris | Required for App Store visual/UX approval |
 | Storefront widget | Theme App Extension | Only supported storefront injection method now; async, no page-speed penalty |
 | API layer | Admin GraphQL API (not REST) | Shopify is phasing out REST for new apps |
-| Database | Postgres | Better fit than Mongo for relational filter-config/metafield-mapping data |
+| Database | Postgres (Supabase) | Hosted pooler + direct URLs; better fit than Mongo for relational filter-config/metafield-mapping data |
 | Queue/sync | Redis + BullMQ | Product/metafield sync jobs, no rate-limit surprises |
 | Billing | Shopify Billing API (`AppSubscriptionCreate`) | Wire early, even for the free tier |
 | Hosting | Fly.io or Railway | Known-good Shopify app deploy paths |

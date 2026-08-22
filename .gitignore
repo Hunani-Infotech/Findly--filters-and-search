@@ -14,7 +14,6 @@ node_modules
 database.sqlite
 
 .env
-.env.*
 
 # npm lockfile is tracked so GitHub CI (`npm ci`) matches local installs.
 yarn.lock
@@ -31,6 +30,9 @@ pnpm-lock.yaml
 
 # Local Postgres/Redis data and downloaded binaries (never commit)
 .local/
+
+# Local Postgres dumps (never commit)
+*.dump
 
 # Local research dumps (never commit)
 .local-globo-research/
