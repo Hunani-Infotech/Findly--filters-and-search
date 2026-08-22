@@ -655,6 +655,79 @@
     return bestCount ? bestParent : null;
   }
 
+  function inferCollectionId() {
+    try {
+      var meta = window.ShopifyAnalytics && window.ShopifyAnalytics.meta;
+      var page = meta && meta.page;
+      if (!page) return "";
+      var type = String(page.resourceType || "").toLowerCase();
+      if (
+        type === "collection" &&
+        page.resourceId != null &&
+        String(page.resourceId) !== ""
+      ) {
+        return String(page.resourceId);
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return "";
+  }
+
+  function isDocumentRoot(el) {
+    if (!el || !el.tagName) return true;
+    var tag = String(el.tagName).toLowerCase();
+    return tag === "body" || tag === "html";
+  }
+
+  function widgetMountNode(root) {
+    if (!root) return null;
+    if (root.closest) {
+      var block = root.closest(".shopify-block, .shopify-app-block");
+      if (block) return block;
+    }
+    return root;
+  }
+
+  function closestLayoutEl(el) {
+    if (!el) return null;
+    if (el.classList && el.classList.contains("sf-collection-layout")) return el;
+    return el.closest ? el.closest(".sf-collection-layout") : null;
+  }
+
+  function applyLayoutPositionClass(el, position) {
+    if (!el || !el.classList) return;
+    el.classList.add("sf-collection-layout");
+    el.classList.remove(
+      "sf-collection-layout--left",
+      "sf-collection-layout--right",
+      "sf-collection-layout--top",
+      "sf-collection-layout--offcanvas",
+    );
+    el.classList.add("sf-collection-layout--" + position);
+  }
+
+  function placeMountInLayout(layout, mount, position) {
+    if (!layout || !mount) return;
+    if (mount.classList) mount.classList.add("sf-collection-layout__aside");
+    var atStart = position !== "right";
+    if (atStart) {
+      if (layout.firstChild !== mount) {
+        layout.insertBefore(mount, layout.firstChild);
+      }
+    } else if (layout.lastChild !== mount) {
+      layout.appendChild(mount);
+    }
+  }
+
+  function hideEmptyShopifySection(section, mount) {
+    if (!section || (mount && section.contains(mount))) return;
+    if (section.querySelector(".shopify-block")) return;
+    if (section.querySelector(GRID_HINT_SELECTOR)) return;
+    section.style.display = "none";
+    section.setAttribute("data-sf-empty-hidden", "true");
+  }
+
   function clampPageSize(n) {
     var count = Number(n) || 0;
     if (!count) return 24;
@@ -902,6 +975,9 @@
       "",
     );
     this.collectionId = root.getAttribute("data-collection-id") || "";
+    if (!this.collectionId) {
+      this.collectionId = inferCollectionId();
+    }
     this.searchQuery = (root.getAttribute("data-search-query") || "").trim();
     if (!this.searchQuery && !this.collectionId) {
       try {
@@ -963,8 +1039,14 @@
       "";
     this.companyLocation = root.getAttribute("data-company-location") || "";
     this.i18n = {};
+    this.widgetFontMode = "theme";
+    this._layoutAttempts = 0;
+    this._layoutRetryTimer = null;
+    this._layoutFallbackDone = false;
     root.classList.add("smart-filter--" + this.position);
     root.setAttribute("data-position", this.position);
+    this.inheritThemeType();
+    this.syncCollectionLayout();
     this.bindDrawer();
     this.bindSort();
     this.bindCollectionSearch();
@@ -1051,6 +1133,8 @@
       this.root.style.removeProperty("--sf-font-body");
       this.root.style.removeProperty("--sf-font-heading");
     }
+    this.widgetFontMode = fontMode;
+    this.inheritThemeType();
 
     if (typeof settings.widgetTitle === "string" && this.titleEl) {
       var title = settings.widgetTitle.trim();
@@ -1109,6 +1193,7 @@
       this.root.classList.add("smart-filter--" + this.position);
       this.root.setAttribute("data-position", this.position);
     }
+    this.syncCollectionLayout();
 
     this.enableFiltersOnSearch =
       settings.enableFiltersOnSearch == null
@@ -1410,6 +1495,162 @@
     if (this._gridParent && this._gridParent.parentNode) return this._gridParent;
     this._gridParent = discoverGridParent();
     return this._gridParent;
+  };
+
+  Widget.prototype.findLayoutHost = function (grid) {
+    if (!grid) return null;
+
+    function wrapsGrid(el) {
+      if (isDocumentRoot(el)) return false;
+      return el === grid || (el.contains && el.contains(grid));
+    }
+
+    var byId = document.getElementById("ProductGridContainer");
+    if (wrapsGrid(byId)) return byId;
+
+    var i;
+    var containers = document.querySelectorAll(
+      "[class*='product-grid-container']",
+    );
+    for (i = 0; i < containers.length; i++) {
+      if (wrapsGrid(containers[i])) return containers[i];
+    }
+
+    var collections = document.querySelectorAll(".collection");
+    for (i = 0; i < collections.length; i++) {
+      if (wrapsGrid(collections[i])) return collections[i];
+    }
+
+    var sections = document.querySelectorAll("main .shopify-section");
+    for (i = 0; i < sections.length; i++) {
+      if (wrapsGrid(sections[i])) return sections[i];
+    }
+
+    var parent = grid.parentElement;
+    if (parent && !isDocumentRoot(parent)) return parent;
+    return null;
+  };
+
+  Widget.prototype.inheritThemeType = function () {
+    var sample = this.ensureGridParent() || document.body;
+    if (!sample || typeof window.getComputedStyle !== "function") return;
+    var cs = window.getComputedStyle(sample);
+    this.root.style.setProperty("--sf-ink", cs.color);
+    var fontMode = this.widgetFontMode || "theme";
+    var useThemeFace = fontMode === "theme" || fontMode === "";
+    if (useThemeFace) {
+      this.root.style.fontFamily = cs.fontFamily;
+      this.root.style.fontSize = cs.fontSize;
+    } else {
+      this.root.style.fontFamily = "";
+      this.root.style.fontSize = cs.fontSize;
+    }
+  };
+
+  Widget.prototype.scheduleLayoutRetry = function () {
+    var self = this;
+    if (this._layoutRetryTimer) return;
+    if (this._layoutAttempts >= 8) return;
+    this._layoutRetryTimer = window.setTimeout(function () {
+      self._layoutRetryTimer = null;
+      self._layoutAttempts += 1;
+      self.syncCollectionLayout();
+    }, 150);
+  };
+
+  Widget.prototype.placeAtMainFallback = function (mount) {
+    if (!mount || this._layoutFallbackDone) return false;
+    var main =
+      document.getElementById("MainContent") ||
+      document.querySelector("main");
+    if (!main || isDocumentRoot(main)) return false;
+    this._layoutFallbackDone = true;
+    var originSection = mount.closest ? mount.closest(".shopify-section") : null;
+    if (main.firstChild) {
+      main.insertBefore(mount, main.firstChild);
+    } else {
+      main.appendChild(mount);
+    }
+    hideEmptyShopifySection(originSection, mount);
+    return true;
+  };
+
+  Widget.prototype.syncCollectionLayout = function () {
+    var mount = widgetMountNode(this.root);
+    if (!mount) return;
+
+    var grid = this.ensureGridParent();
+    var position = POSITIONS[this.position] ? this.position : "left";
+
+    if (!grid) {
+      this.placeAtMainFallback(mount);
+      if (this._layoutAttempts >= 8) {
+        this.markFilterPlaced();
+        return;
+      }
+      this.scheduleLayoutRetry();
+      return;
+    }
+
+    this._layoutAttempts = 0;
+    if (this._layoutRetryTimer) {
+      window.clearTimeout(this._layoutRetryTimer);
+      this._layoutRetryTimer = null;
+    }
+
+    var host = this.findLayoutHost(grid);
+    if (!host && grid && !isDocumentRoot(grid)) host = grid;
+    if (!host) {
+      this.placeAtMainFallback(mount);
+      this.markFilterPlaced();
+      return;
+    }
+
+    var originSection = mount.closest ? mount.closest(".shopify-section") : null;
+    var layout;
+
+    if (host.contains(mount)) {
+      applyLayoutPositionClass(host, position);
+      placeMountInLayout(host, mount, position);
+      layout = host;
+    } else {
+      layout =
+        closestLayoutEl(mount) ||
+        closestLayoutEl(host) ||
+        (host.parentNode &&
+        host.parentNode.classList &&
+        host.parentNode.classList.contains("sf-collection-layout")
+          ? host.parentNode
+          : null);
+      if (layout) {
+        applyLayoutPositionClass(layout, position);
+        if (host.parentNode !== layout) {
+          layout.appendChild(host);
+        }
+        placeMountInLayout(layout, mount, position);
+      } else {
+        var parent = host.parentNode;
+        if (!parent) {
+          this.placeAtMainFallback(mount);
+          this.markFilterPlaced();
+          return;
+        }
+        layout = document.createElement("div");
+        applyLayoutPositionClass(layout, position);
+        parent.insertBefore(layout, host);
+        layout.appendChild(host);
+        placeMountInLayout(layout, mount, position);
+      }
+    }
+
+    hideEmptyShopifySection(originSection, mount);
+    this.markFilterPlaced();
+    this.inheritThemeType();
+  };
+
+  Widget.prototype.markFilterPlaced = function () {
+    this.root.classList.add("is-placed");
+    this.root.setAttribute("data-placed", "true");
   };
 
   Widget.prototype.ensurePageSize = function () {
@@ -2741,12 +2982,19 @@
       setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
       return;
     }
+    this.syncCollectionLayout();
+    this.inheritThemeType();
     this.restoreFromHash();
     this.fetchFilters();
   };
 
   function boot() {
-    var root = document.getElementById("smart-filter-root");
+    var block = document.getElementById("smart-filter-root");
+    var embed = document.getElementById("smart-filter-embed");
+    if (block && embed && embed !== block) {
+      if (embed.parentNode) embed.parentNode.removeChild(embed);
+    }
+    var root = block || embed;
     if (!root) return;
     new Widget(root).init();
   }

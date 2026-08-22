@@ -631,7 +631,7 @@ export default function SettingsPage() {
                         label="Show filters on the search results page"
                         checked={settings.enableFiltersOnSearch}
                         disabled={saving}
-                        helpText="Still add the Collection filters block on the search template; this toggle shows or hides it."
+                        helpText="Turn on the Collection filters app embed; this toggle shows or hides filters on the search results page."
                         onChange={(checked) =>
                           setSettings((s) => ({
                             ...s,
@@ -884,9 +884,10 @@ export default function SettingsPage() {
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Common filter layouts: Vertical (left or right
-                        sidebar), Horizontal (filters above the grid), or
-                        Off-canvas (Filter button + drawer). Place the theme
-                        block above the product grid for Horizontal.
+                        sidebar next to the product grid), Horizontal (filters
+                        above the grid), or Off-canvas (Filter button +
+                        drawer). Enable the Collection filters app embed to
+                        place this automatically.
                       </Text>
                       <LayoutPicker
                         value={settings.widgetPosition}

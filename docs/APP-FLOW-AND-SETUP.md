@@ -96,7 +96,7 @@ Web process **only enqueues**; worker process runs jobs (`npm run worker`).
 
 ### 3.4 Storefront filter widget
 
-1. Merchant adds **Collection filters** app block on a collection template.
+1. Merchant enables the **Collection filters** app embed (Theme settings → App embeds). The optional **Collection filters** app block is still available for custom placement.
 2. Widget boots on idle (`requestIdleCallback`) — does not block LCP.
 3. Fetches `GET /apps/smart-filter/filters?collection_id=…` (App Proxy → your app).
 4. App loads `FilterConfig` + mappings + indexed products for that collection → JSON facets.

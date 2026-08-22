@@ -73,13 +73,13 @@ export function themeEditorUrls(
   const editor = `https://${shopDomain}/admin/themes/current/editor`;
   if (!apiKey) {
     return {
-      collectionFilters: `${editor}?template=collection`,
+      collectionFilters: `${editor}?context=apps`,
       productSearch: `${editor}?template=search`,
       instantSearch: `${editor}?context=apps`,
     };
   }
   return {
-    collectionFilters: `${editor}?template=collection&addAppBlockId=${apiKey}/collection-filters&target=newAppsSection`,
+    collectionFilters: `${editor}?context=apps&activateAppId=${apiKey}/collection-filters-embed`,
     productSearch: `${editor}?template=search&addAppBlockId=${apiKey}/product-search&target=newAppsSection`,
     instantSearch: `${editor}?context=apps&activateAppId=${apiKey}/instant-search`,
   };
@@ -149,13 +149,13 @@ export async function getSetupProgress(
     {
       id: "collection-filters",
       number: 3,
-      title: "Add Collection filters",
+      title: "Enable Collection filters",
       description:
-        "Place the Collection filters app block on your collection template. Add it to the search template too if shoppers should filter search results.",
+        "Turn on the Collection filters app embed under Theme settings → App embeds. Filters appear automatically on collection pages, to the left of the product grid.",
       href: editorUrls.collectionFilters,
       actionLabel: flags["collection-filters"]
-        ? "Open collection editor"
-        : "Add to collection template",
+        ? "Open app embeds"
+        : "Enable app embed",
       status: themeStatus(flags["collection-filters"]),
       external: true,
     },
