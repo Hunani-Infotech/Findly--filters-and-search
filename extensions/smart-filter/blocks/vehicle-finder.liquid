@@ -1,0 +1,52 @@
+<div
+  class="smart-filter-ymm"
+  data-ymm-root
+  data-proxy-base="/apps/smart-filter"
+  data-locale="{{ request.locale.iso_code }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-currency="{{ cart.currency.iso_code }}"
+  data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
+  {{ block.shopify_attributes }}
+>
+  <h2 class="smart-filter-ymm__heading" data-ymm-heading></h2>
+  <label class="smart-filter-ymm__q-label vis-hidden" for="smart-filter-ymm-q-{{ block.id }}">
+    Search
+  </label>
+  <input
+    id="smart-filter-ymm-q-{{ block.id }}"
+    class="smart-filter-ymm__q"
+    type="search"
+    data-ymm-q
+    placeholder="Search"
+    autocomplete="off"
+    hidden
+  >
+  <div class="smart-filter-ymm__fields" data-ymm-fields></div>
+  <button type="button" class="smart-filter-ymm__search" data-ymm-search>
+    SEARCH
+  </button>
+  <div class="smart-filter-ymm__status" data-ymm-status aria-live="polite"></div>
+  <ul class="smart-filter-ymm__results" data-ymm-results role="list"></ul>
+</div>
+
+{% schema %}
+{
+  "name": "t:blocks.vehicle_finder.name",
+  "target": "section",
+  "enabled_on": {
+    "templates": [
+      "index",
+      "product",
+      "collection",
+      "page",
+      "search",
+      "cart",
+      "blog",
+      "article"
+    ]
+  },
+  "stylesheet": "vehicle-finder.css",
+  "javascript": "vehicle-finder.js",
+  "settings": []
+}
+{% endschema %}

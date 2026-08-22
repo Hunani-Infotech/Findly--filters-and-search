@@ -1,4 +1,13 @@
-# Local Postgres + Redis for Findly: Smart Filters & Search development
+# Optional Docker stack: Postgres + Redis 7 + BullMQ worker
+# Default local path does not need Docker: `npm run dev`
+# (embedded Postgres + Redis, worker, and Shopify app).
+#
+# Docker one-click (Windows):
+#   Double-click START-DEV.cmd
+#
+# Infra only:
+#   npm run docker:up
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,11 +19,44 @@ services:
       POSTGRES_DB: smart_filter
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_filter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    image: node:20-bookworm-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+      - worker_node_modules:/app/node_modules
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_filter?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "npm ci &&
+      node ./node_modules/prisma/build/index.js generate &&
+      node --import tsx app/workers/index.ts"
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  worker_node_modules:

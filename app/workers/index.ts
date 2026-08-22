@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import { log } from "../log.server";
 import { SYNC_QUEUE } from "../queues.server";
 import { getRedis } from "../redis.server";
 import { processSyncJob } from "./processors";
@@ -11,17 +12,17 @@ const syncWorker = new Worker(SYNC_QUEUE, processSyncJob, {
 });
 
 syncWorker.on("completed", (job) => {
-  console.log(`[sync] completed ${job.name} (${job.id})`);
+  log.success(`[sync] completed ${job.name} (${job.id})`);
 });
 
 syncWorker.on("failed", (job, err) => {
-  console.error(`[sync] failed ${job?.name} (${job?.id}):`, err.message);
+  log.error(`[sync] failed ${job?.name} (${job?.id}): ${err.message}`);
 });
 
-console.log(`Smart Filter worker listening on ${SYNC_QUEUE}`);
+log.info(`Smart Filter worker listening on ${SYNC_QUEUE}`);
 
 async function shutdown() {
-  console.log("Shutting down worker…");
+  log.info("Shutting down worker…");
   await syncWorker.close();
   process.exit(0);
 }

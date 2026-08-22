@@ -1,0 +1,9 @@
+name = "React Router"
+roles = ["frontend", "backend"]
+webhooks_path = "/webhooks/app/uninstalled"
+
+# Use `node ./...` (not npx). Folder name contains "&" which breaks Windows cmd + npx paths.
+# Generate is best-effort on Windows: the worker keeps query_engine-windows.dll.node locked.
+[commands]
+predev = "node ./scripts/predev.mjs"
+dev = "node ./node_modules/@react-router/dev/bin.js dev"

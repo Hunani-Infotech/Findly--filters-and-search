@@ -7,10 +7,21 @@ declare namespace NodeJS {
     SHOPIFY_API_SECRET?: string;
     SCOPES?: string;
     SHOPIFY_APP_URL?: string;
+    SHOPIFY_FLAG_STORE?: string;
     SHOP_CUSTOM_DOMAIN?: string;
     DATABASE_URL?: string;
+    DIRECT_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
+    GMAIL_USER?: string;
+    GMAIL_APP_PASSWORD?: string;
+    SUPPORT_EMAIL?: string;
+    SMTP_HOST?: string;
+    SMTP_PORT?: string;
+    SMTP_USER?: string;
+    SMTP_PASSWORD?: string;
+    SMTP_FROM?: string;
+    DEV_UNLOCK_LIMITS?: string;
     PROXY_SIGNATURE_BYPASS?: string;
     PORT?: string;
   }

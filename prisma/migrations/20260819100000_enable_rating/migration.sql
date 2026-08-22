@@ -1,0 +1,1 @@
+ALTER TABLE "FilterConfig" ADD COLUMN "enableRating" BOOLEAN NOT NULL DEFAULT false;

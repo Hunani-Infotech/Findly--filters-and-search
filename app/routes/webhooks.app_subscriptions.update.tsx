@@ -5,11 +5,13 @@ import { ensureShop } from "../shop.server";
 import {
   PLANS,
   hasActivePaidSubscription,
+  planKeyFromName,
 } from "../billing.server";
+import { log } from "../log.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
-  console.log(`Received ${topic} webhook for ${shop}`);
+  log.info(`Received ${topic} webhook for ${shop}`);
 
   const shopRow = await ensureShop(shop);
   const body = payload as {
@@ -32,7 +34,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const planName = isPaid
       ? sub.name || PLANS.pro.name
       : PLANS.free.name;
-    const limits = isPaid ? PLANS.pro : PLANS.free;
+    const resolvedKey = isPaid ? planKeyFromName(planName) : "free";
+    const paidKey = resolvedKey === "free" && isPaid ? "pro" : resolvedKey;
+    const limits = PLANS[paidKey];
 
     const subscription = await prisma.subscription.upsert({
       where: { shopId: shopRow.id },
@@ -54,7 +58,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     const planKey = hasActivePaidSubscription(subscription)
-      ? PLANS.pro.key
+      ? paidKey === "free"
+        ? PLANS.pro.key
+        : paidKey
       : PLANS.free.key;
 
     await prisma.shop.update({

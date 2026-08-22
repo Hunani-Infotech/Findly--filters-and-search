@@ -15,7 +15,7 @@ flowchart LR
   Shopify -->|webhooks| Web[Fly_web]
   Web -->|enqueue| Redis[(Redis_BullMQ)]
   Redis --> Worker[Fly_worker]
-  Worker -->|upsert_index| PG[(Postgres)]
+  Worker -->|upsert_index| PG[(Supabase_Postgres)]
   Admin --> PG
   Shopper[Shopper_Storefront] --> TEA[Theme_App_Extension]
   TEA -->|App_Proxy| Web
@@ -57,10 +57,10 @@ app/
   proxy.server.ts           # App Proxy HMAC + filter payload
   filters.server.ts         # Facet matching / aggregations
 extensions/smart-filter/    # Theme App Extension (Liquid + JS + CSS)
-prisma/                     # Schema + migrations (PostgreSQL)
+prisma/                     # Schema + migrations (PostgreSQL; Supabase via DATABASE_URL + DIRECT_URL)
 docs/                       # Specs + this guide
 fly.toml                    # web + worker processes
-docker-compose.yml          # Local Postgres + Redis
+docker-compose.yml          # Optional Docker Postgres + Redis (`npm run dev` does not need this)
 ```
 
 ---
@@ -145,7 +145,7 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 |------|-----|
 | **Node.js** ≥ 20.19 (see `package.json` engines) | App runtime |
 | **npm** | Dependencies |
-| **Docker Desktop** *(or hosted Postgres/Redis)* | Local DB + Redis |
+| **Docker Desktop** *(optional)* | Alternative to the bundled local Postgres/Redis |
 | **Shopify CLI** (`npm i -g @shopify/cli`) | `shopify app dev` / deploy |
 | **Fly CLI** *(when deploying)* | `fly launch` / secrets / deploy |
 | **Git** | Version control |
@@ -157,7 +157,7 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 | Shopify Partner account | Create the app |
 | Development store | Install + test (ideally **50+ products**) |
 | App API key + secret | `.env` + `shopify.app.toml` `client_id` |
-| Postgres database | Sessions + index |
+| Postgres database (Supabase) | Sessions + catalog index. Prisma: pooled `DATABASE_URL` (6543) + `DIRECT_URL` (5432) |
 | Redis | BullMQ `sync-queue` |
 | Fly.io *(production)* | Host `web` + `worker` |
 
@@ -170,9 +170,10 @@ Copy `.env.example` → `.env` (never commit secrets):
 | `SHOPIFY_API_KEY` | Yes | Partner app client ID |
 | `SHOPIFY_API_SECRET` | Yes | Partner app secret |
 | `SCOPES` | Yes | Default `read_products` |
-| `SHOPIFY_APP_URL` | Yes | Tunnel/prod URL |
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `REDIS_URL` | Yes | Redis for BullMQ |
+| `SHOPIFY_APP_URL` | Yes | Local: CLI tunnel. Production: `https://findly.hunaniinfotech.com` |
+| `DATABASE_URL` | Yes | Supabase **pooled** URI (port 6543) with `?pgbouncer=true&sslmode=require`. Encode `@` in the password as `%40`. |
+| `DIRECT_URL` | Yes | Supabase **direct** URI (port 5432) with `?sslmode=require`. Used by `prisma migrate deploy`. |
+| `REDIS_URL` | Yes | Redis for BullMQ (local `redis://localhost:6379` in dev) |
 | `BILLING_TEST_MODE` | Recommended | `true` in development |
 | `PROXY_SIGNATURE_BYPASS` | Optional | Local only |
 | `PORT` | Optional | Default `3000` |
@@ -184,22 +185,16 @@ Also set `client_id` in `shopify.app.toml` to the API key.
 ## 7. Local run (after tools are ready)
 
 ```powershell
-# 1) Infra
-docker compose up -d
-
-# 2) App
+# 1) Fill .env with Shopify credentials, then:
 npm install
-npm run setup          # prisma generate + migrate deploy
+npm run dev            # Redis (+ unused local Postgres if 5432 is free) + migrate on Supabase + worker + Shopify app
+
+# 2) Install on a development store in the browser
 node .\scripts\verify-step1.mjs
-
-# 3) Fill .env with Shopify credentials, then:
-npm i -g @shopify/cli
-npm run dev            # terminal A — web + tunnel
-npm run worker         # terminal B — sync-queue
-
-# 4) Install on a development store in the browser
 node .\scripts\verify-step2.mjs
 ```
+
+`npm run dev` still starts local Redis (and local Postgres in `.local/` if port 5432 is free). With the current `.env`, Prisma talks to **Supabase**, not that local copy. `prisma migrate deploy` therefore runs against live Supabase. Docker remains optional for a local DB: `docker compose up -d`, then `npm run dev:shopify` and `npm run worker`. Keep the local database until the app is confirmed on Supabase.
 
 ---
 
@@ -224,11 +219,11 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 
 ### Production (later)
 
-1. Provision Postgres + Redis (Fly/Neon/Upstash, etc.).
-2. `fly secrets set` for secrets; set non-secrets in `fly.toml`.
+1. Use the existing Supabase Postgres project (`DATABASE_URL` pooler + `DIRECT_URL` direct) and provision Redis (local for dev; Fly/Upstash/VPS for production).
+2. `fly secrets set` for secrets including `DATABASE_URL` and `DIRECT_URL`; set non-secrets in `fly.toml`.
 3. Deploy image with processes: `web` + `worker`.
 4. `shopify app deploy` for app config + Theme App Extension.
-5. Point App Proxy / app URL at the Fly hostname.
+5. Point App URL, OAuth redirect, and App Proxy at `https://findly.hunaniinfotech.com` (CNAME to the Fly app + `fly certs add`).
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.
 
 ---

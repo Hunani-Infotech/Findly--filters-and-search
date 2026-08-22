@@ -1,6 +1,9 @@
 import type { LoaderFunctionArgs } from "react-router";
 import {
   getCollectionFilterPayload,
+  getSearchFilterPayload,
+  parseFilterPage,
+  parseFilterPageSize,
   parseSelectedFromSearchParams,
   verifyAppProxySignature,
 } from "../proxy.server";
@@ -27,14 +30,49 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("shop") || url.searchParams.get("shop_domain") || "";
   const collectionId = url.searchParams.get("collection_id");
   const collectionGid = url.searchParams.get("collection_gid");
+  const searchQuery =
+    url.searchParams.get("q") || url.searchParams.get("query") || "";
   const selected = parseSelectedFromSearchParams(url.searchParams);
+  const sort = url.searchParams.get("sort");
+  const locale =
+    url.searchParams.get("locale") || url.searchParams.get("locale_code") || "";
+  const page = parseFilterPage(url.searchParams.get("page"));
+  const pageSize = parseFilterPageSize(url.searchParams.get("pageSize"));
+  const country = url.searchParams.get("country");
+  const currency = url.searchParams.get("currency");
+  const companyLocationId =
+    url.searchParams.get("companyLocationId") ||
+    url.searchParams.get("company_location");
 
-  const result = await getCollectionFilterPayload({
-    shopDomain,
-    collectionId,
-    collectionGid,
-    selected,
-  });
+  const hasCollection = Boolean(collectionId || collectionGid);
+  const result =
+    searchQuery.trim() && !hasCollection
+      ? await getSearchFilterPayload({
+          shopDomain,
+          query: searchQuery,
+          selected,
+          sort,
+          locale,
+          page,
+          pageSize,
+          country,
+          currency,
+          companyLocationId,
+        })
+      : await getCollectionFilterPayload({
+          shopDomain,
+          collectionId,
+          collectionGid,
+          selected,
+          sort,
+          query: searchQuery,
+          locale,
+          page,
+          pageSize,
+          country,
+          currency,
+          companyLocationId,
+        });
 
   if ("error" in result && result.error) {
     return new Response(JSON.stringify({ error: result.error }), {

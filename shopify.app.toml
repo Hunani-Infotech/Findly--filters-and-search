@@ -1,72 +1,85 @@
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
-name = "Findly: Smart Filters & Search"
-client_id = ""
-application_url = "https://localhost"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "15d512118a672ce93db2d90ad68f826b"
+name = "Findly Smart Filters"
+# Public app host. `shopify app dev` still rewrites these when
+# automatically_update_urls_on_dev is true; `shopify app deploy` pushes them.
+application_url = "https://findly.hunaniinfotech.com"
 embedded = true
 
-[access_scopes]
-scopes = "read_products"
-
-[auth]
-redirect_urls = [ "https://localhost/auth/callback" ]
+[build]
+automatically_update_urls_on_dev = true
 
 [webhooks]
-api_version = "2025-10"
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = ["app/uninstalled"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = ["app/scopes_update"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/products/create"
-  topics = ["products/create"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/products/update"
-  topics = ["products/update"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/products/delete"
-  topics = ["products/delete"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/collections/create"
-  topics = ["collections/create"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/collections/update"
-  topics = ["collections/update"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/collections/delete"
-  topics = ["collections/delete"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/bulk_operations/finish"
-  topics = ["bulk_operations/finish"]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app_subscriptions/update"
-  topics = ["app_subscriptions/update"]
+api_version = "2026-07"
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/customers/data_request"
-  compliance_topics = ["customers/data_request"]
+  compliance_topics = [ "customers/data_request" ]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/customers/redact"
-  compliance_topics = ["customers/redact"]
+  compliance_topics = [ "customers/redact" ]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/shop/redact"
-  compliance_topics = ["shop/redact"]
+  compliance_topics = [ "shop/redact" ]
 
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app_subscriptions/update"
+  topics = [ "app_subscriptions/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/bulk_operations/finish"
+  topics = [ "bulk_operations/finish" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/create"
+  topics = [ "collections/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/delete"
+  topics = [ "collections/delete" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/collections/update"
+  topics = [ "collections/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/create"
+  topics = [ "products/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/delete"
+  topics = [ "products/delete" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/update"
+  topics = [ "products/update" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# read_products only: catalog sync is queries + webhooks. No product mutations in app runtime.
+# write_products omitted (least privilege). scripts/seed-dev-catalog.mjs is local-dev only.
+scopes = "read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets"
+optional_scopes = [ "read_companies" ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://findly.hunaniinfotech.com/auth/callback" ]
+
+# Must share the application_url host (not localhost).
+# `shopify app dev` replaces this with the Cloudflare tunnel URL.
 [app_proxy]
-url = "https://localhost/apps/smart-filter"
+url = "https://findly.hunaniinfotech.com/apps/smart-filter"
 subpath = "smart-filter"
 prefix = "apps"
 

@@ -1,0 +1,228 @@
+/* Scoped to .findly-instant — mobile-first from 375px */
+
+.findly-instant {
+  --fi-ink: #1c1917;
+  --fi-muted: #78716c;
+  --fi-border: #e7e5e4;
+  --fi-surface: #ffffff;
+  --fi-hover: #f5f5f4;
+  --fi-radius: 12px;
+  --fi-z: 2147483000;
+
+  box-sizing: border-box;
+  position: fixed;
+  z-index: var(--fi-z);
+  color: var(--fi-ink);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  background: var(--fi-surface);
+  border: 1px solid var(--fi-border);
+  border-radius: var(--fi-radius);
+  box-shadow: 0 16px 40px rgba(28, 25, 23, 0.16);
+  overflow: auto;
+  min-width: 0;
+}
+
+.findly-instant *,
+.findly-instant *::before,
+.findly-instant *::after {
+  box-sizing: border-box;
+}
+
+.findly-instant[hidden] {
+  display: none !important;
+}
+
+.findly-instant__panel {
+  padding: 0.75rem;
+}
+
+.findly-instant__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.findly-instant__heading {
+  margin: 0 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.findly-instant__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.findly-instant__item {
+  margin: 0;
+}
+
+.findly-instant__link {
+  display: block;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.findly-instant__link:hover {
+  background: var(--fi-hover);
+}
+
+.findly-instant__empty {
+  margin: 0;
+  padding: 0.5rem 0.25rem;
+  color: var(--fi-muted);
+  font-weight: 600;
+}
+
+.findly-instant .findly-instant__spell {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--fi-muted);
+}
+
+.findly-instant .findly-instant__spell-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--fi-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.findly-instant__products {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.findly-instant--carousel .findly-instant__products {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0.65rem;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.findly-instant__product {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.4rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.findly-instant--carousel .findly-instant__product {
+  flex: 0 0 12.5rem;
+  scroll-snap-align: start;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.findly-instant__product:hover {
+  background: var(--fi-hover);
+}
+
+.findly-instant__image {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--fi-hover);
+  flex-shrink: 0;
+}
+
+.findly-instant--carousel .findly-instant__image {
+  width: 100%;
+  height: 8.5rem;
+}
+
+.findly-instant__image--empty {
+  display: block;
+}
+
+.findly-instant__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.findly-instant__title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.findly-instant__vendor,
+.findly-instant__price {
+  color: var(--fi-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.findly-instant--overlay {
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.findly-instant--overlay .findly-instant__panel {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.findly-instant--dropdown-one {
+  max-width: 420px;
+}
+
+@media (min-width: 375px) {
+  .findly-instant__panel {
+    padding: 0.9rem;
+  }
+
+  .findly-instant--grid .findly-instant__products {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 750px) {
+  .findly-instant--dropdown-two .findly-instant__layout,
+  .findly-instant--overlay .findly-instant__layout {
+    display: grid;
+    grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+  }
+
+  .findly-instant--no-aside .findly-instant__layout {
+    display: block;
+  }
+
+  .findly-instant--grid .findly-instant__products {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .findly-instant--overlay.findly-instant--grid .findly-instant__products {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

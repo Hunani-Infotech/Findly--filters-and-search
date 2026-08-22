@@ -1,14 +1,21 @@
 import prisma from "../db.server";
 import { enforcePlanLimits } from "../billing.server";
-import { purgeShopData } from "../compliance.server";
+import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
+  BULK_PRODUCTS_QUERY,
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_LIST_QUERY,
+  PAGES_LIST_QUERY,
+  ARTICLES_LIST_QUERY,
   CURRENT_BULK_OPERATION_QUERY,
   PRODUCT_NODE_QUERY,
 } from "./graphql";
+import {
+  syncProductMarketPrices,
+  syncShopMarketPrices,
+} from "./markets-sync";
 import { mapProductToFacet, parseBulkJsonlProducts } from "./product-mapper";
 
 type GraphqlClient = {
@@ -22,6 +29,48 @@ async function getAdminForShop(shopDomain: string): Promise<GraphqlClient> {
   const { unauthenticated } = await import("../shopify.server");
   const { admin } = await unauthenticated.admin(shopDomain);
   return admin;
+}
+
+async function syncProductMemberships(
+  shopId: string,
+  productGid: string,
+  collectionGids: string[],
+) {
+  const existing = await prisma.collectionMembership.findMany({
+    where: { shopId, productGid },
+  });
+  if (!collectionGids.length) {
+    await prisma.collectionMembership.deleteMany({
+      where: { shopId, productGid },
+    });
+    return;
+  }
+  await prisma.collectionMembership.deleteMany({
+    where: {
+      shopId,
+      productGid,
+      collectionGid: { notIn: collectionGids },
+    },
+  });
+  for (const collectionGid of collectionGids) {
+    const prev = existing.find((row) => row.collectionGid === collectionGid);
+    await prisma.collectionMembership.upsert({
+      where: {
+        shopId_collectionGid_productGid: {
+          shopId,
+          collectionGid,
+          productGid,
+        },
+      },
+      create: {
+        shopId,
+        collectionGid,
+        productGid,
+        position: prev?.position ?? 0,
+      },
+      update: {},
+    });
+  }
 }
 
 async function setSyncStatus(
@@ -59,6 +108,7 @@ async function setSyncStatus(
 async function recordDiscoveredMetafields(
   shopId: string,
   metafields: Record<string, string>,
+  ownerType: "PRODUCT" | "VARIANT" = "PRODUCT",
 ) {
   for (const [path, sampleValue] of Object.entries(metafields)) {
     const dot = path.indexOf(".");
@@ -69,12 +119,13 @@ async function recordDiscoveredMetafields(
 
     await prisma.discoveredMetafield.upsert({
       where: {
-        shopId_namespace_key: { shopId, namespace, key },
+        shopId_namespace_key_ownerType: { shopId, namespace, key, ownerType },
       },
       create: {
         shopId,
         namespace,
         key,
+        ownerType,
         sampleValue: sampleValue?.slice(0, 500) ?? null,
       },
       update: {
@@ -135,43 +186,161 @@ export async function syncCollectionsList(shopDomain: string) {
   return { count };
 }
 
-export async function startFullSync(shopDomain: string) {
+export async function syncShopContent(shopDomain: string) {
   const shop = await ensureShop(shopDomain);
   const admin = await getAdminForShop(shopDomain);
+  const seenPages = new Set<string>();
+  const seenArticles = new Set<string>();
 
-  await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
+  let cursor: string | null = null;
+  let hasNext = true;
+  while (hasNext) {
+    const response = await admin.graphql(PAGES_LIST_QUERY, {
+      variables: { cursor },
+    });
+    const json = await response.json();
+    const connection = json.data?.pages;
+    if (!connection) break;
+    const pageNodes = connection.nodes ??
+      (connection.edges ?? []).map((edge: { node: unknown }) => edge.node);
+    for (const node of pageNodes) {
+      const page = node as {
+        id?: string;
+        title?: string;
+        handle?: string;
+        isPublished?: boolean;
+      };
+      if (!page.id) continue;
+      seenPages.add(page.id);
+      await prisma.shopPage.upsert({
+        where: { shopId_pageGid: { shopId: shop.id, pageGid: page.id } },
+        create: {
+          shopId: shop.id,
+          pageGid: page.id,
+          title: page.title || "",
+          handle: page.handle ?? "",
+          published: page.isPublished !== false,
+        },
+        update: {
+          title: page.title || "",
+          handle: page.handle ?? "",
+          published: page.isPublished !== false,
+        },
+      });
+    }
+    hasNext = Boolean(connection.pageInfo?.hasNextPage);
+    cursor = connection.pageInfo?.endCursor ?? null;
+  }
 
-  // Collections list in parallel path (paginated GraphQL — collections are fewer than products)
+  cursor = null;
+  hasNext = true;
+  while (hasNext) {
+    const response = await admin.graphql(ARTICLES_LIST_QUERY, {
+      variables: { cursor },
+    });
+    const json = await response.json();
+    const connection = json.data?.articles;
+    if (!connection) break;
+    const articleNodes = connection.nodes ??
+      (connection.edges ?? []).map((edge: { node: unknown }) => edge.node);
+    for (const node of articleNodes) {
+      const article = node as {
+        id?: string;
+        title?: string;
+        handle?: string;
+        blog?: { handle?: string } | null;
+      };
+      if (!article.id) continue;
+      seenArticles.add(article.id);
+      await prisma.shopArticle.upsert({
+        where: { shopId_articleGid: { shopId: shop.id, articleGid: article.id } },
+        create: {
+          shopId: shop.id,
+          articleGid: article.id,
+          title: article.title || "",
+          handle: article.handle ?? "",
+          blogHandle: article.blog?.handle ?? "",
+          published: true,
+        },
+        update: {
+          title: article.title || "",
+          handle: article.handle ?? "",
+          blogHandle: article.blog?.handle ?? "",
+          published: true,
+        },
+      });
+    }
+    hasNext = Boolean(connection.pageInfo?.hasNextPage);
+    cursor = connection.pageInfo?.endCursor ?? null;
+  }
+
+  if (seenPages.size) {
+    await prisma.shopPage.deleteMany({
+      where: { shopId: shop.id, pageGid: { notIn: [...seenPages] } },
+    });
+  }
+  if (seenArticles.size) {
+    await prisma.shopArticle.deleteMany({
+      where: { shopId: shop.id, articleGid: { notIn: [...seenArticles] } },
+    });
+  }
+
+  return { pages: seenPages.size, articles: seenArticles.size };
+}
+
+export async function startFullSync(shopDomain: string) {
+  const shop = await ensureShop(shopDomain);
+
   try {
-    await syncCollectionsList(shopDomain);
+    const admin = await getAdminForShop(shopDomain);
+
+    await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
+
+    // Collections list in parallel path (paginated GraphQL — collections are fewer than products)
+    try {
+      await syncCollectionsList(shopDomain);
+    } catch (error) {
+      log.error("Collection list sync failed", error);
+    }
+
+    try {
+      await syncShopContent(shopDomain);
+    } catch (error) {
+      log.error("Pages/articles sync failed", error);
+    }
+
+    log.info("[sync] starting bulk product query");
+    const response = await admin.graphql(BULK_PRODUCTS_MUTATION, {
+      variables: { query: BULK_PRODUCTS_QUERY },
+    });
+    const json = await response.json();
+    const payload = json.data?.bulkOperationRunQuery;
+    const userErrors = payload?.userErrors ?? [];
+
+    if (userErrors.length || !payload?.bulkOperation?.id) {
+      const message =
+        userErrors.map((e: { message: string }) => e.message).join("; ") ||
+        "Failed to start bulk operation";
+      await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
+      throw new Error(message);
+    }
+
+    const syncJob = await setSyncStatus(shop.id, {
+      status: "SYNCING",
+      bulkOperationId: payload.bulkOperation.id,
+      errorLog: null,
+    });
+
+    return {
+      shop,
+      syncJob,
+      bulkOperationId: payload.bulkOperation.id as string,
+    };
   } catch (error) {
-    console.error("Collection list sync failed", error);
-  }
-
-  const response = await admin.graphql(BULK_PRODUCTS_MUTATION);
-  const json = await response.json();
-  const payload = json.data?.bulkOperationRunQuery;
-  const userErrors = payload?.userErrors ?? [];
-
-  if (userErrors.length || !payload?.bulkOperation?.id) {
-    const message =
-      userErrors.map((e: { message: string }) => e.message).join("; ") ||
-      "Failed to start bulk operation";
+    const message = error instanceof Error ? error.message : String(error);
     await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
-    throw new Error(message);
+    throw error;
   }
-
-  const syncJob = await setSyncStatus(shop.id, {
-    status: "SYNCING",
-    bulkOperationId: payload.bulkOperation.id,
-    errorLog: null,
-  });
-
-  return {
-    shop,
-    syncJob,
-    bulkOperationId: payload.bulkOperation.id as string,
-  };
 }
 
 export async function ingestBulkOperation(
@@ -218,40 +387,68 @@ export async function ingestBulkOperation(
         vendor: facet.vendor,
         productType: facet.productType,
         tags: facet.tags,
+        skus: facet.skus,
         options: facet.options as object,
         priceMin: facet.priceMin,
         priceMax: facet.priceMax,
+        compareAtMin: facet.compareAtMin,
+        compareAtMax: facet.compareAtMax,
+        salePct: facet.salePct,
         available: facet.available,
+        inventoryLocations: facet.inventoryLocations,
+        status: facet.status,
         imageUrl: facet.imageUrl,
+        variantImages: facet.variantImages as object,
+        variants: facet.variants as object,
         metafields: facet.metafields as object,
+        variantMetafields: facet.variantMetafields as object,
+        publishedAt: facet.publishedAt,
       },
     });
 
     await recordDiscoveredMetafields(
       shop.id,
       (facet.metafields as Record<string, string>) || {},
+      "PRODUCT",
+    );
+    await recordDiscoveredMetafields(
+      shop.id,
+      (facet.variantMetafields as Record<string, string>) || {},
+      "VARIANT",
     );
 
-    await prisma.collectionMembership.deleteMany({
-      where: { shopId: shop.id, productGid: facet.productGid },
-    });
-    if (collectionGids.length) {
-      await prisma.collectionMembership.createMany({
-        data: collectionGids.map((collectionGid) => ({
-          shopId: shop.id,
-          collectionGid,
-          productGid: facet.productGid,
-        })),
-        skipDuplicates: true,
-      });
-    }
+    await syncProductMemberships(shop.id, facet.productGid, collectionGids);
     upserted += 1;
   }
 
   try {
     await syncCollectionsList(shopDomain);
   } catch (error) {
-    console.error("Post-ingest collection sync failed", error);
+    log.error("Post-ingest collection sync failed", error);
+  }
+
+  try {
+    await syncShopContent(shopDomain);
+  } catch (error) {
+    log.error("Post-ingest pages/articles sync failed", error);
+  }
+
+  try {
+    const collections = await prisma.collection.findMany({
+      where: { shopId: shop.id },
+      select: { collectionGid: true },
+    });
+    for (const collection of collections) {
+      await rebuildCollection(shopDomain, collection.collectionGid);
+    }
+  } catch (error) {
+    log.error("Post-ingest collection order sync failed", error);
+  }
+
+  try {
+    await syncShopMarketPrices(admin, shop.id);
+  } catch (error) {
+    log.error("Post-ingest market prices sync failed", error);
   }
 
   const errorLog = truncated
@@ -315,32 +512,42 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
       vendor: facet.vendor,
       productType: facet.productType,
       tags: facet.tags,
+      skus: facet.skus,
       options: facet.options,
       priceMin: facet.priceMin,
       priceMax: facet.priceMax,
+      compareAtMin: facet.compareAtMin,
+      compareAtMax: facet.compareAtMax,
+      salePct: facet.salePct,
       available: facet.available,
-      imageUrl: facet.imageUrl,
-      metafields: facet.metafields,
-    },
-  });
+      inventoryLocations: facet.inventoryLocations,
+      status: facet.status,
+        imageUrl: facet.imageUrl,
+        variantImages: facet.variantImages,
+        variants: facet.variants,
+        metafields: facet.metafields,
+        variantMetafields: facet.variantMetafields,
+        publishedAt: facet.publishedAt,
+      },
+    });
 
   await recordDiscoveredMetafields(
     shop.id,
     (facet.metafields as Record<string, string>) || {},
+    "PRODUCT",
+  );
+  await recordDiscoveredMetafields(
+    shop.id,
+    (facet.variantMetafields as Record<string, string>) || {},
+    "VARIANT",
   );
 
-  await prisma.collectionMembership.deleteMany({
-    where: { shopId: shop.id, productGid: facet.productGid },
-  });
-  if (collectionGids.length) {
-    await prisma.collectionMembership.createMany({
-      data: collectionGids.map((collectionGid) => ({
-        shopId: shop.id,
-        collectionGid,
-        productGid: facet.productGid,
-      })),
-      skipDuplicates: true,
-    });
+  await syncProductMemberships(shop.id, facet.productGid, collectionGids);
+
+  try {
+    await syncProductMarketPrices(admin, shop.id, facet.productGid);
+  } catch (error) {
+    log.error("Incremental market prices sync failed", error);
   }
 
   await setSyncStatus(shop.id, {
@@ -431,13 +638,26 @@ export async function rebuildCollection(
   });
   if (productGids.length) {
     await prisma.collectionMembership.createMany({
-      data: productGids.map((productGid) => ({
+      data: productGids.map((productGid, index) => ({
         shopId: shop.id,
         collectionGid,
         productGid,
+        position: index,
       })),
       skipDuplicates: true,
     });
+  }
+
+  if (productGids.length) {
+    const existingFacets = await prisma.productFacet.findMany({
+      where: { shopId: shop.id, productGid: { in: productGids } },
+      select: { productGid: true },
+    });
+    const existingGids = new Set(existingFacets.map((f) => f.productGid));
+    const missingGids = productGids.filter((gid) => !existingGids.has(gid));
+    for (const productGid of missingGids) {
+      await upsertProduct(shopDomain, productGid);
+    }
   }
 
   await setSyncStatus(shop.id, {
@@ -446,9 +666,4 @@ export async function rebuildCollection(
   });
 
   return { count: productGids.length };
-}
-
-/** Hard-delete tenant data (APP_UNINSTALLED / shop/redact). */
-export async function uninstallShop(shopDomain: string) {
-  await purgeShopData(shopDomain);
 }

@@ -1,0 +1,243 @@
+/* Scoped to .smart-filter-search — mobile-first from 375px */
+
+.smart-filter-search {
+  --sfs-ink: #1c1917;
+  --sfs-muted: #78716c;
+  --sfs-border: #e7e5e4;
+  --sfs-surface: #ffffff;
+  --sfs-hover: #f5f5f4;
+  --sfs-accent: #1c1917;
+  --sfs-radius: 12px;
+
+  box-sizing: border-box;
+  color: var(--sfs-ink);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem;
+  background: var(--sfs-surface);
+  border: 1px solid var(--sfs-border);
+  border-radius: var(--sfs-radius);
+}
+
+.smart-filter-search *,
+.smart-filter-search *::before,
+.smart-filter-search *::after {
+  box-sizing: border-box;
+}
+
+.smart-filter-search .vis-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.smart-filter-search__form {
+  margin: 0;
+}
+
+.smart-filter-search__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.smart-filter-search__input {
+  flex: 1 1 10rem;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--sfs-border);
+  border-radius: 999px;
+  background: #fafaf9;
+  color: var(--sfs-ink);
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  min-height: 2.5rem;
+}
+
+.smart-filter-search__input:focus {
+  outline: 2px solid var(--sfs-accent);
+  outline-offset: 1px;
+  background: #fff;
+}
+
+.smart-filter-search__submit {
+  appearance: none;
+  flex: 0 0 auto;
+  border: 1px solid var(--sfs-accent);
+  background: var(--sfs-accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 2.5rem;
+}
+
+.smart-filter-search__submit:hover {
+  filter: brightness(0.95);
+}
+
+.smart-filter-search__status {
+  min-height: 1.25rem;
+  margin: 0.65rem 0 0;
+  color: var(--sfs-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.smart-filter-search__status[data-error="true"] {
+  color: #9f1239;
+}
+
+.smart-filter-search__empty {
+  margin: 0.65rem 0 0;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--sfs-border);
+  border-radius: 10px;
+  background: var(--sfs-hover);
+}
+
+.smart-filter-search__empty[hidden] {
+  display: none;
+}
+
+.smart-filter-search__empty-heading {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--sfs-ink);
+}
+
+.smart-filter-search__empty-copy {
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--sfs-muted);
+}
+
+.smart-filter-search__clear {
+  appearance: none;
+  display: inline-block;
+  margin: 0.7rem 0 0;
+  border: 1px solid var(--sfs-border);
+  background: var(--sfs-surface);
+  color: var(--sfs-ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 2.25rem;
+}
+
+.smart-filter-search__clear:hover {
+  background: #fff;
+}
+
+.smart-filter-search__clear:focus {
+  outline: 2px solid var(--sfs-accent);
+  outline-offset: 1px;
+}
+
+.smart-filter-search__suggest-heading {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sfs-muted);
+}
+
+.smart-filter-search__suggest-heading[hidden],
+.smart-filter-search__suggestions[hidden],
+.smart-filter-search__collections[hidden] {
+  display: none;
+}
+
+.smart-filter-search__results {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.smart-filter-search__suggestions,
+.smart-filter-search__collections {
+  margin-top: 0.35rem;
+}
+
+.smart-filter-search__item {
+  margin: 0;
+}
+
+.smart-filter-search__link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.smart-filter-search__link:hover {
+  background: var(--sfs-hover);
+}
+
+.smart-filter-search__image {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--sfs-hover);
+  flex-shrink: 0;
+}
+
+.smart-filter-search__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.smart-filter-search__title {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.smart-filter-search__price {
+  color: var(--sfs-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+@media (min-width: 375px) {
+  .smart-filter-search {
+    padding: 0.9rem;
+  }
+
+  .smart-filter-search__row {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (min-width: 750px) {
+  .smart-filter-search {
+    max-width: 28rem;
+  }
+}

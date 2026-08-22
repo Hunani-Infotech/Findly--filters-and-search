@@ -3,6 +3,7 @@
  * Usage: node ./scripts/verify-step2.mjs
  */
 import { PrismaClient } from "@prisma/client";
+import { log } from "./terminal-log.mjs";
 
 const prisma = new PrismaClient();
 
@@ -14,7 +15,7 @@ try {
   });
 
   if (!sessions.length) {
-    console.error(
+    log.error(
       "STEP2_FAIL no offline Session rows. Install the app via `npm run dev` on a dev store first.",
     );
     process.exit(1);
@@ -22,19 +23,19 @@ try {
 
   for (const s of sessions) {
     const tokenOk = Boolean(s.accessToken && s.accessToken.length > 10);
-    console.log(
+    log.info(
       `session shop=${s.shop} scope=${s.scope || "(none)"} token=${tokenOk ? "SET" : "EMPTY"}`,
     );
     if (!tokenOk) {
-      console.error("STEP2_FAIL session missing accessToken");
+      log.error("STEP2_FAIL session missing accessToken");
       process.exit(1);
     }
   }
 
-  console.log("STEP2_OK", sessions.length, "offline session(s) persisted");
+  log.success(`STEP2_OK ${sessions.length} offline session(s) persisted`);
   process.exit(0);
 } catch (error) {
-  console.error("STEP2_FAIL", error.message);
+  log.error(`STEP2_FAIL ${error.message}`);
   process.exit(1);
 } finally {
   await prisma.$disconnect();

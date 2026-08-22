@@ -1,0 +1,110 @@
+<div
+  class="smart-filter-recs"
+  data-proxy-base="/apps/smart-filter"
+  data-type="{{ block.settings.widget_type }}"
+  data-heading="{{ block.settings.heading | escape }}"
+  data-product-handle="{% if template contains 'product' %}{{ product.handle }}{% endif %}"
+  data-locale="{{ request.locale.iso_code }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-currency="{{ cart.currency.iso_code }}"
+  data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
+  data-count-mobile="{{ block.settings.count_mobile }}"
+  data-count-tablet="{{ block.settings.count_tablet }}"
+  data-count-desktop="{{ block.settings.count_desktop }}"
+  {{ block.shopify_attributes }}
+>
+  <h2 class="smart-filter-recs__heading" data-recs-heading>
+    {{ block.settings.heading | escape }}
+  </h2>
+  <div class="smart-filter-recs__status" data-recs-status aria-live="polite"></div>
+  <ul class="smart-filter-recs__results" data-recs-results role="list"></ul>
+</div>
+
+{% schema %}
+{
+  "name": "t:blocks.product_recommendations.name",
+  "target": "section",
+  "enabled_on": {
+    "templates": [
+      "index",
+      "product",
+      "collection",
+      "cart",
+      "page",
+      "search"
+    ]
+  },
+  "stylesheet": "product-recommendations.css",
+  "javascript": "product-recommendations.js",
+  "settings": [
+    {
+      "type": "select",
+      "id": "widget_type",
+      "label": "t:blocks.product_recommendations.settings.widget_type.label",
+      "default": "new-products",
+      "options": [
+        {
+          "value": "frequently-bought-together",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.frequently_bought_together"
+        },
+        {
+          "value": "trending-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.trending_products"
+        },
+        {
+          "value": "recently-purchased-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.recently_purchased_products"
+        },
+        {
+          "value": "hand-picked-related-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.hand_picked_related_products"
+        },
+        {
+          "value": "most-added-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.most_added_products"
+        },
+        {
+          "value": "best-sellers",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.best_sellers"
+        },
+        {
+          "value": "recently-viewed-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.recently_viewed_products"
+        },
+        {
+          "value": "most-viewed-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.most_viewed_products"
+        },
+        {
+          "value": "new-products",
+          "label": "t:blocks.product_recommendations.settings.widget_type.options.new_products"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "t:blocks.product_recommendations.settings.heading.label",
+      "default": "Recommended"
+    },
+    {
+      "type": "number",
+      "id": "count_mobile",
+      "label": "t:blocks.product_recommendations.settings.count_mobile.label",
+      "default": 0
+    },
+    {
+      "type": "number",
+      "id": "count_tablet",
+      "label": "t:blocks.product_recommendations.settings.count_tablet.label",
+      "default": 0
+    },
+    {
+      "type": "number",
+      "id": "count_desktop",
+      "label": "t:blocks.product_recommendations.settings.count_desktop.label",
+      "default": 0
+    }
+  ]
+}
+{% endschema %}

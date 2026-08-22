@@ -1,15 +1,27 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type {
+  HeadersFunction,
+  LinksFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
+import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import adminStyles from "../admin.css?url";
 
-import "@shopify/polaris/build/esm/styles.css";
-
+import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
+import { AdminRouteSkeleton } from "../components/admin-skeletons";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../shop.server";
+
+// Keep Polaris CSS on the /app layout so client navigations do not drop styles.
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: polarisStyles },
+  { rel: "stylesheet", href: adminStyles },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -19,25 +31,65 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL;
+  nextUrl: URL;
+  formMethod?: string;
+  defaultShouldRevalidate: boolean;
+}) {
+  if (currentUrl.pathname !== nextUrl.pathname) {
+    return defaultShouldRevalidate;
+  }
+  const method = formMethod?.toUpperCase();
+  if (method && method !== "GET") {
+    return defaultShouldRevalidate;
+  }
+  return false;
+}
+
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
 
   return (
     <ShopifyAppProvider embedded apiKey={apiKey}>
       <PolarisAppProvider i18n={enTranslations}>
+        <ShopifyLoadingBar />
         <NavMenu>
           <a href="/app" rel="home">
             Home
           </a>
-          <a href="/app">Collections</a>
-          <a href="/app/metafields">Metafields</a>
-          <a href="/app/sync">Sync</a>
-          <a href="/app/billing">Billing</a>
+          <a href="/app">Filters</a>
+          <a href="/app/search">Search</a>
           <a href="/app/settings">Settings</a>
+          <a href="/app/translation">Translation</a>
+          <a href="/app/integrations">Integrations</a>
+          <a href="/app/analytics">Analytics</a>
+          <a href="/app/billing">Pricing plans</a>
+          <a href="/app/contact">Contact</a>
+          <a href="/app/sync">Sync</a>
         </NavMenu>
-        <Outlet />
+        <div className="findly-admin-shell">
+          <AdminPendingScreen>
+            <Outlet />
+          </AdminPendingScreen>
+        </div>
       </PolarisAppProvider>
     </ShopifyAppProvider>
+  );
+}
+
+export function HydrateFallback() {
+  return (
+    <PolarisAppProvider i18n={enTranslations}>
+      <div className="findly-admin-shell">
+        <AdminRouteSkeleton />
+      </div>
+    </PolarisAppProvider>
   );
 }
 

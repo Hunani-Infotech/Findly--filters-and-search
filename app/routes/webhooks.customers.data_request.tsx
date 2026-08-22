@@ -1,22 +1,26 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { logComplianceEvent } from "../compliance.server";
+import {
+  logComplianceEvent,
+  shopifyWebhookRequestId,
+} from "../compliance.server";
+import { log } from "../log.server";
 
-/** GDPR: app does not store customer PII — log + confirm. */
+/** GDPR: app does not store customer PII — audit row only (no webhook body). */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
+  const { shop, topic } = await authenticate.webhook(request);
 
-  console.log(`Received ${topic} webhook for ${shop}`);
-  await logComplianceEvent(shop, topic, payload);
+  log.info(`Received ${topic} webhook for ${shop}`);
+  await logComplianceEvent(shop, topic, {
+    requestId: shopifyWebhookRequestId(request),
+    status: "acknowledged",
+  });
 
   return Response.json(
     {
       message:
         "This app does not store customer personally identifiable information.",
       shop,
-      customerId:
-        (payload as { customer?: { id?: number | string } })?.customer?.id ??
-        null,
     },
     { status: 200 },
   );

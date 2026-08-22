@@ -10,6 +10,8 @@ export const PRODUCT_NODE_QUERY = `#graphql
       productType
       tags
       status
+      createdAt
+      publishedAt
       featuredImage {
         url
       }
@@ -20,17 +22,79 @@ export const PRODUCT_NODE_QUERY = `#graphql
       variants(first: 100) {
         edges {
           node {
+            id
+            sku
             price
+            compareAtPrice
             availableForSale
+            image {
+              url
+            }
+            selectedOptions {
+              name
+              value
+            }
+            metafields(first: 30) {
+              edges {
+                node {
+                  id
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
+            inventoryItem {
+              id
+              inventoryLevels(first: 50) {
+                edges {
+                  node {
+                    id
+                    quantities(names: ["available"]) {
+                      name
+                      quantity
+                    }
+                    location {
+                      id
+                      name
+                      isActive
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
-      metafields(first: 50) {
+            metafields(first: 50) {
+              edges {
+                node {
+                  id
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
+            reviewsRating: metafield(namespace: "reviews", key: "rating") {
+              namespace
+              key
+              value
+            }
+            looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
+              namespace
+              key
+              value
+            }
+            stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
+              namespace
+              key
+              value
+            }
+            collections(first: 50) {
         edges {
           node {
-            namespace
-            key
-            value
+            id
           }
         }
       }
@@ -44,7 +108,7 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
       id
       title
       handle
-      products(first: 100, after: $cursor) {
+      products(first: 100, after: $cursor, sortKey: COLLECTION_DEFAULT) {
         pageInfo {
           hasNextPage
           endCursor
@@ -59,53 +123,86 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
   }
 `;
 
-export const BULK_PRODUCTS_MUTATION = `#graphql
-  mutation BulkProductsRun {
-    bulkOperationRunQuery(
-      query: """
-      {
-        products {
+export const BULK_PRODUCTS_QUERY = `
+{
+  products {
+    edges {
+      node {
+        id
+        handle
+        title
+        vendor
+        productType
+        tags
+        status
+        createdAt
+        publishedAt
+        featuredImage { url }
+        options { name values }
+        variants {
           edges {
             node {
               id
-              handle
-              title
-              vendor
-              productType
-              tags
-              status
-              featuredImage { url }
-              options { name values }
-              variants {
-                edges {
-                  node {
-                    price
-                    availableForSale
-                  }
-                }
-              }
+              sku
+              price
+              compareAtPrice
+              availableForSale
+              image { url }
+              selectedOptions { name value }
               metafields {
                 edges {
                   node {
+                    id
                     namespace
                     key
                     value
                   }
                 }
               }
-              collections {
-                edges {
-                  node {
-                    id
-                  }
-                }
-              }
+            }
+          }
+        }
+        metafields {
+          edges {
+            node {
+              id
+              namespace
+              key
+              value
+            }
+          }
+        }
+        reviewsRating: metafield(namespace: "reviews", key: "rating") {
+          namespace
+          key
+          value
+        }
+        looxAvgRating: metafield(namespace: "loox", key: "avg_rating") {
+          namespace
+          key
+          value
+        }
+        stampedAvgRating: metafield(namespace: "stamped", key: "reviews_average") {
+          namespace
+          key
+          value
+        }
+        collections {
+          edges {
+            node {
+              id
             }
           }
         }
       }
-      """
-    ) {
+    }
+  }
+}
+`.trim();
+
+export const BULK_PRODUCTS_MUTATION = `#graphql
+  mutation BulkProductsRun($query: String!) {
+    bulkOperationRunQuery(query: $query) {
       bulkOperation {
         id
         status
@@ -141,6 +238,42 @@ export const COLLECTIONS_LIST_QUERY = `#graphql
         node {
           id
           title
+          handle
+        }
+      }
+    }
+  }
+`;
+
+export const PAGES_LIST_QUERY = `#graphql
+  query PagesList($cursor: String) {
+    pages(first: 50, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        title
+        handle
+        isPublished
+      }
+    }
+  }
+`;
+
+export const ARTICLES_LIST_QUERY = `#graphql
+  query ArticlesList($cursor: String) {
+    articles(first: 50, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        title
+        handle
+        blog {
           handle
         }
       }

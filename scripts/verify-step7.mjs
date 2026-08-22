@@ -1,0 +1,389 @@
+/**
+ * Step 7 gate: admin metafield mapping → filter API payload includes mapped facets.
+ * Usage: npm run verify:a7
+ */
+import "tsx/esm";
+import { PrismaClient } from "@prisma/client";
+import { log } from "./terminal-log.mjs";
+import { seedFilterConfig } from "./seed-filter-config.mjs";
+
+const SHOP_DOMAIN = "a7-verify.myshopify.com";
+const COLLECTION_GID = "gid://shopify/Collection/9007001";
+const PRODUCT_GID = "gid://shopify/Product/9007001";
+
+const prisma = new PrismaClient();
+
+function fail(message) {
+  throw new Error(message);
+}
+
+async function cleanup() {
+  await prisma.shop.deleteMany({ where: { domain: SHOP_DOMAIN } });
+}
+
+async function seedShopData() {
+  const shop = await prisma.shop.upsert({
+    where: { domain: SHOP_DOMAIN },
+    create: { domain: SHOP_DOMAIN, plan: "free" },
+    update: { uninstalledAt: null, plan: "free" },
+  });
+
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: COLLECTION_GID,
+    enabled: true,
+    enablePrice: true,
+    enableAvailability: true,
+    enableVendor: false,
+    enableProductType: false,
+    enableTags: false,
+    enableOptions: false,
+  });
+
+  await prisma.collection.upsert({
+    where: {
+      shopId_collectionGid: { shopId: shop.id, collectionGid: COLLECTION_GID },
+    },
+    create: {
+      shopId: shop.id,
+      collectionGid: COLLECTION_GID,
+      title: "A7 Verify Collection",
+      handle: "a7-verify",
+    },
+    update: { title: "A7 Verify Collection" },
+  });
+
+  const metafields = {
+    "custom.material": "cotton",
+    "custom.weight_g": "180",
+    "custom.waterproof": "true",
+  };
+
+  await prisma.productFacet.upsert({
+    where: {
+      shopId_productGid: { shopId: shop.id, productGid: PRODUCT_GID },
+    },
+    create: {
+      shopId: shop.id,
+      productGid: PRODUCT_GID,
+      handle: "a7-cotton-tee",
+      title: "A7 Cotton Tee",
+      vendor: "A7 Labs",
+      productType: "Apparel",
+      tags: ["a7-verify"],
+      options: {},
+      priceMin: 24.99,
+      priceMax: 24.99,
+      available: true,
+      status: "ACTIVE",
+      metafields,
+    },
+    update: { metafields, status: "ACTIVE" },
+  });
+
+  await prisma.collectionMembership.upsert({
+    where: {
+      shopId_collectionGid_productGid: {
+        shopId: shop.id,
+        collectionGid: COLLECTION_GID,
+        productGid: PRODUCT_GID,
+      },
+    },
+    create: {
+      shopId: shop.id,
+      collectionGid: COLLECTION_GID,
+      productGid: PRODUCT_GID,
+    },
+    update: {},
+  });
+
+  for (const [namespace, key, sampleValue] of [
+    ["custom", "material", "cotton"],
+    ["custom", "weight_g", "180"],
+    ["custom", "waterproof", "true"],
+  ]) {
+    await prisma.discoveredMetafield.upsert({
+      where: {
+        shopId_namespace_key_ownerType: {
+          shopId: shop.id,
+          namespace,
+          key,
+          ownerType: "PRODUCT",
+        },
+      },
+      create: { shopId: shop.id, namespace, key, sampleValue },
+      update: { sampleValue },
+    });
+  }
+
+  const mappingDefs = [
+    {
+      namespace: "custom",
+      key: "material",
+      displayLabel: "Material",
+      filterType: "LIST",
+      enabled: true,
+      sortOrder: 0,
+    },
+    {
+      namespace: "custom",
+      key: "weight_g",
+      displayLabel: "Weight",
+      filterType: "RANGE",
+      enabled: true,
+      sortOrder: 1,
+    },
+    {
+      namespace: "custom",
+      key: "waterproof",
+      displayLabel: "Waterproof",
+      filterType: "BOOLEAN",
+      enabled: true,
+      sortOrder: 2,
+    },
+  ];
+
+  for (const mapping of mappingDefs) {
+    await prisma.metafieldMapping.upsert({
+      where: {
+        shopId_namespace_key_ownerType: {
+          shopId: shop.id,
+          namespace: mapping.namespace,
+          key: mapping.key,
+          ownerType: "PRODUCT",
+        },
+      },
+      create: { shopId: shop.id, ...mapping },
+      update: {
+        displayLabel: mapping.displayLabel,
+        filterType: mapping.filterType,
+        enabled: mapping.enabled,
+        sortOrder: mapping.sortOrder,
+      },
+    });
+  }
+
+  return shop;
+}
+
+function findMetafieldFacet(facets, keySuffix) {
+  return facets.find(
+    (facet) =>
+      facet.source === "metafield" &&
+      (facet.key === `mf_custom_${keySuffix}` ||
+        facet.key?.endsWith(`_${keySuffix}`)),
+  );
+}
+
+try {
+  await cleanup();
+  const shop = await seedShopData();
+  log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
+
+  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const result = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: COLLECTION_GID,
+    selected: {},
+  });
+
+  if (result.error || !result.data?.enabled) {
+    fail(
+      `getCollectionFilterPayload failed: ${result.error ?? "filters disabled or empty payload"}`,
+    );
+  }
+
+  const facets = result.data.facets ?? [];
+  const materialFacet = findMetafieldFacet(facets, "material");
+  const weightFacet = findMetafieldFacet(facets, "weight_g");
+
+  if (!materialFacet) {
+    fail("filter payload missing metafield facet for custom.material");
+  }
+  if (materialFacet.type !== "checkbox") {
+    fail(
+      `custom.material facet type expected checkbox, got ${materialFacet.type}`,
+    );
+  }
+
+  if (!weightFacet) {
+    fail("filter payload missing metafield facet for custom.weight_g");
+  }
+  if (weightFacet.type !== "range") {
+    fail(`custom.weight_g facet type expected range, got ${weightFacet.type}`);
+  }
+
+  const waterproofFacet = findMetafieldFacet(facets, "waterproof");
+  if (!waterproofFacet) {
+    fail("filter payload missing metafield facet for custom.waterproof");
+  }
+  if (waterproofFacet.type !== "boolean") {
+    fail(
+      `custom.waterproof BOOLEAN facet type expected boolean, got ${waterproofFacet.type}`,
+    );
+  }
+
+  log.info(`metafield facet (LIST/material): ${JSON.stringify(materialFacet)}`);
+  log.info(`metafield facet (RANGE/weight_g): ${JSON.stringify(weightFacet)}`);
+  log.info(
+    `metafield facet (BOOLEAN/waterproof Yes/No): ${JSON.stringify(waterproofFacet)}`,
+  );
+
+  const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import(
+    "../app/billing.server.ts"
+  );
+
+  if (PLANS.free.filterLimit !== 5) {
+    fail(`PLANS.free.filterLimit expected 5, got ${PLANS.free.filterLimit}`);
+  }
+  if (PLANS.pro.filterLimit !== 25) {
+    fail(`PLANS.pro.filterLimit expected 25, got ${PLANS.pro.filterLimit}`);
+  }
+
+  const limitsWithThree = await enforcePlanLimits(shop.id);
+  const devUnlocked = isDevUnlockLimits();
+
+  if (devUnlocked) {
+    log.info(
+      `DEV_UNLOCK_LIMITS=true — runtime filterLimit=${limitsWithThree.filterLimit} (PLANS.free.filterLimit still ${PLANS.free.filterLimit})`,
+    );
+  } else if (limitsWithThree.filterLimit !== 5) {
+    fail(
+      `free plan filterLimit expected 5, got ${limitsWithThree.filterLimit}`,
+    );
+  }
+
+  if (limitsWithThree.filterCount !== 3) {
+    fail(`expected 3 metafield mappings, got ${limitsWithThree.filterCount}`);
+  }
+
+  const sixEnabledWouldExceed = 6 > PLANS.free.filterLimit;
+  if (!sixEnabledWouldExceed) {
+    fail("6 enabled mappings should exceed free plan cap of 5");
+  }
+  log.info(
+    `plan cap check: 6 enabled mappings > free filterLimit ${PLANS.free.filterLimit}`,
+  );
+
+  const extraKeys = ["extra_a", "extra_b", "extra_c"];
+  await prisma.productFacet.update({
+    where: {
+      shopId_productGid: { shopId: shop.id, productGid: PRODUCT_GID },
+    },
+    data: {
+      metafields: {
+        "custom.material": "cotton",
+        "custom.weight_g": "180",
+        "custom.waterproof": "true",
+        "custom.extra_a": "a",
+        "custom.extra_b": "b",
+        "custom.extra_c": "c",
+      },
+    },
+  });
+  for (const [index, key] of extraKeys.entries()) {
+    await prisma.metafieldMapping.create({
+      data: {
+        shopId: shop.id,
+        namespace: "custom",
+        key,
+        displayLabel: `Extra ${key}`,
+        filterType: "LIST",
+        enabled: true,
+        sortOrder: 10 + index,
+      },
+    });
+  }
+
+  const limitsWithSix = await enforcePlanLimits(shop.id);
+  if (limitsWithSix.filterCount !== 6) {
+    fail(`expected 6 metafield mappings after seed, got ${limitsWithSix.filterCount}`);
+  }
+
+  if (devUnlocked) {
+    if (limitsWithSix.overFilterLimit) {
+      fail(
+        "DEV_UNLOCK_LIMITS should not mark 6 mappings as over pro filterLimit 25",
+      );
+    }
+  } else {
+    if (!limitsWithSix.overFilterLimit) {
+      fail("6 enabled mappings should exceed free plan filterLimit of 5");
+    }
+    log.info(
+      `enforcePlanLimits rejects 6 mappings on free: filterCount=${limitsWithSix.filterCount} filterLimit=${limitsWithSix.filterLimit} overFilterLimit=${limitsWithSix.overFilterLimit}`,
+    );
+  }
+
+  const cappedPayload = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: COLLECTION_GID,
+    selected: {},
+  });
+  const cappedFacets = (cappedPayload.data?.facets ?? []).filter(
+    (facet) => facet.source === "metafield",
+  );
+  if (cappedFacets.length > limitsWithSix.filterLimit) {
+    fail(
+      `storefront payload returned ${cappedFacets.length} metafield facets; cap is ${limitsWithSix.filterLimit}`,
+    );
+  }
+  if (!devUnlocked && cappedFacets.length !== PLANS.free.filterLimit) {
+    fail(
+      `free plan payload should include ${PLANS.free.filterLimit} metafield facets, got ${cappedFacets.length}`,
+    );
+  }
+  log.info(
+    `storefront payload capped metafield facets=${cappedFacets.length} (limit=${limitsWithSix.filterLimit})`,
+  );
+  if (!devUnlocked) {
+    if (findMetafieldFacet(cappedFacets, "extra_c")) {
+      fail("free plan payload should drop the 6th mapping custom.extra_c");
+    }
+    if (!findMetafieldFacet(cappedFacets, "extra_a")) {
+      fail("free plan payload should still include the 4th mapping custom.extra_a");
+    }
+  }
+
+  const persisted = await prisma.metafieldMapping.findMany({
+    where: {
+      shopId: shop.id,
+      key: { in: ["material", "weight_g", "waterproof"] },
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const expected = [
+    { key: "material", displayLabel: "Material", filterType: "LIST" },
+    { key: "weight_g", displayLabel: "Weight", filterType: "RANGE" },
+    { key: "waterproof", displayLabel: "Waterproof", filterType: "BOOLEAN" },
+  ];
+
+  for (const exp of expected) {
+    const row = persisted.find((item) => item.key === exp.key);
+    if (!row) {
+      fail(`MetafieldMapping missing after save: custom.${exp.key}`);
+    }
+    if (row.displayLabel !== exp.displayLabel || row.filterType !== exp.filterType) {
+      fail(
+        `MetafieldMapping custom.${exp.key} persistence mismatch: got label=${row.displayLabel} type=${row.filterType}`,
+      );
+    }
+  }
+  log.info("MetafieldMapping labels and filterTypes persisted correctly");
+
+  log.success(
+    "STEP7_OK metafield mappings appear in filter payload; plan caps verified",
+  );
+} catch (error) {
+  log.error(`STEP7_FAIL ${error.message}`);
+  if (error.stack) console.error(error.stack);
+  process.exitCode = 1;
+} finally {
+  try {
+    await cleanup();
+    log.info(`Cleaned up shop ${SHOP_DOMAIN}`);
+  } catch (cleanupError) {
+    log.warn(`Cleanup failed for ${SHOP_DOMAIN}: ${cleanupError.message}`);
+  }
+  await prisma.$disconnect();
+}
