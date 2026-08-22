@@ -17,6 +17,23 @@
         }
       }
     },
+    "collection_filters_embed": {
+      "name": "Collection filters",
+      "settings": {
+        "position": {
+          "label": "Filter tree style",
+          "options": {
+            "left": "Vertical (left)",
+            "right": "Vertical (right)",
+            "top": "Horizontal",
+            "offcanvas": "Off-canvas"
+          }
+        },
+        "show_counts": {
+          "label": "Show product counts"
+        }
+      }
+    },
     "vehicle_finder": {
       "name": "Vehicle finder"
     },

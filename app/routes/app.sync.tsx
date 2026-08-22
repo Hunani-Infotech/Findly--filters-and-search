@@ -218,8 +218,8 @@ export default function SyncPage() {
                   </List.Item>
                   <List.Item>Settings → layout, search, sort</List.Item>
                   <List.Item>
-                    Add Collection filters + Product search blocks in the theme
-                    editor
+                    Enable the Collection filters app embed, then add Product
+                    search blocks in the theme editor
                   </List.Item>
                 </List>
               </BlockStack>
