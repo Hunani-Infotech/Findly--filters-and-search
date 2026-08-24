@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
+import { PublicShell, publicShellStyles as shell } from "../../components/public-shell";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
@@ -45,25 +46,55 @@ export default function Auth() {
 
   return (
     <AppProvider embedded={false}>
-      <s-page>
-        <Form method="post">
-        <s-section heading="Log in">
-          <s-text-field
-            name="shop"
-            label="Shop domain"
-            details={`e.g. ${loaderData.defaultShop}`}
-            value={shop}
-            onChange={(e) => setShop(e.currentTarget.value)}
-            autocomplete="on"
-            error={errors.shop}
-            disabled={submitting}
-          ></s-text-field>
-          <s-button type="submit" loading={submitting || undefined}>
-            Log in
-          </s-button>
-        </s-section>
-        </Form>
-      </s-page>
+      <PublicShell>
+        <div className={shell.narrow}>
+          <aside className={shell.card} aria-labelledby="login-title">
+            <h1 className={shell.cardTitle} id="login-title">
+              Log in
+            </h1>
+            <p className={shell.cardCopy}>
+              Enter your shop domain to install Findly or open it in Shopify
+              Admin.
+            </p>
+            <Form className={shell.form} method="post">
+              <label className={shell.field}>
+                <span className={shell.label}>Shop domain</span>
+                <input
+                  className={
+                    errors.shop ? `${shell.input} ${shell.inputError}` : shell.input
+                  }
+                  type="text"
+                  name="shop"
+                  value={shop}
+                  onChange={(e) => setShop(e.currentTarget.value)}
+                  disabled={submitting}
+                  autoComplete="on"
+                  spellCheck={false}
+                  inputMode="url"
+                  aria-invalid={Boolean(errors.shop)}
+                  aria-describedby={errors.shop ? "shop-error" : "shop-hint"}
+                />
+              </label>
+              {errors.shop ? (
+                <p className={shell.error} id="shop-error" role="alert">
+                  {errors.shop}
+                </p>
+              ) : (
+                <p className={shell.hint} id="shop-hint">
+                  e.g. {loaderData.defaultShop}
+                </p>
+              )}
+              <button
+                className={shell.button}
+                type="submit"
+                disabled={submitting}
+              >
+                {submitting ? "Logging in…" : "Continue to Shopify"}
+              </button>
+            </Form>
+          </aside>
+        </div>
+      </PublicShell>
     </AppProvider>
   );
 }

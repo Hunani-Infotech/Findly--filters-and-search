@@ -1,6 +1,7 @@
 import type { HeadersFunction, MetaFunction } from "react-router";
 import { Link } from "react-router";
 
+import { PublicShell } from "../components/public-shell";
 import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
 import styles from "../privacy.module.css";
 
@@ -19,11 +20,9 @@ export const headers: HeadersFunction = () => ({
 
 export default function TermsOfService() {
   return (
-    <main className={styles.page}>
-      <article className={styles.inner}>
-        <Link className={styles.brand} to="/">
-          Findly: Smart Filters & Search
-        </Link>
+    <PublicShell>
+      <article className={styles.doc}>
+        <p className={styles.eyebrow}>Legal</p>
         <h1>Terms of Service</h1>
         <p className={styles.updated}>Effective 21 August 2026</p>
 
@@ -317,12 +316,7 @@ export default function TermsOfService() {
           In-app: Findly → Contact
         </p>
 
-        <p className={styles.footer}>
-          <Link to="/privacy">Privacy policy</Link>
-          {" · "}
-          <Link to="/">Back to Findly</Link>
-        </p>
       </article>
-    </main>
+    </PublicShell>
   );
 }

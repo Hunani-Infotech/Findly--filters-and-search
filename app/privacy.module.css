@@ -1,71 +1,74 @@
-.page {
-  min-height: 100%;
-  background: #fafaf9;
-  color: #1c1917;
-}
-
-.inner {
+.doc {
   max-width: 44rem;
   margin: 0 auto;
-  padding: 2.5rem 1.25rem 4rem;
+  padding: 2.25rem 0 3.5rem;
 }
 
-.brand {
-  font-size: 0.85rem;
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #57534e;
-  text-decoration: none;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f766e;
 }
 
-.brand:hover {
-  color: #1c1917;
-}
-
-h1 {
-  margin: 0.75rem 0 0.35rem;
-  font-size: 1.85rem;
+.doc h1 {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.75rem, 4vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1.2;
+  color: #1c1917;
 }
 
 .updated {
-  margin: 0 0 2rem;
+  margin: 0 0 1.75rem;
   color: #78716c;
   font-size: 0.95rem;
 }
 
-h2 {
+.doc h2 {
   margin: 2rem 0 0.65rem;
   font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #1c1917;
 }
 
-p,
-li {
+.doc p,
+.doc li {
   font-size: 1rem;
-  line-height: 1.6;
+  line-height: 1.65;
+  color: #1c1917;
 }
 
-p {
+.doc p {
   margin: 0 0 0.9rem;
 }
 
-ul {
+.doc ul {
   margin: 0 0 0.9rem;
   padding-left: 1.25rem;
 }
 
-li + li {
+.doc li + li {
   margin-top: 0.35rem;
 }
 
-.footer {
-  margin-top: 2.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid #e7e5e4;
-  color: #78716c;
-  font-size: 0.9rem;
+.doc a {
+  color: #0f766e;
+  text-underline-offset: 2px;
 }
 
-.footer a {
+.doc a:hover {
+  color: #0d9488;
+}
+
+.doc code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: #f5f5f4;
   color: #1c1917;
 }

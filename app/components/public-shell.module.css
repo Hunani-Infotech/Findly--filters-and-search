@@ -1,0 +1,262 @@
+.page,
+.page * {
+  box-sizing: border-box;
+}
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: #1c1917;
+  background: #fafaf9;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(250, 250, 249, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.headerInner,
+.main,
+.footerInner {
+  width: 100%;
+  max-width: 68rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.5rem;
+  gap: 1rem;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: #1c1917;
+  text-decoration: none;
+  line-height: 1.2;
+  border-radius: 0.375rem;
+}
+
+.logo:hover {
+  color: #0f766e;
+}
+
+.logo:focus-visible,
+.navLink:focus-visible,
+.footerLinks a:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.1rem;
+}
+
+.navLink {
+  color: #57534e;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+}
+
+.navLink:hover,
+.navLinkActive {
+  color: #1c1917;
+}
+
+.navLinkActive {
+  font-weight: 600;
+}
+
+.main {
+  flex: 1 0 auto;
+  min-width: 0;
+}
+
+.footer {
+  margin-top: auto;
+  border-top: 1px solid #e7e5e4;
+  padding: 1.25rem 0 1.75rem;
+  color: #78716c;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.footerInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.footerLinks a {
+  color: #57534e;
+  text-decoration: none;
+}
+
+.footerLinks a:hover {
+  color: #1c1917;
+}
+
+.card {
+  width: 100%;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 16px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 8px 24px rgba(28, 25, 23, 0.04);
+}
+
+.cardTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1c1917;
+}
+
+.cardCopy {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #78716c;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1c1917;
+}
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.625rem 0.85rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1917;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.input:hover {
+  border-color: #d6d3d1;
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+  border-color: #0f766e;
+}
+
+.inputError {
+  border-color: #b91c1c;
+}
+
+.hint,
+.error {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.hint {
+  color: #78716c;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.button:hover:not(:disabled) {
+  background: #0d9488;
+}
+
+.button:focus,
+.button:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.narrow {
+  max-width: 26rem;
+  margin: 2.5rem auto 4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .page * {
+    transition: none;
+    animation: none;
+  }
+}
