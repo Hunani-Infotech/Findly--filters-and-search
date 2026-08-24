@@ -281,6 +281,29 @@ export const ARTICLES_LIST_QUERY = `#graphql
   }
 `;
 
+export const INVENTORY_LEVEL_PRODUCT_QUERY = `#graphql
+  query InventoryLevelProduct($id: ID!) {
+    inventoryLevel(id: $id) {
+      item {
+        id
+        variant {
+          product { id }
+        }
+        variants(first: 1) {
+          nodes {
+            product { id }
+          }
+          edges {
+            node {
+              product { id }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const INVENTORY_ITEM_PRODUCT_QUERY = `#graphql
   query InventoryItemProduct($id: ID!) {
     inventoryItem(id: $id) {

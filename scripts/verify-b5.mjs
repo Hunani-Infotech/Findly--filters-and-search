@@ -391,7 +391,40 @@ try {
   const { PLANS } = await import("../app/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
     await import("../app/compliance.server.ts");
-  const { webhookGraphqlId } = await import("../app/webhooks.server.ts");
+  const { webhookGraphqlId, webhookInventoryItemGid } = await import(
+    "../app/webhooks.server.ts"
+  );
+
+  const toml = read("shopify.app.toml");
+  const processors = read("app/workers/processors.ts");
+  const syncServer = read("app/sync/sync.server.ts");
+  const syncPage = read("app/routes/app.sync.tsx");
+  const proxy = read("app/proxy.server.ts");
+  if (!toml.includes("inventory_levels/update") || !toml.includes("metafields/update")) {
+    fail("shopify.app.toml must subscribe to inventory_levels/update and metafields/update");
+  }
+  if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
+    fail("worker must process inventory.sync and variant.sync");
+  }
+  if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
+    fail("sync.server.ts must bump catalog generation and resolve inventory items");
+  }
+  if (!proxy.includes("getCatalogGeneration")) {
+    fail("proxy.server.ts must key filter cache by catalog generation");
+  }
+  if (!syncPage.includes("Re-sync catalog") || !syncPage.includes("Automatic updates")) {
+    fail("Sync page must present automatic updates with Re-sync as recovery");
+  }
+  const inventoryFromLevel = webhookInventoryItemGid({
+    inventory_item_id: 271878346596884000,
+    admin_graphql_api_id:
+      "gid://shopify/InventoryLevel/523463154?inventory_item_id=271878346596884015",
+  });
+  if (inventoryFromLevel !== "gid://shopify/InventoryItem/271878346596884015") {
+    fail(
+      `inventory_levels webhook must parse item id from GID, got ${inventoryFromLevel}`,
+    );
+  }
 
   const productGid = webhookGraphqlId(
     {
