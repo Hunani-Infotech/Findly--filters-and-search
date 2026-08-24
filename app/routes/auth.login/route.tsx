@@ -46,14 +46,27 @@ export default function Auth() {
 
   return (
     <PublicShell>
-      <div className={shell.narrow}>
+      <div className={shell.loginLayout}>
+        <div className={shell.loginCopy}>
+          <h1>Open Findly in Shopify Admin</h1>
+          <p>
+            Use the shop domain you install apps with. Shopify will ask you to
+            approve Findly, then the embedded admin opens — filters, search,
+            and theme settings stay inside Admin.
+          </p>
+          <ul>
+            <li>No separate Findly password</li>
+            <li>Works on development stores and live shops</li>
+            <li>Shop-scoped data only — shoppers do not log in here</li>
+          </ul>
+        </div>
+        <div className={shell.narrow}>
           <aside className={shell.card} aria-labelledby="login-title">
-            <h1 className={shell.cardTitle} id="login-title">
+            <h2 className={shell.cardTitle} id="login-title">
               Log in
-            </h1>
+            </h2>
             <p className={shell.cardCopy}>
-              Enter your shop domain to install Findly or open it in Shopify
-              Admin.
+              Enter your <code>.myshopify.com</code> domain.
             </p>
             <Form className={shell.form} method="post">
               <label className={shell.field}>
@@ -93,6 +106,7 @@ export default function Auth() {
             </Form>
           </aside>
         </div>
+      </div>
     </PublicShell>
   );
 }

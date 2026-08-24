@@ -1,9 +1,9 @@
 import type { HeadersFunction, MetaFunction } from "react-router";
 import { Link } from "react-router";
 
+import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
 import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
-import styles from "../privacy.module.css";
 
 export const meta: MetaFunction = () => [
   { title: "Terms of Service — Findly: Smart Filters & Search" },
@@ -21,11 +21,27 @@ export const headers: HeadersFunction = () => ({
 export default function TermsOfService() {
   return (
     <PublicShell>
-      <article className={styles.doc}>
-        <p className={styles.eyebrow}>Legal</p>
-        <h1>Terms of Service</h1>
-        <p className={styles.updated}>Effective 21 August 2026</p>
-
+      <LegalDoc
+        eyebrow="Legal"
+        title="Terms of Service"
+        updated="Effective 21 August 2026"
+        toc={[
+          { id: "service", label: "The service" },
+          { id: "eligibility", label: "Eligibility" },
+          { id: "billing", label: "Billing plans" },
+          { id: "use", label: "Acceptable use" },
+          { id: "content", label: "Your content" },
+          { id: "support", label: "Availability and support" },
+          { id: "ip", label: "Intellectual property" },
+          { id: "disclaimer", label: "Disclaimer" },
+          { id: "liability", label: "Limitation of liability" },
+          { id: "indemnity", label: "Indemnity" },
+          { id: "termination", label: "Suspension and uninstall" },
+          { id: "changes", label: "Changes" },
+          { id: "general", label: "General" },
+          { id: "contact", label: "Contact" },
+        ]}
+      >
         <p>
           These Terms of Service (“Terms”) are a contract between you (the
           Shopify merchant installing the app) and Hunani Infotech (“we”,
@@ -43,7 +59,7 @@ export default function TermsOfService() {
           does not govern your paid or free use of the hosted app.
         </p>
 
-        <h2>1. The service</h2>
+        <h2 id="service">1. The service</h2>
         <p>Findly provides:</p>
         <ul>
           <li>
@@ -71,7 +87,7 @@ export default function TermsOfService() {
           not Shopify and is not a party to your Shopify merchant agreement.
         </p>
 
-        <h2>2. Eligibility and your account</h2>
+        <h2 id="eligibility">2. Eligibility and your account</h2>
         <ul>
           <li>
             You must be a Shopify merchant (or staff with permission to
@@ -87,7 +103,7 @@ export default function TermsOfService() {
           </li>
         </ul>
 
-        <h2>3. Billing plans</h2>
+        <h2 id="billing">3. Billing plans</h2>
         <p>
           All charges go through the Shopify Billing API. Listing prices must
           match in-app prices. There is no yearly plan at launch. Currency is
@@ -141,7 +157,7 @@ export default function TermsOfService() {
           on. Test charges are not a production invoice.
         </p>
 
-        <h2>4. Acceptable use</h2>
+        <h2 id="use">4. Acceptable use</h2>
         <p>You agree not to:</p>
         <ul>
           <li>
@@ -184,7 +200,7 @@ export default function TermsOfService() {
           Shopify, if you materially breach these rules.
         </p>
 
-        <h2>5. Your content and Shopify data</h2>
+        <h2 id="content">5. Your content and Shopify data</h2>
         <p>
           You retain rights in your catalog, theme, and storefront. You grant
           us a limited license to copy and process that data solely to
@@ -197,7 +213,7 @@ export default function TermsOfService() {
           infringe others’ rights.
         </p>
 
-        <h2>6. Availability and support</h2>
+        <h2 id="support">6. Availability and support</h2>
         <p>
           We aim to keep Findly available but do not promise uninterrupted
           uptime. Catalog sync depends on Shopify Admin GraphQL, webhooks,
@@ -211,7 +227,7 @@ export default function TermsOfService() {
           our behalf.
         </p>
 
-        <h2>7. Intellectual property</h2>
+        <h2 id="ip">7. Intellectual property</h2>
         <p>
           Findly’s name, admin UI, Theme App Extension, and hosted service
           are owned by Hunani Infotech or its licensors. Installing the app
@@ -219,7 +235,7 @@ export default function TermsOfService() {
           Inc.
         </p>
 
-        <h2>8. Disclaimer of warranties</h2>
+        <h2 id="disclaimer">8. Disclaimer of warranties</h2>
         <p>
           Findly is provided <strong>“as is”</strong> and{" "}
           <strong>“as available.”</strong> To the fullest extent permitted by
@@ -234,7 +250,7 @@ export default function TermsOfService() {
           before relying on the widget in production.
         </p>
 
-        <h2>9. Limitation of liability</h2>
+        <h2 id="liability">9. Limitation of liability</h2>
         <p>
           To the fullest extent permitted by law, Hunani Infotech and its
           officers, employees, and contractors will not be liable for
@@ -255,7 +271,7 @@ export default function TermsOfService() {
           places, our liability is limited to the maximum extent allowed.
         </p>
 
-        <h2>10. Indemnity</h2>
+        <h2 id="indemnity">10. Indemnity</h2>
         <p>
           You will defend and indemnify Hunani Infotech against claims,
           damages, and reasonable legal fees arising from your storefront
@@ -264,7 +280,7 @@ export default function TermsOfService() {
           extent caused by our willful misconduct.
         </p>
 
-        <h2>11. Suspension, uninstall, and termination</h2>
+        <h2 id="termination">11. Suspension, uninstall, and termination</h2>
         <p>
           You may stop using Findly by uninstalling it. We may suspend or
           stop providing the service if we discontinue the app, if Shopify
@@ -274,7 +290,7 @@ export default function TermsOfService() {
           7–10, and 12–14.
         </p>
 
-        <h2>12. Changes</h2>
+        <h2 id="changes">12. Changes</h2>
         <p>
           We may update these Terms. The effective date at the top will
           change. Continued use after the update constitutes acceptance. If
@@ -283,7 +299,7 @@ export default function TermsOfService() {
           through Shopify Billing.
         </p>
 
-        <h2>13. General</h2>
+        <h2 id="general">13. General</h2>
         <p>
           These Terms are the agreement for the hosted Findly app. They do
           not create a partnership or employment relationship. If a court
@@ -299,7 +315,7 @@ export default function TermsOfService() {
           otherwise. Shopify’s platform terms are between you and Shopify.
         </p>
 
-        <h2>14. Contact</h2>
+        <h2 id="contact">14. Contact</h2>
         <p>
           Hunani Infotech — Findly: Smart Filters & Search
           <br />
@@ -316,7 +332,7 @@ export default function TermsOfService() {
           In-app: Findly → Contact
         </p>
 
-      </article>
+      </LegalDoc>
     </PublicShell>
   );
 }

@@ -122,12 +122,16 @@ export const PRODUCT_COLLECTIONS_QUERY = `#graphql
 `;
 
 export const COLLECTION_PRODUCTS_QUERY = `#graphql
-  query CollectionProducts($id: ID!, $cursor: String) {
+  query CollectionProducts($id: ID!, $cursor: String, $sortKey: ProductCollectionSortKeys = COLLECTION_DEFAULT) {
     collection(id: $id) {
       id
       title
       handle
-      products(first: 100, after: $cursor, sortKey: COLLECTION_DEFAULT) {
+      productsCount {
+        count
+        precision
+      }
+      products(first: 250, after: $cursor, sortKey: $sortKey) {
         pageInfo {
           hasNextPage
           endCursor

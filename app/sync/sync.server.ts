@@ -432,6 +432,31 @@ export async function ingestBulkOperation(
   shopDomain: string,
   bulkOperationId?: string,
 ) {
+  try {
+    return await ingestCompletedBulkOperation(shopDomain, bulkOperationId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      /not ready|missing URL|status: (RUNNING|CREATED|CANCELING)/i.test(
+        message,
+      )
+    ) {
+      throw error;
+    }
+    try {
+      const shop = await ensureShop(shopDomain);
+      await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
+    } catch (statusError) {
+      log.error("Failed to record ingest error status", statusError);
+    }
+    throw error;
+  }
+}
+
+async function ingestCompletedBulkOperation(
+  shopDomain: string,
+  bulkOperationId?: string,
+) {
   const shop = await ensureShop(shopDomain);
   const admin = await getAdminForShop(shopDomain);
 
@@ -443,6 +468,14 @@ export async function ingestBulkOperation(
     if (!op?.url) {
       throw new Error("Bulk operation not ready or missing URL");
     }
+  }
+
+  if (op.status === "FAILED" || op.status === "CANCELED") {
+    await setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog: `Bulk operation status: ${op.status}`,
+    });
+    throw new Error(`Bulk operation status: ${op.status}`);
   }
 
   if (op.status !== "COMPLETED" || !op.url) {
@@ -545,7 +578,15 @@ export async function ingestBulkOperation(
     log.info(`[sync] rebuilding ${collections.length} collections`);
     let rebuilt = 0;
     for (const collection of collections) {
-      await rebuildCollection(shopDomain, collection.collectionGid);
+      try {
+        await rebuildCollection(shopDomain, collection.collectionGid);
+      } catch (error) {
+        log.error(
+          `[sync] rebuild failed ${collection.collectionGid}`,
+          error,
+        );
+        continue;
+      }
       rebuilt += 1;
       if (rebuilt === 1 || rebuilt % 10 === 0 || rebuilt === collections.length) {
         log.info(`[sync] rebuilt collections ${rebuilt}/${collections.length}`);
@@ -711,6 +752,114 @@ export async function deleteProduct(shopDomain: string, productGid: string) {
   await bumpCatalogGeneration(shopDomain);
 }
 
+type CollectionProductSortKey = "COLLECTION_DEFAULT" | "ID";
+
+type CollectionProductsFetch = {
+  deleted: boolean;
+  title: string;
+  handle: string;
+  productGids: string[];
+  expectedCount: number | null;
+  exactCount: boolean;
+};
+
+function uniqueAppend(primary: string[], extra: string[]): string[] {
+  const seen = new Set(primary);
+  const out = [...primary];
+  for (const id of extra) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+async function fetchCollectionProductGids(
+  admin: GraphqlClient,
+  collectionGid: string,
+  sortKey: CollectionProductSortKey,
+): Promise<CollectionProductsFetch> {
+  const productGids: string[] = [];
+  let cursor: string | null = null;
+  let hasNext = true;
+  let title = "";
+  let handle = "";
+  let expectedCount: number | null = null;
+  let exactCount = false;
+  let pages = 0;
+
+  while (hasNext) {
+    pages += 1;
+    if (pages > 80) {
+      throw new Error(
+        `Collection products pagination exceeded 80 pages for ${collectionGid}`,
+      );
+    }
+    const response = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+      variables: { id: collectionGid, cursor, sortKey },
+    });
+    const json = (await response.json()) as {
+      data?: {
+        collection?: {
+          title?: string;
+          handle?: string;
+          productsCount?: { count?: number; precision?: string } | null;
+          products?: {
+            pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+            edges?: Array<{ node?: { id?: string } }>;
+          };
+        } | null;
+      };
+      errors?: unknown;
+    };
+    const gqlError = graphqlErrors(json);
+    if (gqlError) {
+      throw new Error(
+        `Collection products query failed ${collectionGid}: ${gqlError}`,
+      );
+    }
+    const collection = json.data?.collection;
+    if (!collection) {
+      return {
+        deleted: true,
+        title: "",
+        handle: "",
+        productGids: [],
+        expectedCount: null,
+        exactCount: false,
+      };
+    }
+    if (!collection.products) {
+      throw new Error(
+        `Collection products connection missing for ${collectionGid}`,
+      );
+    }
+
+    title = collection.title ?? title;
+    handle = collection.handle ?? handle;
+    const count = collection.productsCount?.count;
+    if (typeof count === "number" && Number.isFinite(count)) {
+      expectedCount = count;
+      exactCount = collection.productsCount?.precision === "EXACT";
+    }
+    for (const edge of collection.products.edges || []) {
+      const id = edge?.node?.id;
+      if (id) productGids.push(id);
+    }
+    hasNext = Boolean(collection.products.pageInfo?.hasNextPage);
+    cursor = collection.products.pageInfo?.endCursor ?? null;
+  }
+
+  return {
+    deleted: false,
+    title,
+    handle,
+    productGids: uniqueAppend([], productGids),
+    expectedCount,
+    exactCount,
+  };
+}
+
 export async function rebuildCollection(
   shopDomain: string,
   collectionGid: string,
@@ -718,42 +867,63 @@ export async function rebuildCollection(
   const shop = await ensureShop(shopDomain);
   const admin = await getAdminForShop(shopDomain);
 
-  const productGids: string[] = [];
-  let cursor: string | null = null;
-  let hasNext = true;
-  let title = "";
-  let handle = "";
-
-  while (hasNext) {
-    const response = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
-      variables: { id: collectionGid, cursor },
+  const primary = await fetchCollectionProductGids(
+    admin,
+    collectionGid,
+    "COLLECTION_DEFAULT",
+  );
+  if (primary.deleted) {
+    await prisma.collectionMembership.deleteMany({
+      where: { shopId: shop.id, collectionGid },
     });
-    const json = await response.json();
-    const collection = json.data?.collection;
-    if (!collection) {
-      // Deleted collection
-      await prisma.collectionMembership.deleteMany({
-        where: { shopId: shop.id, collectionGid },
-      });
-      await prisma.collection.deleteMany({
-        where: { shopId: shop.id, collectionGid },
-      });
-      await setSyncStatus(shop.id, {
-        status: "READY",
-        lastIncrementalSyncAt: new Date(),
-      });
-      await bumpCatalogGeneration(shopDomain);
-      return { count: 0, deleted: true as const };
-    }
+    await prisma.collection.deleteMany({
+      where: { shopId: shop.id, collectionGid },
+    });
+    await setSyncStatus(shop.id, {
+      status: "READY",
+      lastIncrementalSyncAt: new Date(),
+    });
+    await bumpCatalogGeneration(shopDomain);
+    return { count: 0, deleted: true as const };
+  }
 
-    title = collection.title ?? title;
-    handle = collection.handle ?? handle;
+  let productGids = primary.productGids;
+  let title = primary.title;
+  let handle = primary.handle;
+  const expectedCount = primary.expectedCount;
+  const exactCount = primary.exactCount;
+  const incomplete =
+    exactCount &&
+    expectedCount != null &&
+    productGids.length < expectedCount;
 
-    for (const edge of collection.products.edges) {
-      productGids.push(edge.node.id);
+  if (incomplete) {
+    log.warn(
+      `[sync] ${collectionGid} COLLECTION_DEFAULT returned ${productGids.length}/${expectedCount}; retrying with ID sort`,
+    );
+    const fallback = await fetchCollectionProductGids(
+      admin,
+      collectionGid,
+      "ID",
+    );
+    if (fallback.deleted) {
+      throw new Error(
+        `Collection ${collectionGid} disappeared during product pagination`,
+      );
     }
-    hasNext = collection.products.pageInfo.hasNextPage;
-    cursor = collection.products.pageInfo.endCursor;
+    title = fallback.title || title;
+    handle = fallback.handle || handle;
+    productGids = uniqueAppend(productGids, fallback.productGids);
+  }
+
+  if (
+    exactCount &&
+    expectedCount != null &&
+    productGids.length < expectedCount
+  ) {
+    throw new Error(
+      `Incomplete collection products for ${collectionGid}: got ${productGids.length}, Shopify reports ${expectedCount}`,
+    );
   }
 
   await prisma.collection.upsert({

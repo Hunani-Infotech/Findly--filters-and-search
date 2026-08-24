@@ -6,6 +6,9 @@ import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { log } from "./log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { ensureWorkerRunning } from "./workers/ensure-running.server";
+
+ensureWorkerRunning();
 
 export const streamTimeout = 5000;
 
