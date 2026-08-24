@@ -29,6 +29,18 @@ try {
 {% endif %}
 
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
+{% assign sf_page_size = 16 %}
+{% if collection.products.size >= 8 %}
+  {% assign sf_page_size = collection.products.size %}
+{% elsif search.results.size >= 8 %}
+  {% assign sf_page_size = search.results.size %}
+{% endif %}
+<link
+  rel="preload"
+  href="/apps/smart-filter/filters?collection_id={{ collection.id }}&collection_handle={{ collection.handle }}&page=1&pageSize={{ sf_page_size }}&locale={{ request.locale.iso_code }}&country={{ localization.country.iso_code }}&currency={{ cart.currency.iso_code }}"
+  as="fetch"
+  crossorigin
+>
 <div
   id="smart-filter-embed"
   class="smart-filter smart-filter--{{ block.settings.position }}"
@@ -38,6 +50,7 @@ try {
   data-use-quickview="{% if block.settings.use_quickview_template %}true{% else %}false{% endif %}"
   data-collection-id="{% if template contains 'collection' %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if template contains 'collection' %}{{ collection.handle }}{% endif %}"
+  data-page-size="{{ sf_page_size }}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
   data-position="{{ block.settings.position }}"

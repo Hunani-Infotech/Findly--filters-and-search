@@ -1,6 +1,9 @@
 packages:
   - "extensions/*"
 
+# Hostinger pnpm store hardlinks often lack +x on native bins (esbuild EACCES).
+nodeLinker: hoisted
+
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true

@@ -244,17 +244,6 @@ export function normalizeDisplayOrder(order?: string[] | null) {
   return next;
 }
 
-export function withMappedFacetKeys(
-  order: string[] | null | undefined,
-  mappedKeys: string[],
-) {
-  const next = normalizeDisplayOrder(order);
-  for (const key of mappedKeys) {
-    if (key && !next.includes(key)) next.push(key);
-  }
-  return next;
-}
-
 export function parseDisplayTypes(raw: unknown): Record<string, FacetDisplayType> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const allowed = new Set<string>(FACET_DISPLAY_TYPES);

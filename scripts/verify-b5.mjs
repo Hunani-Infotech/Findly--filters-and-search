@@ -400,8 +400,10 @@ try {
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
   const proxy = read("app/proxy.server.ts");
-  if (!toml.includes("inventory_levels/update") || !toml.includes("metafields/update")) {
-    fail("shopify.app.toml must subscribe to inventory_levels/update and metafields/update");
+  if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
+    fail(
+      "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
+    );
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");

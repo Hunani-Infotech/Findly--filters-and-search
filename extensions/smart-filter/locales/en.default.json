@@ -6,21 +6,7 @@
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",
-      "close": "Close filters",
-      "settings": {
-        "position": {
-          "label": "Filter tree style",
-          "options": {
-            "left": "Vertical (left)",
-            "right": "Vertical (right)",
-            "top": "Horizontal",
-            "offcanvas": "Off-canvas"
-          }
-        },
-        "show_counts": {
-          "label": "Show product counts"
-        }
-      }
+      "close": "Close filters"
     },
     "collection_filters_embed": {
       "name": "Collection filters",
@@ -28,113 +14,19 @@
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",
-      "close": "Close filters",
-      "settings": {
-        "position": {
-          "label": "Filter tree style",
-          "options": {
-            "left": "Vertical (left)",
-            "right": "Vertical (right)",
-            "top": "Horizontal",
-            "offcanvas": "Off-canvas"
-          }
-        },
-        "show_counts": {
-          "label": "Show product counts"
-        },
-        "headers": {
-          "layout": "Layout",
-          "theme_integration": "Theme integration",
-          "custom_code": "Custom code",
-          "custom_templates": "Custom templates"
-        },
-        "product_grid_selector": {
-          "label": "Product grid selector",
-          "info": "CSS selector for the collection product list (e.g. #product-grid). Leave blank to auto-detect."
-        },
-        "use_quickview_template": {
-          "label": "Use custom quickview template",
-          "info": "Adds a Quick view button on product cards. Uses [data-findly-quickview] from the product template when present."
-        },
-        "custom_javascript": {
-          "label": "Custom javascript",
-          "info": "Runs on the storefront after Findly loads. Merchant-owned code."
-        },
-        "custom_css": {
-          "label": "Custom css",
-          "info": "Add custom styles to Filter and the app product grid."
-        },
-        "product_template": {
-          "label": "Load Custom Product Template",
-          "info": "HTML for each product card. Placeholders: {{product.title}}, {{product.url}}, {{product.image}}, {{product.price}}, {{product.vendor}}, {{product.handle}}, {{product.id}}, {{product.available}}. When filled, Findly renders this instead of hiding/showing theme cards."
-        },
-        "tree_template": {
-          "label": "Load Custom Tree Template",
-          "info": "Optional HTML wrapper for the filter panel. Include an element with data-facets. Placeholders: {{title}}."
-        },
-        "sort_template": {
-          "label": "Load Custom Sort Template",
-          "info": "Optional HTML for the sort control. Must include a select with data-sort."
-        },
-        "search_template": {
-          "label": "Load Custom Search Template",
-          "info": "Optional HTML for in-collection search. Must include an input with data-collection-search."
-        },
-        "variables": {
-          "label": "Variables",
-          "info": "Liquid rendered into the embed config (e.g. {{ theme.id }}). Available in templates as {{variables}}."
-        }
-      }
+      "close": "Close filters"
     },
     "vehicle_finder": {
       "name": "Vehicle finder"
     },
     "product_recommendations": {
-      "name": "Product recommendations",
-      "settings": {
-        "widget_type": {
-          "label": "Widget type",
-          "options": {
-            "frequently_bought_together": "Frequently bought together",
-            "trending_products": "Trending products",
-            "recently_purchased_products": "Recently purchased products",
-            "hand_picked_related_products": "Hand-picked related products",
-            "most_added_products": "Most added products",
-            "best_sellers": "Best sellers",
-            "recently_viewed_products": "Recently viewed products",
-            "most_viewed_products": "Most viewed products",
-            "new_products": "New products"
-          }
-        },
-        "heading": {
-          "label": "Heading"
-        },
-        "count_mobile": {
-          "label": "Products on mobile (0 = shop default)"
-        },
-        "count_tablet": {
-          "label": "Products on tablet (0 = shop default)"
-        },
-        "count_desktop": {
-          "label": "Products on desktop (0 = shop default)"
-        }
-      }
+      "name": "Product recommendations"
     },
     "instant_search": {
       "name": "Instant search"
     },
     "product_search": {
-      "name": "Product search",
-      "input_label": "Search products",
-      "submit": "Search",
-      "settings": {
-        "placeholder": {
-          "label": "Placeholder text"
-        },
-        "show_images": {
-          "label": "Show images"
-        }
-      }
+      "name": "Product search"
     }
   }
 }

@@ -8,7 +8,7 @@ export type ConfirmDeleteOptions = {
   cancelLabel?: string;
 };
 
-export function ConfirmDeleteModal({
+function ConfirmDeleteModal({
   open,
   title,
   message,

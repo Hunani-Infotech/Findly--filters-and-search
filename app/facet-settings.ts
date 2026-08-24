@@ -154,10 +154,6 @@ export function parseFacetSettings(raw: unknown): FacetSettingsMap {
   return out;
 }
 
-export function facetSettingFor(map: FacetSettingsMap, key: string): FacetSetting {
-  return map[key] || {};
-}
-
 /** Keep tree-level JSON keys that are not per-option FacetSetting objects. */
 export function facetSettingsWithTreeMeta(
   settings: FacetSettingsMap,
@@ -197,14 +193,6 @@ export function withFilterTreeMeta(
   }
   out[TREE_FACET_META_KEY] = nextTree;
   return out;
-}
-
-export function withExcludeCollectionGids(
-  settings: FacetSettingsMap,
-  excludeCollectionGids: string[],
-  raw?: unknown,
-): Record<string, unknown> {
-  return withFilterTreeMeta(settings, { excludeCollectionGids }, raw);
 }
 
 export function applyFacetValueFilter(

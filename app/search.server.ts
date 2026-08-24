@@ -30,13 +30,6 @@ import { getMetafieldMappings } from "./shop.server";
 import { findShopByIdCached } from "./shop-cache.server";
 import { createTtlCache } from "./read-cache.server";
 
-export {
-  DEFAULT_STOP_WORDS,
-  editDistance,
-  maxTypoDistance,
-  prepareSearchTokens,
-} from "./search-query";
-
 const DEFAULT_TAKE = 24;
 const MAX_TAKE = 48;
 const FACET_DEFAULT_TAKE = 200;
@@ -328,19 +321,6 @@ function scoreSearchHit(
     }
   }
   return 0;
-}
-
-/** Shared Prisma `where` for keyword search (B1–B3). Array fields need post-filter substring match. */
-export function keywordSearchWhere(
-  shopId: string,
-  normalizedQuery: string,
-  fields: readonly string[] = [],
-): Prisma.ProductFacetWhereInput {
-  const tokens = prepareSearchTokens(normalizedQuery);
-  if (tokens.length === 0) {
-    return { shopId, id: "__no_search_fields__" };
-  }
-  return keywordSearchWhereForTokens(shopId, tokens, fields, "and");
 }
 
 export function keywordSearchWhereForTokens(
