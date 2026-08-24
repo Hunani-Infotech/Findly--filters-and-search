@@ -1,7 +1,8 @@
 packages:
   - "extensions/*"
 
-# Hostinger pnpm store hardlinks often lack +x on native bins (esbuild EACCES).
+# Hostinger: also set node-linker + package-import-method=copy in .npmrc.
+# Workspace nodeLinker alone is ignored by Hostinger's pnpm (still uses virtual store).
 nodeLinker: hoisted
 
 allowBuilds:
