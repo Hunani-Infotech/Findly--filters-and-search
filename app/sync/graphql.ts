@@ -91,7 +91,26 @@ export const PRODUCT_NODE_QUERY = `#graphql
               key
               value
             }
-            collections(first: 50) {
+            collections(first: 250) {
+        edges {
+          node {
+            id
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const PRODUCT_COLLECTIONS_QUERY = `#graphql
+  query ProductCollections($id: ID!, $cursor: String) {
+    product(id: $id) {
+      id
+      collections(first: 100, after: $cursor) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         edges {
           node {
             id

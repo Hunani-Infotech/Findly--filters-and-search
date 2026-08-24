@@ -14,6 +14,7 @@ import {
   INVENTORY_ITEM_PRODUCT_QUERY,
   INVENTORY_LEVEL_PRODUCT_QUERY,
   PRODUCT_NODE_QUERY,
+  PRODUCT_COLLECTIONS_QUERY,
   VARIANT_PRODUCT_QUERY,
 } from "./graphql";
 import {
@@ -21,6 +22,7 @@ import {
   syncShopMarketPrices,
 } from "./markets-sync";
 import { mapProductToFacet, parseBulkJsonlProducts } from "./product-mapper";
+import { enqueueSyncJob } from "../queues.server";
 
 type GraphqlClient = {
   graphql: (
@@ -39,15 +41,16 @@ async function syncProductMemberships(
   shopId: string,
   productGid: string,
   collectionGids: string[],
-) {
+): Promise<string[]> {
   const existing = await prisma.collectionMembership.findMany({
     where: { shopId, productGid },
   });
+  const previous = existing.map((row) => row.collectionGid);
   if (!collectionGids.length) {
     await prisma.collectionMembership.deleteMany({
       where: { shopId, productGid },
     });
-    return;
+    return previous;
   }
   await prisma.collectionMembership.deleteMany({
     where: {
@@ -74,6 +77,84 @@ async function syncProductMemberships(
       },
       update: {},
     });
+  }
+  return previous;
+}
+
+async function fetchProductCollectionGids(
+  admin: GraphqlClient,
+  productGid: string,
+): Promise<string[] | null> {
+  const gids: string[] = [];
+  let cursor: string | null = null;
+  let hasNext = true;
+  try {
+    while (hasNext) {
+      const response = await admin.graphql(PRODUCT_COLLECTIONS_QUERY, {
+        variables: { id: productGid, cursor },
+      });
+      const json = (await response.json()) as {
+        data?: {
+          product?: {
+            collections?: {
+              pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+              edges?: Array<{ node?: { id?: string } }>;
+            };
+          } | null;
+        };
+        errors?: unknown;
+      };
+      if (json.errors) {
+        log.error(
+          `[sync] product collections query failed ${productGid}: ${JSON.stringify(json.errors)}`,
+        );
+        return null;
+      }
+      const product = json.data?.product;
+      if (!product) return null;
+      const connection = product.collections;
+      if (!connection) break;
+      for (const edge of connection.edges || []) {
+        const id = edge?.node?.id;
+        if (id) gids.push(id);
+      }
+      hasNext = Boolean(connection.pageInfo?.hasNextPage);
+      cursor = connection.pageInfo?.endCursor ?? null;
+    }
+    return [...new Set(gids)];
+  } catch (error) {
+    log.error(`[sync] product collections fetch failed ${productGid}`, error);
+    return null;
+  }
+}
+
+async function enqueueChangedCollectionRebuilds(
+  shopDomain: string,
+  previous: string[],
+  next: string[],
+) {
+  const prevSet = new Set(previous);
+  const nextSet = new Set(next);
+  const changed = new Set<string>();
+  for (const gid of nextSet) {
+    if (!prevSet.has(gid)) changed.add(gid);
+  }
+  for (const gid of prevSet) {
+    if (!nextSet.has(gid)) changed.add(gid);
+  }
+  for (const collectionGid of changed) {
+    try {
+      await enqueueSyncJob(
+        "collection.rebuild",
+        { shop: shopDomain, collectionGid },
+        {
+          jobId: `${shopDomain}:collection.rebuild:${collectionGid}`,
+          delay: 2000,
+        },
+      );
+    } catch (error) {
+      log.error("Failed to enqueue collection rebuild", error);
+    }
   }
 }
 
@@ -497,7 +578,11 @@ export async function ingestBulkOperation(
   return { upserted, truncated, pruned, productLimit };
 }
 
-export async function upsertProduct(shopDomain: string, productGid: string) {
+export async function upsertProduct(
+  shopDomain: string,
+  productGid: string,
+  opts?: { skipCollectionRebuild?: boolean },
+) {
   const shop = await ensureShop(shopDomain);
   const admin = await getAdminForShop(shopDomain);
 
@@ -532,7 +617,11 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
     return;
   }
 
-  const { facet, collectionGids } = mapProductToFacet(shop.id, product);
+  const { facet, collectionGids: mappedGids } = mapProductToFacet(shop.id, product);
+  const pagedGids = await fetchProductCollectionGids(admin, productGid);
+  const collectionGids =
+    pagedGids ?? (mappedGids.length ? mappedGids : null);
+
   await prisma.productFacet.upsert({
     where: {
       shopId_productGid: { shopId: shop.id, productGid: facet.productGid },
@@ -574,7 +663,20 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
     "VARIANT",
   );
 
-  await syncProductMemberships(shop.id, facet.productGid, collectionGids);
+  if (collectionGids !== null) {
+    const previous = await syncProductMemberships(
+      shop.id,
+      facet.productGid,
+      collectionGids,
+    );
+    if (!opts?.skipCollectionRebuild) {
+      await enqueueChangedCollectionRebuilds(
+        shopDomain,
+        previous,
+        collectionGids,
+      );
+    }
+  }
 
   try {
     await syncProductMarketPrices(admin, shop.id, facet.productGid);
@@ -693,7 +795,9 @@ export async function rebuildCollection(
     const existingGids = new Set(existingFacets.map((f) => f.productGid));
     const missingGids = productGids.filter((gid) => !existingGids.has(gid));
     for (const productGid of missingGids) {
-      await upsertProduct(shopDomain, productGid);
+      await upsertProduct(shopDomain, productGid, {
+        skipCollectionRebuild: true,
+      });
     }
   }
 

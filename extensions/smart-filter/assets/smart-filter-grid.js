@@ -652,7 +652,13 @@
   }
 
   function applyNativeAfterGrid(self) {
-    if (!self || (self.appGridTemplate && self.appGridTemplate())) return;
+    if (!self) return;
+    if (self._appGridActive || (self.isAppGridMode && self.isAppGridMode())) {
+      var parent = self._gridParent;
+      if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
+      return;
+    }
+    if (self.appGridTemplate && self.appGridTemplate()) return;
     var handles =
       self._visibleHandles && self._visibleHandles.length
         ? self._visibleHandles
@@ -666,6 +672,83 @@
       return;
     }
     applyNativeFilterGrid(handles, self._gridParent);
+  }
+
+  function isMobileDrawer() {
+    try {
+      return window.matchMedia("(max-width: 989px)").matches;
+    } catch (err) {
+      return window.innerWidth < 990;
+    }
+  }
+
+  function toolbarHost() {
+    var host = document.querySelector(".sf-sort-host");
+    if (host) return host;
+    var main = document.querySelector(".sf-collection-layout__main");
+    if (!main) {
+      var grid = document.querySelector(PRODUCT_GRID_SELECTOR);
+      main = grid && grid.parentElement;
+    }
+    if (!main) return null;
+    host = document.createElement("div");
+    host.className = "sf-sort-host";
+    if (main.firstChild) main.insertBefore(host, main.firstChild);
+    else main.appendChild(host);
+    return host;
+  }
+
+  function portalMobileDrawer(widget) {
+    if (!widget || !widget.root) return;
+    var panel =
+      widget.panelEl || widget.root.querySelector("[data-drawer-panel]");
+    var backdrop =
+      widget.backdropEl || widget.root.querySelector("[data-drawer-backdrop]");
+    var toggle =
+      widget.toggleEl || widget.root.querySelector("[data-drawer-toggle]");
+    if (!panel) {
+      panel = document.querySelector(".smart-filter__panel.sf-drawer-portal");
+    }
+    if (!backdrop) {
+      backdrop = document.querySelector(".smart-filter__backdrop.sf-drawer-portal");
+    }
+    if (!toggle) {
+      toggle = document.querySelector(".smart-filter__toggle--toolbar");
+    }
+    if (!panel) return;
+    if (isMobileDrawer()) {
+      if (backdrop && backdrop.parentNode !== document.body) {
+        backdrop.classList.add("sf-drawer-portal");
+        document.body.appendChild(backdrop);
+      }
+      if (panel.parentNode !== document.body) {
+        panel.classList.add("sf-drawer-portal");
+        document.body.appendChild(panel);
+      }
+      var host = toolbarHost();
+      if (toggle && host && toggle.parentNode !== host) {
+        toggle.classList.add("smart-filter__toggle--toolbar");
+        if (host.firstChild) host.insertBefore(toggle, host.firstChild);
+        else host.appendChild(toggle);
+      }
+    } else {
+      if (panel.classList.contains("sf-drawer-portal")) {
+        panel.classList.remove("sf-drawer-portal", "is-open");
+        widget.root.appendChild(panel);
+      }
+      if (backdrop && backdrop.classList.contains("sf-drawer-portal")) {
+        backdrop.classList.remove("sf-drawer-portal", "is-open");
+        widget.root.insertBefore(backdrop, panel);
+      }
+      if (toggle && toggle.classList.contains("smart-filter__toggle--toolbar")) {
+        toggle.classList.remove("smart-filter__toggle--toolbar");
+        widget.root.insertBefore(toggle, widget.root.firstChild);
+      }
+      document.documentElement.classList.remove("is-sf-drawer-open");
+    }
+    widget.panelEl = panel;
+    widget.backdropEl = backdrop;
+    widget.toggleEl = toggle;
   }
 
   function moveCardsToHost(from, to) {
@@ -844,8 +927,7 @@
         if (self.appGridTemplate && self.appGridTemplate()) {
           if (!self._appGridActive) return;
           var parent = self._gridParent;
-          if (!parent) return;
-          if (self.hideNativeGridCards) self.hideNativeGridCards(parent);
+          if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
           return;
         }
         applyNativeAfterGrid(self);
@@ -865,7 +947,32 @@
     proto.__findlyGridPatched = true;
 
     proto.isAppGridMode = function () {
-      return Boolean(this.appGridTemplate && this.appGridTemplate());
+      if (this.appGridTemplate && this.appGridTemplate()) return true;
+      if (this.hasActiveFilters && this.hasActiveFilters()) return true;
+      if (this.collectionQuery) return true;
+      if (this.sortKey && this.defaultSort && this.sortKey !== this.defaultSort) {
+        return true;
+      }
+      return false;
+    };
+
+    proto.ensurePageSize = function () {
+      if (this.pageSize >= 8 && this.pageSize <= 48) return this.pageSize;
+      var attr = 0;
+      try {
+        attr = parseInt(
+          (this.root && this.root.getAttribute("data-page-size")) || "0",
+          10,
+        );
+      } catch (err) {
+        attr = 0;
+      }
+      if (attr >= 8 && attr <= 48) {
+        this.pageSize = attr;
+        return this.pageSize;
+      }
+      this.pageSize = 16;
+      return this.pageSize;
     };
 
     var origEnsure = proto.ensureGridParent;
@@ -952,59 +1059,44 @@
 
     var origSync = proto.syncCollectionLayout;
     proto.syncCollectionLayout = function () {
+      var layout;
       try {
-        return origSync ? origSync.apply(this, arguments) : undefined;
+        layout = origSync ? origSync.apply(this, arguments) : undefined;
       } catch (err) {
         findlyLog(
           "syncCollectionLayout error",
           String((err && err.message) || err),
         );
       }
+      portalMobileDrawer(this);
+      return layout;
     };
 
     var origHide = proto.hideNativeGridCards;
     proto.hideNativeGridCards = function (parent) {
-      if (this.appGridTemplate && this.appGridTemplate()) {
-        if (origHide) origHide.call(this, parent);
-        hideNestedThemeCards(parent);
-      }
+      if (origHide) origHide.call(this, parent);
+      hideNestedThemeCards(parent);
+      setOwnsGrid(true);
     };
 
     var origRestore = proto.restoreNativeGrid;
     proto.restoreNativeGrid = function () {
       stripAppCards(document);
-      applyNativeFilterGrid(null, this._gridParent);
       if (origRestore) origRestore.call(this);
+      applyNativeFilterGrid(null, this._gridParent);
       setOwnsGrid(false);
-    };
-
-    proto.applyThemeGridLegacy = function (data, handles) {
-      stripAppCards(document);
-      if (this.restoreThemePaging) this.restoreThemePaging();
-      applyNativeFilterGrid(handles, this._gridParent);
-      this._shownHandles = handles || [];
-    };
-
-    proto.applyInterceptGrid = function (handles) {
-      applyNativeFilterGrid(handles, this._gridParent);
-      this._shownHandles = handles || [];
-      return true;
     };
 
     var origApply = proto.applyAppGrid;
     proto.applyAppGrid = function (data, handles, append) {
-      if (!(this.appGridTemplate && this.appGridTemplate())) {
-        stripAppCards(document);
-        applyNativeFilterGrid(handles, this._gridParent);
-        this._appGridActive = false;
-        this._shownHandles = handles || [];
-        findlyLog("applyAppGrid native", {
-          products: handles && handles.length,
-          total: data && data.total,
-        });
-        return true;
-      }
-      return origApply ? origApply.call(this, data, handles, append) : false;
+      var ok = origApply ? origApply.call(this, data, handles, append) : false;
+      setOwnsGrid(true);
+      findlyLog("applyAppGrid", {
+        products: handles && handles.length,
+        total: data && data.total,
+        shown: this._shownHandles && this._shownHandles.length,
+      });
+      return ok;
     };
 
     var origFetch = proto.fetchFilters;
@@ -1022,11 +1114,23 @@
       var self = this;
       if (result && typeof result.then === "function") {
         return result.then(function (value) {
-          applyNativeAfterGrid(self);
+          if (
+            !(self._appGridActive || (self.isAppGridMode && self.isAppGridMode()))
+          ) {
+            applyNativeAfterGrid(self);
+          } else if (self._gridParent && self.hideNativeGridCards) {
+            self.hideNativeGridCards(self._gridParent);
+          }
           return value;
         });
       }
       return result;
+    };
+
+    var origRestoreHash = proto.restoreFromHash;
+    proto.restoreFromHash = function () {
+      if (origRestoreHash) origRestoreHash.call(this);
+      applyLooseHash(this);
     };
 
     var origInit = proto.init;
@@ -1038,12 +1142,35 @@
         collectionId: this.collectionId,
       });
       if (origInit) origInit.apply(this, arguments);
+      portalMobileDrawer(this);
+    };
+
+    var origOpen = proto.openDrawer;
+    proto.openDrawer = function () {
+      portalMobileDrawer(this);
+      if (origOpen) origOpen.apply(this, arguments);
+      if (this.panelEl) this.panelEl.classList.add("is-open");
+      if (this.backdropEl) {
+        this.backdropEl.hidden = false;
+        this.backdropEl.classList.add("is-open");
+      }
+      document.documentElement.classList.add("is-sf-drawer-open");
+    };
+
+    var origClose = proto.closeDrawer;
+    proto.closeDrawer = function () {
+      if (origClose) origClose.apply(this, arguments);
+      if (this.panelEl) this.panelEl.classList.remove("is-open");
+      if (this.backdropEl) this.backdropEl.classList.remove("is-open");
+      document.documentElement.classList.remove("is-sf-drawer-open");
     };
 
     var origWatch = proto.watchThemeGrid;
     proto.watchThemeGrid = function () {
       if (origWatch) origWatch.call(this);
-      applyNativeAfterGrid(this);
+      if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
+        applyNativeAfterGrid(this);
+      }
       if (this._findlyGridWatch) return;
       this._findlyGridWatch = true;
       ensureFindlyGridObserver(this);
@@ -1061,6 +1188,7 @@
         set: function (next) {
           held = next;
           patchWidget(next);
+          applyLooseHash(next);
         },
       });
     } catch (err) {
@@ -1072,18 +1200,18 @@
     injectCss();
     bindFindlyChangeCapture();
     bindHashChange();
+    if (!window.__findlyDrawerResize) {
+      window.__findlyDrawerResize = true;
+      window.addEventListener("resize", function () {
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (widget) portalMobileDrawer(widget);
+      });
+    }
     var held = window.__FINDLY_FILTER_WIDGET;
     installSetter(held);
     if (held) {
       patchWidget(held);
       applyLooseHash(held);
-      if (
-        held.hasActiveFilters &&
-        held.hasActiveFilters() &&
-        held.fetchFilters
-      ) {
-        held.fetchFilters();
-      }
     }
     findlyLog("companion ready", {
       widget: Boolean(held),

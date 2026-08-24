@@ -90,7 +90,7 @@ export async function handleWebhookTopic(
       await enqueueSyncJobWithTimeout(
         "product.upsert",
         { shop, productGid },
-        { jobId: `${shop}:product.upsert:${productGid}`, delay: 500 },
+        { jobId: `${shop}:product.upsert:${productGid}`, delay: 2500 },
       );
       break;
     }
@@ -110,7 +110,7 @@ export async function handleWebhookTopic(
       await enqueueSyncJobWithTimeout(
         "collection.rebuild",
         { shop, collectionGid },
-        { jobId: `${shop}:collection.rebuild:${collectionGid}`, delay: 500 },
+        { jobId: `${shop}:collection.rebuild:${collectionGid}`, delay: 2000 },
       );
       break;
     }
@@ -154,7 +154,7 @@ export async function handleWebhookTopic(
         await enqueueSyncJobWithTimeout(
           "product.upsert",
           { shop, productGid },
-          { jobId: `${shop}:product.upsert:${productGid}`, delay: 500 },
+          { jobId: `${shop}:product.upsert:${productGid}`, delay: 2500 },
         );
         break;
       }
@@ -182,7 +182,7 @@ export async function handleWebhookTopic(
           { shop, collectionGid },
           {
             jobId: `${shop}:collection.rebuild:${collectionGid}`,
-            delay: 500,
+            delay: 2000,
           },
         );
         break;

@@ -793,6 +793,7 @@ async function loadCollectionFilterPayload(input: {
     rows: allRows,
     selected: input.selected,
     collectionGid,
+    shopWideCollectionCounts: isAll,
     sort: input.sort,
     query: collectionQuery || null,
     locale: input.locale,
@@ -814,6 +815,7 @@ async function buildFacetPayload(input: {
   rows: ProductFacetRow[];
   selected: SelectedFilters;
   collectionGid?: string | null;
+  shopWideCollectionCounts?: boolean;
   query?: string | null;
   sort?: string | null;
   isSearch?: boolean;
@@ -918,7 +920,7 @@ async function buildFacetPayload(input: {
     const [withGids, catalog, totals] = await Promise.all([
       attachCollectionGids(input.shopId, visibleBase),
       loadShopCollections(input.shopId),
-      input.isSearch
+      input.isSearch || input.shopWideCollectionCounts === false
         ? Promise.resolve(null)
         : loadCollectionProductCounts(input.shopId),
     ]);
