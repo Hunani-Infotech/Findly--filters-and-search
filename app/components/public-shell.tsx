@@ -3,8 +3,6 @@ import { Link, useLocation } from "react-router";
 
 import styles from "./public-shell.module.css";
 
-export { default as publicShellStyles } from "./public-shell.module.css";
-
 export function PublicShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const onPrivacy = pathname === "/privacy";

@@ -1,9 +1,9 @@
-import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
-import { PublicShell, publicShellStyles as shell } from "../../components/public-shell";
+import { PublicShell } from "../../components/public-shell";
+import shell from "../../components/public-shell.module.css";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
@@ -45,9 +45,8 @@ export default function Auth() {
       navigation.formMethod?.toUpperCase() === "POST");
 
   return (
-    <AppProvider embedded={false}>
-      <PublicShell>
-        <div className={shell.narrow}>
+    <PublicShell>
+      <div className={shell.narrow}>
           <aside className={shell.card} aria-labelledby="login-title">
             <h1 className={shell.cardTitle} id="login-title">
               Log in
@@ -94,7 +93,6 @@ export default function Auth() {
             </Form>
           </aside>
         </div>
-      </PublicShell>
-    </AppProvider>
+    </PublicShell>
   );
 }

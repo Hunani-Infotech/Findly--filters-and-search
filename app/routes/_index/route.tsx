@@ -1,7 +1,8 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { redirect, Form, useLoaderData, useNavigation } from "react-router";
 
-import { PublicShell, publicShellStyles as shell } from "../../components/public-shell";
+import { PublicShell } from "../../components/public-shell";
+import shell from "../../components/public-shell.module.css";
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
