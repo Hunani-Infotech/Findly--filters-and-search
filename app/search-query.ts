@@ -120,21 +120,6 @@ export function tokenMatchesHaystack(
 
 export type SearchMatchMode = "and" | "or";
 
-export function tokensMatchHaystack(
-  haystack: string,
-  tokens: string[],
-  fuzzy: boolean,
-  mode: SearchMatchMode = "and",
-): boolean {
-  if (tokens.length === 0) return false;
-  if (mode === "or") {
-    return tokens.some((token) =>
-      tokenMatchesHaystack(haystack, token, fuzzy),
-    );
-  }
-  return tokens.every((token) => tokenMatchesHaystack(haystack, token, fuzzy));
-}
-
 export function searchableTextFromProduct(row: {
   title: string;
   vendor: string;

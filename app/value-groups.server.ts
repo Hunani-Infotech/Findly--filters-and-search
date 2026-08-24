@@ -27,11 +27,6 @@ export async function getFilterValueCatalog(shopId: string) {
   });
 }
 
-export async function listCatalogSources(shopId: string) {
-  const { sources } = await getFilterValueCatalog(shopId);
-  return sources;
-}
-
 function resolveSourceKey(
   sources: Array<{ key: string }>,
   requested: string,

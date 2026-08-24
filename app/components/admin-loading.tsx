@@ -29,7 +29,7 @@ function isPageNavigation(navigation: NavigationState) {
 }
 
 /** True when the destination pathname is different (not tab/search-param revalidation). */
-export function isPageSwitch(
+function isPageSwitch(
   navigation: NavigationState,
   currentPathname: string,
 ) {
