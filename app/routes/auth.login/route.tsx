@@ -1,10 +1,18 @@
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { useState } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
+
+export const meta: MetaFunction = () => [
+  { title: "Log in · Findly" },
+  {
+    name: "description",
+    content: "Sign in to Findly with your Shopify shop domain.",
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const errors = loginErrorMessage(await login(request));
@@ -43,7 +51,7 @@ export default function Auth() {
           <s-text-field
             name="shop"
             label="Shop domain"
-            details="findly-test-store.myshopify.com"
+            details={`e.g. ${loaderData.defaultShop}`}
             value={shop}
             onChange={(e) => setShop(e.currentTarget.value)}
             autocomplete="on"
