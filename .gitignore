@@ -39,7 +39,10 @@ pnpm-lock.yaml
 npmdev.log
 
 # Cursor skills on this PC only — not shared via git
-.cursor/skills/
+.cursor/skills/*
+# Shared: 100 KB Theme App Extension split workflow
+!.cursor/skills/theme-extension-split/
+!.cursor/skills/theme-extension-split/**
 
 # Local comparison / step prompts — local only
 GLOBO-MATCH-STEP-PROMPTS.txt

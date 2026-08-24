@@ -1,7 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import prisma from "./db.server";
+import { getCatalogGeneration } from "./catalog-cache.server";
 import { createTtlCache } from "./read-cache.server";
+import { findShopByIdCached } from "./shop-cache.server";
 import {
   defaultUrlHandle,
   parseFacetSettings,
@@ -239,7 +241,11 @@ type CatalogContext = Awaited<ReturnType<typeof loadCatalogContextUncached>>;
 const catalogContextCache = createTtlCache<CatalogContext>(30_000);
 
 async function loadCatalogContext(shopId: string) {
-  return catalogContextCache.wrap(shopId, () => loadCatalogContextUncached(shopId));
+  const shop = await findShopByIdCached(shopId);
+  const gen = shop ? await getCatalogGeneration(shop.domain) : "0";
+  return catalogContextCache.wrap(`${gen}:${shopId}`, () =>
+    loadCatalogContextUncached(shopId),
+  );
 }
 
 export async function loadFilterOptionCatalogPage(

@@ -9,7 +9,23 @@ export type SyncJobName =
   | "product.upsert"
   | "product.delete"
   | "collection.rebuild"
-  | "shop.cleanup";
+  | "shop.cleanup"
+  | "inventory.sync"
+  | "variant.sync";
+
+const FOLLOWUP_JOBS: ReadonlySet<SyncJobName> = new Set([
+  "product.upsert",
+  "product.delete",
+  "collection.rebuild",
+  "inventory.sync",
+  "variant.sync",
+]);
+
+const DROP_IF_BUSY_JOBS: ReadonlySet<SyncJobName> = new Set([
+  "shop.fullSync",
+  "shop.ingestBulk",
+  "shop.cleanup",
+]);
 
 let syncQueue: Queue | null = null;
 
@@ -26,6 +42,17 @@ function bullJobId(jobId?: string) {
   return jobId.replace(/:/g, "_");
 }
 
+function jobAddOpts(jobId: string | undefined, delay?: number) {
+  return {
+    jobId,
+    delay,
+    removeOnComplete: 100,
+    removeOnFail: 200,
+    attempts: 3,
+    backoff: { type: "exponential" as const, delay: 2000 },
+  };
+}
+
 export async function enqueueSyncJob(
   name: SyncJobName,
   data: Record<string, unknown>,
@@ -40,24 +67,41 @@ export async function enqueueSyncJob(
       const state = await existing.getState();
       if (state === "failed" || state === "completed") {
         await existing.remove();
-      } else if (
-        state === "active" ||
-        state === "waiting" ||
-        state === "delayed"
-      ) {
+      } else if (state === "delayed") {
+        if (
+          opts?.delay != null &&
+          typeof existing.changeDelay === "function"
+        ) {
+          await existing.changeDelay(opts.delay);
+        }
         return existing;
+      } else if (state === "waiting") {
+        return existing;
+      } else if (state === "active") {
+        if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
+          return existing;
+        }
+        const followupId = `${jobId}_followup`;
+        const followup = await queue.getJob(followupId);
+        if (followup) {
+          const followupState = await followup.getState();
+          if (
+            followupState === "waiting" ||
+            followupState === "delayed" ||
+            followupState === "active"
+          ) {
+            return followup;
+          }
+          if (followupState === "failed" || followupState === "completed") {
+            await followup.remove();
+          }
+        }
+        return queue.add(name, data, jobAddOpts(followupId, opts?.delay));
       }
     }
   }
 
-  return queue.add(name, data, {
-    jobId,
-    delay: opts?.delay,
-    removeOnComplete: 100,
-    removeOnFail: 200,
-    attempts: 3,
-    backoff: { type: "exponential", delay: 2000 },
-  });
+  return queue.add(name, data, jobAddOpts(jobId, opts?.delay));
 }
 
 const DEFAULT_ENQUEUE_TIMEOUT_MS = 2000;

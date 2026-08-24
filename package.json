@@ -134,5 +134,18 @@
   ],
   "overrides": {
     "p-map": "^4.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "@embedded-postgres/linux-x64",
+      "@embedded-postgres/windows-x64",
+      "msgpackr-extract",
+      "unrs-resolver",
+      "@parcel/watcher"
+    ]
   }
 }

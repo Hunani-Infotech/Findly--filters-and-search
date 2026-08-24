@@ -5028,7 +5028,7 @@
         targetList.appendChild(li);
       }.bind(this),
     );
-    };
+    }.bind(this);
     addItems(list, items);
 
     return list;

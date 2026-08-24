@@ -77,7 +77,8 @@ import {
   stripStopWordsFromQuery,
 } from "./instant-search";
 import { applyMarketPricesToRow, parseMarketContext } from "./markets.server";
-import { findShopCached } from "./shop-cache.server";
+import { getCatalogGeneration } from "./catalog-cache.server";
+import { findShopByIdCached, findShopCached } from "./shop-cache.server";
 import { createTtlCache } from "./read-cache.server";
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
@@ -313,13 +314,20 @@ async function loadCollectionProductFacetsUncached(
 const collectionFacetCache = createTtlCache<CollectionFacetDbRow[]>(45_000);
 const shopProductFacetCache = createTtlCache<CollectionFacetDbRow[]>(45_000);
 
+async function catalogGenerationForShopId(shopId: string): Promise<string> {
+  const shop = await findShopByIdCached(shopId);
+  if (!shop) return "0";
+  return getCatalogGeneration(shop.domain);
+}
+
 async function loadCollectionProductFacets(
   shopId: string,
   collectionGid: string,
   select: Prisma.ProductFacetSelect,
 ) {
+  const gen = await catalogGenerationForShopId(shopId);
   return collectionFacetCache.wrap(
-    `${shopId}:${collectionGid}:${selectFingerprint(select)}`,
+    `${gen}:${shopId}:${collectionGid}:${selectFingerprint(select)}`,
     () => loadCollectionProductFacetsUncached(shopId, collectionGid, select),
   );
 }
@@ -341,8 +349,9 @@ async function loadShopProductFacets(
   shopId: string,
   select: Prisma.ProductFacetSelect,
 ) {
+  const gen = await catalogGenerationForShopId(shopId);
   return shopProductFacetCache.wrap(
-    `${shopId}:all:${selectFingerprint(select)}`,
+    `${gen}:${shopId}:all:${selectFingerprint(select)}`,
     () => loadShopProductFacetsUncached(shopId, select),
   );
 }
@@ -538,7 +547,8 @@ function toRow(p: {
 }
 
 async function loadShopCollections(shopId: string): Promise<ShopCollection[]> {
-  return shopCollectionsCache.wrap(shopId, async () => {
+  const gen = await catalogGenerationForShopId(shopId);
+  return shopCollectionsCache.wrap(`${gen}:${shopId}`, async () => {
     const rows = await prisma.collection.findMany({
       where: { shopId },
       select: { collectionGid: true, title: true, handle: true },
@@ -557,7 +567,8 @@ async function loadShopCollections(shopId: string): Promise<ShopCollection[]> {
 async function loadCollectionProductCounts(
   shopId: string,
 ): Promise<Map<string, number>> {
-  return collectionProductCountsCache.wrap(shopId, async () => {
+  const gen = await catalogGenerationForShopId(shopId);
+  return collectionProductCountsCache.wrap(`${gen}:${shopId}`, async () => {
     const rows = await prisma.$queryRaw<
       Array<{ collectionGid: string; count: number | bigint }>
     >(Prisma.sql`
@@ -619,7 +630,8 @@ export async function getCollectionFilterPayload(input: {
   pageSize?: number;
 } & MarketRequestFields) {
   pruneFilterPayloadCache();
-  const cacheKey = collectionFilterCacheKey(input);
+  const gen = await getCatalogGeneration(input.shopDomain);
+  const cacheKey = `${gen}:${collectionFilterCacheKey(input)}`;
   const cached = filterPayloadCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     return cached.result;
@@ -1188,7 +1200,8 @@ const searchPayloadCache = createTtlCache<SearchFilterPayload>(45_000);
 export async function getSearchFilterPayload(
   input: Parameters<typeof loadSearchFilterPayload>[0],
 ) {
-  const cacheKey = `search:${collectionFilterCacheKey({
+  const gen = await getCatalogGeneration(input.shopDomain);
+  const cacheKey = `${gen}:search:${collectionFilterCacheKey({
     shopDomain: input.shopDomain,
     selected: input.selected,
     sort: input.sort,

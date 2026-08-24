@@ -13,7 +13,8 @@
   --sf-radius: 8px;
   --sf-space: 1.25rem;
   --sf-gutter: 1.15rem;
-  --sf-check-size: 16px;
+  --sf-check-size: 18px;
+  --sf-check-radius: 4px;
   --sf-row-pad: 0.8em;
   --sf-tree-indent: 1.45em;
   --sf-shadow: none;
@@ -476,13 +477,13 @@
 .smart-filter__option {
   display: flex !important;
   position: relative;
-  align-items: flex-start;
-  gap: 1em;
-  padding: var(--sf-row-pad) 0.25em var(--sf-row-pad) 0.05em;
+  align-items: center;
+  gap: 0.7em;
+  padding: var(--sf-row-pad) 0.35em var(--sf-row-pad) 0.2em;
   margin: 0;
   width: 100%;
   max-width: 100%;
-  border-radius: 0;
+  border-radius: 8px;
   cursor: pointer;
   border: 0;
   background: transparent;
@@ -490,7 +491,7 @@
 }
 
 .smart-filter__option:hover {
-  background: transparent;
+  background: color-mix(in srgb, currentColor 4.5%, transparent);
 }
 
 .smart-filter__options:not(.smart-filter__options--swatches):not(.smart-filter__options--pills)
@@ -545,8 +546,10 @@
   color: var(--sf-accent, #c4a000);
 }
 
-.smart-filter__option input[type="checkbox"],
-.smart-filter__option input[type="radio"] {
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"],
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"] {
   appearance: none !important;
   -webkit-appearance: none !important;
   width: var(--sf-check-size) !important;
@@ -554,41 +557,104 @@
   min-width: var(--sf-check-size);
   max-width: var(--sf-check-size) !important;
   flex-shrink: 0;
-  margin: 0.12em 0 0 !important;
-  border: 1px solid #cfcfcf !important;
-  border-radius: 2px;
+  margin: 0 !important;
+  border: 1.5px solid #c3c3c3 !important;
+  border-radius: var(--sf-check-radius, 4px);
   background: #fff !important;
   opacity: 1 !important;
   visibility: visible !important;
   display: inline-grid !important;
   place-content: center;
+  place-items: center;
   cursor: pointer;
+  color: var(--sf-check, var(--sf-accent, #111));
+  box-shadow: none;
+  clip: auto !important;
+  transform: none !important;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.smart-filter__option input[type="radio"] {
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"] {
   border-radius: 999px;
 }
 
-.smart-filter__option input[type="checkbox"]::after,
-.smart-filter__option input[type="radio"]::after {
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill):hover
+  input[type="checkbox"]:not(:checked):not(:disabled),
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill):hover
+  input[type="radio"]:not(:checked):not(:disabled) {
+  border-color: #8d8d8d !important;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]::after {
   content: "";
-  width: 0.28rem;
-  height: 0.5rem;
-  border-right: 1.5px solid #fff;
-  border-bottom: 1.5px solid #fff;
-  transform: rotate(45deg) translate(-0.5px, -1px);
-  opacity: 0;
-}
-
-.smart-filter .smart-filter__option input[type="checkbox"]:checked,
-.smart-filter .smart-filter__option input[type="radio"]:checked {
-  background: var(--sf-check, #111) !important;
-  border: 1px solid var(--sf-check, #111) !important;
-}
-
-.smart-filter .smart-filter__option input[type="checkbox"]:checked::after,
-.smart-filter .smart-filter__option input[type="radio"]:checked::after {
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: scale(0) rotate(45deg);
+  margin-top: -1px;
   opacity: 1;
+  transition: transform 0.12s ease;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  transform: scale(0);
+  opacity: 1;
+  transition: transform 0.12s ease;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked,
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:indeterminate {
+  background: currentColor !important;
+  border-color: currentColor !important;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked {
+  background: #fff !important;
+  border-color: currentColor !important;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked::after {
+  transform: scale(1) rotate(45deg);
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked::after {
+  transform: scale(1);
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:indeterminate::after {
+  width: 8px;
+  height: 0;
+  border: 0;
+  border-top: 2px solid #fff;
+  transform: none;
+  margin: 0;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:focus-visible,
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:focus-visible {
+  outline: 2px solid var(--sf-focus, var(--sf-accent, #111));
+  outline-offset: 2px;
 }
 
 .smart-filter__option-text {
@@ -599,7 +665,7 @@
   font-weight: 400;
   font-size: 0.9375em;
   line-height: 1.4;
-  padding-top: 0.05em;
+  padding-top: 0;
 }
 
 .smart-filter__option-count {
@@ -609,7 +675,7 @@
   flex-shrink: 0;
   min-width: 0;
   text-align: right;
-  padding: 0.08em 0 0 0.9em;
+  padding: 0 0 0 0.9em;
   margin-left: auto;
   border-radius: 0;
   background: transparent;

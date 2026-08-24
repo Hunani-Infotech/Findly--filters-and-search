@@ -1,0 +1,105 @@
+/* Unscoped checkbox/radio visuals. Loaded via Liquid asset_url (not schema
+   stylesheet) so Horizon cannot flatten native checkboxes. */
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"],
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1.5px solid #c3c3c3 !important;
+  background: #fff !important;
+  display: inline-grid !important;
+  place-content: center !important;
+  place-items: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  clip: auto !important;
+  transform: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  color: inherit !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"] {
+  border-radius: 4px !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"] {
+  border-radius: 999px !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]::after,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]::after {
+  content: "";
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: scale(0) rotate(45deg);
+  margin-top: -1px;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]::after,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  transform: scale(0);
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked,
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:indeterminate,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:indeterminate {
+  background: currentColor !important;
+  border-color: currentColor !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked {
+  background: #fff !important;
+  border-color: currentColor !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked::after,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="checkbox"]:checked::after {
+  transform: scale(1) rotate(45deg);
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked::after,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  input[type="radio"]:checked::after {
+  transform: scale(1);
+}

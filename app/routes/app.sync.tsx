@@ -111,7 +111,7 @@ export default function SyncPage() {
 
   useEffect(() => {
     if (fetcher.data && "ok" in fetcher.data && fetcher.data.ok) {
-      shopify.toast.show("Full sync queued");
+      shopify.toast.show("Catalog re-sync queued");
     }
     if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
@@ -135,7 +135,11 @@ export default function SyncPage() {
     <Page
       title="Sync"
       primaryAction={{
-        content: queueing ? "Queueing…" : shouldPoll ? "Syncing…" : "Run full sync",
+        content: queueing
+          ? "Queueing…"
+          : shouldPoll
+            ? "Syncing…"
+            : "Re-sync catalog",
         loading: busy,
         disabled: busy,
         onAction: () => fetcher.submit({}, { method: "POST" }),
@@ -166,6 +170,13 @@ export default function SyncPage() {
                 }}
               >
                 <p>
+                  Catalog updates by itself when products, variants,
+                  collections, inventory, or product metafields change in
+                  Shopify. Filters pick up those changes without clicking
+                  Re-sync catalog. Use Re-sync catalog only if something
+                  looks stuck or after a large import.
+                </p>
+                <p>
                   Catalog is ready. Next:{" "}
                   <Link
                     url={withEmbeddedParams("/app/settings?tab=metafields", searchParams)}
@@ -179,8 +190,7 @@ export default function SyncPage() {
                   >
                     Settings
                   </Link>{" "}
-                  for layout,
-                  search, and sort.
+                  for layout, search, and sort.
                 </p>
               </Banner>
             ) : null}
@@ -199,15 +209,15 @@ export default function SyncPage() {
                 <Text as="p">Plan: {data.plan}</Text>
                 <Text as="p">Status: {job?.status ?? "PENDING"}</Text>
                 <Text as="p">
-                  Last full sync:{" "}
-                  {job?.lastFullSyncAt
-                    ? new Date(job.lastFullSyncAt).toLocaleString()
-                    : "Never"}
-                </Text>
-                <Text as="p">
                   Last incremental sync:{" "}
                   {job?.lastIncrementalSyncAt
                     ? new Date(job.lastIncrementalSyncAt).toLocaleString()
+                    : "Never"}
+                </Text>
+                <Text as="p">
+                  Last full sync:{" "}
+                  {job?.lastFullSyncAt
+                    ? new Date(job.lastFullSyncAt).toLocaleString()
                     : "Never"}
                 </Text>
                 <Text as="p">
@@ -218,6 +228,31 @@ export default function SyncPage() {
                     <p>{job.errorLog}</p>
                   </Banner>
                 ) : null}
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">
+                  Automatic updates
+                </Text>
+                <Text as="p">
+                  Findly keeps the catalog in sync from Shopify. You do not
+                  need to re-sync after everyday product edits.
+                </Text>
+                <List>
+                  <List.Item>
+                    Product or variant created, edited, or deleted
+                  </List.Item>
+                  <List.Item>Inventory / availability changes</List.Item>
+                  <List.Item>Collection membership changes</List.Item>
+                  <List.Item>
+                    Product or variant metafield changes
+                  </List.Item>
+                  <List.Item>
+                    Full re-sync still runs on app install
+                  </List.Item>
+                </List>
               </BlockStack>
             </Card>
 
