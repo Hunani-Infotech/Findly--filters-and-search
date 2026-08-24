@@ -827,19 +827,24 @@
 
 .smart-filter__price {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 0.95rem 0.8rem;
   align-items: center;
   padding-bottom: 0.4rem;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
 }
 
 .smart-filter__slider {
   grid-column: 1 / -1;
   position: relative;
   height: 1.7rem;
-  display: flex;
-  align-items: center;
+  display: block;
+  width: 100%;
+  min-width: 0;
   margin: 0.55rem 0 0.2rem;
+  overflow: visible;
 }
 
 .smart-filter__slider-track,
@@ -862,7 +867,7 @@
 .smart-filter__slider-fill {
   height: 3px;
   margin-top: -1.5px;
-  background: #111;
+  background: var(--sf-accent, #111);
   z-index: 1;
 }
 
@@ -871,13 +876,16 @@
   left: 0;
   width: 100%;
   margin: 0;
+  padding: 0;
+  border: 0;
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
   pointer-events: none;
   height: 1.45rem;
   z-index: 2;
-  accent-color: #111;
+  opacity: 0;
+  accent-color: transparent;
 }
 
 .smart-filter__slider input[type="range"]::-webkit-slider-runnable-track {
@@ -890,14 +898,14 @@
 .smart-filter__slider input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 0.95rem;
-  height: 0.95rem;
-  margin-top: -0.4rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: -0.5rem;
   border-radius: 999px;
-  background: #fff;
-  border: 1.5px solid #111;
+  background: transparent;
+  border: 0;
   box-shadow: none;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: grab;
 }
 
@@ -914,14 +922,33 @@
 }
 
 .smart-filter__slider input[type="range"]::-moz-range-thumb {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  pointer-events: none;
+  cursor: grab;
+}
+
+.smart-filter__slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--sf-accent, #111);
   border-radius: 999px;
   background: #fff;
-  border: 1.5px solid #111;
   box-shadow: none;
+  transform: translate(-50%, -50%);
+  z-index: 4;
   pointer-events: auto;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .smart-filter__price-field {
@@ -1710,36 +1737,9 @@
   }
 }
 
-/* App-owned product grid — inherit theme color/font; 2 cols, 4 from 750px */
-.sf-app-grid {
-  box-sizing: border-box;
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  list-style: none;
-}
-
+/* App-owned cards sit inside the theme product grid so column/card settings apply. */
 .sf-app-grid > :not(.sf-app-card) {
   display: none !important;
-}
-
-.sf-app-grid *,
-.sf-app-grid *::before,
-.sf-app-grid *::after {
-  box-sizing: border-box;
-}
-
-@media (min-width: 750px) {
-  .sf-app-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.25rem;
-  }
 }
 
 .sf-app-card {
@@ -1771,7 +1771,6 @@
   width: 100%;
   max-width: 100%;
   height: auto;
-  aspect-ratio: 1;
   object-fit: cover;
 }
 

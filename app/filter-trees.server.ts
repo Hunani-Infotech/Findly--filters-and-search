@@ -12,6 +12,8 @@ import {
   withFilterTreeMeta,
 } from "./facet-settings";
 
+export const DEFAULT_FILTER_TREE_NAME = "Default";
+
 export type FilterTreeWithCollections = FilterConfig & {
   treeCollections: Array<{ collectionGid: string }>;
 };
@@ -195,7 +197,7 @@ export async function createFilterTree(
       shopId,
       name:
         input?.name?.trim() ||
-        (count === 0 ? "Default Filter" : ""),
+        (count === 0 ? DEFAULT_FILTER_TREE_NAME : ""),
       appliesToSearch: input?.appliesToSearch ?? count === 0,
       collectionGid: "",
       enableSale: true,
@@ -220,7 +222,10 @@ export async function ensureDefaultFilterTree(shopId: string) {
     select: { id: true },
   });
   if (existing) return;
-  await createFilterTree(shopId, { name: "Default Filter", appliesToSearch: true });
+  await createFilterTree(shopId, {
+    name: DEFAULT_FILTER_TREE_NAME,
+    appliesToSearch: true,
+  });
   invalidateFilterTreeResolveCache(shopId);
 }
 
@@ -397,19 +402,7 @@ export async function findOrCreateTreeForCollection(
 ) {
   const assigned = newest(await treesAssignedToCollection(shopId, collectionGid));
   if (assigned) return assigned;
-  const tree = await prisma.filterConfig.create({
-    data: {
-      shopId,
-      name: "Collection filter",
-      collectionGid,
-      appliesToSearch: false,
-      displayOrder: [...DEFAULT_DISPLAY_ORDER],
-      sortOrder: await prisma.filterConfig.count({ where: { shopId } }),
-    },
-  });
-  await replaceTreeCollections(shopId, tree.id, [collectionGid]);
-  invalidateFilterTreeResolveCache(shopId);
-  return tree;
+  return findOrCreateDefaultTree(shopId);
 }
 
 export async function findOrCreateDefaultTree(shopId: string) {
@@ -421,7 +414,10 @@ export async function findOrCreateDefaultTree(shopId: string) {
   if (search) return search;
   const unassigned = newest(await unassignedTrees(shopId));
   if (unassigned) return unassigned;
-  return createFilterTree(shopId, { name: "Default Filter", appliesToSearch: true });
+  return createFilterTree(shopId, {
+    name: DEFAULT_FILTER_TREE_NAME,
+    appliesToSearch: true,
+  });
 }
 
 function uniqueIds(ids: string[]) {

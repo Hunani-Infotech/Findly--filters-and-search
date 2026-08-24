@@ -92,7 +92,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "private, max-age=15, stale-while-revalidate=60",
+      "Cache-Control": "private, no-store",
     },
   });
 };

@@ -13,7 +13,7 @@
   var MSG_APPLY_NOW = "Apply now";
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
-  var FILTER_CACHE_TTL_MS = 5 * 60 * 1000;
+  var FILTER_CACHE_TTL_MS = 30 * 1000;
   var CARD_SELECTOR = [
     ".sf-app-card",
     "[data-product-id]",
@@ -1159,8 +1159,6 @@
       "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
       "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
       "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-      ".sf-app-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;width:100%;list-style:none;margin:0;padding:0}" +
-      "@media(min-width:750px){.sf-app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}" +
       ".sf-app-grid>:not(.sf-app-card){display:none!important}";
     var style = document.createElement("style");
     style.id = THEME_BRIDGE_STYLE_ID;
@@ -1498,7 +1496,7 @@
 
   function clampPageSize(n) {
     var count = Number(n) || 0;
-    if (!count) return 24;
+    if (!count) return 16;
     if (count < 8) return 8;
     if (count > 48) return 48;
     return Math.floor(count);
@@ -1747,10 +1745,7 @@
 
   function extractHandles(payload) {
     if (!payload) return [];
-    if (Array.isArray(payload.handles)) {
-      return payload.handles.map(String);
-    }
-    if (Array.isArray(payload.products)) {
+    if (Array.isArray(payload.products) && payload.products.length) {
       return payload.products
         .map(function (item) {
           if (typeof item === "string") return item;
@@ -1762,6 +1757,9 @@
           return item.handle ? String(item.handle) : null;
         })
         .filter(Boolean);
+    }
+    if (Array.isArray(payload.handles)) {
+      return payload.handles.map(String);
     }
     return [];
   }
@@ -2057,6 +2055,7 @@
     this.facets = [];
     this.page = 1;
     this.pageSize = 0;
+    this._themePageSize = 0;
     this.paginationStyle = "pagination";
     this.defaultSort = "manual";
     this._appending = false;
@@ -2748,7 +2747,7 @@
   };
 
   Widget.prototype.isAppGridMode = function () {
-    return this.appGridTemplate() || this.hasActiveFilters() || this.collectionQuery;
+    return Boolean(this.appGridTemplate());
   };
 
   Widget.prototype.backupNativeGrid = function (parent) {
@@ -3090,7 +3089,7 @@
     this._sentPagingParams = true;
     this.ensurePageSize();
     params.set("page", String(Math.max(1, this.page || 1)));
-    params.set("pageSize", String(this.pageSize || 24));
+    params.set("pageSize", String(this.pageSize || 16));
 
     return this.proxyBase + "/filters?" + params.toString();
   };
@@ -3523,15 +3522,12 @@
   };
 
   Widget.prototype.ensurePageSize = function () {
-    if (this.pageSize >= 8 && this.pageSize <= 48) return this.pageSize;
-    this.ensureGridParent();
-    var n = 0;
-    if (this._gridParent) {
-      eachProductCard(this._gridParent, function () {
-        n += 1;
-      });
+    if (this._themePageSize >= 8 && this._themePageSize <= 48) {
+      this.pageSize = this._themePageSize;
+      return this.pageSize;
     }
-    this.pageSize = clampPageSize(n);
+    this.pageSize = clampPageSize(this.pageSize);
+    this._themePageSize = this.pageSize;
     return this.pageSize;
   };
 
@@ -3838,22 +3834,14 @@
     if (typeof data.page === "number" && data.page >= 1) {
       this.page = Math.floor(data.page);
     }
-    if (typeof data.pageSize === "number" && data.pageSize >= 1) {
-      this.pageSize = clampPageSize(data.pageSize);
-    }
+    this.ensurePageSize();
     this._pageTotal =
       typeof data.total === "number"
         ? data.total
         : typeof data.count === "number"
           ? data.count
           : handles.length;
-    if (typeof data.hasNext === "boolean") {
-      this._hasNext = data.hasNext;
-    } else if (this.pageSize) {
-      this._hasNext = this.page * this.pageSize < this._pageTotal;
-    } else {
-      this._hasNext = handles.length >= (this.pageSize || 24);
-    }
+    this._hasNext = this.page * (this.pageSize || 16) < this._pageTotal;
   };
 
   Widget.prototype.loadNextPage = function () {
@@ -3916,7 +3904,7 @@
   };
 
   Widget.prototype.renderNumberedPager = function (el) {
-    var size = this.pageSize || 24;
+    var size = this.pageSize || 16;
     var total = this._pageTotal || 0;
     var pageCount = Math.max(1, Math.ceil(total / size) || 1);
     var page = Math.max(1, this.page || 1);
@@ -4090,6 +4078,7 @@
 
     var request = fetch(url, {
       credentials: "same-origin",
+      cache: "no-store",
       headers: { Accept: "application/json" },
       signal: ctrl ? ctrl.signal : undefined,
     })
@@ -4149,10 +4138,10 @@
             if (!handles.length && allHandles.length) {
               this.ensurePageSize();
               var sliceStart =
-                (Math.max(1, this.page) - 1) * (this.pageSize || 24);
+                (Math.max(1, this.page) - 1) * (this.pageSize || 16);
               handles = allHandles.slice(
                 sliceStart,
-                sliceStart + (this.pageSize || 24),
+                sliceStart + (this.pageSize || 16),
               );
             }
           }
@@ -4179,7 +4168,14 @@
             self._visibleHandles = visible || [];
             self.setGridBusy(false);
             self.hideThemeDuplicateChrome();
-            applyProductVisibility(visible);
+            if (
+              !(
+                self._appGridActive ||
+                (self.isAppGridMode && self.isAppGridMode())
+              )
+            ) {
+              applyProductVisibility(visible);
+            }
             self.watchThemeGrid();
             applyVariantImages(
               self.showMatchingVariantImage === false ? [] : self._lastProducts,
@@ -4228,12 +4224,28 @@
             self._loadingPage = false;
             self._appending = false;
             if (!ok) {
+              if (self.applyAppGrid(data, handles, append)) {
+                self.setThemePagerHidden(true);
+                self.renderPager();
+                afterGrid(
+                  self._shownHandles.length ? self._shownHandles : handles,
+                );
+                return;
+              }
               self.enterPagingFallback(handles, data);
               afterGrid(handles);
               return;
             }
             var applied = self.applyInterceptGrid(handles, append);
             if (!applied) {
+              if (self.applyAppGrid(data, handles, append)) {
+                self.setThemePagerHidden(true);
+                self.renderPager();
+                afterGrid(
+                  self._shownHandles.length ? self._shownHandles : handles,
+                );
+                return;
+              }
               self.enterPagingFallback(handles, data);
               afterGrid(handles);
               return;

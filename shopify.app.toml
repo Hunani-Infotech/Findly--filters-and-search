@@ -69,8 +69,7 @@ api_version = "2026-07"
   uri = "/webhooks/inventory_levels/update"
   topics = [ "inventory_levels/update" ]
 
-# Shopify CLI 4.6+ validates [events] and at least one [[events.subscription]].
-# Catalog sync stays on [webhooks]; the handler only acknowledges deliveries.
+# Catalog sync uses both [webhooks] and this Events subscription.
 [events]
 api_version = "unstable"
 

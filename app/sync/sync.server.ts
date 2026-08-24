@@ -652,10 +652,18 @@ export async function upsertProduct(
     variables: { id: productGid },
   });
   const json = await response.json();
+  const lookupError = graphqlErrors(json);
   const product = json.data?.product;
   if (!product) {
+    if (lookupError) {
+      log.error(`[sync] product fetch failed ${productGid}: ${lookupError}`);
+      throw new Error(`Product fetch failed for ${productGid}`);
+    }
     await deleteProduct(shopDomain, productGid);
     return;
+  }
+  if (lookupError) {
+    log.warn(`[sync] product fetch partial errors ${productGid}: ${lookupError}`);
   }
 
   const { facet, collectionGids: mappedGids } = mapProductToFacet(shop.id, product);
@@ -1021,7 +1029,13 @@ export async function syncInventoryItem(
     ? json.data?.inventoryLevel?.item
     : json.data?.inventoryItem;
   const productGid = productGidFromInventoryItem(item);
-  if (!productGid) return;
+  if (!productGid) {
+    if (lookupError) {
+      throw new Error(`Inventory lookup failed ${inventoryItemGid}`);
+    }
+    log.warn(`[sync] inventory item ${inventoryItemGid} has no product`);
+    return;
+  }
   return upsertProduct(shopDomain, productGid);
 }
 

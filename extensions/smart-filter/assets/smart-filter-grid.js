@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v3";
+  var STYLE_ID = "findly-grid-takeover-v4";
   var HOST_ID = "findly-grid-host";
   var THEME_CARD_HOST_SELECTOR = [
     "product-card",
@@ -110,6 +110,8 @@
     if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
     var legacy2 = document.getElementById("findly-grid-takeover-v2");
     if (legacy2 && legacy2.parentNode) legacy2.parentNode.removeChild(legacy2);
+    var legacy3 = document.getElementById("findly-grid-takeover-v3");
+    if (legacy3 && legacy3.parentNode) legacy3.parentNode.removeChild(legacy3);
     if (document.getElementById(STYLE_ID)) return;
     var css =
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=checkbox]," +
@@ -130,7 +132,14 @@
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=radio]:checked{" +
       "background:#fff!important;border-color:currentColor!important}" +
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=checkbox]:checked::after{transform:scale(1) rotate(45deg)}" +
-      ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=radio]:checked::after{transform:scale(1)}";
+      ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=radio]:checked::after{transform:scale(1)}" +
+      ".smart-filter .smart-filter__price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important}" +
+      ".smart-filter .smart-filter__slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:1.7rem!important;overflow:visible!important;background:transparent!important}" +
+      ".smart-filter .smart-filter__slider-track,.smart-filter .smart-filter__slider-fill{position:absolute!important;left:0!important;top:50%!important;height:2px!important;margin-top:-1px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important}" +
+      ".smart-filter .smart-filter__slider-track{right:0!important;width:auto!important;background:#dcdcdc!important;z-index:0!important}" +
+      ".smart-filter .smart-filter__slider-fill{height:3px!important;margin-top:-1.5px!important;background:var(--sf-accent,#111)!important;z-index:1!important}" +
+      ".smart-filter .smart-filter__slider input[type=range]{position:absolute!important;left:0!important;width:100%!important;max-width:none!important;height:1.45rem!important;margin:0!important;padding:0!important;border:0!important;opacity:0!important;background:transparent!important;appearance:none!important;-webkit-appearance:none!important;pointer-events:none!important}" +
+      ".smart-filter .smart-filter__slider-thumb{position:absolute!important;top:50%!important;width:16px!important;height:16px!important;margin:0!important;padding:0!important;border:1.5px solid var(--sf-accent,#111)!important;border-radius:999px!important;background:#fff!important;transform:translate(-50%,-50%)!important;z-index:4!important;pointer-events:auto!important;cursor:grab!important;display:block!important;touch-action:none}";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
@@ -939,6 +948,277 @@
     });
   }
 
+  function pageSizeInRange(n) {
+    n = Number(n);
+    if (!Number.isFinite(n) || n < 8 || n > 48) return 0;
+    return Math.floor(n);
+  }
+
+  function currentUrlPage() {
+    try {
+      var n = Number(
+        new URL(window.location.href).searchParams.get("page") || "1",
+      );
+      return n >= 1 ? n : 1;
+    } catch (err) {
+      return 1;
+    }
+  }
+
+  function themeShowsNextPage() {
+    if (document.querySelector('link[rel="next"], a[rel="next"]')) return true;
+    var page = currentUrlPage();
+    var links = document.querySelectorAll(
+      "nav.pagination a[href], .pagination a[href], .pagination-wrapper a[href], [data-pagination] a[href]",
+    );
+    var i;
+    for (i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute("href") || "";
+      var match = href.match(/[?&]page=(\d+)/);
+      if (match && Number(match[1]) > page) return true;
+    }
+    return false;
+  }
+
+  function pageSizeFromPager() {
+    var nodes = document.querySelectorAll(
+      "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var text = String(nodes[i].textContent || "").replace(/\s+/g, " ");
+      var range = text.match(/(\d+)\s*[-–—]\s*(\d+)/);
+      if (range) {
+        var span = Number(range[2]) - Number(range[1]) + 1;
+        var ok = pageSizeInRange(span);
+        if (ok) return ok;
+      }
+      var per = text.match(/(\d+)\s*(?:per\s*page|\/\s*page)/i);
+      if (per) {
+        var ok2 = pageSizeInRange(per[1]);
+        if (ok2) return ok2;
+      }
+    }
+    return 0;
+  }
+
+  function pageSizeFromDataAttrs(grid, root) {
+    var nodes = [];
+    if (grid) {
+      nodes.push(grid);
+      if (grid.closest) {
+        var section = grid.closest(
+          ".shopify-section, [data-section-id], .product-grid-container, .collection, .main-collection-grid",
+        );
+        if (section) nodes.push(section);
+      }
+    }
+    if (root) nodes.push(root);
+    var names = [
+      "data-products-per-page",
+      "data-products_per_page",
+      "data-page-size",
+      "data-pagesize",
+      "data-limit",
+      "data-per-page",
+      "data-grid-page-size",
+    ];
+    var i;
+    var j;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || !el.getAttribute) continue;
+      for (j = 0; j < names.length; j++) {
+        var ok = pageSizeInRange(el.getAttribute(names[j]));
+        if (ok) return ok;
+      }
+    }
+    return 0;
+  }
+
+  function uniqueClassName(raw) {
+    var seen = {};
+    var out = [];
+    String(raw || "")
+      .split(/\s+/)
+      .forEach(function (name) {
+        if (!name || seen[name]) return;
+        if (name.indexOf("sf-") === 0 && name !== "sf-app-card") return;
+        seen[name] = true;
+        out.push(name);
+      });
+    if (!seen["sf-app-card"]) out.push("sf-app-card");
+    return out.join(" ");
+  }
+
+  function restyleAppCardsAsThemeItems(parent) {
+    if (!parent || !parent.children) return;
+    var sample = null;
+    var i;
+    for (i = 0; i < parent.children.length; i++) {
+      var el = parent.children[i];
+      if (!el || el.nodeType !== 1) continue;
+      if (el.classList && el.classList.contains("sf-app-card")) continue;
+      if (isOuterThemeCard(el) || handleFromCard(el)) {
+        sample = el;
+        break;
+      }
+    }
+    var sampleClass = sample ? String(sample.className || "") : "";
+    var cards = parent.querySelectorAll(".sf-app-card");
+    for (i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (sampleClass) card.className = uniqueClassName(sampleClass);
+      card.style.removeProperty("display");
+      card.hidden = false;
+      card.removeAttribute("data-smart-filter-hidden");
+    }
+  }
+
+  function pageSlice(widget, items, append) {
+    if (!widget || !items || !items.length) return items;
+    if (widget.ensurePageSize) widget.ensurePageSize();
+    var size = widget.pageSize || 16;
+    if (items.length <= size) return items;
+    if (append) return items.slice(0, size);
+    var start = (Math.max(1, widget.page || 1) - 1) * size;
+    return items.slice(start, start + size);
+  }
+
+  function pageSlicePayload(widget, data, handles, append) {
+    var products = (data && data.products) || [];
+    var nextHandles = pageSlice(widget, handles, append);
+    var nextProducts = pageSlice(widget, products, append);
+    if (nextProducts === products && nextHandles === handles) {
+      return { data: data, handles: handles };
+    }
+    return {
+      data: data ? Object.assign({}, data, { products: nextProducts }) : data,
+      handles: nextHandles,
+    };
+  }
+
+  function sliderPercent(value, min, max) {
+    var span = max - min || 1;
+    return ((Number(value) - min) / span) * 100;
+  }
+
+  function sliderValueFromX(slider, clientX, min, max, step) {
+    var rect = slider.getBoundingClientRect();
+    var ratio = rect.width ? (clientX - rect.left) / rect.width : 0;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    var next = min + ratio * (max - min);
+    var stepNum = Number(step);
+    if (stepNum > 0) next = Math.round(next / stepNum) * stepNum;
+    if (next < min) next = min;
+    if (next > max) next = max;
+    return next;
+  }
+
+  function emitInput(el) {
+    try {
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    } catch (err) {
+      var ev = document.createEvent("Event");
+      ev.initEvent("input", true, true);
+      el.dispatchEvent(ev);
+    }
+  }
+
+  function bindPriceSlider(slider) {
+    if (!slider || slider.getAttribute("data-sf-range") === "1") return;
+    var inputs = slider.querySelectorAll('input[type="range"]');
+    if (inputs.length < 2) return;
+    slider.setAttribute("data-sf-range", "1");
+    var low = inputs[0];
+    var high = inputs[1];
+    var fill = slider.querySelector(".smart-filter__slider-fill");
+    var min = Number(low.min);
+    var max = Number(low.max);
+    var step = low.step || "1";
+    var thumbLow = slider.querySelector(".smart-filter__slider-thumb--min");
+    if (!thumbLow) {
+      thumbLow = document.createElement("span");
+      thumbLow.className =
+        "smart-filter__slider-thumb smart-filter__slider-thumb--min";
+      thumbLow.setAttribute("aria-hidden", "true");
+      slider.appendChild(thumbLow);
+    }
+    var thumbHigh = slider.querySelector(".smart-filter__slider-thumb--max");
+    if (!thumbHigh) {
+      thumbHigh = document.createElement("span");
+      thumbHigh.className =
+        "smart-filter__slider-thumb smart-filter__slider-thumb--max";
+      thumbHigh.setAttribute("aria-hidden", "true");
+      slider.appendChild(thumbHigh);
+    }
+
+    function syncThumbs() {
+      var left = sliderPercent(low.value, min, max);
+      var right = sliderPercent(high.value, min, max);
+      thumbLow.style.left = left + "%";
+      thumbHigh.style.left = right + "%";
+      if (fill) {
+        fill.style.left = Math.min(left, right) + "%";
+        fill.style.width = Math.abs(right - left) + "%";
+      }
+    }
+    syncThumbs();
+    low.addEventListener("input", syncThumbs);
+    high.addEventListener("input", syncThumbs);
+
+    function startDrag(input, other, isMin, ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      (isMin ? thumbLow : thumbHigh).style.zIndex = "5";
+      (isMin ? thumbHigh : thumbLow).style.zIndex = "4";
+      function move(e) {
+        var next = sliderValueFromX(slider, e.clientX, min, max, step);
+        var otherVal = Number(other.value);
+        if (isMin && next > otherVal) next = otherVal;
+        if (!isMin && next < otherVal) next = otherVal;
+        input.value = String(next);
+        emitInput(input);
+      }
+      function up() {
+        document.removeEventListener("pointermove", move);
+        document.removeEventListener("pointerup", up);
+        document.removeEventListener("pointercancel", up);
+        try {
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", up);
+      document.addEventListener("pointercancel", up);
+      move(ev);
+    }
+
+    thumbLow.addEventListener("pointerdown", function (ev) {
+      startDrag(low, high, true, ev);
+    });
+    thumbHigh.addEventListener("pointerdown", function (ev) {
+      startDrag(high, low, false, ev);
+    });
+    slider.addEventListener("pointerdown", function (ev) {
+      if (ev.target === thumbLow || ev.target === thumbHigh) return;
+      var next = sliderValueFromX(slider, ev.clientX, min, max, step);
+      var useLow =
+        Math.abs(next - Number(low.value)) <= Math.abs(next - Number(high.value));
+      startDrag(useLow ? low : high, useLow ? high : low, useLow, ev);
+    });
+  }
+
+  function enhancePriceSliders(root) {
+    if (!root || !root.querySelectorAll) return;
+    var sliders = root.querySelectorAll(".smart-filter__slider");
+    var i;
+    for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
+  }
+
   function patchWidget(widget) {
     if (!widget) return;
     liftOutOfThemeForm(widget);
@@ -947,31 +1227,42 @@
     proto.__findlyGridPatched = true;
 
     proto.isAppGridMode = function () {
-      if (this.appGridTemplate && this.appGridTemplate()) return true;
-      if (this.hasActiveFilters && this.hasActiveFilters()) return true;
-      if (this.collectionQuery) return true;
-      if (this.sortKey && this.defaultSort && this.sortKey !== this.defaultSort) {
-        return true;
-      }
-      return false;
+      return Boolean(this.appGridTemplate && this.appGridTemplate());
     };
 
     proto.ensurePageSize = function () {
-      if (this.pageSize >= 8 && this.pageSize <= 48) return this.pageSize;
-      var attr = 0;
-      try {
-        attr = parseInt(
-          (this.root && this.root.getAttribute("data-page-size")) || "0",
-          10,
-        );
-      } catch (err) {
-        attr = 0;
-      }
-      if (attr >= 8 && attr <= 48) {
-        this.pageSize = attr;
+      if (this._themePageSize >= 8 && this._themePageSize <= 48) {
+        this.pageSize = this._themePageSize;
         return this.pageSize;
       }
-      this.pageSize = 16;
+      var parent =
+        this._gridParent ||
+        document.querySelector(PRODUCT_GRID_SELECTOR) ||
+        findResultsList();
+      var cards = parent ? collectThemeCards(parent) : [];
+      var fromCards = themeShowsNextPage()
+        ? pageSizeInRange(cards.length)
+        : 0;
+      var fromPager = pageSizeFromPager();
+      var fromAttrs = pageSizeFromDataAttrs(parent, this.root);
+      var fromBlock = 0;
+      try {
+        fromBlock = pageSizeInRange(
+          (this.root && this.root.getAttribute("data-page-size")) || "0",
+        );
+      } catch (err) {
+        fromBlock = 0;
+      }
+      var size = fromCards || fromPager || fromAttrs || fromBlock || 16;
+      this._themePageSize = size;
+      this.pageSize = size;
+      findlyLog("theme page size", {
+        fromCards: fromCards,
+        fromPager: fromPager,
+        fromAttrs: fromAttrs,
+        fromBlock: fromBlock,
+        size: size,
+      });
       return this.pageSize;
     };
 
@@ -1089,14 +1380,31 @@
 
     var origApply = proto.applyAppGrid;
     proto.applyAppGrid = function (data, handles, append) {
-      var ok = origApply ? origApply.call(this, data, handles, append) : false;
+      var sliced = pageSlicePayload(this, data, handles, append);
+      var parent =
+        this._gridParent ||
+        (this.ensureGridParent && this.ensureGridParent());
+      var ok = origApply
+        ? origApply.call(this, sliced.data, sliced.handles, append)
+        : false;
+      parent = this._gridParent || parent;
+      if (parent && isGridHostEl(parent) && parent.classList) {
+        parent.classList.remove("sf-app-grid");
+        restyleAppCardsAsThemeItems(parent);
+      }
       setOwnsGrid(true);
       findlyLog("applyAppGrid", {
-        products: handles && handles.length,
-        total: data && data.total,
+        products: sliced.handles && sliced.handles.length,
+        total: sliced.data && sliced.data.total,
         shown: this._shownHandles && this._shownHandles.length,
       });
       return ok;
+    };
+
+    var origIntercept = proto.applyInterceptGrid;
+    proto.applyInterceptGrid = function (handles, append) {
+      var next = pageSlice(this, handles, append);
+      return origIntercept ? origIntercept.call(this, next, append) : false;
     };
 
     var origFetch = proto.fetchFilters;
@@ -1141,6 +1449,8 @@
         hash: String(window.location.hash || ""),
         collectionId: this.collectionId,
       });
+      if (this.ensureGridParent) this.ensureGridParent();
+      if (this.ensurePageSize) this.ensurePageSize();
       if (origInit) origInit.apply(this, arguments);
       portalMobileDrawer(this);
     };
@@ -1175,6 +1485,24 @@
       this._findlyGridWatch = true;
       ensureFindlyGridObserver(this);
     };
+
+    var origRenderPrice = proto.renderPriceFacet;
+    proto.renderPriceFacet = function () {
+      var wrap = origRenderPrice
+        ? origRenderPrice.apply(this, arguments)
+        : null;
+      enhancePriceSliders(wrap);
+      return wrap;
+    };
+
+    var origRenderFacets = proto.renderFacets;
+    proto.renderFacets = function () {
+      var result = origRenderFacets
+        ? origRenderFacets.apply(this, arguments)
+        : undefined;
+      enhancePriceSliders(this.root);
+      return result;
+    };
   }
 
   function installSetter(held) {
@@ -1189,6 +1517,7 @@
           held = next;
           patchWidget(next);
           applyLooseHash(next);
+          if (next && next.root) enhancePriceSliders(next.root);
         },
       });
     } catch (err) {
@@ -1212,6 +1541,7 @@
     if (held) {
       patchWidget(held);
       applyLooseHash(held);
+      if (held.root) enhancePriceSliders(held.root);
     }
     findlyLog("companion ready", {
       widget: Boolean(held),

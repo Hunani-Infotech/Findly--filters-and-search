@@ -58,6 +58,8 @@ export async function enqueueSyncJob(
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number },
 ) {
+  const { ensureWorkerRunning } = await import("./workers/ensure-running.server");
+  ensureWorkerRunning();
   const queue = getSyncQueue();
   const jobId = bullJobId(opts?.jobId);
 

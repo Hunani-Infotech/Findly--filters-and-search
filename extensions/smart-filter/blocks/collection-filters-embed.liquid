@@ -30,9 +30,9 @@ try {
 
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
 {% assign sf_page_size = 16 %}
-{% if collection.products.size >= 8 %}
+{% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
-{% elsif search.results.size >= 8 %}
+{% elsif search.results.size >= 8 and search.results.size <= 48 %}
   {% assign sf_page_size = search.results.size %}
 {% endif %}
 <link

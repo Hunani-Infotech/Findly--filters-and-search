@@ -27,6 +27,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             price
             compareAtPrice
             availableForSale
+            inventoryPolicy
             image {
               url
             }
@@ -46,6 +47,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             }
             inventoryItem {
               id
+              tracked
               inventoryLevels(first: 50) {
                 edges {
                   node {
@@ -170,6 +172,7 @@ export const BULK_PRODUCTS_QUERY = `
               price
               compareAtPrice
               availableForSale
+              inventoryPolicy
               image { url }
               selectedOptions { name value }
               metafields {
@@ -309,9 +312,6 @@ export const INVENTORY_LEVEL_PRODUCT_QUERY = `#graphql
     inventoryLevel(id: $id) {
       item {
         id
-        variant {
-          product { id }
-        }
         variants(first: 1) {
           nodes {
             product { id }
@@ -331,9 +331,6 @@ export const INVENTORY_ITEM_PRODUCT_QUERY = `#graphql
   query InventoryItemProduct($id: ID!) {
     inventoryItem(id: $id) {
       id
-      variant {
-        product { id }
-      }
       variants(first: 1) {
         nodes {
           product { id }

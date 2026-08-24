@@ -391,8 +391,11 @@ try {
   const { PLANS } = await import("../app/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
     await import("../app/compliance.server.ts");
-  const { webhookGraphqlId, webhookInventoryItemGid } = await import(
+  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import(
     "../app/webhooks.server.ts"
+  );
+  const { mapProductToFacet, productIsAvailable } = await import(
+    "../app/sync/product-mapper.ts"
   );
 
   const toml = read("shopify.app.toml");
@@ -400,10 +403,18 @@ try {
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
   const proxy = read("app/proxy.server.ts");
+  const eventsRoute = read("app/routes/events.app.products.tsx");
+  const workerBoot = read("app/workers/ensure-running.server.ts");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
     );
+  }
+  if (!eventsRoute.includes("handleProductEvent")) {
+    fail("events.app.products must enqueue catalog sync via handleProductEvent");
+  }
+  if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
+    fail("ensureWorkerRunning must start an in-process BullMQ Worker");
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");
@@ -448,6 +459,52 @@ try {
   );
   if (collectionGid !== "gid://shopify/Collection/841564295") {
     fail(`2026-07 collection webhook GID parse failed: ${collectionGid}`);
+  }
+  const eventGid = catalogProductGid({
+    topic: "Product",
+    action: "update",
+    query_variables: { productId: "gid://shopify/Product/555" },
+  });
+  if (eventGid !== "gid://shopify/Product/555") {
+    fail(`product event GID parse failed: ${eventGid}`);
+  }
+  const taggedOos = mapProductToFacet("shop", {
+    id: "gid://shopify/Product/oos",
+    handle: "oos",
+    title: "OOS",
+    status: "ACTIVE",
+    tags: ["findTest"],
+    variants: {
+      edges: [
+        {
+          node: {
+            availableForSale: true,
+            inventoryItem: {
+              tracked: true,
+              inventoryLevels: {
+                edges: [
+                  {
+                    node: {
+                      quantities: [{ name: "available", quantity: 0 }],
+                      location: { name: "Shop", isActive: true },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  });
+  if (!taggedOos.facet.tags.includes("findTest")) {
+    fail("product mapper must persist new tags such as findTest");
+  }
+  if (taggedOos.facet.available !== false) {
+    fail("tracked inventory qty 0 must map to out of stock even if availableForSale is true");
+  }
+  if (!productIsAvailable("ACTIVE", [{ availableForSale: true }])) {
+    fail("incomplete variant payloads must stay in stock");
   }
   const tokens = customerRedactTokens({
     shop_id: 954889,

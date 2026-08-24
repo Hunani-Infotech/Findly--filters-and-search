@@ -160,7 +160,6 @@ export function verifyAppProxySignature(url: URL): boolean {
 }
 
 export const FILTER_PAGE_SIZE_MAX = 48;
-export const FILTER_PAGE_SIZE_DEFAULT = 24;
 
 const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
 const FILTER_PAYLOAD_CACHE_MAX = 80;
@@ -1078,8 +1077,7 @@ async function buildFacetPayload(input: {
       : product.handle;
   };
 
-  const pageSize = input.pageSize ?? FILTER_PAGE_SIZE_DEFAULT;
-  const paged = sliceFilterProducts(filtered, input.page, pageSize);
+  const paged = sliceFilterProducts(filtered, input.page, input.pageSize);
 
   const data = {
     enabled: true as const,
@@ -1091,9 +1089,10 @@ async function buildFacetPayload(input: {
     products: paged.products.map(productCard),
     sort: resolved.sort,
     total: paged.total,
-    page: paged.page ?? 1,
-    pageSize: paged.pageSize ?? pageSize,
     hasNext: paged.hasNext ?? false,
+    ...(paged.pageSize
+      ? { page: paged.page ?? 1, pageSize: paged.pageSize }
+      : {}),
     ...(input.collectionGid != null ? { collectionGid: input.collectionGid } : {}),
     ...(input.query != null ? { query: input.query } : {}),
   };

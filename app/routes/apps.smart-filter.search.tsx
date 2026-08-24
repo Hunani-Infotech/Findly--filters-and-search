@@ -78,7 +78,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: 200,
     headers: {
       ...corsHeaders,
-      "Cache-Control": "private, max-age=15",
+      "Cache-Control": "private, no-store",
     },
   });
 };
