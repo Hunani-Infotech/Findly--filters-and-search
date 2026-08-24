@@ -1,0 +1,13 @@
+packages:
+  - "extensions/*"
+
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  prisma: true
+  esbuild: true
+  "@embedded-postgres/linux-x64": true
+  "@embedded-postgres/windows-x64": true
+  msgpackr-extract: true
+  unrs-resolver: true
+  "@parcel/watcher": true

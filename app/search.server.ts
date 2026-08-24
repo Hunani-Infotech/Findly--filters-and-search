@@ -25,7 +25,9 @@ import {
   tokenMatchesHaystack,
   type SearchMatchMode,
 } from "./search-query";
+import { getCatalogGeneration } from "./catalog-cache.server";
 import { getMetafieldMappings } from "./shop.server";
+import { findShopByIdCached } from "./shop-cache.server";
 import { createTtlCache } from "./read-cache.server";
 
 export {
@@ -519,7 +521,9 @@ async function fetchRankedHits(
   query: string,
   take: number,
 ): Promise<RankedHitsResult> {
-  return rankedHitsCache.wrap(`${shopId}:${query}:${take}`, () =>
+  const shop = await findShopByIdCached(shopId);
+  const gen = shop ? await getCatalogGeneration(shop.domain) : "0";
+  return rankedHitsCache.wrap(`${gen}:${shopId}:${query}:${take}`, () =>
     fetchRankedHitsUncached(shopId, query, take),
   );
 }

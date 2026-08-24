@@ -5,6 +5,8 @@ import {
   ingestBulkOperation,
   rebuildCollection,
   startFullSync,
+  syncInventoryItem,
+  syncVariant,
   upsertProduct,
 } from "../sync/sync.server";
 
@@ -27,6 +29,10 @@ export async function processSyncJob(job: Job) {
       return deleteProduct(shop, String(job.data.productGid));
     case "collection.rebuild":
       return rebuildCollection(shop, String(job.data.collectionGid));
+    case "inventory.sync":
+      return syncInventoryItem(shop, String(job.data.inventoryItemGid));
+    case "variant.sync":
+      return syncVariant(shop, String(job.data.variantGid));
     case "shop.cleanup":
       return purgeShopData(shop);
     default:

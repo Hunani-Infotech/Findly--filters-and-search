@@ -41,4 +41,5 @@ There is **no AI/analytics code to remove** today — those features were never 
 ## Hard boundaries
 - Every DB table is shop-scoped (multi-tenant).
 - Mandatory compliance webhooks must be real implementations before App Store readiness — not empty stubs.
+- Theme App Extension: schema `javascript` / `stylesheet` must stay under **100 KB after minify**. Never delete existing widget behavior to hit that cap — extract into a companion file loaded via Liquid `asset_url` (see `.cursor/rules/theme-extension-size.mdc` and the `theme-extension-split` skill).
 - Spec detail (read when needed): `docs/mvp-guide.md`, `docs/build-instructions.md`

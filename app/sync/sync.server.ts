@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { enforcePlanLimits } from "../billing.server";
+import { bumpCatalogGeneration } from "../catalog-cache.server";
 import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {
@@ -10,7 +11,9 @@ import {
   PAGES_LIST_QUERY,
   ARTICLES_LIST_QUERY,
   CURRENT_BULK_OPERATION_QUERY,
+  INVENTORY_ITEM_PRODUCT_QUERY,
   PRODUCT_NODE_QUERY,
+  VARIANT_PRODUCT_QUERY,
 } from "./graphql";
 import {
   syncProductMarketPrices,
@@ -489,6 +492,7 @@ export async function ingestBulkOperation(
     bulkOperationId: op.id,
   });
 
+  await bumpCatalogGeneration(shopDomain);
   return { upserted, truncated, pruned, productLimit };
 }
 
@@ -581,6 +585,8 @@ export async function upsertProduct(shopDomain: string, productGid: string) {
     status: "READY",
     lastIncrementalSyncAt: new Date(),
   });
+
+  await bumpCatalogGeneration(shopDomain);
 }
 
 export async function deleteProduct(shopDomain: string, productGid: string) {
@@ -598,6 +604,8 @@ export async function deleteProduct(shopDomain: string, productGid: string) {
     status: "READY",
     lastIncrementalSyncAt: new Date(),
   });
+
+  await bumpCatalogGeneration(shopDomain);
 }
 
 export async function rebuildCollection(
@@ -631,6 +639,7 @@ export async function rebuildCollection(
         status: "READY",
         lastIncrementalSyncAt: new Date(),
       });
+      await bumpCatalogGeneration(shopDomain);
       return { count: 0, deleted: true as const };
     }
 
@@ -692,5 +701,51 @@ export async function rebuildCollection(
     lastIncrementalSyncAt: new Date(),
   });
 
+  await bumpCatalogGeneration(shopDomain);
   return { count: productGids.length };
+}
+
+function graphqlErrors(json: { errors?: unknown }): string | null {
+  const errors = json.errors;
+  if (!Array.isArray(errors) || errors.length === 0) return null;
+  return JSON.stringify(errors);
+}
+
+export async function syncInventoryItem(
+  shopDomain: string,
+  inventoryItemGid: string,
+) {
+  const admin = await getAdminForShop(shopDomain);
+  const response = await admin.graphql(INVENTORY_ITEM_PRODUCT_QUERY, {
+    variables: { id: inventoryItemGid },
+  });
+  const json = await response.json();
+  const lookupError = graphqlErrors(json);
+  if (lookupError) {
+    log.error(
+      `[sync] inventory item lookup failed ${inventoryItemGid}: ${lookupError}`,
+    );
+  }
+  const item = json.data?.inventoryItem;
+  const productGid =
+    item?.variant?.product?.id ??
+    item?.variants?.nodes?.[0]?.product?.id ??
+    item?.variants?.edges?.[0]?.node?.product?.id;
+  if (!productGid) return;
+  return upsertProduct(shopDomain, productGid);
+}
+
+export async function syncVariant(shopDomain: string, variantGid: string) {
+  const admin = await getAdminForShop(shopDomain);
+  const response = await admin.graphql(VARIANT_PRODUCT_QUERY, {
+    variables: { id: variantGid },
+  });
+  const json = await response.json();
+  const lookupError = graphqlErrors(json);
+  if (lookupError) {
+    log.error(`[sync] variant lookup failed ${variantGid}: ${lookupError}`);
+  }
+  const productGid = json.data?.productVariant?.product?.id;
+  if (!productGid) return;
+  return upsertProduct(shopDomain, productGid);
 }

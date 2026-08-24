@@ -65,6 +65,22 @@ api_version = "2026-07"
   uri = "/webhooks/products/update"
   topics = [ "products/update" ]
 
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/inventory_levels/update"
+  topics = [ "inventory_levels/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/metafields/create"
+  topics = [ "metafields/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/metafields/update"
+  topics = [ "metafields/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/metafields/delete"
+  topics = [ "metafields/delete" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # read_products only: catalog sync is queries + webhooks. No product mutations in app runtime.
