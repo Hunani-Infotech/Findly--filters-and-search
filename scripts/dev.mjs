@@ -113,15 +113,18 @@ async function shutdown(code = 0) {
   process.exit(code);
 }
 
-function runPrisma(args) {
+function runPrisma(args, { capture = false } = {}) {
   const prismaCli = path.join(root, "node_modules", "prisma", "build", "index.js");
-  return (
-    spawnSync(process.execPath, [prismaCli, ...args], {
-      cwd: root,
-      env: process.env,
-      stdio: "inherit",
-    }).status ?? 1
-  );
+  const result = spawnSync(process.execPath, [prismaCli, ...args], {
+    cwd: root,
+    env: process.env,
+    stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
+    encoding: capture ? "utf8" : undefined,
+  });
+  return {
+    status: result.status ?? 1,
+    output: capture ? `${result.stdout ?? ""}${result.stderr ?? ""}` : "",
+  };
 }
 
 async function ensureInfra() {
@@ -166,8 +169,8 @@ async function ensureInfra() {
 
 function preparePrisma() {
   log.info("[dev] Prisma generate + migrate…");
-  const generateStatus = runPrisma(["generate"]);
-  if (generateStatus !== 0) {
+  const generate = runPrisma(["generate"], { capture: true });
+  if (generate.status !== 0) {
     const engine = path.join(
       root,
       "node_modules",
@@ -175,12 +178,19 @@ function preparePrisma() {
       "client",
       "query_engine-windows.dll.node",
     );
-    if (!(isWin && existsSync(engine))) {
+    const engineLocked =
+      isWin &&
+      existsSync(engine) &&
+      /EPERM|operation not permitted/i.test(generate.output);
+    if (!engineLocked) {
+      if (generate.output) process.stderr.write(generate.output);
       throw new Error("prisma generate failed");
     }
     log.warn("[dev] prisma generate skipped (engine file locked). Reusing existing client.");
+  } else if (generate.output.trim()) {
+    process.stdout.write(generate.output);
   }
-  if (runPrisma(["migrate", "deploy"]) !== 0) {
+  if (runPrisma(["migrate", "deploy"]).status !== 0) {
     throw new Error("prisma migrate deploy failed");
   }
 }
