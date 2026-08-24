@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
         <h2>1. Who is responsible</h2>
         <p>
           Hunani Infotech operates Findly and the production app at{" "}
-          <a href={FINDLY_PUBLIC_ORIGIN}>findly.hunaniinfotech.com</a>
+          <a href={FINDLY_PUBLIC_ORIGIN}>deeppink-manatee-141983.hostingersite.com</a>
           . Shopify remains responsible for the merchant’s store, Admin, and
           Checkout. Merchants remain responsible for their own storefront
           privacy notices to shoppers.
@@ -176,8 +176,7 @@ export default function PrivacyPolicy() {
           <li>
             <strong>PostgreSQL</strong> — primary store for sessions, catalog
             index, configuration, analytics events, and compliance audit rows.
-            Hosted with the production app (currently Fly.io, primary region
-            Ashburn, USA — <code>iad</code>).
+            Hosted with the production app (currently Hostinger).
           </li>
           <li>
             <strong>Redis + BullMQ</strong> — short-lived job payloads (shop
@@ -302,7 +301,7 @@ export default function PrivacyPolicy() {
 
         <h2>10. International transfers</h2>
         <p>
-          Production hosting is in the United States (Fly.io <code>iad</code>).
+          Production hosting is currently on Hostinger.
           If a merchant or shopper is in the EEA, UK, or another region, data
           described above may be processed in the US to provide the app.
           Shopify also processes data under the merchant’s Shopify agreement.

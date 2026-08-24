@@ -4,7 +4,7 @@ client_id = "15d512118a672ce93db2d90ad68f826b"
 name = "Findly Smart Filters"
 # Public app host. `shopify app dev` still rewrites these when
 # automatically_update_urls_on_dev is true; `shopify app deploy` pushes them.
-application_url = "https://findly.hunaniinfotech.com"
+application_url = "https://deeppink-manatee-141983.hostingersite.com"
 embedded = true
 
 [build]
@@ -89,12 +89,12 @@ optional_scopes = [ "read_companies" ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://findly.hunaniinfotech.com/auth/callback" ]
+redirect_urls = [ "https://deeppink-manatee-141983.hostingersite.com/auth/callback" ]
 
 # Must share the application_url host (not localhost).
 # `shopify app dev` replaces this with the Cloudflare tunnel URL.
 [app_proxy]
-url = "https://findly.hunaniinfotech.com/apps/smart-filter"
+url = "https://deeppink-manatee-141983.hostingersite.com/apps/smart-filter"
 subpath = "smart-filter"
 prefix = "apps"
 

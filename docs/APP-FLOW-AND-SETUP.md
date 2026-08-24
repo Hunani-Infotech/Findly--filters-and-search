@@ -170,7 +170,7 @@ Copy `.env.example` → `.env` (never commit secrets):
 | `SHOPIFY_API_KEY` | Yes | Partner app client ID |
 | `SHOPIFY_API_SECRET` | Yes | Partner app secret |
 | `SCOPES` | Yes | Default `read_products` |
-| `SHOPIFY_APP_URL` | Yes | Local: CLI tunnel. Production: `https://findly.hunaniinfotech.com` |
+| `SHOPIFY_APP_URL` | Yes | Local: CLI tunnel. Production: `https://deeppink-manatee-141983.hostingersite.com` |
 | `DATABASE_URL` | Yes | Supabase **pooled** URI (port 6543) with `?pgbouncer=true&sslmode=require`. Encode `@` in the password as `%40`. |
 | `DIRECT_URL` | Yes | Supabase **direct** URI (port 5432) with `?sslmode=require`. Used by `prisma migrate deploy`. |
 | `REDIS_URL` | Yes | Redis for BullMQ (local `redis://localhost:6379` in dev) |
@@ -223,7 +223,7 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 2. `fly secrets set` for secrets including `DATABASE_URL` and `DIRECT_URL`; set non-secrets in `fly.toml`.
 3. Deploy image with processes: `web` + `worker`.
 4. `shopify app deploy` for app config + Theme App Extension.
-5. Point App URL, OAuth redirect, and App Proxy at `https://findly.hunaniinfotech.com` (CNAME to the Fly app + `fly certs add`).
+5. Point App URL, OAuth redirect, and App Proxy at `https://deeppink-manatee-141983.hostingersite.com`. After changing `shopify.app.toml`, run `shopify app deploy` to push URLs to Partner Dashboard.
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.
 
 ---
