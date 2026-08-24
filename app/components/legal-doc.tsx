@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { useEffect, useState } from "react";
 
+import { scrollToId } from "../public-scroll";
 import styles from "../privacy.module.css";
 
 export function LegalDoc({
@@ -15,6 +17,28 @@ export function LegalDoc({
   toc: { id: string; label: string }[];
   children: ReactNode;
 }) {
+  const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    function applyHash() {
+      const id = window.location.hash.replace(/^#/, "");
+      if (!id) return;
+      setActive(id);
+      scrollToId(id);
+    }
+
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  function onTocClick(event: MouseEvent<HTMLAnchorElement>, id: string) {
+    event.preventDefault();
+    setActive(id);
+    scrollToId(id);
+    window.history.pushState(null, "", `#${id}`);
+  }
+
   return (
     <div className={styles.legal}>
       <nav className={styles.toc} aria-label="On this page">
@@ -22,7 +46,14 @@ export function LegalDoc({
         <ol>
           {toc.map((item) => (
             <li key={item.id}>
-              <a href={`#${item.id}`}>{item.label}</a>
+              <a
+                href={`#${item.id}`}
+                className={active === item.id ? styles.tocCurrent : undefined}
+                aria-current={active === item.id ? "location" : undefined}
+                onClick={(event) => onTocClick(event, item.id)}
+              >
+                {item.label}
+              </a>
             </li>
           ))}
         </ol>

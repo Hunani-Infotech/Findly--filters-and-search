@@ -3,6 +3,16 @@
   box-sizing: border-box;
 }
 
+:global(html) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html) {
+    scroll-behavior: auto;
+  }
+}
+
 .page {
   --bg: #f6f4f0;
   --bg-elev: #fffcf8;
@@ -21,8 +31,8 @@
   background:
     radial-gradient(1200px 480px at 12% -10%, rgb(15 118 110 / 10%), transparent 55%),
     var(--bg);
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  overflow-x: hidden;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
 }
 
 .skip {

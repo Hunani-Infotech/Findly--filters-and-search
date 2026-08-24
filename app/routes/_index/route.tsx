@@ -1,8 +1,10 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
+import { useEffect } from "react";
 import { redirect, Form, Link, useLoaderData, useNavigation } from "react-router";
 
 import { PublicShell } from "../../components/public-shell";
 import shell from "../../components/public-shell.module.css";
+import { scrollToId } from "../../public-scroll";
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
@@ -72,6 +74,11 @@ export default function App() {
     navigation.state !== "idle" &&
     navigation.formMethod?.toUpperCase() === "POST" &&
     Boolean(navigation.formAction?.includes("/auth/login"));
+
+  useEffect(() => {
+    const id = window.location.hash.replace(/^#/, "");
+    if (id) window.requestAnimationFrame(() => scrollToId(id));
+  }, []);
 
   return (
     <PublicShell>

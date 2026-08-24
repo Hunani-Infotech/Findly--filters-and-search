@@ -40,7 +40,8 @@
   text-decoration: none;
 }
 
-.toc a:hover {
+.toc a:hover,
+.tocCurrent {
   color: var(--ink, #1c1917);
   background: rgb(28 25 23 / 4%);
 }
