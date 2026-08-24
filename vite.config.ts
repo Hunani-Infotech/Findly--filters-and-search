@@ -78,5 +78,8 @@ export default defineConfig({
   ssr: {
     // Chalk uses package imports (#ansi-styles) that Vite should not bundle.
     external: ["chalk"],
+    // Vite's SSR runner resolves the CJS export (dist/cjs/lib/index.js).
+    // Bundle the ESM build instead so a partial Windows extract cannot crash the overlay.
+    noExternal: ["@shopify/shopify-api"],
   },
 }) satisfies UserConfig;
