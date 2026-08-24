@@ -32,14 +32,18 @@
       if (typeof console !== "undefined" && console.info) {
         console.info.apply(console, args);
       }
-    } catch (err) {}
+    } catch (err) {
+      /* ignore */
+    }
     try {
       window.__FINDLY_LOGS = window.__FINDLY_LOGS || [];
       window.__FINDLY_LOGS.push({
         t: Date.now(),
         m: Array.prototype.slice.call(arguments),
       });
-    } catch (err2) {}
+    } catch (err2) {
+      /* ignore */
+    }
   }
 
   function decodeHashValue(value) {
@@ -160,7 +164,9 @@
         "",
         url.pathname + url.search + url.hash,
       );
-    } catch (err) {}
+    } catch (err) {
+      /* ignore */
+    }
   }
 
   function fallbackHost() {
@@ -241,12 +247,16 @@
       var rect = el.getBoundingClientRect();
       w = Math.round(rect.width);
       h = Math.round(rect.height);
-    } catch (err) {}
+    } catch (err) {
+      /* ignore */
+    }
     try {
       if (typeof window.getComputedStyle === "function") {
         display = String(window.getComputedStyle(el).display || "");
       }
-    } catch (err2) {}
+    } catch (err2) {
+      /* ignore */
+    }
     return {
       visible: !hidden && display !== "none" && w >= 40,
       w: w,
@@ -294,7 +304,9 @@
     for (i = 0; i < candidates.length; i++) {
       var candidate = candidates[i];
       if (!candidate || candidate.nodeType !== 1) continue;
-      if (isResultsListEl(candidate)) continue;
+      if (isResultsListEl(candidate) || isThemeManagedGrid(candidate) && isResultsListEl(candidate)) {
+        continue;
+      }
       var vis = hostVisibility(candidate);
       var themeCount = countThemeCards(candidate);
       if (vis.visible && !bestVis) {
@@ -323,7 +335,9 @@
       if (typeof window.getComputedStyle === "function") {
         return String(window.getComputedStyle(el).display || "");
       }
-    } catch (err) {}
+    } catch (err) {
+      /* ignore */
+    }
     return "";
   }
 
@@ -824,7 +838,9 @@
         try {
           var url = new URL(window.location.href);
           if (url.searchParams.has("page")) stripThemePageParam();
-        } catch (err) {}
+        } catch (err) {
+          /* ignore */
+        }
         if (self.appGridTemplate && self.appGridTemplate()) {
           if (!self._appGridActive) return;
           var parent = self._gridParent;
@@ -876,6 +892,9 @@
       }
 
       if (parent) {
+        if (this._gridParent && this._gridParent !== parent) {
+          moveCardsToHost(this._gridParent, parent);
+        }
         this._gridParent = parent;
         return parent;
       }
@@ -892,7 +911,11 @@
     var origWrap = proto.wrapHostWithLayout;
     proto.wrapHostWithLayout = function (host, mount, position) {
       try {
-        if (host && isResultsListEl(host) && host.parentElement) {
+        if (
+          host &&
+          host.parentElement &&
+          (isResultsListEl(host) || isListHost(host))
+        ) {
           host = host.parentElement;
         }
         var existing =
@@ -985,7 +1008,7 @@
     };
 
     var origFetch = proto.fetchFilters;
-    proto.fetchFilters = function (opts) {
+    proto.fetchFilters = function () {
       var url = this.buildProxyUrl ? this.buildProxyUrl() : "";
       findlyLog("fetchFilters", {
         selected: this.selected,
@@ -1040,7 +1063,9 @@
           patchWidget(next);
         },
       });
-    } catch (err) {}
+    } catch (err) {
+      /* ignore */
+    }
   }
 
   function install() {

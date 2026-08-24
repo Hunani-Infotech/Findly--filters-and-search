@@ -12,6 +12,7 @@ import {
   ARTICLES_LIST_QUERY,
   CURRENT_BULK_OPERATION_QUERY,
   INVENTORY_ITEM_PRODUCT_QUERY,
+  INVENTORY_LEVEL_PRODUCT_QUERY,
   PRODUCT_NODE_QUERY,
   VARIANT_PRODUCT_QUERY,
 } from "./graphql";
@@ -711,26 +712,41 @@ function graphqlErrors(json: { errors?: unknown }): string | null {
   return JSON.stringify(errors);
 }
 
+function productGidFromInventoryItem(item: {
+  variant?: { product?: { id?: string } | null } | null;
+  variants?: {
+    nodes?: Array<{ product?: { id?: string } | null }>;
+    edges?: Array<{ node?: { product?: { id?: string } | null } }>;
+  } | null;
+} | null | undefined): string | undefined {
+  return (
+    item?.variant?.product?.id ??
+    item?.variants?.nodes?.[0]?.product?.id ??
+    item?.variants?.edges?.[0]?.node?.product?.id
+  );
+}
+
 export async function syncInventoryItem(
   shopDomain: string,
   inventoryItemGid: string,
 ) {
   const admin = await getAdminForShop(shopDomain);
-  const response = await admin.graphql(INVENTORY_ITEM_PRODUCT_QUERY, {
-    variables: { id: inventoryItemGid },
-  });
+  const isLevel = inventoryItemGid.includes("/InventoryLevel/");
+  const response = await admin.graphql(
+    isLevel ? INVENTORY_LEVEL_PRODUCT_QUERY : INVENTORY_ITEM_PRODUCT_QUERY,
+    { variables: { id: inventoryItemGid } },
+  );
   const json = await response.json();
   const lookupError = graphqlErrors(json);
   if (lookupError) {
     log.error(
-      `[sync] inventory item lookup failed ${inventoryItemGid}: ${lookupError}`,
+      `[sync] inventory lookup failed ${inventoryItemGid}: ${lookupError}`,
     );
   }
-  const item = json.data?.inventoryItem;
-  const productGid =
-    item?.variant?.product?.id ??
-    item?.variants?.nodes?.[0]?.product?.id ??
-    item?.variants?.edges?.[0]?.node?.product?.id;
+  const item = isLevel
+    ? json.data?.inventoryLevel?.item
+    : json.data?.inventoryItem;
+  const productGid = productGidFromInventoryItem(item);
   if (!productGid) return;
   return upsertProduct(shopDomain, productGid);
 }

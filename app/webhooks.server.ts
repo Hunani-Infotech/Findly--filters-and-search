@@ -1,5 +1,5 @@
 import { log } from "./log.server";
-import { enqueueSyncJob } from "./queues.server";
+import { enqueueSyncJobWithTimeout } from "./queues.server";
 
 /** Fast-ack webhook handling — enqueue BullMQ jobs only. */
 export function webhookGraphqlId(
@@ -15,22 +15,43 @@ export function webhookGraphqlId(
   return `gid://shopify/${resource}/${id}`;
 }
 
-/** inventory_levels/update: admin_graphql_api_id is often InventoryLevel, not InventoryItem. */
+function inventoryItemGidFromLevelGid(gid: string): string | null {
+  const marker = "inventory_item_id=";
+  const idx = gid.indexOf(marker);
+  if (idx === -1) return null;
+  const raw = gid
+    .slice(idx + marker.length)
+    .split("&")[0]
+    .split("#")[0];
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  return `gid://shopify/InventoryItem/${raw}`;
+}
+
+/**
+ * inventory_levels/update: admin_graphql_api_id is an InventoryLevel GID.
+ * The numeric inventory_item_id JSON field can exceed Number.MAX_SAFE_INTEGER —
+ * prefer the query-string id on the GID (string-safe).
+ */
 export function webhookInventoryItemGid(
   payload: Record<string, unknown>,
 ): string | null {
   const gid = payload.admin_graphql_api_id;
-  if (
-    typeof gid === "string" &&
-    gid.startsWith("gid://shopify/InventoryItem/")
-  ) {
-    return gid;
+  if (typeof gid === "string") {
+    if (gid.startsWith("gid://shopify/InventoryItem/")) return gid;
+    const fromLevel = inventoryItemGidFromLevelGid(gid);
+    if (fromLevel) return fromLevel;
+    if (gid.startsWith("gid://shopify/InventoryLevel/")) return gid;
   }
+
   const id = payload.inventory_item_id ?? payload.id;
-  if (id == null || id === "") return null;
-  const raw = String(id);
-  if (raw.startsWith("gid://shopify/InventoryItem/")) return raw;
-  return `gid://shopify/InventoryItem/${raw}`;
+  if (typeof id === "string" && id) {
+    if (id.startsWith("gid://shopify/InventoryItem/")) return id;
+    if (/^\d+$/.test(id)) return `gid://shopify/InventoryItem/${id}`;
+  }
+  if (typeof id === "number" && Number.isSafeInteger(id)) {
+    return `gid://shopify/InventoryItem/${id}`;
+  }
+  return null;
 }
 
 function ownerResourceFromPayload(payload: Record<string, unknown>): string {
