@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
 import type { LinksFunction } from "react-router";
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useRouteError,
+} from "react-router";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "./admin.css?url";
+import { PublicMessage, PublicPending } from "./components/public-shell";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -41,16 +50,38 @@ export default function App() {
 }
 
 export function HydrateFallback() {
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const isAdmin = path.startsWith("/app");
+
   return (
     <Document>
-      <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
-        <div className="findly-root-skeleton">
-          <div className="findly-root-skeleton__bar" />
-          <div className="findly-root-skeleton__title" />
-          <div className="findly-root-skeleton__card" />
-          <div className="findly-root-skeleton__card" />
+      {isAdmin ? (
+        <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
+          <div className="findly-root-skeleton">
+            <div className="findly-root-skeleton__bar" />
+            <div className="findly-root-skeleton__title" />
+            <div className="findly-root-skeleton__card" />
+            <div className="findly-root-skeleton__card" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <PublicPending />
+      )}
+    </Document>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const notFound = isRouteErrorResponse(error) && error.status === 404;
+
+  return (
+    <Document>
+      <PublicMessage title={notFound ? "Page not found" : "Something went wrong"}>
+        {notFound
+          ? "That URL is not a Findly page. Use the homepage to open the app in Shopify Admin."
+          : "The public page failed to load. Try again, or open Findly from Shopify Admin."}
+      </PublicMessage>
     </Document>
   );
 }

@@ -10,6 +10,13 @@ import {
   upsertProduct,
 } from "../sync/sync.server";
 
+export async function runSyncJobInline(
+  name: string,
+  data: Record<string, unknown>,
+) {
+  return processSyncJob({ name, data } as Job);
+}
+
 export async function processSyncJob(job: Job) {
   const shop = String(job.data.shop);
 

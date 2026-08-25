@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import { log } from "./log.server";
 import { getRedis } from "./redis.server";
 
 export const SYNC_QUEUE = "sync-queue";
@@ -58,6 +59,8 @@ export async function enqueueSyncJob(
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number },
 ) {
+  const { ensureWorkerRunning } = await import("./workers/ensure-running.server");
+  await ensureWorkerRunning();
   const queue = getSyncQueue();
   const jobId = bullJobId(opts?.jobId);
 
@@ -79,24 +82,55 @@ export async function enqueueSyncJob(
         return existing;
       } else if (state === "active") {
         if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
+          const staleAfterMs = name === "shop.fullSync" ? 120_000 : 0;
+          const startedAt = existing.processedOn ?? existing.timestamp ?? 0;
+          if (
+            staleAfterMs &&
+            startedAt &&
+            Date.now() - startedAt > staleAfterMs
+          ) {
+            log.warn(
+              `[queue] queueing replacement ${name} for stuck ${jobId} after ${Date.now() - startedAt}ms`,
+            );
+            return queue.add(
+              name,
+              data,
+              jobAddOpts(`${jobId}_retry_${Date.now()}`, opts?.delay),
+            );
+          }
           return existing;
         }
-        const followupId = `${jobId}_followup`;
-        const followup = await queue.getJob(followupId);
-        if (followup) {
-          const followupState = await followup.getState();
-          if (
-            followupState === "waiting" ||
-            followupState === "delayed" ||
-            followupState === "active"
-          ) {
-            return followup;
+        for (const suffix of ["followup", "followup2"] as const) {
+          const followupId = `${jobId}_${suffix}`;
+          const followup = await queue.getJob(followupId);
+          if (followup) {
+            const followupState = await followup.getState();
+            if (followupState === "delayed") {
+              if (
+                opts?.delay != null &&
+                typeof followup.changeDelay === "function"
+              ) {
+                await followup.changeDelay(opts.delay);
+              }
+              return followup;
+            }
+            if (followupState === "waiting") {
+              return followup;
+            }
+            if (followupState === "active") {
+              continue;
+            }
+            if (followupState === "failed" || followupState === "completed") {
+              await followup.remove();
+            }
           }
-          if (followupState === "failed" || followupState === "completed") {
-            await followup.remove();
-          }
+          return queue.add(name, data, jobAddOpts(followupId, opts?.delay));
         }
-        return queue.add(name, data, jobAddOpts(followupId, opts?.delay));
+        return queue.add(
+          name,
+          data,
+          jobAddOpts(`${jobId}_followup_${Date.now()}`, opts?.delay),
+        );
       }
     }
   }

@@ -19,6 +19,8 @@
   border: 1px solid var(--fi-border);
   border-radius: var(--fi-radius);
   box-shadow: 0 16px 40px rgba(28, 25, 23, 0.16);
+  isolation: isolate;
+  font-family: inherit;
   overflow: auto;
   min-width: 0;
 }

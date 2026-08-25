@@ -72,12 +72,8 @@ const shopify = shopifyApp({
       await ensureShop(session.shop);
       // Redis/BullMQ is optional for admin boot — don't block OAuth if Redis is down.
       try {
-        const { enqueueSyncJob } = await import("./queues.server");
-        await enqueueSyncJob(
-          "shop.fullSync",
-          { shop: session.shop },
-          { jobId: `${session.shop}:shop.fullSync` },
-        );
+        const { queueFullSync } = await import("./sync/queue-full-sync");
+        await queueFullSync(session.shop);
       } catch (error) {
         log.warn(
           `[afterAuth] sync enqueue skipped (is Redis running?): ${

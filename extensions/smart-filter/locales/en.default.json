@@ -3,6 +3,7 @@
     "collection_filters": {
       "name": "Collection filters",
       "filter": "Filter",
+      "offcanvas": "Off-canvas",
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",
@@ -11,6 +12,7 @@
     "collection_filters_embed": {
       "name": "Collection filters",
       "filter": "Filter",
+      "offcanvas": "Off-canvas",
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",

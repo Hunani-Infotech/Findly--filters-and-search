@@ -1,5 +1,7 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
+<script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
+<script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
 <script type="application/json" id="findly-embed-config">
 {
   "productGridSelector": {{ block.settings.product_grid_selector | json }},
@@ -30,9 +32,9 @@ try {
 
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
 {% assign sf_page_size = 16 %}
-{% if collection.products.size >= 8 %}
+{% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
-{% elsif search.results.size >= 8 %}
+{% elsif search.results.size >= 8 and search.results.size <= 48 %}
   {% assign sf_page_size = search.results.size %}
 {% endif %}
 <link

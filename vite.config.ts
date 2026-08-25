@@ -54,12 +54,17 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host, "localhost", "127.0.0.1", "findly.hunaniinfotech.com"],
+    allowedHosts: [host, "localhost", "127.0.0.1", "deeppink-manatee-141983.hostingersite.com"],
     cors: {
       preflightContinue: true,
     },
     port: Number(process.env.PORT || 3000),
     hmr: hmrConfig,
+    watch: {
+      // Shopify CLI writes theme assets here while Vite is running. Watching
+      // that tree on Windows throws EBUSY and kills `react-router dev`.
+      ignored: ["**/.shopify/**", "**/.local/**"],
+    },
     fs: {
       // See https://vitejs.dev/config/server-options.html#server-fs-allow for more information
       allow: ["app", "node_modules"],
@@ -73,13 +78,13 @@ export default defineConfig({
     assetsInlineLimit: 0,
   },
   optimizeDeps: {
-    include: ["@shopify/app-bridge-react"],
+    include: ["@shopify/app-bridge-react", "@shopify/polaris-icons"],
   },
   ssr: {
     // Chalk uses package imports (#ansi-styles) that Vite should not bundle.
     external: ["chalk"],
-    // Vite's SSR runner resolves the CJS export (dist/cjs/lib/index.js).
-    // Bundle the ESM build instead so a partial Windows extract cannot crash the overlay.
-    noExternal: ["@shopify/shopify-api"],
+    // Bundle ESM for these dual packages so a partial Windows extract of CJS
+    // cannot crash the Vite overlay (missing dist/cjs/lib or NUL-padded .svg.js).
+    noExternal: ["@shopify/shopify-api", "@shopify/polaris-icons"],
   },
 }) satisfies UserConfig;

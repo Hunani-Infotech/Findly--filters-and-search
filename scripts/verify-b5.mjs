@@ -88,6 +88,9 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("closestGridHost")) {
     fail("closestProductCard must walk the real product grid, not a fat .product-grid wrapper");
   }
+  if (!filterJs.includes("isBareProductLink") || !filterJs.includes("product-card")) {
+    fail("closestProductCard must keep Horizon product-card hosts, not title links");
+  }
   if (!filterJs.includes("isLikelyProductCard(viaSel)") && !filterJs.includes("isLikelyProductCard(node)")) {
     fail("closestProductCard must reject fat grid wrappers so each product can hide");
   }
@@ -105,6 +108,48 @@ function assertThemeSeoAndUi() {
   }
   if (!filterJs.includes("facets-form") || !filterJs.includes("facet-filters-form")) {
     fail("smart-filter.js must recognize Horizon/Dawn native facet hosts");
+  }
+  const themeCompat = read("extensions/smart-filter/assets/smart-filter-theme.js");
+  if (!themeCompat.includes("discoverAnyThemeGrid")) {
+    fail("smart-filter-theme.js must discover product grids on any theme");
+  }
+  const gridJs = read("extensions/smart-filter/assets/smart-filter-grid.js");
+  if (!gridJs.includes("liftFragileLayout") || !gridJs.includes("findly-card-tray") || !gridJs.includes("resolveCardHost") || !gridJs.includes("sweepHostOrphans")) {
+    fail("smart-filter-grid.js must tray-hide unmatched cards on any theme without leaking titles");
+  }
+  if (!gridJs.includes("PRODUCT_GRID_START_CSS") || !gridJs.includes("justify-content:start")) {
+    fail("smart-filter-grid.js must left-align leftover filtered cards in a product grid");
+  }
+  if (gridJs.includes("minmax(11rem,1fr)")) {
+    fail("smart-filter-grid.js must not override theme product-card grid columns");
+  }
+  if (!gridJs.includes("GRID_BUSY_CSS") || !gridJs.includes("sf-grid-spin")) {
+    fail("smart-filter-grid.js must show a product-grid loader while filters fetch");
+  }
+  if (!filterCss.includes("sf-grid-spin")) {
+    fail("smart-filter.css must show a product-grid loader while filters fetch");
+  }
+  if (!filterJs.includes("syncProductGrid")) {
+    fail("smart-filter.js must expose syncProductGrid so companions can hide cards without leaking titles");
+  }
+  if (!themeCompat.includes("hideNativeChromeHeuristic")) {
+    fail("smart-filter-theme.js must hide native filter chrome without theme-specific class lists only");
+  }
+  if (!collectionLiquid.includes("smart-filter-theme.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-theme.min.js");
+  }
+  const embedLiquid = read(
+    "extensions/smart-filter/blocks/collection-filters-embed.liquid",
+  );
+  if (!embedLiquid.includes("smart-filter-theme.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-theme.min.js");
+  }
+  const instantJs = read("extensions/smart-filter/assets/instant-search.js");
+  if (
+    !instantJs.includes("suppressThemePredictive") ||
+    !instantJs.includes("predictive-search")
+  ) {
+    fail("instant search must bind any theme search input and hide native predictive results");
   }
   if (!filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
@@ -391,19 +436,31 @@ try {
   const { PLANS } = await import("../app/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
     await import("../app/compliance.server.ts");
-  const { webhookGraphqlId, webhookInventoryItemGid } = await import(
+  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import(
     "../app/webhooks.server.ts"
+  );
+  const { mapProductToFacet, productIsAvailable } = await import(
+    "../app/sync/product-mapper.ts"
   );
 
   const toml = read("shopify.app.toml");
   const processors = read("app/workers/processors.ts");
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
+  const syncModal = read("app/components/sync-details-modal.tsx");
   const proxy = read("app/proxy.server.ts");
+  const eventsRoute = read("app/routes/events.app.products.tsx");
+  const workerBoot = read("app/workers/ensure-running.server.ts");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
     );
+  }
+  if (!eventsRoute.includes("handleProductEvent")) {
+    fail("events.app.products must enqueue catalog sync via handleProductEvent");
+  }
+  if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
+    fail("ensureWorkerRunning must start an in-process BullMQ Worker");
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");
@@ -411,11 +468,32 @@ try {
   if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
   }
+  if (
+    !syncServer.includes("already in progress") ||
+    !syncServer.includes("already running")
+  ) {
+    fail("startFullSync must reuse an in-progress bulk operation instead of failing");
+  }
+  const queueFullSync = read("app/sync/queue-full-sync.ts");
+  if (!queueFullSync.includes("startFullSync")) {
+    fail("queueFullSync must fall back to inline startFullSync so manual sync is not blocked");
+  }
+  const graphqlSync = read("app/sync/graphql.ts");
+  if (
+    !graphqlSync.includes("inventoryQuantity") ||
+    !graphqlSync.includes("inventoryItem") ||
+    !graphqlSync.includes("tracked")
+  ) {
+    fail("product/bulk GraphQL must fetch inventory quantity and tracked inventory items");
+  }
   if (!proxy.includes("getCatalogGeneration")) {
     fail("proxy.server.ts must key filter cache by catalog generation");
   }
-  if (!syncPage.includes("Re-sync catalog") || !syncPage.includes("Automatic updates")) {
-    fail("Sync page must present automatic updates with Re-sync as recovery");
+  if (!syncPage.includes("/app?sync=1")) {
+    fail("Sync route must open the Home sync popup");
+  }
+  if (!syncModal.includes("Automatic updates") || !syncModal.includes("Sync now")) {
+    fail("Sync popup must present automatic updates with Sync now as recovery");
   }
   const inventoryFromLevel = webhookInventoryItemGid({
     inventory_item_id: 271878346596884000,
@@ -448,6 +526,64 @@ try {
   );
   if (collectionGid !== "gid://shopify/Collection/841564295") {
     fail(`2026-07 collection webhook GID parse failed: ${collectionGid}`);
+  }
+  const eventGid = catalogProductGid({
+    topic: "Product",
+    action: "update",
+    query_variables: { productId: "gid://shopify/Product/555" },
+  });
+  if (eventGid !== "gid://shopify/Product/555") {
+    fail(`product event GID parse failed: ${eventGid}`);
+  }
+  const taggedOos = mapProductToFacet("shop", {
+    id: "gid://shopify/Product/oos",
+    handle: "oos",
+    title: "OOS",
+    status: "ACTIVE",
+    tags: ["findTest"],
+    variants: {
+      edges: [
+        {
+          node: {
+            availableForSale: true,
+            inventoryItem: {
+              tracked: true,
+              inventoryLevels: {
+                edges: [
+                  {
+                    node: {
+                      quantities: [{ name: "available", quantity: 0 }],
+                      location: { name: "Shop", isActive: true },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  });
+  if (!taggedOos.facet.tags.includes("findTest")) {
+    fail("product mapper must persist new tags such as findTest");
+  }
+  if (taggedOos.facet.available !== false) {
+    fail("tracked inventory qty 0 must map to out of stock even if availableForSale is true");
+  }
+  const oosQtyOnly = mapProductToFacet("shop", {
+    id: "gid://shopify/Product/oos-qty",
+    handle: "oos-qty",
+    title: "OOS qty",
+    status: "ACTIVE",
+    variants: {
+      edges: [{ node: { availableForSale: true, inventoryQuantity: 0 } }],
+    },
+  });
+  if (oosQtyOnly.facet.available !== false) {
+    fail("inventoryQuantity 0 must map to out of stock even when tracked is omitted");
+  }
+  if (!productIsAvailable("ACTIVE", [{ availableForSale: true }])) {
+    fail("incomplete variant payloads must stay in stock");
   }
   const tokens = customerRedactTokens({
     shop_id: 954889,

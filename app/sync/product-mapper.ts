@@ -20,6 +20,9 @@ type ShopifyVariantNode = {
   price?: string | null;
   compareAtPrice?: string | null;
   availableForSale?: boolean | null;
+  inventoryQuantity?: number | null;
+  sellableOnlineQuantity?: number | null;
+  inventoryPolicy?: string | null;
   image?: { url?: string | null } | null;
   selectedOptions?: Array<{ name?: string | null; value?: string | null }> | null;
   metafields?: {
@@ -29,6 +32,7 @@ type ShopifyVariantNode = {
   } | null;
   inventoryItem?: {
     id?: string | null;
+    tracked?: boolean | null;
     inventoryLevels?: {
       edges?: Array<{ node: ShopifyInventoryLevelNode }>;
       nodes?: ShopifyInventoryLevelNode[];
@@ -53,6 +57,7 @@ type ShopifyProduct = {
     edges?: Array<{
       node: ShopifyVariantNode;
     }>;
+    nodes?: ShopifyVariantNode[];
   } | null;
   metafields?: {
     edges?: Array<{
@@ -140,6 +145,67 @@ export function inventoryLevelAvailableQuantity(level: {
     if (Number.isFinite(n)) return n;
   }
   return 0;
+}
+
+export function shopifyVariantNodes(
+  product: Pick<ShopifyProduct, "variants">,
+): ShopifyVariantNode[] {
+  const conn = product.variants;
+  const fromEdges = conn?.edges?.map((edge) => edge.node) ?? [];
+  if (fromEdges.length) return fromEdges;
+  return conn?.nodes ?? [];
+}
+
+function variantInventoryLevels(variant: ShopifyVariantNode): ShopifyInventoryLevelNode[] {
+  const conn = variant.inventoryItem?.inventoryLevels;
+  return [
+    ...(conn?.edges?.map((edge) => edge.node) ?? []),
+    ...(conn?.nodes ?? []),
+  ];
+}
+
+/** Sum available units when Shopify returned levels; otherwise use quantity fields. */
+export function variantAvailableQuantity(
+  variant: ShopifyVariantNode,
+): number | null {
+  const levels = variantInventoryLevels(variant);
+  if (levels.length) {
+    return levels.reduce(
+      (sum, level) => sum + inventoryLevelAvailableQuantity(level),
+      0,
+    );
+  }
+  if (typeof variant.inventoryQuantity === "number") return variant.inventoryQuantity;
+  if (typeof variant.sellableOnlineQuantity === "number") {
+    return variant.sellableOnlineQuantity;
+  }
+  if (variant.inventoryItem) return 0;
+  return null;
+}
+
+/**
+ * In-stock when a variant can actually be sold from inventory.
+ * Qty 0 is out of stock unless inventory is explicitly untracked, even if
+ * "continue selling" keeps availableForSale true. Incomplete payloads (no
+ * quantity fields) stay in stock so partial GraphQL/bulk lines do not blank
+ * the catalog.
+ */
+export function variantIsInStock(variant: ShopifyVariantNode): boolean {
+  if (variant.availableForSale === false) return false;
+  const tracked = variant.inventoryItem?.tracked;
+  const qty = variantAvailableQuantity(variant);
+  if (qty === 0 && tracked !== false) return false;
+  if (qty != null && qty > 0) return true;
+  return true;
+}
+
+export function productIsAvailable(
+  status: string | null | undefined,
+  variants: ShopifyVariantNode[],
+): boolean {
+  if ((status ?? "ACTIVE") !== "ACTIVE") return false;
+  if (!variants.length) return true;
+  return variants.some(variantIsInStock);
 }
 
 export function availableLocationNamesFromVariants(
@@ -252,7 +318,7 @@ export function mapProductToFacet(
   facet: Prisma.ProductFacetUncheckedCreateInput;
   collectionGids: string[];
 } {
-  const variants = product.variants?.edges?.map((e) => e.node) ?? [];
+  const variants = shopifyVariantNodes(product);
   const skus = [
     ...new Set(
       variants
@@ -267,9 +333,7 @@ export function mapProductToFacet(
   const priceMax = prices.length ? Math.max(...prices) : 0;
   const { compareAtMin, compareAtMax, salePct } =
     compareAtAndSaleFromVariants(variants);
-  const available =
-    product.status === "ACTIVE" &&
-    variants.some((v) => v.availableForSale !== false);
+  const available = productIsAvailable(product.status, variants);
 
   const options: Record<string, string[]> = {};
   for (const opt of product.options ?? []) {
@@ -316,7 +380,12 @@ export function mapProductToFacet(
       status: product.status ?? "ACTIVE",
       imageUrl: product.featuredImage?.url ?? null,
       variantImages: buildVariantImages(variants) as JsonObject,
-      variants: buildStoredVariants(variants) as JsonObject,
+      variants: buildStoredVariants(
+        variants.map((variant) => ({
+          ...variant,
+          available: variantIsInStock(variant),
+        })),
+      ) as JsonObject,
       metafields: metafields as JsonObject,
       variantMetafields: variantMetafields as JsonObject,
       marketPrices: mergeProductMarketPrices(product) as JsonObject,

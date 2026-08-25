@@ -76,7 +76,7 @@ export default function IntegrationsPage() {
     <Page
       title="Integrations"
       subtitle="Partner apps that stay in sync after collection filters"
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Home", onAction: () => navigate("/app") }}
     >
       <Layout>
         <Layout.Section>

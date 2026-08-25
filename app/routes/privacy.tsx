@@ -1,8 +1,9 @@
 import type { HeadersFunction, MetaFunction } from "react-router";
 import { Link } from "react-router";
 
+import { LegalDoc } from "../components/legal-doc";
+import { PublicShell } from "../components/public-shell";
 import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
-import styles from "../privacy.module.css";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy — Findly: Smart Filters & Search" },
@@ -19,14 +20,28 @@ export const headers: HeadersFunction = () => ({
 
 export default function PrivacyPolicy() {
   return (
-    <main className={styles.page}>
-      <article className={styles.inner}>
-        <Link className={styles.brand} to="/">
-          Findly: Smart Filters & Search
-        </Link>
-        <h1>Privacy Policy</h1>
-        <p className={styles.updated}>Effective 21 August 2026</p>
-
+    <PublicShell>
+      <LegalDoc
+        eyebrow="Legal"
+        title="Privacy Policy"
+        updated="Effective 21 August 2026"
+        toc={[
+          { id: "responsible", label: "Who is responsible" },
+          { id: "permissions", label: "Shopify permissions" },
+          { id: "merchant-data", label: "Merchant data we store" },
+          { id: "shopper-data", label: "Shopper data" },
+          { id: "use", label: "How we use this data" },
+          { id: "storage", label: "Where data is stored" },
+          { id: "gdpr", label: "GDPR webhooks" },
+          { id: "retention", label: "Data retention" },
+          { id: "cookies", label: "Cookies" },
+          { id: "transfers", label: "International transfers" },
+          { id: "choices", label: "Your choices" },
+          { id: "children", label: "Children" },
+          { id: "changes", label: "Changes" },
+          { id: "contact", label: "Contact" },
+        ]}
+      >
         <p>
           This policy describes how Hunani Infotech (“we”, “us”, “Findly”)
           handles information when merchants install and use the Shopify app
@@ -41,16 +56,16 @@ export default function PrivacyPolicy() {
           Findly account.
         </p>
 
-        <h2>1. Who is responsible</h2>
+        <h2 id="responsible">1. Who is responsible</h2>
         <p>
           Hunani Infotech operates Findly and the production app at{" "}
-          <a href={FINDLY_PUBLIC_ORIGIN}>findly.hunaniinfotech.com</a>
+          <a href={FINDLY_PUBLIC_ORIGIN}>deeppink-manatee-141983.hostingersite.com</a>
           . Shopify remains responsible for the merchant’s store, Admin, and
           Checkout. Merchants remain responsible for their own storefront
           privacy notices to shoppers.
         </p>
 
-        <h2>2. Shopify permissions we request</h2>
+        <h2 id="permissions">2. Shopify permissions we request</h2>
         <p>
           Findly uses the Shopify Admin GraphQL API only (not the REST Admin
           API). After install, the app requests these access scopes:
@@ -89,7 +104,7 @@ export default function PrivacyPolicy() {
           addresses, payment methods, or order history from Shopify.
         </p>
 
-        <h2>3. Merchant data we store</h2>
+        <h2 id="merchant-data">3. Merchant data we store</h2>
         <p>
           All application data is scoped to the installing shop (multi-tenant).
           We store:
@@ -126,7 +141,7 @@ export default function PrivacyPolicy() {
           </li>
         </ul>
 
-        <h2>4. Shopper (customer) data</h2>
+        <h2 id="shopper-data">4. Shopper (customer) data</h2>
         <p>
           Findly does not create shopper accounts and does not store Shopify
           customer profiles. Storefront widgets may send limited usage data so
@@ -152,7 +167,7 @@ export default function PrivacyPolicy() {
           required by their region.
         </p>
 
-        <h2>5. How we use this data</h2>
+        <h2 id="use">5. How we use this data</h2>
         <ul>
           <li>Provide collection filters and storefront search on the theme.</li>
           <li>Sync catalog changes from Shopify webhooks and bulk operations.</li>
@@ -171,13 +186,12 @@ export default function PrivacyPolicy() {
           merchant catalog or shopper queries.
         </p>
 
-        <h2>6. Where data is stored</h2>
+        <h2 id="storage">6. Where data is stored</h2>
         <ul>
           <li>
             <strong>PostgreSQL</strong> — primary store for sessions, catalog
             index, configuration, analytics events, and compliance audit rows.
-            Hosted with the production app (currently Fly.io, primary region
-            Ashburn, USA — <code>iad</code>).
+            Hosted with the production app (currently Hostinger).
           </li>
           <li>
             <strong>Redis + BullMQ</strong> — short-lived job payloads (shop
@@ -200,7 +214,7 @@ export default function PrivacyPolicy() {
           not duplicate the access token.
         </p>
 
-        <h2>7. GDPR and Shopify mandatory webhooks</h2>
+        <h2 id="gdpr">7. GDPR and Shopify mandatory webhooks</h2>
         <p>
           Findly implements Shopify’s mandatory compliance webhooks. Shopify
           authenticates each request before we process it.
@@ -257,7 +271,7 @@ export default function PrivacyPolicy() {
           database or to fallback logs.
         </p>
 
-        <h2>8. Data retention</h2>
+        <h2 id="retention">8. Data retention</h2>
         <ul>
           <li>
             <strong>While the app is installed:</strong> catalog index and
@@ -290,7 +304,7 @@ export default function PrivacyPolicy() {
           </li>
         </ul>
 
-        <h2>9. Cookies and similar technology</h2>
+        <h2 id="cookies">9. Cookies and similar technology</h2>
         <p>
           The embedded admin uses Shopify’s session cookies to keep the merchant
           logged in. The storefront Theme App Extension does not set a Findly
@@ -300,15 +314,15 @@ export default function PrivacyPolicy() {
           identity).
         </p>
 
-        <h2>10. International transfers</h2>
+        <h2 id="transfers">10. International transfers</h2>
         <p>
-          Production hosting is in the United States (Fly.io <code>iad</code>).
+          Production hosting is currently on Hostinger.
           If a merchant or shopper is in the EEA, UK, or another region, data
           described above may be processed in the US to provide the app.
           Shopify also processes data under the merchant’s Shopify agreement.
         </p>
 
-        <h2>11. Your choices and requests</h2>
+        <h2 id="choices">11. Your choices and requests</h2>
         <p>Merchants can:</p>
         <ul>
           <li>Uninstall Findly, which starts deletion of shop-scoped data.</li>
@@ -330,21 +344,21 @@ export default function PrivacyPolicy() {
           webhook.
         </p>
 
-        <h2>12. Children</h2>
+        <h2 id="children">12. Children</h2>
         <p>
           Findly is a B2B Shopify app. We do not knowingly collect personal
           information from children. Catalog and analytics data come from the
           merchant’s store, not from child accounts we create.
         </p>
 
-        <h2>13. Changes</h2>
+        <h2 id="changes">13. Changes</h2>
         <p>
           We will update this page when our data practices or Shopify
           requirements change. The effective date at the top will change. The
           current version is always at this URL.
         </p>
 
-        <h2>14. Contact</h2>
+        <h2 id="contact">14. Contact</h2>
         <p>
           Hunani Infotech — Findly: Smart Filters & Search
           <br />
@@ -359,12 +373,7 @@ export default function PrivacyPolicy() {
           In-app: Findly → Contact
         </p>
 
-        <p className={styles.footer}>
-          <Link to="/terms">Terms of service</Link>
-          {" · "}
-          <Link to="/">Back to Findly</Link>
-        </p>
-      </article>
-    </main>
+      </LegalDoc>
+    </PublicShell>
   );
 }

@@ -199,7 +199,6 @@ export default function SearchPage() {
 
   const saving = isMutationBusy(navigation);
   const selectedTabIndex = SEARCH_TABS.findIndex((tab) => tab.id === selectedTab);
-  const embedEditor = `https://${data.shopDomain}/admin/themes/current/editor?context=apps`;
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -792,14 +791,11 @@ export default function SearchPage() {
 
                   <Banner tone="info">
                     <p>
-                      Enable the Instant search app embed in the theme editor
-                      (Theme settings → App embeds).
+                      Instant search is held for now. It overlays the theme
+                      header search and does not add a bar on collection
+                      pages. For a listing-page search bar, use Settings →
+                      Allow searching within collection pages.
                     </p>
-                    <div style={{ marginTop: 12 }}>
-                      <Button url={embedEditor} target="_blank">
-                        Open app embeds
-                      </Button>
-                    </div>
                   </Banner>
                 </BlockStack>
               </div>

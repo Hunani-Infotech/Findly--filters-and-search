@@ -9,6 +9,8 @@ const connection = getRedis();
 const syncWorker = new Worker(SYNC_QUEUE, processSyncJob, {
   connection,
   concurrency: 2,
+  lockDuration: 30 * 60 * 1000,
+  stalledInterval: 60_000,
 });
 
 syncWorker.on("completed", (job) => {

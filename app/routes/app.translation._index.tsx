@@ -468,7 +468,7 @@ export default function TranslationPage() {
   return (
     <Page
       title="Translation"
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Home", onAction: () => navigate("/app") }}
       primaryAction={{
         content: "Add language",
         onAction: () => {

@@ -1,0 +1,163 @@
+import type { ReactNode } from "react";
+import { Link, useLocation } from "react-router";
+
+import styles from "./public-shell.module.css";
+
+function Mark() {
+  return (
+    <span className={styles.mark} aria-hidden="true">
+      F
+    </span>
+  );
+}
+
+function NavLinks({
+  pathname,
+  onPrivacy,
+  onTerms,
+}: {
+  pathname: string;
+  onPrivacy: boolean;
+  onTerms: boolean;
+}) {
+  const linkClass = (active: boolean) =>
+    active ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink;
+
+  return (
+    <>
+      <Link className={linkClass(false)} to={{ pathname: "/", hash: "features" }}>
+        Features
+      </Link>
+      <Link
+        className={linkClass(onPrivacy)}
+        to="/privacy"
+        aria-current={onPrivacy ? "page" : undefined}
+      >
+        Privacy
+      </Link>
+      <Link
+        className={linkClass(onTerms)}
+        to="/terms"
+        aria-current={onTerms ? "page" : undefined}
+      >
+        Terms
+      </Link>
+      <Link
+        className={styles.navCta}
+        to={pathname === "/" ? { pathname: "/", hash: "open-admin" } : "/auth/login"}
+      >
+        Log in
+      </Link>
+    </>
+  );
+}
+
+export function PublicMessage({
+  title,
+  children,
+  actionLabel = "Back to Findly",
+  actionTo = "/",
+}: {
+  title: string;
+  children: ReactNode;
+  actionLabel?: string;
+  actionTo?: string;
+}) {
+  return (
+    <PublicShell>
+      <div className={styles.narrow}>
+        <div className={styles.card}>
+          <h1 className={styles.cardTitle}>{title}</h1>
+          <p className={styles.cardCopy}>{children}</p>
+          <Link className={styles.button} to={actionTo}>
+            {actionLabel}
+          </Link>
+        </div>
+      </div>
+    </PublicShell>
+  );
+}
+
+export function PublicPending() {
+  return (
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <span className={styles.logo}>
+            <Mark />
+            Findly
+          </span>
+        </div>
+      </header>
+      <main className={styles.main}>
+        <div className={styles.narrow}>
+          <div className={styles.card} aria-busy="true" aria-live="polite">
+            <p className={styles.cardCopy}>Loading…</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export function PublicShell({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const onPrivacy = pathname === "/privacy";
+  const onTerms = pathname === "/terms";
+  const navProps = { pathname, onPrivacy, onTerms };
+
+  return (
+    <div className={styles.page}>
+      <a className={styles.skip} href="#main">
+        Skip to content
+      </a>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <Link className={styles.logo} to="/" aria-current={pathname === "/" ? "page" : undefined}>
+            <Mark />
+            Findly
+          </Link>
+          <nav className={styles.nav} aria-label="Site">
+            <NavLinks {...navProps} />
+          </nav>
+          <details className={styles.menu}>
+            <summary>Menu</summary>
+            <div className={styles.menuPanel}>
+              <NavLinks {...navProps} />
+            </div>
+          </details>
+        </div>
+      </header>
+      <main className={styles.main} id="main">
+        {children}
+      </main>
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
+          <div className={styles.footerBrand}>
+            <strong>
+              <Mark />
+              Findly
+            </strong>
+            <p>
+              Collection filters and storefront search for Shopify. Built by
+              Hunani Infotech.
+            </p>
+          </div>
+          <nav className={styles.footerCol} aria-label="Product">
+            <p>Product</p>
+            <Link to={{ pathname: "/", hash: "features" }}>Features</Link>
+            <Link to="/auth/login">Log in</Link>
+          </nav>
+          <nav className={styles.footerCol} aria-label="Legal">
+            <p>Legal</p>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>
+          </nav>
+        </div>
+        <p className={styles.footerMeta}>
+          © {new Date().getFullYear()} Hunani Infotech. All rights reserved.
+        </p>
+      </footer>
+    </div>
+  );
+}

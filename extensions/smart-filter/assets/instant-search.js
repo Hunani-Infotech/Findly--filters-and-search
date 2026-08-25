@@ -68,16 +68,76 @@
 
   function isThemeSearchInput(el) {
     if (!el || el.nodeType !== 1) return false;
-    if (el.tagName !== "INPUT") return false;
+    if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
     if (isIgnoredContainer(el)) return false;
-    var type = String(el.getAttribute("type") || "").toLowerCase();
-    var name = String(el.getAttribute("name") || "");
-    var form = el.form || el.closest("form");
+    var type = String(el.getAttribute("type") || "text").toLowerCase();
+    if (
+      type &&
+      type !== "search" &&
+      type !== "text" &&
+      type !== "url"
+    ) {
+      return false;
+    }
+    var name = String(el.getAttribute("name") || "").toLowerCase();
+    var id = String(el.id || "").toLowerCase();
+    var role = String(el.getAttribute("role") || "").toLowerCase();
+    var aria = String(
+      el.getAttribute("aria-label") ||
+        el.getAttribute("placeholder") ||
+        "",
+    ).toLowerCase();
+    var form = el.form || (el.closest && el.closest("form"));
     var action = form ? String(form.getAttribute("action") || "") : "";
-    var inSearchForm = action.indexOf("/search") !== -1;
-    if (inSearchForm && (name === "q" || type === "search")) return true;
-    if (name === "q" && type === "search") return true;
+    var inSearchForm =
+      /\/search/i.test(action) ||
+      Boolean(
+        el.closest &&
+          el.closest(
+            "predictive-search, .predictive-search, search-form, [data-predictive-search], details-modal, .search-modal, .header__search, [role='search']",
+          ),
+      );
+    if (inSearchForm && (name === "q" || type === "search" || role === "searchbox")) {
+      return true;
+    }
+    if (name === "q" && (type === "search" || type === "text")) return true;
+    if (type === "search" && /q|search|query/.test(name || "q")) return true;
+    if (role === "searchbox") return true;
+    if (
+      inSearchForm &&
+      /search/.test(id + " " + aria) &&
+      (type === "search" || type === "text")
+    ) {
+      return true;
+    }
     return false;
+  }
+
+  function suppressThemePredictive(input) {
+    if (!input || !input.closest) return;
+    var host = input.closest(
+      "predictive-search, .predictive-search, search-form, details-modal, [data-predictive-search]",
+    );
+    if (!host || !host.querySelectorAll) return;
+    var results = host.querySelectorAll(
+      "[data-predictive-search-results], #predictive-search-results, .predictive-search__results, .predictive-search-results, [id*='predictive-search']",
+    );
+    var i;
+    for (i = 0; i < results.length; i++) {
+      if (results[i] === input || (results[i].contains && results[i].contains(input))) {
+        continue;
+      }
+      results[i].setAttribute("hidden", "");
+      results[i].style.setProperty("display", "none", "important");
+    }
+    try {
+      if (typeof host.close === "function") host.close();
+      if (typeof host.reset === "function") {
+        /* keep typed value */
+      }
+    } catch (err) {
+      /* ignore */
+    }
   }
 
   function InstantSearch(root) {
@@ -418,6 +478,7 @@
       typeof AbortController === "function" ? new AbortController() : null;
     var opts = {
       credentials: "same-origin",
+      cache: "no-store",
       headers: { Accept: "application/json" },
     };
     if (this._abort) opts.signal = this._abort.signal;
@@ -491,6 +552,7 @@
   InstantSearch.prototype.onInputValue = function (input) {
     if (!isThemeSearchInput(input)) return;
     this.activeInput = input;
+    suppressThemePredictive(input);
     var value = String(input.value || "");
     var trimmed = value.trim();
     var minChars = this.minChars || DEFAULT_MIN_CHARS;
@@ -512,6 +574,7 @@
   InstantSearch.prototype.onFocus = function (input) {
     if (!isThemeSearchInput(input)) return;
     this.activeInput = input;
+    suppressThemePredictive(input);
     var trimmed = String(input.value || "").trim();
     if (!trimmed && this.showSuggestionsOnEmptyQuery) {
       this.scheduleQuery("");
@@ -550,6 +613,19 @@
       }
       self.close();
     });
+    document.addEventListener(
+      "submit",
+      function (event) {
+        var form = event.target;
+        if (!form || !form.querySelector) return;
+        var input = form.querySelector(
+          "input[name='q'], input[type='search'], [role='searchbox']",
+        );
+        if (!input || !isThemeSearchInput(input)) return;
+        suppressThemePredictive(input);
+      },
+      true,
+    );
     window.addEventListener(
       "resize",
       function () {

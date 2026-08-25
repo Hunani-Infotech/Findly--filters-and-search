@@ -39,7 +39,7 @@ import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import { useEmbeddedNavigate } from "../admin-path";
 
-export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
+export { CollectionFilterSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 type ConfigState = {
   enabled: boolean;
@@ -279,7 +279,7 @@ export default function ShopDefaultFilterConfigPage() {
       title="Shop-wide default filters"
       backAction={{
         content: "Collections",
-        onAction: () => navigate("/app"),
+        onAction: () => navigate("/app/filters"),
       }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",

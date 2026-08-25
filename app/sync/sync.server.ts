@@ -373,6 +373,84 @@ export async function syncShopContent(shopDomain: string) {
   return { pages: seenPages.size, articles: seenArticles.size };
 }
 
+type BulkOperationSnapshot = {
+  id?: string;
+  status?: string;
+  url?: string | null;
+};
+
+function bulkAlreadyInProgress(message: string) {
+  return /already in progress|already running/i.test(message);
+}
+
+function bulkGraphqlMessage(json: {
+  errors?: unknown;
+  data?: {
+    bulkOperationRunQuery?: {
+      userErrors?: Array<{ message?: string }>;
+    };
+  };
+}) {
+  const userErrors = json.data?.bulkOperationRunQuery?.userErrors ?? [];
+  const fromUsers = userErrors
+    .map((error) => error.message)
+    .filter((message): message is string => Boolean(message))
+    .join("; ");
+  if (fromUsers) return fromUsers;
+  return graphqlErrors(json);
+}
+
+async function readCurrentBulkOperation(
+  admin: GraphqlClient,
+): Promise<BulkOperationSnapshot | null> {
+  const response = await admin.graphql(CURRENT_BULK_OPERATION_QUERY);
+  const json = (await response.json()) as {
+    data?: { currentBulkOperation?: BulkOperationSnapshot | null };
+  };
+  return json.data?.currentBulkOperation ?? null;
+}
+
+async function reuseCurrentBulkOperation(
+  shopId: string,
+  shopDomain: string,
+  op: BulkOperationSnapshot | null,
+) {
+  const id = op?.id;
+  if (!id) return null;
+  const status = (op.status || "").toUpperCase();
+
+  if (status === "CREATED" || status === "RUNNING") {
+    const syncJob = await setSyncStatus(shopId, {
+      status: "SYNCING",
+      bulkOperationId: id,
+      errorLog: null,
+    });
+    log.info(`[sync] bulk already running ${id}; waiting for finish webhook`);
+    return { syncJob, bulkOperationId: id, reused: true as const };
+  }
+
+  if (status === "COMPLETED" && op.url) {
+    const syncJob = await setSyncStatus(shopId, {
+      status: "SYNCING",
+      bulkOperationId: id,
+      errorLog: null,
+    });
+    try {
+      await enqueueSyncJob(
+        "shop.ingestBulk",
+        { shop: shopDomain, bulkOperationId: id },
+        { jobId: `${shopDomain}:shop.ingestBulk:${id}` },
+      );
+    } catch (error) {
+      log.warn("[sync] ingest enqueue failed after completed bulk", error);
+    }
+    log.info(`[sync] bulk ${id} already completed; queued ingest`);
+    return { syncJob, bulkOperationId: id, reused: true as const };
+  }
+
+  return null;
+}
+
 export async function startFullSync(shopDomain: string) {
   const shop = await ensureShop(shopDomain);
 
@@ -394,32 +472,53 @@ export async function startFullSync(shopDomain: string) {
       log.error("Pages/articles sync failed", error);
     }
 
+    let current: BulkOperationSnapshot | null = null;
+    try {
+      current = await readCurrentBulkOperation(admin);
+    } catch (error) {
+      log.warn("[sync] current bulk lookup failed", error);
+    }
+    const reused = await reuseCurrentBulkOperation(shop.id, shopDomain, current);
+    if (reused) {
+      return { shop, ...reused };
+    }
+
     log.info("[sync] starting bulk product query");
     const response = await admin.graphql(BULK_PRODUCTS_MUTATION, {
       variables: { query: BULK_PRODUCTS_QUERY },
     });
     const json = await response.json();
     const payload = json.data?.bulkOperationRunQuery;
-    const userErrors = payload?.userErrors ?? [];
+    const bulkId = payload?.bulkOperation?.id as string | undefined;
+    const message =
+      bulkGraphqlMessage(json) || "Failed to start bulk operation";
 
-    if (userErrors.length || !payload?.bulkOperation?.id) {
-      const message =
-        userErrors.map((e: { message: string }) => e.message).join("; ") ||
-        "Failed to start bulk operation";
+    if (!bulkId) {
+      if (bulkAlreadyInProgress(message)) {
+        const latest = await readCurrentBulkOperation(admin);
+        const recovered = await reuseCurrentBulkOperation(
+          shop.id,
+          shopDomain,
+          latest,
+        );
+        if (recovered) {
+          return { shop, ...recovered };
+        }
+      }
       await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
       throw new Error(message);
     }
 
     const syncJob = await setSyncStatus(shop.id, {
       status: "SYNCING",
-      bulkOperationId: payload.bulkOperation.id,
+      bulkOperationId: bulkId,
       errorLog: null,
     });
 
     return {
       shop,
       syncJob,
-      bulkOperationId: payload.bulkOperation.id as string,
+      bulkOperationId: bulkId,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -429,6 +528,31 @@ export async function startFullSync(shopDomain: string) {
 }
 
 export async function ingestBulkOperation(
+  shopDomain: string,
+  bulkOperationId?: string,
+) {
+  try {
+    return await ingestCompletedBulkOperation(shopDomain, bulkOperationId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      /not ready|missing URL|status: (RUNNING|CREATED|CANCELING)/i.test(
+        message,
+      )
+    ) {
+      throw error;
+    }
+    try {
+      const shop = await ensureShop(shopDomain);
+      await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
+    } catch (statusError) {
+      log.error("Failed to record ingest error status", statusError);
+    }
+    throw error;
+  }
+}
+
+async function ingestCompletedBulkOperation(
   shopDomain: string,
   bulkOperationId?: string,
 ) {
@@ -443,6 +567,14 @@ export async function ingestBulkOperation(
     if (!op?.url) {
       throw new Error("Bulk operation not ready or missing URL");
     }
+  }
+
+  if (op.status === "FAILED" || op.status === "CANCELED") {
+    await setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog: `Bulk operation status: ${op.status}`,
+    });
+    throw new Error(`Bulk operation status: ${op.status}`);
   }
 
   if (op.status !== "COMPLETED" || !op.url) {
@@ -545,7 +677,15 @@ export async function ingestBulkOperation(
     log.info(`[sync] rebuilding ${collections.length} collections`);
     let rebuilt = 0;
     for (const collection of collections) {
-      await rebuildCollection(shopDomain, collection.collectionGid);
+      try {
+        await rebuildCollection(shopDomain, collection.collectionGid);
+      } catch (error) {
+        log.error(
+          `[sync] rebuild failed ${collection.collectionGid}`,
+          error,
+        );
+        continue;
+      }
       rebuilt += 1;
       if (rebuilt === 1 || rebuilt % 10 === 0 || rebuilt === collections.length) {
         log.info(`[sync] rebuilt collections ${rebuilt}/${collections.length}`);
@@ -611,10 +751,18 @@ export async function upsertProduct(
     variables: { id: productGid },
   });
   const json = await response.json();
+  const lookupError = graphqlErrors(json);
   const product = json.data?.product;
   if (!product) {
+    if (lookupError) {
+      log.error(`[sync] product fetch failed ${productGid}: ${lookupError}`);
+      throw new Error(`Product fetch failed for ${productGid}`);
+    }
     await deleteProduct(shopDomain, productGid);
     return;
+  }
+  if (lookupError) {
+    log.warn(`[sync] product fetch partial errors ${productGid}: ${lookupError}`);
   }
 
   const { facet, collectionGids: mappedGids } = mapProductToFacet(shop.id, product);
@@ -651,6 +799,8 @@ export async function upsertProduct(
         publishedAt: facet.publishedAt,
       },
     });
+
+  await bumpCatalogGeneration(shopDomain);
 
   await recordDiscoveredMetafields(
     shop.id,
@@ -711,6 +861,114 @@ export async function deleteProduct(shopDomain: string, productGid: string) {
   await bumpCatalogGeneration(shopDomain);
 }
 
+type CollectionProductSortKey = "COLLECTION_DEFAULT" | "ID";
+
+type CollectionProductsFetch = {
+  deleted: boolean;
+  title: string;
+  handle: string;
+  productGids: string[];
+  expectedCount: number | null;
+  exactCount: boolean;
+};
+
+function uniqueAppend(primary: string[], extra: string[]): string[] {
+  const seen = new Set(primary);
+  const out = [...primary];
+  for (const id of extra) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+async function fetchCollectionProductGids(
+  admin: GraphqlClient,
+  collectionGid: string,
+  sortKey: CollectionProductSortKey,
+): Promise<CollectionProductsFetch> {
+  const productGids: string[] = [];
+  let cursor: string | null = null;
+  let hasNext = true;
+  let title = "";
+  let handle = "";
+  let expectedCount: number | null = null;
+  let exactCount = false;
+  let pages = 0;
+
+  while (hasNext) {
+    pages += 1;
+    if (pages > 80) {
+      throw new Error(
+        `Collection products pagination exceeded 80 pages for ${collectionGid}`,
+      );
+    }
+    const response = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+      variables: { id: collectionGid, cursor, sortKey },
+    });
+    const json = (await response.json()) as {
+      data?: {
+        collection?: {
+          title?: string;
+          handle?: string;
+          productsCount?: { count?: number; precision?: string } | null;
+          products?: {
+            pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+            edges?: Array<{ node?: { id?: string } }>;
+          };
+        } | null;
+      };
+      errors?: unknown;
+    };
+    const gqlError = graphqlErrors(json);
+    if (gqlError) {
+      throw new Error(
+        `Collection products query failed ${collectionGid}: ${gqlError}`,
+      );
+    }
+    const collection = json.data?.collection;
+    if (!collection) {
+      return {
+        deleted: true,
+        title: "",
+        handle: "",
+        productGids: [],
+        expectedCount: null,
+        exactCount: false,
+      };
+    }
+    if (!collection.products) {
+      throw new Error(
+        `Collection products connection missing for ${collectionGid}`,
+      );
+    }
+
+    title = collection.title ?? title;
+    handle = collection.handle ?? handle;
+    const count = collection.productsCount?.count;
+    if (typeof count === "number" && Number.isFinite(count)) {
+      expectedCount = count;
+      exactCount = collection.productsCount?.precision === "EXACT";
+    }
+    for (const edge of collection.products.edges || []) {
+      const id = edge?.node?.id;
+      if (id) productGids.push(id);
+    }
+    hasNext = Boolean(collection.products.pageInfo?.hasNextPage);
+    cursor = collection.products.pageInfo?.endCursor ?? null;
+  }
+
+  return {
+    deleted: false,
+    title,
+    handle,
+    productGids: uniqueAppend([], productGids),
+    expectedCount,
+    exactCount,
+  };
+}
+
 export async function rebuildCollection(
   shopDomain: string,
   collectionGid: string,
@@ -718,42 +976,63 @@ export async function rebuildCollection(
   const shop = await ensureShop(shopDomain);
   const admin = await getAdminForShop(shopDomain);
 
-  const productGids: string[] = [];
-  let cursor: string | null = null;
-  let hasNext = true;
-  let title = "";
-  let handle = "";
-
-  while (hasNext) {
-    const response = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
-      variables: { id: collectionGid, cursor },
+  const primary = await fetchCollectionProductGids(
+    admin,
+    collectionGid,
+    "COLLECTION_DEFAULT",
+  );
+  if (primary.deleted) {
+    await prisma.collectionMembership.deleteMany({
+      where: { shopId: shop.id, collectionGid },
     });
-    const json = await response.json();
-    const collection = json.data?.collection;
-    if (!collection) {
-      // Deleted collection
-      await prisma.collectionMembership.deleteMany({
-        where: { shopId: shop.id, collectionGid },
-      });
-      await prisma.collection.deleteMany({
-        where: { shopId: shop.id, collectionGid },
-      });
-      await setSyncStatus(shop.id, {
-        status: "READY",
-        lastIncrementalSyncAt: new Date(),
-      });
-      await bumpCatalogGeneration(shopDomain);
-      return { count: 0, deleted: true as const };
-    }
+    await prisma.collection.deleteMany({
+      where: { shopId: shop.id, collectionGid },
+    });
+    await setSyncStatus(shop.id, {
+      status: "READY",
+      lastIncrementalSyncAt: new Date(),
+    });
+    await bumpCatalogGeneration(shopDomain);
+    return { count: 0, deleted: true as const };
+  }
 
-    title = collection.title ?? title;
-    handle = collection.handle ?? handle;
+  let productGids = primary.productGids;
+  let title = primary.title;
+  let handle = primary.handle;
+  const expectedCount = primary.expectedCount;
+  const exactCount = primary.exactCount;
+  const incomplete =
+    exactCount &&
+    expectedCount != null &&
+    productGids.length < expectedCount;
 
-    for (const edge of collection.products.edges) {
-      productGids.push(edge.node.id);
+  if (incomplete) {
+    log.warn(
+      `[sync] ${collectionGid} COLLECTION_DEFAULT returned ${productGids.length}/${expectedCount}; retrying with ID sort`,
+    );
+    const fallback = await fetchCollectionProductGids(
+      admin,
+      collectionGid,
+      "ID",
+    );
+    if (fallback.deleted) {
+      throw new Error(
+        `Collection ${collectionGid} disappeared during product pagination`,
+      );
     }
-    hasNext = collection.products.pageInfo.hasNextPage;
-    cursor = collection.products.pageInfo.endCursor;
+    title = fallback.title || title;
+    handle = fallback.handle || handle;
+    productGids = uniqueAppend(productGids, fallback.productGids);
+  }
+
+  if (
+    exactCount &&
+    expectedCount != null &&
+    productGids.length < expectedCount
+  ) {
+    throw new Error(
+      `Incomplete collection products for ${collectionGid}: got ${productGids.length}, Shopify reports ${expectedCount}`,
+    );
   }
 
   await prisma.collection.upsert({
@@ -851,7 +1130,13 @@ export async function syncInventoryItem(
     ? json.data?.inventoryLevel?.item
     : json.data?.inventoryItem;
   const productGid = productGidFromInventoryItem(item);
-  if (!productGid) return;
+  if (!productGid) {
+    if (lookupError || item) {
+      throw new Error(`Inventory lookup failed ${inventoryItemGid}`);
+    }
+    log.warn(`[sync] inventory item ${inventoryItemGid} has no product`);
+    return;
+  }
   return upsertProduct(shopDomain, productGid);
 }
 

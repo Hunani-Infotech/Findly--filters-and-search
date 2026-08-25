@@ -1,5 +1,5 @@
 # Fly.io config for Findly: Smart Filters & Search
-# Public hostname: https://findly.hunaniinfotech.com
+# Live production is currently Hostinger: https://deeppink-manatee-141983.hostingersite.com
 # After DNS CNAME findly → findly-smart-filters-search.fly.dev:
 #   fly certs add findly.hunaniinfotech.com
 # Secrets (via `fly secrets set`): SHOPIFY_API_SECRET, DATABASE_URL, DIRECT_URL, REDIS_URL, BILLING_TEST_MODE,
@@ -15,8 +15,8 @@ primary_region = "iad"
 [env]
   PORT = "3000"
   NODE_ENV = "production"
-  HOST = "https://findly.hunaniinfotech.com"
-  SHOPIFY_APP_URL = "https://findly.hunaniinfotech.com"
+  HOST = "https://deeppink-manatee-141983.hostingersite.com"
+  SHOPIFY_APP_URL = "https://deeppink-manatee-141983.hostingersite.com"
   SCOPES = "read_products,read_files,write_files"
 
 [processes]

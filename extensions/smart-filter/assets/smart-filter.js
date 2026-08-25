@@ -13,9 +13,12 @@
   var MSG_APPLY_NOW = "Apply now";
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
-  var FILTER_CACHE_TTL_MS = 5 * 60 * 1000;
+  var FILTER_CACHE_TTL_MS = 5 * 1000;
   var CARD_SELECTOR = [
     ".sf-app-card",
+    "product-card",
+    "product-item",
+    "grid-item",
     "[data-product-id]",
     ".product-card",
     ".card-wrapper",
@@ -475,6 +478,10 @@
     return null;
   }
 
+  function isBareProductLink(el) {
+    return Boolean(el && String(el.tagName || "").toLowerCase() === "a");
+  }
+
   function closestProductCard(link) {
     if (!link) return link;
     var grid = closestGridHost(link);
@@ -483,12 +490,31 @@
       while (node && node.parentElement && node.parentElement !== grid) {
         node = node.parentElement;
       }
-      if (node && node.parentElement === grid && isLikelyProductCard(node)) {
+      if (
+        node &&
+        node.parentElement === grid &&
+        isLikelyProductCard(node) &&
+        !isBareProductLink(node)
+      ) {
         return node;
       }
     }
+    var viaHost =
+      link.closest &&
+      link.closest(
+        "product-card, product-item, grid-item, .product-card, .sf-app-card",
+      );
+    if (viaHost && isLikelyProductCard(viaHost)) return viaHost;
     var viaSel = (link.closest && link.closest(CARD_SELECTOR)) || null;
-    if (viaSel && isLikelyProductCard(viaSel)) return viaSel;
+    if (viaSel && isLikelyProductCard(viaSel) && !isBareProductLink(viaSel)) {
+      return viaSel;
+    }
+    if (isBareProductLink(link) && link.closest) {
+      var fromLink = link.closest(
+        "product-card, product-item, grid-item, li.grid__item, .grid__item, .card-wrapper, .product-card",
+      );
+      if (fromLink && isLikelyProductCard(fromLink)) return fromLink;
+    }
     return link;
   }
 
@@ -539,6 +565,7 @@
 
       var card = closestProductCard(link);
       if (isSkippedRegion(card)) return;
+      if (isBareProductLink(card)) return;
       if (seen) {
         if (seen.has(card)) return;
         seen.add(card);
@@ -625,7 +652,7 @@
       var handle = handleFromHref(link.getAttribute("href"));
       if (!handle) return;
       var card = closestProductCard(link);
-      if (!card || !card.parentNode) return;
+      if (!card || !card.parentNode || isBareProductLink(card)) return;
       if (seen) {
         if (seen.has(card)) return;
         seen.add(card);
@@ -764,8 +791,17 @@
     }, 0);
   }
 
-  var THEME_PAGER_SELECTOR =
-    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination]";
+  var THEME_PAGER_SELECTOR = [
+    "nav.pagination",
+    ".pagination",
+    ".pagination-wrapper",
+    "[data-pagination]",
+    "load-more-button",
+    ".load-more-button",
+    ".pagination__load-more",
+    "[data-load-more]",
+    "button[name='load-more']",
+  ].join(", ");
   var THEME_FACET_HIDE_SELECTOR = [
     ".facets__wrapper",
     "#FacetsWrapperDesktop",
@@ -1009,7 +1045,12 @@
 
   function isLikelyProductCard(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isBareProductLink(el)) return false;
     if (matchesSel(el, ".sf-app-card")) return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "product-card" || tag === "product-item" || tag === "grid-item") {
+      return true;
+    }
     if (!el.querySelector || !el.querySelector('a[href*="/products/"]')) {
       return matchesSel(el, "[data-product-id]");
     }
@@ -1135,37 +1176,6 @@
 
   function ensureThemeBridgeStyles() {
     if (document.getElementById(THEME_BRIDGE_STYLE_ID)) return;
-    var css =
-      "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
-      ".sf-grid-busy{opacity:.45;pointer-events:none;transition:opacity .15s ease}" +
-      ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0}" +
-      ".sf-collection-layout__aside,.sf-collection-layout__main{box-sizing:border-box;min-width:0}" +
-      "@media(min-width:750px){" +
-      ".sf-collection-layout--left,.sf-collection-layout--right{display:flex!important;align-items:flex-start;gap:32px;width:100%}" +
-      ".sf-collection-layout--left .sf-collection-layout__aside,.sf-collection-layout--right .sf-collection-layout__aside," +
-      ".sf-collection-layout--left .smart-filter,.sf-collection-layout--right .smart-filter," +
-      ".sf-collection-layout--left .shopify-block:has(.smart-filter),.sf-collection-layout--right .shopify-block:has(.smart-filter)" +
-      "{flex:0 0 280px;width:280px;max-width:280px;min-width:280px}" +
-      ".sf-collection-layout--left .sf-collection-layout__main,.sf-collection-layout--right .sf-collection-layout__main" +
-      "{flex:1 1 auto;min-width:0;max-width:100%}" +
-      ".sf-sort-host{display:flex;justify-content:flex-end;width:100%;margin:0 0 14px}" +
-      ".sf-sort-host .smart-filter__sort{display:inline-flex;width:fit-content;max-width:100%;margin:0 0 0 auto}" +
-      ".sf-collection-layout--top{display:flex;flex-direction:column;gap:16px}" +
-      "}" +
-      ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
-      "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
-      ".smart-filter .smart-filter__option input[type=checkbox]," +
-      ".smart-filter .smart-filter__option input[type=radio]{" +
-      "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
-      "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
-      "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-      ".sf-app-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;width:100%;list-style:none;margin:0;padding:0}" +
-      "@media(min-width:750px){.sf-app-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}" +
-      ".sf-app-grid>:not(.sf-app-card){display:none!important}";
-    var style = document.createElement("style");
-    style.id = THEME_BRIDGE_STYLE_ID;
-    style.textContent = css;
-    (document.head || document.documentElement).appendChild(style);
   }
 
   function bindNativeFacetGuard() {
@@ -1363,6 +1373,22 @@
     return String(handle || "").trim().toLowerCase() === "all";
   }
 
+  function shouldShowCollectionFacet(widget) {
+    if (widget && widget.searchQuery) return true;
+    var handle =
+      (widget && widget.collectionHandle) || inferCollectionHandle();
+    return isAllProductsCollectionHandle(handle);
+  }
+
+  function dropCollectionFacetUnlessCatalog(widget, facets) {
+    var list = Array.isArray(facets) ? facets : [];
+    if (shouldShowCollectionFacet(widget)) return list;
+    if (widget && widget.selected) delete widget.selected.collection;
+    return list.filter(function (facet) {
+      return !isCollectionFacet(facet);
+    });
+  }
+
   function isCollectionFilterKey(key) {
     return String(key || "").toLowerCase() === "collection";
   }
@@ -1465,6 +1491,7 @@
 
   function applyLayoutPositionClass(el, position) {
     if (!el || !el.classList) return;
+    if (isFragileLayoutHost(el) || isProductCardGrid(el)) return;
     el.classList.add("sf-collection-layout");
     el.classList.remove(
       "sf-collection-layout--left",
@@ -1498,7 +1525,7 @@
 
   function clampPageSize(n) {
     var count = Number(n) || 0;
-    if (!count) return 24;
+    if (!count) return 16;
     if (count < 8) return 8;
     if (count > 48) return 48;
     return Math.floor(count);
@@ -1514,23 +1541,6 @@
       out.push(key);
     });
     return out;
-  }
-
-  function pageWindow(current, count) {
-    var pages = [];
-    var start = Math.max(1, current - 2);
-    var end = Math.min(count, current + 2);
-    var i;
-    if (start > 1) {
-      pages.push(1);
-      if (start > 2) pages.push("ellipsis");
-    }
-    for (i = start; i <= end; i++) pages.push(i);
-    if (end < count) {
-      if (end < count - 1) pages.push("ellipsis");
-      pages.push(count);
-    }
-    return pages;
   }
 
   var SORT_LABELS = {
@@ -1747,10 +1757,7 @@
 
   function extractHandles(payload) {
     if (!payload) return [];
-    if (Array.isArray(payload.handles)) {
-      return payload.handles.map(String);
-    }
-    if (Array.isArray(payload.products)) {
+    if (Array.isArray(payload.products) && payload.products.length) {
       return payload.products
         .map(function (item) {
           if (typeof item === "string") return item;
@@ -1762,6 +1769,9 @@
           return item.handle ? String(item.handle) : null;
         })
         .filter(Boolean);
+    }
+    if (Array.isArray(payload.handles)) {
+      return payload.handles.map(String);
     }
     return [];
   }
@@ -2057,6 +2067,7 @@
     this.facets = [];
     this.page = 1;
     this.pageSize = 0;
+    this._themePageSize = 0;
     this.paginationStyle = "pagination";
     this.defaultSort = "manual";
     this._appending = false;
@@ -2070,6 +2081,7 @@
     this._pageTotal = 0;
     this._pagerEl = null;
     this._infiniteObserver = null;
+    this._infiniteOnScroll = null;
     this._themePagesCached = {};
     this._themeNoMore = false;
     this._pagingFallback = false;
@@ -2610,7 +2622,7 @@
       }
       if (!Array.isArray(self._visibleHandles)) return;
       self._reapplyingGrid = true;
-      applyProductVisibility(self._visibleHandles);
+      self.syncProductGrid(self._visibleHandles);
       self.hideThemeDuplicateChrome();
       self._reapplyingGrid = false;
     });
@@ -2748,7 +2760,7 @@
   };
 
   Widget.prototype.isAppGridMode = function () {
-    return this.appGridTemplate() || this.hasActiveFilters() || this.collectionQuery;
+    return Boolean(this.appGridTemplate());
   };
 
   Widget.prototype.backupNativeGrid = function (parent) {
@@ -3090,7 +3102,7 @@
     this._sentPagingParams = true;
     this.ensurePageSize();
     params.set("page", String(Math.max(1, this.page || 1)));
-    params.set("pageSize", String(this.pageSize || 24));
+    params.set("pageSize", String(this.pageSize || 16));
 
     return this.proxyBase + "/filters?" + params.toString();
   };
@@ -3424,6 +3436,8 @@
 
     var grid = this.ensureGridParent();
     var position = POSITIONS[this.position] ? this.position : "left";
+    var existingLayout = closestLayoutEl(mount);
+    if (existingLayout) applyLayoutPositionClass(existingLayout, position);
 
     if (!grid) {
       this.placeAtMainFallback(mount);
@@ -3523,15 +3537,12 @@
   };
 
   Widget.prototype.ensurePageSize = function () {
-    if (this.pageSize >= 8 && this.pageSize <= 48) return this.pageSize;
-    this.ensureGridParent();
-    var n = 0;
-    if (this._gridParent) {
-      eachProductCard(this._gridParent, function () {
-        n += 1;
-      });
+    if (this._themePageSize >= 8 && this._themePageSize <= 48) {
+      this.pageSize = this._themePageSize;
+      return this.pageSize;
     }
-    this.pageSize = clampPageSize(n);
+    this.pageSize = clampPageSize(this.pageSize);
+    this._themePageSize = this.pageSize;
     return this.pageSize;
   };
 
@@ -3747,6 +3758,11 @@
     this.removeImportedCards();
   };
 
+  Widget.prototype.syncProductGrid = function (handles) {
+    applyProductVisibility(handles);
+    applyProductOrder(handles);
+  };
+
   Widget.prototype.enterPagingFallback = function (handles, data) {
     this._pagingFallback = true;
     this._appending = false;
@@ -3754,8 +3770,7 @@
     this.restoreThemePaging();
     if (handles) {
       this._visibleHandles = handles;
-      applyProductVisibility(handles);
-      applyProductOrder(handles);
+      this.syncProductGrid(handles);
       applyVariantImages(
         this.showMatchingVariantImage === false
           ? []
@@ -3794,7 +3809,6 @@
     var allowed = allowedHandleMap(shown);
     eachProductCard(parent, function (handle, card) {
       if (handleIsAllowed(allowed, handle)) return;
-      setCardHidden(card, true);
     });
     this._shownHandles = shown;
     return true;
@@ -3838,22 +3852,14 @@
     if (typeof data.page === "number" && data.page >= 1) {
       this.page = Math.floor(data.page);
     }
-    if (typeof data.pageSize === "number" && data.pageSize >= 1) {
-      this.pageSize = clampPageSize(data.pageSize);
-    }
+    this.ensurePageSize();
     this._pageTotal =
       typeof data.total === "number"
         ? data.total
         : typeof data.count === "number"
           ? data.count
           : handles.length;
-    if (typeof data.hasNext === "boolean") {
-      this._hasNext = data.hasNext;
-    } else if (this.pageSize) {
-      this._hasNext = this.page * this.pageSize < this._pageTotal;
-    } else {
-      this._hasNext = handles.length >= (this.pageSize || 24);
-    }
+    this._hasNext = this.page * (this.pageSize || 16) < this._pageTotal;
   };
 
   Widget.prototype.loadNextPage = function () {
@@ -3870,150 +3876,10 @@
     this.fetchFilters({ page: next });
   };
 
-  Widget.prototype.bindInfinite = function (sentinel) {
-    var self = this;
-    this.disconnectInfinite();
-    if (!sentinel) return;
-    if (typeof window.IntersectionObserver !== "function") {
-      this.renderLoadMore(this.ensurePagerEl());
-      return;
-    }
-    this._infiniteObserver = new IntersectionObserver(
-      function (entries) {
-        var hit = false;
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) hit = true;
-        }
-        if (!hit) return;
-        if (self._loadingPage || !self._hasNext) return;
-        self.disconnectInfinite();
-        self.loadNextPage();
-      },
-      { root: null, rootMargin: "400px", threshold: 0 },
-    );
-    this._infiniteObserver.observe(sentinel);
-  };
-
-  Widget.prototype.renderLoadMore = function (el) {
-    el.innerHTML = "";
-    if (!this._hasNext) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "sf-pager__more";
-    btn.textContent = this.t("load_more", "Load more");
-    btn.disabled = Boolean(this._loadingPage || this._appending);
-    btn.addEventListener(
-      "click",
-      function () {
-        this.loadNextPage();
-      }.bind(this),
-    );
-    el.appendChild(btn);
-  };
-
-  Widget.prototype.renderNumberedPager = function (el) {
-    var size = this.pageSize || 24;
-    var total = this._pageTotal || 0;
-    var pageCount = Math.max(1, Math.ceil(total / size) || 1);
-    var page = Math.max(1, this.page || 1);
-    el.innerHTML = "";
-    if (pageCount <= 1) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    var list = document.createElement("div");
-    list.className = "sf-pager__nav";
-
-    var prev = document.createElement("button");
-    prev.type = "button";
-    prev.className = "sf-pager__btn sf-pager__btn--prev";
-    prev.textContent = this.t("previous", "Previous");
-    prev.setAttribute("aria-label", this.t("previous", "Previous"));
-    prev.disabled = page <= 1 || this._loadingPage;
-    prev.addEventListener(
-      "click",
-      function () {
-        this.goToPage(page - 1);
-      }.bind(this),
-    );
-    list.appendChild(prev);
-
-    var pages = document.createElement("div");
-    pages.className = "sf-pager__pages";
-    pageWindow(page, pageCount).forEach(
-      function (item) {
-        if (item === "ellipsis") {
-          var dots = document.createElement("span");
-          dots.className = "sf-pager__ellipsis";
-          dots.textContent = "…";
-          pages.appendChild(dots);
-          return;
-        }
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "sf-pager__page" + (item === page ? " is-current" : "");
-        btn.textContent = String(item);
-        btn.setAttribute("aria-label", this.t("page", "Page") + " " + item);
-        if (item === page) btn.setAttribute("aria-current", "page");
-        btn.disabled = this._loadingPage;
-        btn.addEventListener(
-          "click",
-          function () {
-            this.goToPage(item);
-          }.bind(this),
-        );
-        pages.appendChild(btn);
-      }.bind(this),
-    );
-    list.appendChild(pages);
-
-    var next = document.createElement("button");
-    next.type = "button";
-    next.className = "sf-pager__btn sf-pager__btn--next";
-    next.textContent = this.t("next", "Next");
-    next.setAttribute("aria-label", this.t("next", "Next"));
-    next.disabled = page >= pageCount || this._loadingPage;
-    next.addEventListener(
-      "click",
-      function () {
-        this.goToPage(page + 1);
-      }.bind(this),
-    );
-    list.appendChild(next);
-    el.appendChild(list);
-  };
-
-  Widget.prototype.renderPager = function () {
-    var el = this.ensurePagerEl();
-    var style = this.paginationStyle;
-    if (style === "load_more") {
-      this.disconnectInfinite();
-      this.renderLoadMore(el);
-      return;
-    }
-    if (style === "infinite") {
-      el.innerHTML = "";
-      if (!this._hasNext) {
-        el.hidden = true;
-        this.disconnectInfinite();
-        return;
-      }
-      el.hidden = false;
-      var sentinel = document.createElement("div");
-      sentinel.className = "sf-pager__sentinel";
-      sentinel.setAttribute("aria-hidden", "true");
-      el.appendChild(sentinel);
-      this.bindInfinite(sentinel);
-      return;
-    }
-    this.disconnectInfinite();
-    this.renderNumberedPager(el);
-  };
+  Widget.prototype.bindInfinite = function () {};
+  Widget.prototype.renderLoadMore = function () {};
+  Widget.prototype.renderNumberedPager = function () {};
+  Widget.prototype.renderPager = function () {};
 
   Widget.prototype.finishEnabledFalse = function () {
     this.page = 1;
@@ -4035,8 +3901,7 @@
       dispatchUpdate(handles);
       return;
     }
-    applyProductVisibility(handles);
-    applyProductOrder(handles);
+    this.syncProductGrid(handles);
     applyVariantImages(
       this.showMatchingVariantImage === false ? [] : data && data.products,
     );
@@ -4090,6 +3955,7 @@
 
     var request = fetch(url, {
       credentials: "same-origin",
+      cache: "no-store",
       headers: { Accept: "application/json" },
       signal: ctrl ? ctrl.signal : undefined,
     })
@@ -4111,7 +3977,7 @@
             this.applyI18nChrome();
             this.facets = [];
             if (this.facetsEl) this.facetsEl.innerHTML = "";
-            applyProductVisibility(null);
+            this.syncProductGrid(null);
             applyVariantImages([]);
             dispatchUpdate([]);
             writeHash(
@@ -4133,7 +3999,10 @@
           this.applyI18nChrome();
 
           if (!append) {
-            this.facets = normalizeFacets(data);
+            this.facets = dropCollectionFacetUnlessCatalog(
+              this,
+              normalizeFacets(data),
+            );
             this.markFiltersApplied();
             this.renderFacets();
             setStatus(this.statusEl, "", false);
@@ -4149,10 +4018,10 @@
             if (!handles.length && allHandles.length) {
               this.ensurePageSize();
               var sliceStart =
-                (Math.max(1, this.page) - 1) * (this.pageSize || 24);
+                (Math.max(1, this.page) - 1) * (this.pageSize || 16);
               handles = allHandles.slice(
                 sliceStart,
-                sliceStart + (this.pageSize || 24),
+                sliceStart + (this.pageSize || 16),
               );
             }
           }
@@ -4179,7 +4048,14 @@
             self._visibleHandles = visible || [];
             self.setGridBusy(false);
             self.hideThemeDuplicateChrome();
-            applyProductVisibility(visible);
+            if (
+              !(
+                self._appGridActive ||
+                (self.isAppGridMode && self.isAppGridMode())
+              )
+            ) {
+              self.syncProductGrid(visible);
+            }
             self.watchThemeGrid();
             applyVariantImages(
               self.showMatchingVariantImage === false ? [] : self._lastProducts,
@@ -4228,12 +4104,28 @@
             self._loadingPage = false;
             self._appending = false;
             if (!ok) {
+              if (self.applyAppGrid(data, handles, append)) {
+                self.setThemePagerHidden(true);
+                self.renderPager();
+                afterGrid(
+                  self._shownHandles.length ? self._shownHandles : handles,
+                );
+                return;
+              }
               self.enterPagingFallback(handles, data);
               afterGrid(handles);
               return;
             }
             var applied = self.applyInterceptGrid(handles, append);
             if (!applied) {
+              if (self.applyAppGrid(data, handles, append)) {
+                self.setThemePagerHidden(true);
+                self.renderPager();
+                afterGrid(
+                  self._shownHandles.length ? self._shownHandles : handles,
+                );
+                return;
+              }
               self.enterPagingFallback(handles, data);
               afterGrid(handles);
               return;
@@ -4259,7 +4151,7 @@
           }
           if (this.autoApplyFilters === false) this.renderApplyBar();
           if (Array.isArray(this._visibleHandles)) {
-            applyProductVisibility(this._visibleHandles);
+            this.syncProductGrid(this._visibleHandles);
             this.hideThemeDuplicateChrome();
           } else {
             this.enterPagingFallback(null);
@@ -5269,7 +5161,7 @@
     this.applyI18n(cached);
     this.applySettings(cached.settings);
     this.applyI18nChrome();
-    this.facets = normalizeFacets(cached);
+    this.facets = dropCollectionFacetUnlessCatalog(this, normalizeFacets(cached));
     this.markFiltersApplied();
     this.renderFacets();
     setStatus(this.statusEl, "", false);
@@ -5334,7 +5226,7 @@
     if (widget && scope.querySelector(GRID_HINT_SELECTOR)) {
       widget._gridParent = null;
       if (Array.isArray(widget._visibleHandles)) {
-        applyProductVisibility(widget._visibleHandles);
+        widget.syncProductGrid(widget._visibleHandles);
       }
       widget.hideThemeDuplicateChrome();
       widget.watchThemeGrid();

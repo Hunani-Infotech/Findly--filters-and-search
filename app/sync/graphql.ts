@@ -27,6 +27,8 @@ export const PRODUCT_NODE_QUERY = `#graphql
             price
             compareAtPrice
             availableForSale
+            inventoryPolicy
+            inventoryQuantity
             image {
               url
             }
@@ -46,6 +48,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             }
             inventoryItem {
               id
+              tracked
               inventoryLevels(first: 50) {
                 edges {
                   node {
@@ -122,12 +125,16 @@ export const PRODUCT_COLLECTIONS_QUERY = `#graphql
 `;
 
 export const COLLECTION_PRODUCTS_QUERY = `#graphql
-  query CollectionProducts($id: ID!, $cursor: String) {
+  query CollectionProducts($id: ID!, $cursor: String, $sortKey: ProductCollectionSortKeys = COLLECTION_DEFAULT) {
     collection(id: $id) {
       id
       title
       handle
-      products(first: 100, after: $cursor, sortKey: COLLECTION_DEFAULT) {
+      productsCount {
+        count
+        precision
+      }
+      products(first: 250, after: $cursor, sortKey: $sortKey) {
         pageInfo {
           hasNextPage
           endCursor
@@ -166,6 +173,8 @@ export const BULK_PRODUCTS_QUERY = `
               price
               compareAtPrice
               availableForSale
+              inventoryPolicy
+              inventoryQuantity
               image { url }
               selectedOptions { name value }
               metafields {
@@ -175,6 +184,19 @@ export const BULK_PRODUCTS_QUERY = `
                     namespace
                     key
                     value
+                  }
+                }
+              }
+              inventoryItem {
+                id
+                tracked
+                inventoryLevels {
+                  edges {
+                    node {
+                      id
+                      quantities(names: ["available"]) { name quantity }
+                      location { id name isActive }
+                    }
                   }
                 }
               }
@@ -305,9 +327,6 @@ export const INVENTORY_LEVEL_PRODUCT_QUERY = `#graphql
     inventoryLevel(id: $id) {
       item {
         id
-        variant {
-          product { id }
-        }
         variants(first: 1) {
           nodes {
             product { id }
@@ -327,9 +346,6 @@ export const INVENTORY_ITEM_PRODUCT_QUERY = `#graphql
   query InventoryItemProduct($id: ID!) {
     inventoryItem(id: $id) {
       id
-      variant {
-        product { id }
-      }
       variants(first: 1) {
         nodes {
           product { id }

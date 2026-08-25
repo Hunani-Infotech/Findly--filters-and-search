@@ -557,6 +557,7 @@
     }
     var opts = {
       credentials: "same-origin",
+      cache: "no-store",
       headers: { Accept: "application/json" },
     };
     if (this._abort) opts.signal = this._abort.signal;

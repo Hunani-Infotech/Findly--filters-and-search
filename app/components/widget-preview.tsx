@@ -142,17 +142,36 @@ export function LayoutPicker({
   );
 }
 
+function MiniProductGrid() {
+  return (
+    <div className={styles.miniGrid} aria-hidden="true">
+      <div className={styles.miniCard} />
+      <div className={styles.miniCard} />
+      <div className={styles.miniCard} />
+      <div className={styles.miniCard} />
+    </div>
+  );
+}
+
 function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   const title = settings.widgetTitle.trim();
+  const horizontal = settings.widgetPosition === "top";
   const collapsed =
     settings.collapseByDefault && settings.widgetPosition !== "top";
   const counts = settings.showProductCounts;
   const showRefine = settings.showRefineBy !== false;
   const hideSingle = Boolean(settings.hideSingleValueFacets);
   const offcanvas = settings.widgetPosition === "offcanvas";
+  const widgetClass = [
+    styles.widget,
+    horizontal ? styles.widgetTop : "",
+    offcanvas ? styles.widgetOffcanvas : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={styles.widget} style={widgetStyle(settings)} aria-hidden="true">
+    <div className={widgetClass} style={widgetStyle(settings)} aria-hidden="true">
       {offcanvas ? <div className={styles.offcanvasBtn}>Filter</div> : null}
       <p className={title ? styles.title : `${styles.title} ${styles.titleHidden}`}>
         {title}
@@ -178,6 +197,7 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
           </div>
         </>
       ) : null}
+      <div className={styles.facets}>
       <div className={styles.facet}>
         <div className={styles.facetLabel}>
           Availability
@@ -296,6 +316,7 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
           </>
         )}
       </div>
+      </div>
       {settings.autoApplyFilters === false ? (
         <div className={styles.applyNow}>Apply now</div>
       ) : null}
@@ -308,13 +329,37 @@ export function WidgetLookPreview({
 }: {
   settings: WidgetPreviewSettings;
 }) {
+  const pos = settings.widgetPosition;
+  const stageClass =
+    pos === "right"
+      ? `${styles.stage} ${styles.stageRight}`
+      : pos === "top"
+        ? `${styles.stage} ${styles.stageTop}`
+        : pos === "offcanvas"
+          ? `${styles.stage} ${styles.stageOffcanvas}`
+          : `${styles.stage} ${styles.stageLeft}`;
+  const widget = <FilterWidget settings={settings} />;
+  const grid = <MiniProductGrid />;
+
   return (
     <div className={styles.preview}>
       <div className={styles.stageHint}>
         Approximate look on the collection page. Theme fonts apply on the
         storefront.
       </div>
-      <FilterWidget settings={settings} />
+      <div className={stageClass}>
+        {pos === "right" ? (
+          <>
+            {grid}
+            {widget}
+          </>
+        ) : (
+          <>
+            {widget}
+            {grid}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   nestCollectionValues,
   collectionStorefrontPath,
   collectionFacetCounts,
+  shouldShowCollectionFacet,
 } from "../app/collection-facet.ts";
 
 const SHOP_DOMAIN = "d3-verify.myshopify.com";
@@ -64,7 +65,8 @@ function assertStaticMarkers() {
     !helper.includes("nestCollectionValues") ||
     !helper.includes("collectionStorefrontPath") ||
     !helper.includes("collectionFacetCounts") ||
-    !helper.includes("isAllProductsCollectionHandle")
+    !helper.includes("isAllProductsCollectionHandle") ||
+    !helper.includes("shouldShowCollectionFacet")
   ) {
     fail("collection-facet.ts missing nest / storefront path / total-count helpers");
   }
@@ -72,7 +74,9 @@ function assertStaticMarkers() {
   if (
     !proxy.includes("loadCollectionProductCounts") ||
     !proxy.includes("collectionTotals") ||
-    !proxy.includes("loadShopProductFacets")
+    !proxy.includes("loadShopProductFacets") ||
+    !proxy.includes("shouldShowCollectionFacet") ||
+    !proxy.includes("isAllProductsCollection")
   ) {
     fail("proxy.server.ts missing shop-wide collection product counts");
   }
@@ -98,6 +102,8 @@ function assertStaticMarkers() {
   if (
     !widget.includes("shouldNavigateCollectionFacet") ||
     !widget.includes("isAllProductsCollectionHandle") ||
+    !widget.includes("shouldShowCollectionFacet") ||
+    !widget.includes("dropCollectionFacetUnlessCatalog") ||
     !widget.includes("collection_handle")
   ) {
     fail(
@@ -202,6 +208,15 @@ try {
   if (collectionStorefrontPath("child") !== "/collections/child") {
     fail(`storefront path expected /collections/child, got ${collectionStorefrontPath("child")}`);
   }
+  if (shouldShowCollectionFacet({ collectionHandle: "parent" })) {
+    fail("collection facet should hide on individual collection pages");
+  }
+  if (!shouldShowCollectionFacet({ collectionHandle: "all" })) {
+    fail("collection facet should show on /collections/all");
+  }
+  if (!shouldShowCollectionFacet({ isSearch: true, collectionHandle: "parent" })) {
+    fail("collection facet should still show on search results");
+  }
 
   const overlapCounts = collectionFacetCounts([
     { collectionGids: [ALL_GID, PARENT_GID] },
@@ -267,6 +282,26 @@ try {
       },
     },
   });
+  await seedFilterConfig(prisma, shop.id, {
+    collectionGid: ALL_GID,
+    enabled: true,
+    enablePrice: false,
+    enableAvailability: false,
+    enableVendor: false,
+    enableProductType: false,
+    enableTags: false,
+    enableOptions: false,
+    enableSale: false,
+    enableRating: false,
+    displayOrder: ["collection"],
+    displayTypes: { collection: "checkbox" },
+    facetSettings: {
+      collection: {
+        collectionTree: true,
+        collectionParents: { [CHILD_GID]: PARENT_GID },
+      },
+    },
+  });
 
   await addProduct(shop.id, {
     gid: "gid://shopify/Product/93030011",
@@ -302,8 +337,18 @@ try {
   if (titles(unfiltered).join(",") !== "Alpha,Beta") {
     fail(`parent collection should show Alpha+Beta, got ${titles(unfiltered)}`);
   }
-  const checkboxFacet = collectionFacet(unfiltered);
-  if (!checkboxFacet) fail("collection facet missing in checkbox mode");
+  if (collectionFacet(unfiltered)) {
+    fail("collection facet must be hidden on individual collection pages");
+  }
+
+  const catalogPage = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: ALL_GID,
+    collectionHandle: "all",
+    selected: {},
+  });
+  const checkboxFacet = collectionFacet(catalogPage);
+  if (!checkboxFacet) fail("collection facet missing on /collections/all");
   if (checkboxFacet.displayType !== "checkbox") {
     fail(`expected checkbox displayType, got ${checkboxFacet.displayType}`);
   }
@@ -324,7 +369,7 @@ try {
   }
   if (otherCount !== 1) {
     fail(
-      `Other collection should show shop total 1 on Parent page, got ${otherCount}`,
+      `Other collection should show shop total 1 on Catalog, got ${otherCount}`,
     );
   }
   if (parentCount !== 2) {
@@ -336,7 +381,8 @@ try {
 
   const inPlace = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
-    collectionGid: PARENT_GID,
+    collectionGid: ALL_GID,
+    collectionHandle: "all",
     selected: { collection: [CHILD_GID] },
   });
   if (titles(inPlace).join(",") !== "Alpha") {
@@ -382,7 +428,8 @@ try {
 
   const redirectMode = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
-    collectionGid: PARENT_GID,
+    collectionGid: ALL_GID,
+    collectionHandle: "all",
     selected: {},
   });
   const navFacet = collectionFacet(redirectMode);
@@ -398,10 +445,18 @@ try {
     );
   }
   const stillOnPage = titles(redirectMode).join(",");
-  if (stillOnPage !== "Alpha,Beta") {
+  if (stillOnPage !== "Alpha,Beta,Gamma") {
     fail(
-      `Collection display type must not filter in place, got ${stillOnPage}`,
+      `Collection display type on Catalog must list catalog products, got ${stillOnPage}`,
     );
+  }
+  const stillHiddenOnParent = await getCollectionFilterPayload({
+    shopDomain: SHOP_DOMAIN,
+    collectionGid: PARENT_GID,
+    selected: {},
+  });
+  if (collectionFacet(stillHiddenOnParent)) {
+    fail("collection facet must stay hidden on individual collections in Collection display type");
   }
 
   const catalogAjax = await getCollectionFilterPayload({
@@ -441,7 +496,8 @@ try {
     );
   }
 
-  log.info("Checkbox mode filters in place by collection membership");
+  log.info("Collection facet is hidden on individual collection pages");
+  log.info("Checkbox mode filters in place by collection membership on /collections/all");
   log.info("Collection display type lists all collections with redirect URLs");
   log.info("collections/all AJAX still applies collection membership");
   log.info("Shopify Catalog /collections/all loads all products without membership rows");

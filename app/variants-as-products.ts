@@ -82,6 +82,7 @@ export function buildStoredVariants(
     id?: string;
     sku?: string | null;
     price?: string | null;
+    available?: boolean | null;
     availableForSale?: boolean | null;
     image?: { url?: string | null } | null;
     selectedOptions?: Array<{ name?: string | null; value?: string | null }> | null;
@@ -102,7 +103,10 @@ export function buildStoredVariants(
       title,
       options,
       imageUrl: variant.image?.url || "",
-      available: variant.availableForSale !== false,
+      available:
+        typeof variant.available === "boolean"
+          ? variant.available
+          : variant.availableForSale !== false,
       price: Number.isFinite(price) ? price : 0,
     };
   });
