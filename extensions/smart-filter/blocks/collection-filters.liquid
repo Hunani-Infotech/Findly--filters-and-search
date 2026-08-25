@@ -56,15 +56,32 @@
     <label class="smart-filter__collection-search-label" for="smart-filter-collection-q">
       {{ "blocks.collection_filters.search" | t }}
     </label>
-    <input
-      id="smart-filter-collection-q"
-      class="smart-filter__collection-search-input"
-      type="search"
-      data-collection-search
-      placeholder="{{ "blocks.collection_filters.search_placeholder" | t }}"
-      autocomplete="off"
-      enterkeyhint="search"
-    >
+    <div class="smart-filter__collection-search-field">
+      <span class="smart-filter__collection-search-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M10.15 10.15L13.4 13.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <input
+        id="smart-filter-collection-q"
+        class="smart-filter__collection-search-input"
+        type="search"
+        data-collection-search
+        placeholder="{{ "blocks.collection_filters.search_placeholder" | t }}"
+        autocomplete="off"
+        enterkeyhint="search"
+      >
+      <button
+        type="button"
+        class="smart-filter__collection-search-clear"
+        data-collection-search-clear
+        hidden
+        aria-label="Clear search"
+      >
+        ×
+      </button>
+    </div>
   </div>
   <div class="smart-filter__backdrop" data-drawer-backdrop hidden></div>
   <div

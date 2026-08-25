@@ -123,8 +123,12 @@ function assertThemeSeoAndUi() {
   if (gridJs.includes("minmax(11rem,1fr)")) {
     fail("smart-filter-grid.js must not override theme product-card grid columns");
   }
-  if (!gridJs.includes("findlyLog") || !gridJs.includes("__FINDLY_DUMP")) {
-    fail("smart-filter-grid.js must keep storefront debug logs for grid hide/show");
+  if (
+    gridJs.includes("findlyLog") ||
+    gridJs.includes("__FINDLY_DUMP") ||
+    gridJs.includes("__FINDLY_LOGS")
+  ) {
+    fail("smart-filter-grid.js must not ship storefront debug logs");
   }
   if (!gridJs.includes("fillMissingFilterCards") || !gridJs.includes("findly-grid-empty")) {
     fail("smart-filter-grid.js must import off-page matches and show a grid empty state");

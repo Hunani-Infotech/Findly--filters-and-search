@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v4";
+  var STYLE_ID = "findly-theme-compat-v5";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -260,6 +260,7 @@
       "findly-theme-compat-v2",
       "findly-theme-compat-v3",
       "findly-theme-compat-v4",
+      "findly-theme-compat-v5",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -292,6 +293,7 @@
       "html.sf-custom-pager [data-pagination]:not(.sf-pager),html.sf-custom-pager load-more-button,html.sf-custom-pager .load-more-button," +
       "html.sf-custom-pager .ajaxinate-pagination,html.sf-custom-pager #AjaxinatePagination,html.sf-custom-pager .Pagination," +
       "html.sf-custom-pager [data-load-more]:not(.sf-pager){display:none!important}" +
+      "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']{display:none!important}" +
       ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
       "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
       "@media(min-width:750px){" +

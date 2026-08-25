@@ -271,6 +271,7 @@ html.sf-filter-loading #product-grid,
 html.sf-filter-loading #ProductGrid,
 html.sf-filter-loading ul.product-grid,
 html.sf-filter-loading ol.product-grid,
+html.sf-filter-loading .product-grid,
 html.sf-filter-loading .sf-app-grid {
   position: relative;
   min-height: 22rem;
@@ -281,12 +282,25 @@ html.sf-filter-loading #product-grid > :not([data-findly-skel="1"]):not(.sf-tool
 html.sf-filter-loading #ProductGrid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
 html.sf-filter-loading ul.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
 html.sf-filter-loading ol.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading .product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
 html.sf-filter-loading .sf-app-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty) {
   display: none !important;
 }
 
+html.sf-filter-loading .sf-total-count,
+html.sf-filter-loading .product-count,
+html.sf-filter-loading .product-count__text,
+html.sf-filter-loading #ProductCount,
+html.sf-filter-loading #ProductCountDesktop,
+html.sf-filter-loading [data-product-count],
+html.sf-filter-loading .collection-product-count,
+html.sf-filter-loading .facets__product-count {
+  visibility: hidden !important;
+}
+
 html.sf-filter-ready .main-collection-grid,
-html.sf-filter-ready #product-grid {
+html.sf-filter-ready #product-grid,
+html.sf-filter-ready .product-grid {
   min-height: 0;
 }
 

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v19";
+  var STYLE_ID = "findly-grid-takeover-v20";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -35,8 +35,19 @@
     "#ProductGrid",
     "ul.product-grid",
     "ol.product-grid",
+    ".product-grid",
     ".sf-app-grid",
   ];
+  var GRID_COUNT_HIDE =
+    "html.sf-filter-loading .sf-total-count," +
+    "html.sf-filter-loading .product-count," +
+    "html.sf-filter-loading .product-count__text," +
+    "html.sf-filter-loading #ProductCount," +
+    "html.sf-filter-loading #ProductCountDesktop," +
+    "html.sf-filter-loading [data-product-count]," +
+    "html.sf-filter-loading .collection-product-count," +
+    "html.sf-filter-loading .facets__product-count" +
+    "{visibility:hidden!important}";
   function gridLoadingHideCss(prefix) {
     var i;
     var parts = [];
@@ -67,6 +78,7 @@
     "{display:none!important}" +
     gridLoadingHideCss("html.sf-filter-loading") +
     gridLoadingMinCss("html.sf-filter-loading") +
+    GRID_COUNT_HIDE +
     "[" + SKEL_ATTR + "='1']{pointer-events:none;list-style:none;min-width:0}" +
     ".findly-grid-skel__img{display:block;width:100%;aspect-ratio:1;border-radius:8px;background:#ececec}" +
     ".findly-grid-skel__line{display:block;height:.7rem;margin-top:.55rem;border-radius:4px;background:#ececec;width:78%}" +
@@ -168,60 +180,6 @@
     ".sf-grid",
     ".sf-app-grid",
   ].join(", ");
-
-  function describeHost(el) {
-    if (!el || el.nodeType !== 1) return String(el);
-    var id = el.id ? "#" + el.id : "";
-    var cls = String(el.className || "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 3)
-      .join(".");
-    return String(el.tagName || "").toLowerCase() + id + (cls ? "." + cls : "");
-  }
-
-  function shortStack() {
-    try {
-      return String(new Error().stack || "")
-        .split("\n")
-        .slice(2, 7)
-        .map(function (line) {
-          return String(line).trim();
-        });
-    } catch (err) {
-      return [];
-    }
-  }
-
-  function findlyLog(kind, data) {
-    var row = { t: Date.now(), kind: kind, data: data || {} };
-    try {
-      window.__FINDLY_LOGS = window.__FINDLY_LOGS || [];
-      window.__FINDLY_LOGS.push(row);
-      if (window.__FINDLY_LOGS.length > 400) window.__FINDLY_LOGS.shift();
-    } catch (err) {
-      /* ignore */
-    }
-    try {
-      if (typeof console !== "undefined" && console.info) {
-        console.info("[Findly]", kind, data || {});
-      }
-    } catch (err2) {
-      /* ignore */
-    }
-  }
-
-  try {
-    window.__FINDLY_DUMP = function () {
-      var logs = window.__FINDLY_LOGS || [];
-      if (typeof console !== "undefined" && console.info) {
-        console.info("[Findly] dump " + logs.length + " entries", logs);
-      }
-      return logs;
-    };
-  } catch (errDump) {
-    /* ignore */
-  }
 
   function decodeHashValue(value) {
     try {
@@ -334,18 +292,21 @@
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
-    var existingBridge = document.getElementById("findly-theme-bridge");
+    var existingBridge =
+      document.getElementById("findly-theme-bridge-v2") ||
+      document.getElementById("findly-theme-bridge");
     if (
       existingBridge &&
-      existingBridge.textContent &&
-      existingBridge.textContent.indexOf("grid-template-columns:280px") < 0
+      (existingBridge.id !== "findly-theme-bridge-v2" ||
+        (existingBridge.textContent &&
+          existingBridge.textContent.indexOf("smart-filter__collection-search-field") < 0))
     ) {
       existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge";
+      bridge.id = "findly-theme-bridge-v2";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -396,10 +357,11 @@
         ".collection-wrapper:has(.sf-collection-layout) .main-collection-grid," +
         ".sf-collection-layout .main-collection-grid" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
-        ".sf-pager,.sf-pager__nav,.sf-pager__pages{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
+        ".sf-pager--load-more,.sf-pager--infinite,.sf-pager__more{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
         ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
         "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
-        ".sf-collection-layout nav.pagination,.sf-collection-layout .pagination,.sf-collection-layout .pagination-wrapper" +
+        "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']{display:none!important}" +
+        ".sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
         "@media(min-width:750px){" +
         ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
@@ -422,24 +384,28 @@
         "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
         "}" +
         ".sf-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;width:100%;max-width:100%;margin:0 0 18px;box-sizing:border-box}" +
-        ".sf-toolbar__search{flex:1 1 auto;min-width:0;margin:0;max-width:22rem}" +
+        ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 16rem;min-width:0;width:min(22rem,100%);max-width:22rem;margin:0}" +
         ".sf-toolbar__end{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;gap:0;min-width:0}" +
         ".sf-sort-host{display:flex;justify-content:flex-end;width:auto;margin:0;overflow:visible;position:relative;z-index:6}" +
         ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-start;gap:.7rem;width:auto;margin:0;flex-wrap:nowrap}" +
         ".sf-toolbar .smart-filter__sort-label{font-weight:450;font-size:.9375em;color:inherit;line-height:2.5rem;padding:0;margin:0;white-space:nowrap}" +
         ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:10.75rem}" +
         ".sf-toolbar .smart-filter__sort-select{width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;padding:.5rem 2rem .5rem .85rem;border:1px solid #111!important;border-radius:8px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23111111' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right .75rem center;background-size:.7rem;appearance:none!important;-webkit-appearance:none!important}" +
-        ".sf-collection-search-host{display:block;width:100%;max-width:100%;margin:0}" +
+        ".sf-collection-search-host{display:block;width:auto;max-width:22rem;margin:0}" +
         ".sf-total-count{margin:0;font-size:.8125em;line-height:1.3;color:#6d6d6d;white-space:nowrap;text-align:right}" +
         ".sf-total-count[hidden],.sf-toolbar__search:not(:has(.smart-filter__collection-search:not([hidden]))){display:none!important}" +
         ".sf-toolbar:not(:has(.sf-toolbar__search:has(.smart-filter__collection-search:not([hidden])))){justify-content:flex-end}" +
         ".sf-sort-host:not(:has(.smart-filter__sort:not([hidden]))){display:none}" +
         ".smart-filter>.smart-filter__collection-search{display:none!important}" +
-        ".smart-filter__collection-search--toolbar{display:flex;width:100%;max-width:100%;margin:0}" +
-        ".sf-toolbar .smart-filter__collection-search-input{width:100%;max-width:22rem;min-width:0;min-height:2.5rem;padding:.5rem 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:none;font:inherit;color:inherit}" +
+        ".smart-filter__collection-search--toolbar{display:block;width:100%;max-width:22rem;margin:0}" +
+        ".smart-filter__collection-search-field{display:flex;align-items:center;gap:.55rem;box-sizing:border-box;width:100%;min-height:2.5rem;padding:0 .55rem 0 .8rem;border:1px solid #111;border-radius:8px;background:#fff}" +
+        ".smart-filter__collection-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 16px;width:16px;height:16px;color:#111;opacity:.72;pointer-events:none}" +
+        ".sf-toolbar .smart-filter__collection-search-input,.smart-filter__collection-search--toolbar .smart-filter__collection-search-input{width:100%;max-width:none;min-width:0;min-height:2.4rem;padding:.45rem 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:none;font:inherit;color:inherit}" +
         ".sf-toolbar .smart-filter__collection-search-input::placeholder{color:#8a8a8a;opacity:1}" +
+        ".smart-filter__collection-search-clear{appearance:none;flex:0 0 1.5rem;width:1.5rem;height:1.5rem;margin:0;padding:0;border:0;background:transparent;color:inherit;font-size:1.15rem;line-height:1;cursor:pointer;opacity:.5}" +
+        ".smart-filter__collection-search-clear[hidden]{display:none!important}" +
         ".sf-toolbar input[type=search]::-webkit-search-decoration,.sf-toolbar input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}" +
-        "@media(max-width:749px){.sf-toolbar{flex-wrap:wrap}.sf-toolbar__search{flex:1 1 100%;max-width:none}.sf-toolbar__end{margin-left:auto}}" +
+        "@media(max-width:749px){.sf-toolbar{flex-wrap:wrap}.sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 100%;max-width:none;width:100%}.sf-toolbar__end{margin-left:auto}}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
         ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
@@ -450,7 +416,7 @@
         "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
         "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
         "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-        ".sf-app-grid>.sf-pager,.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-collection-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
+        ".sf-app-grid>.sf-pager:not(.sf-pager--pagination),.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-collection-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
         ".sf-app-grid>:not(.sf-app-card):not(.sf-pager):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-grid-empty){display:none!important}";
       (document.head || document.documentElement).appendChild(bridge);
     }
@@ -1054,6 +1020,21 @@
         )
       : [];
     for (i = 0; i < pagers.length; i++) {
+      if (
+        pagers[i].getAttribute &&
+        pagers[i].getAttribute("data-sf-pager-suppressed") === "1"
+      ) {
+        continue;
+      }
+      if (pagers[i].hidden || (pagers[i].hasAttribute && pagers[i].hasAttribute("hidden"))) {
+        continue;
+      }
+      if (
+        pagers[i].classList &&
+        pagers[i].classList.contains("sf-pager--pagination")
+      ) {
+        continue;
+      }
       applyImportantStyle(pagers[i], "display", "flex");
       applyImportantStyle(pagers[i], "flex-direction", "row");
       applyImportantStyle(pagers[i], "flex-wrap", "wrap");
@@ -1108,13 +1089,7 @@
       flattenHorizonCollectionWrapper(layout);
       if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
     } catch (err) {
-      try {
-        if (typeof console !== "undefined" && console.warn) {
-          console.warn("[Findly] repairCollectionLayout", err);
-        }
-      } catch (ignore) {
-        /* ignore */
-      }
+      /* ignore layout repair failures */
     } finally {
       repairingLayout = false;
       if (widget) widget._reapplyingGrid = false;
@@ -2023,11 +1998,65 @@
     }
   }
 
-  function isBusyPainted() {
+  function matchesBusyHost(el) {
+    if (!el || el.nodeType !== 1 || !el.matches) return false;
+    var i;
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      try {
+        if (el.matches(GRID_BUSY_HOSTS[i])) return true;
+      } catch (err) {
+        /* ignore invalid selector */
+      }
+    }
+    return false;
+  }
+
+  function isTooWideBusyHost(el) {
+    if (!el || el.nodeType !== 1) return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "html" || tag === "body" || tag === "main") return true;
+    if (el.id === "smart-filter-root" || el.id === "smart-filter-embed") {
+      return true;
+    }
+    if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return true;
+    }
+    if (!el.querySelector) return false;
     return Boolean(
-      document.getElementById("findly-grid-busy-overlay") ||
-        document.querySelector("[" + SKEL_ATTR + "='1']"),
+      el.querySelector(
+        "#smart-filter-root, #smart-filter-embed, .sf-collection-layout",
+      ),
     );
+  }
+
+  function skeletonMountHost(el) {
+    var node = el;
+    var found =
+      el && matchesBusyHost(el) && !isTooWideBusyHost(el) ? el : null;
+    var hops = 0;
+    while (node && hops < 12) {
+      node = node.parentElement;
+      hops += 1;
+      if (!node || isTooWideBusyHost(node)) break;
+      if (matchesBusyHost(node)) found = node;
+    }
+    return found || el;
+  }
+
+  function isBusyPainted() {
+    var skels = document.querySelectorAll("[" + SKEL_ATTR + "='1']");
+    var i;
+    for (i = 0; i < skels.length; i++) {
+      var parent = skels[i].parentElement;
+      if (
+        parent &&
+        matchesBusyHost(parent) &&
+        !isTooWideBusyHost(parent)
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function discoverBusyHost(hint) {
@@ -2042,10 +2071,11 @@
         host.querySelector("#product-grid") ||
         host.querySelector("#ProductGrid") ||
         host.querySelector("ul.product-grid") ||
-        host.querySelector("ol.product-grid");
-      if (inner) host = inner;
+        host.querySelector("ol.product-grid") ||
+        host.querySelector(".product-grid");
+      if (inner && !isTooWideBusyHost(inner)) host = inner;
     }
-    return host;
+    return skeletonMountHost(host);
   }
 
   function clearGridSkeletons(host) {
@@ -2141,7 +2171,7 @@
   }
 
   function paintGridBusy(host, on) {
-    host = host || discoverBusyHost();
+    host = skeletonMountHost(host || discoverBusyHost());
     if (!on) {
       clearGridSkeletons(host);
       if (!host) clearGridSkeletons(document);
@@ -2155,7 +2185,6 @@
       removeBusyOverlay();
       return;
     }
-    setFilterLoading(true);
     if (!host) return;
     var stale = document.querySelectorAll(".findly-grid-is-busy");
     var s;
@@ -2168,6 +2197,7 @@
     if (host.classList) host.classList.add("findly-grid-is-busy");
     host.setAttribute("aria-busy", "true");
     mountGridSkeletons(host, SKEL_COUNT);
+    setFilterLoading(true);
     var overlay = document.getElementById("findly-grid-busy-overlay");
     if (!overlay) {
       overlay = document.createElement("div");
@@ -2196,10 +2226,10 @@
     ) {
       return;
     }
-    setFilterLoading(true);
-    if (isBusyPainted()) return;
-    var widget = window.__FINDLY_FILTER_WIDGET;
-    if (widget && widget._reqId > 0) return;
+    if (isBusyPainted()) {
+      setFilterLoading(true);
+      return;
+    }
     var host = discoverBusyHost();
     if (host) {
       paintGridBusy(host, true);
@@ -2294,7 +2324,6 @@
     emptyEl.querySelector(".sf-grid-empty__copy").textContent =
       "Try another filter or clear all filters.";
     if (emptyEl.parentNode !== parent) parent.appendChild(emptyEl);
-    findlyLog("grid.empty", { parent: describeHost(parent) });
   }
 
   // keep-theme-cards: on first unfiltered load, leave native Liquid cards
@@ -2375,10 +2404,6 @@
       }
       syncGridEmptyState(widget, parent, handles, shown);
     }
-    findlyLog("grid.missing", {
-      handles: handles.slice ? handles.slice(0, 8) : handles,
-      parent: describeHost(parent),
-    });
     widget._importingCards = true;
     widget._reapplyingGrid = true;
     var done = function () {
@@ -2481,18 +2506,6 @@
       }
       sweepHostOrphans(parent, shownHosts, allowed, tray);
     }
-    findlyLog("grid.apply", {
-      parent: describeHost(parent),
-      allowed: allowed ? Object.keys(allowed).length : null,
-      cards: cards.length,
-      shown: shownHosts.length,
-      hidden: hidden.length,
-      needMove: needMove,
-      tray: tray && tray.children ? tray.children.length : 0,
-      overlay: Boolean(document.getElementById("findly-grid-busy-overlay")),
-      busyHosts: document.querySelectorAll(".sf-grid-busy, [aria-busy='true']").length,
-      stack: shortStack(),
-    });
     return cards.length > 0;
   }
 
@@ -3141,11 +3154,6 @@
           }
           return;
         }
-        findlyLog("grid.observer", {
-          n: self._findlyObserverCount,
-          handles: self._visibleHandles && self._visibleHandles.length,
-          busy: Boolean(document.getElementById("findly-grid-busy-overlay")),
-        });
         try {
           var url = new URL(window.location.href);
           if (url.searchParams.has("page")) stripThemePageParam();
@@ -3339,122 +3347,10 @@
 
   function mountFindlyPager(widget) {
     if (!widget) return;
-    if (widget.syncThemePager && widget.syncThemePager()) return;
-    if (widget.ensurePageSize) widget.ensurePageSize();
-    var size = widget.pageSize || 16;
-    var total = filterPageTotal(widget);
-    widget._pageTotal = total;
-    var page = Math.max(1, widget.page || 1);
-    widget._hasNext = page * size < total;
-    var pageCount = Math.max(1, Math.ceil(total / size) || 1);
-    var show = shouldTakeOverThemeCards(widget) && pageCount > 1;
-    var el = widget._pagerEl;
-    if (!el) {
-      el = document.createElement("nav");
-      el.className = "sf-pager sf-pager--pagination";
-      el.id = "findly-sf-pager";
-      el.setAttribute("aria-label", widget.t ? widget.t("pagination", "Pagination") : "Pagination");
-      widget._pagerEl = el;
-    }
-    var layout = document.querySelector(".sf-collection-layout");
-    var grid = widget._gridParent;
-    var main = findColumnMainContaining(grid);
-    if (main && isProductGridLike(main)) main = null;
-    var after = null;
-    var parent = null;
-    if (main) {
-      parent = main;
-      after = grid && main.contains(grid) ? grid : null;
-      if (after && isProductGridLike(after.parentNode) && main.contains(after.parentNode)) {
-        after = after.parentNode;
-      }
-    } else if (layout && !isProductGridLike(layout.parentNode)) {
-      parent = layout.parentNode;
-      after = layout;
-    } else if (grid && grid.parentNode && !isProductGridLike(grid.parentNode)) {
-      parent = grid.parentNode;
-      after = grid;
-    }
-    if (parent && el.parentNode !== parent) {
-      if (after && after.parentNode === parent && after.nextSibling) {
-        parent.insertBefore(el, after.nextSibling);
-      } else {
-        parent.appendChild(el);
-      }
-    } else if (parent && after && after.parentNode === parent && el.previousElementSibling !== after && after.nextSibling !== el) {
-      if (after.nextSibling) parent.insertBefore(el, after.nextSibling);
-      else parent.appendChild(el);
-    } else if (!el.parentNode) {
-      document.body.appendChild(el);
-    }
-    if (!show) {
-      el.hidden = true;
-      el.setAttribute("hidden", "");
-      el.innerHTML = "";
-      return;
-    }
-    el.hidden = false;
-    el.removeAttribute("hidden");
-    el.removeAttribute("data-smart-filter-hidden");
-    el.removeAttribute("data-findly-theme-hidden");
-    el.style.setProperty("display", "block", "important");
-    el.style.setProperty("visibility", "visible", "important");
-    el.style.setProperty("opacity", "1", "important");
-    el.style.setProperty("position", "relative", "important");
-    el.style.setProperty("z-index", "6", "important");
-    el.style.setProperty("width", "100%", "important");
-    el.style.setProperty("max-width", "100%", "important");
-    el.style.setProperty("margin", "16px 0 24px", "important");
-    el.innerHTML = "";
-    var list = document.createElement("div");
-    list.className = "sf-pager__nav";
-    function addBtn(className, label, target, disabled) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = className;
-      btn.textContent = label;
-      btn.disabled = Boolean(disabled || widget._loadingPage);
-      btn.addEventListener("click", function () {
-        if (widget.goToPage) widget.goToPage(target);
-      });
-      list.appendChild(btn);
-    }
-    addBtn(
-      "sf-pager__btn sf-pager__btn--prev",
-      widget.t ? widget.t("previous", "Previous") : "Previous",
-      page - 1,
-      page <= 1,
-    );
-    var pages = document.createElement("div");
-    pages.className = "sf-pager__pages";
-    pagerPageWindow(page, pageCount).forEach(function (item) {
-      if (item === "ellipsis") {
-        var dots = document.createElement("span");
-        dots.className = "sf-pager__ellipsis";
-        dots.textContent = "…";
-        pages.appendChild(dots);
-        return;
-      }
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sf-pager__page" + (item === page ? " is-current" : "");
-      btn.textContent = String(item);
-      if (item === page) btn.setAttribute("aria-current", "page");
-      btn.disabled = Boolean(widget._loadingPage);
-      btn.addEventListener("click", function () {
-        if (widget.goToPage) widget.goToPage(item);
-      });
-      pages.appendChild(btn);
-    });
-    list.appendChild(pages);
-    addBtn(
-      "sf-pager__btn sf-pager__btn--next",
-      widget.t ? widget.t("next", "Next") : "Next",
-      page + 1,
-      page >= pageCount,
-    );
-    el.appendChild(list);
-    if (widget.setThemePagerHidden) widget.setThemePagerHidden(true);
+    var style = widget.paginationStyle;
+    if (style === "load_more" || style === "infinite") return;
+    if (widget.hideFindlyPagerEl) widget.hideFindlyPagerEl();
+    if (widget.syncThemePager) widget.syncThemePager();
   }
 
   function restyleAppCardsAsThemeItems(parent) {
@@ -3685,6 +3581,66 @@
     }
   }
 
+  var COLLECTION_SEARCH_ICON =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.4"/><path d="M10.15 10.15L13.4 13.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+
+  function decorateCollectionSearchField(wrap) {
+    if (!wrap) return;
+    var input = wrap.querySelector("[data-collection-search]");
+    if (!input) return;
+    var field = wrap.querySelector(".smart-filter__collection-search-field");
+    if (!field) {
+      field = document.createElement("div");
+      field.className = "smart-filter__collection-search-field";
+      var icon = document.createElement("span");
+      icon.className = "smart-filter__collection-search-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = COLLECTION_SEARCH_ICON;
+      input.parentNode.insertBefore(field, input);
+      field.appendChild(icon);
+      field.appendChild(input);
+    } else if (!field.querySelector(".smart-filter__collection-search-icon")) {
+      var missing = document.createElement("span");
+      missing.className = "smart-filter__collection-search-icon";
+      missing.setAttribute("aria-hidden", "true");
+      missing.innerHTML = COLLECTION_SEARCH_ICON;
+      field.insertBefore(missing, field.firstChild);
+    }
+    var clear = field.querySelector("[data-collection-search-clear], .smart-filter__collection-search-clear");
+    if (!clear) {
+      clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "smart-filter__collection-search-clear";
+      clear.setAttribute("data-collection-search-clear", "");
+      clear.setAttribute("aria-label", "Clear search");
+      clear.hidden = true;
+      clear.textContent = "×";
+      field.appendChild(clear);
+    }
+    if (clear.getAttribute("data-sf-bound") === "1") {
+      clear.hidden = !(input.value || "").length;
+      return;
+    }
+    clear.setAttribute("data-sf-bound", "1");
+    function syncClear() {
+      clear.hidden = !(input.value || "").length;
+    }
+    input.addEventListener("input", syncClear);
+    clear.addEventListener("click", function () {
+      input.value = "";
+      syncClear();
+      try {
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      } catch (err) {
+        var ev = document.createEvent("Event");
+        ev.initEvent("input", true, true);
+        input.dispatchEvent(ev);
+      }
+      input.focus();
+    });
+    syncClear();
+  }
+
   function ensureCollectionSearchMarkup(widget) {
     if (!widget) return;
     var wrap =
@@ -3714,6 +3670,7 @@
       widget.root.appendChild(wrap);
     }
     if (!wrap) return;
+    decorateCollectionSearchField(wrap);
     widget.collectionSearchWrap = wrap;
     widget.collectionSearchEl =
       widget.collectionSearchEl ||
@@ -3890,6 +3847,7 @@
       if (wrap.parentNode !== searchHost) {
         searchHost.appendChild(wrap);
       }
+      decorateCollectionSearchField(wrap);
     }
     scrubToolbarCountDupes(widget);
   }
@@ -4261,13 +4219,6 @@
     proto.fetchFilters = function () {
       var opts = arguments[0];
       if (!opts || !opts.append) this._importingCards = false;
-      findlyLog("grid.fetch", {
-        selected: this.selected,
-        price: this.price,
-        page: this.page,
-        url: this.buildProxyUrl ? this.buildProxyUrl() : "",
-        stack: shortStack(),
-      });
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       if (result && typeof result.then === "function") {
@@ -4418,14 +4369,6 @@
       if (parent && parent.classList) parent.classList.remove("sf-grid-busy");
       if (host && host.classList) host.classList.remove("sf-grid-busy");
       paintGridBusy(host, busy);
-      findlyLog("grid.busy", {
-        busy: Boolean(busy),
-        host: describeHost(host),
-        parent: describeHost(parent),
-        overlay: Boolean(document.getElementById("findly-grid-busy-overlay")),
-        skel: document.querySelectorAll("[" + SKEL_ATTR + "='1']").length,
-        stack: shortStack(),
-      });
       if (origBusy && origBusy !== proto.setGridBusy && !host) {
         origBusy.call(this, busy);
       }

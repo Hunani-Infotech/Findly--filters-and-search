@@ -12,6 +12,7 @@
   var THEME_PAGER_SEL =
     "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, .Pagination";
   var ORIG_ATTR = "data-sf-theme-orig";
+  var SUPPRESS_ATTR = "data-sf-pager-suppressed";
 
   function pageWindow(current, count) {
     var pages = [];
@@ -100,6 +101,7 @@
     if (!el) return;
     el.hidden = false;
     el.removeAttribute("hidden");
+    el.removeAttribute(SUPPRESS_ATTR);
     el.removeAttribute("data-sf-pager-hidden");
     el.removeAttribute("data-findly-theme-hidden");
     el.removeAttribute("data-findly-native-chrome");
@@ -110,11 +112,56 @@
     el.style.removeProperty("display");
   }
 
+  function suppressPager(el) {
+    if (!el) return;
+    snapshotPager(el);
+    el.setAttribute(SUPPRESS_ATTR, "1");
+    el.hidden = true;
+    el.setAttribute("hidden", "");
+    el.style.setProperty("display", "none", "important");
+  }
+
   function restorePager(el) {
     if (!el) return;
     var orig = el.getAttribute(ORIG_ATTR);
     if (orig != null) el.innerHTML = orig;
     unhidePager(el);
+  }
+
+  function filteredTotal(widget) {
+    var data = widget && widget._lastFilterData;
+    if (data && typeof data.total === "number" && data.total >= 0) return data.total;
+    if (data && typeof data.count === "number" && data.count >= 0) return data.count;
+    var total = Number(widget && widget._pageTotal);
+    if (Number.isFinite(total) && total >= 0) return total;
+    if (widget && Array.isArray(widget._allFilterHandles)) {
+      return widget._allFilterHandles.length;
+    }
+    if (data && Array.isArray(data.handles)) return data.handles.length;
+    return 0;
+  }
+
+  function removeFindlyNumberedPagers(widget) {
+    if (widget && widget.hideFindlyPagerEl) widget.hideFindlyPagerEl();
+    var nodes = document.querySelectorAll("#findly-sf-pager, .sf-pager--pagination");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el) continue;
+      if (
+        el.classList &&
+        (el.classList.contains("sf-pager--load-more") ||
+          el.classList.contains("sf-pager--infinite"))
+      ) {
+        continue;
+      }
+      el.hidden = true;
+      el.setAttribute("hidden", "");
+      el.innerHTML = "";
+      el.style.setProperty("display", "none", "important");
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
+    if (widget) widget._pagerEl = null;
   }
 
   function pageHref(page) {
@@ -278,25 +325,21 @@
   function rewritePager(el, widget) {
     snapshotPager(el);
     var orig = el.getAttribute(ORIG_ATTR) || "";
+    if (widget.ensurePageSize) widget.ensurePageSize();
     var size = widget.pageSize || 16;
-    var total = Number(widget._pageTotal) || 0;
+    var total = filteredTotal(widget);
+    widget._pageTotal = total;
     var pageCount = Math.max(1, Math.ceil(total / size) || 1);
     var page = Math.max(1, widget.page || 1);
     if (pageCount <= 1) {
-      el.hidden = true;
-      el.setAttribute("hidden", "");
-      el.style.setProperty("display", "none", "important");
+      suppressPager(el);
       return;
     }
     unhidePager(el);
     var tpls = parseTemplates(orig);
-    if (!tpls.page) {
-      restorePager(el);
-      return;
-    }
     var list = el.querySelector("ul, ol, .pagination__list, [role='list']");
-    if (!list) {
-      restorePager(el);
+    if (!tpls.page || !list) {
+      clipThemePager(el, page, pageCount);
       return;
     }
     list.innerHTML = "";
@@ -319,6 +362,28 @@
       );
     });
     if (page < pageCount) appendClone(tpls.next, page + 1, false);
+  }
+
+  function clipThemePager(el, page, pageCount) {
+    var items = el.querySelectorAll("li, a, button, span");
+    var i;
+    for (i = 0; i < items.length; i++) {
+      var item = items[i];
+      var role = itemRole(item);
+      var n = pageFromControl(controlOf(item) || item);
+      if (role === "prev") {
+        if (page <= 1) item.style.setProperty("display", "none", "important");
+        else item.style.removeProperty("display");
+      } else if (role === "next") {
+        if (page >= pageCount) item.style.setProperty("display", "none", "important");
+        else item.style.removeProperty("display");
+      } else if (n) {
+        if (n > pageCount) item.style.setProperty("display", "none", "important");
+        else item.style.removeProperty("display");
+      } else if (role === "ellipsis" && pageCount <= 3) {
+        item.style.setProperty("display", "none", "important");
+      }
+    }
   }
 
   function pageFromControl(el) {
@@ -570,12 +635,14 @@
     };
 
     proto.hideFindlyPagerEl = function () {
-      var el = this._pagerEl;
+      var el = this._pagerEl || document.getElementById("findly-sf-pager");
       if (!el) return;
       el.hidden = true;
       el.setAttribute("hidden", "");
       el.innerHTML = "";
       el.style.setProperty("display", "none", "important");
+      if (el.parentNode) el.parentNode.removeChild(el);
+      if (this._pagerEl === el) this._pagerEl = null;
     };
 
     proto.usesThemeNumberedPager = function () {
@@ -584,24 +651,43 @@
 
     proto.syncThemePager = function () {
       if (!usesThemeNumberedPager(this)) return false;
-      var roots = findThemePagers();
-      if (!roots.length) return false;
-      this.hideFindlyPagerEl();
-      bindThemePagerClicks();
-      var drive = shouldDriveThemePager(this);
-      var i;
-      for (i = 0; i < roots.length; i++) {
-        snapshotPager(roots[i]);
-        if (drive) rewritePager(roots[i], this);
-        else restorePager(roots[i]);
+      if (window.__findlyThemePagerSyncing) return true;
+      window.__findlyThemePagerSyncing = true;
+      try {
+        removeFindlyNumberedPagers(this);
+        observeThemePager();
+        var roots = findThemePagers();
+        if (!roots.length) {
+          scheduleThemePagerSync(this);
+          return true;
+        }
+        bindThemePagerClicks();
+        this._themePagerTries = 0;
+        var drive = shouldDriveThemePager(this);
+        var i;
+        for (i = 0; i < roots.length; i++) {
+          snapshotPager(roots[i]);
+          if (drive) rewritePager(roots[i], this);
+          else restorePager(roots[i]);
+        }
+        return true;
+      } finally {
+        window.setTimeout(function () {
+          window.__findlyThemePagerSyncing = false;
+        }, 80);
       }
-      return true;
     };
 
     var origSetHidden = proto.setThemePagerHidden;
     proto.setThemePagerHidden = function (hide) {
-      if (usesThemeNumberedPager(this) && hide && findThemePagers().length) {
-        this.syncThemePager();
+      if (usesThemeNumberedPager(this)) {
+        if (hide) this.syncThemePager();
+        else {
+          var roots = findThemePagers();
+          var i;
+          for (i = 0; i < roots.length; i++) restorePager(roots[i]);
+        }
+        removeFindlyNumberedPagers(this);
         return;
       }
       if (origSetHidden) origSetHidden.call(this, hide);
@@ -614,13 +700,14 @@
       var roots = findThemePagers();
       var i;
       for (i = 0; i < roots.length; i++) restorePager(roots[i]);
-      this.hideFindlyPagerEl();
+      removeFindlyNumberedPagers(this);
     };
 
     proto.renderPager = function () {
       setCustomPagerClass(!usesThemeNumberedPager(this));
-      if (usesThemeNumberedPager(this) && this.syncThemePager()) {
+      if (usesThemeNumberedPager(this)) {
         this.disconnectInfinite();
+        this.syncThemePager();
         return;
       }
       var el = this.ensurePagerEl();
@@ -659,11 +746,40 @@
         sentinel.setAttribute("aria-hidden", "true");
         el.appendChild(sentinel);
         this.bindInfinite(sentinel);
-        return;
       }
-      this.disconnectInfinite();
-      this.renderNumberedPager(el);
     };
+  }
+
+  function scheduleThemePagerSync(widget) {
+    if (!widget) return;
+    widget._themePagerTries = (widget._themePagerTries || 0) + 1;
+    if (widget._themePagerTries > 12) return;
+    if (widget._themePagerRetry) return;
+    widget._themePagerRetry = window.setTimeout(function () {
+      widget._themePagerRetry = 0;
+      if (widget.syncThemePager) widget.syncThemePager();
+    }, 60);
+  }
+
+  function observeThemePager() {
+    if (window.__findlyThemePagerObs || typeof MutationObserver !== "function") {
+      return;
+    }
+    window.__findlyThemePagerObs = new MutationObserver(function () {
+      if (window.__findlyThemePagerSyncing) return;
+      if (window.__findlyThemePagerObsTimer) return;
+      window.__findlyThemePagerObsTimer = window.setTimeout(function () {
+        window.__findlyThemePagerObsTimer = 0;
+        if (window.__findlyThemePagerSyncing) return;
+        var w = window.__FINDLY_FILTER_WIDGET;
+        if (!w || !usesThemeNumberedPager(w) || !w.syncThemePager) return;
+        w.syncThemePager();
+      }, 40);
+    });
+    window.__findlyThemePagerObs.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   function installSetter() {
