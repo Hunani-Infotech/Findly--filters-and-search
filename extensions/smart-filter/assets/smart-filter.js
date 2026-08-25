@@ -3809,6 +3809,7 @@
     var allowed = allowedHandleMap(shown);
     eachProductCard(parent, function (handle, card) {
       if (handleIsAllowed(allowed, handle)) return;
+      setCardHidden(card, true);
     });
     this._shownHandles = shown;
     return true;

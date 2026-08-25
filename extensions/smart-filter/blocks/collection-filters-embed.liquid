@@ -37,12 +37,15 @@ try {
 {% elsif search.results.size >= 8 and search.results.size <= 48 %}
   {% assign sf_page_size = search.results.size %}
 {% endif %}
+{% # App proxy JSON — not a theme asset; preload_tag / asset_url cannot be used. %}
+{% # theme-check-disable AssetPreload, RemoteAsset %}
 <link
   rel="preload"
   href="/apps/smart-filter/filters?collection_id={{ collection.id }}&collection_handle={{ collection.handle }}&page=1&pageSize={{ sf_page_size }}&locale={{ request.locale.iso_code }}&country={{ localization.country.iso_code }}&currency={{ cart.currency.iso_code }}"
   as="fetch"
   crossorigin
 >
+{% # theme-check-enable AssetPreload, RemoteAsset %}
 <div
   id="smart-filter-embed"
   class="smart-filter smart-filter--{{ block.settings.position }}"

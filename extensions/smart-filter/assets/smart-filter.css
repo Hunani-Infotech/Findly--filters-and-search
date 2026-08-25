@@ -328,6 +328,32 @@
   overflow: visible;
 }
 
+.smart-filter__facet > .smart-filter__options,
+.smart-filter__facet > .smart-filter__dropdown-wrap {
+  max-height: 260px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c8c8 transparent;
+}
+
+.smart-filter__facet > .smart-filter__options::-webkit-scrollbar,
+.smart-filter__facet > .smart-filter__dropdown-wrap::-webkit-scrollbar {
+  width: 6px;
+}
+
+.smart-filter__facet > .smart-filter__options::-webkit-scrollbar-track,
+.smart-filter__facet > .smart-filter__dropdown-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.smart-filter__facet > .smart-filter__options::-webkit-scrollbar-thumb,
+.smart-filter__facet > .smart-filter__dropdown-wrap::-webkit-scrollbar-thumb {
+  background: #c8c8c8;
+  border-radius: 999px;
+}
+
 .smart-filter__options--collection-tree > li,
 .smart-filter__options--collection-nav > li {
   list-style: none;
@@ -397,6 +423,25 @@
   display: flex;
   flex-direction: column;
   gap: 0.3em;
+  max-height: 180px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c8c8 transparent;
+}
+
+.smart-filter__options--collection-tree .smart-filter__tree-children::-webkit-scrollbar {
+  width: 6px;
+}
+
+.smart-filter__options--collection-tree .smart-filter__tree-children::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.smart-filter__options--collection-tree .smart-filter__tree-children::-webkit-scrollbar-thumb {
+  background: #c8c8c8;
+  border-radius: 999px;
 }
 
 .smart-filter__options--collection-tree .smart-filter__tree-children::before {
@@ -1074,25 +1119,20 @@
 }
 
 .sf-grid-busy {
-  position: relative !important;
-  opacity: 1 !important;
   pointer-events: none;
-  min-height: 8rem;
 }
 
-.sf-grid-busy::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 20;
+#findly-grid-busy-overlay {
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  pointer-events: none;
   background: rgb(255 255 255 / 0.55);
-  pointer-events: none;
 }
 
-.sf-grid-busy::after {
+#findly-grid-busy-overlay::after {
   content: "";
   position: absolute;
-  z-index: 21;
   top: 50%;
   left: 50%;
   width: 2rem;
@@ -1486,6 +1526,31 @@
   .smart-filter--left,
   .smart-filter--right {
     max-width: 280px;
+    position: sticky;
+    top: 16px;
+    align-self: flex-start;
+    max-height: calc(100vh - 32px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #c8c8c8 transparent;
+  }
+
+  .smart-filter--left::-webkit-scrollbar,
+  .smart-filter--right::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .smart-filter--left::-webkit-scrollbar-track,
+  .smart-filter--right::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .smart-filter--left::-webkit-scrollbar-thumb,
+  .smart-filter--right::-webkit-scrollbar-thumb {
+    background: #c8c8c8;
+    border-radius: 999px;
   }
 
   .smart-filter--left {
