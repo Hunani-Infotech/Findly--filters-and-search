@@ -293,20 +293,16 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (
-      existingBridge &&
-      (existingBridge.id !== "findly-theme-bridge-v2" ||
-        (existingBridge.textContent &&
-          existingBridge.textContent.indexOf("smart-filter__collection-search-field") < 0))
-    ) {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v3") {
       existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v2";
+      bridge.id = "findly-theme-bridge-v3";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -362,7 +358,9 @@
         "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
         "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']{display:none!important}" +
         ".sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
-        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
+        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;width:100%;text-align:center}" +
+        ".sf-collection-layout nav.pagination ul,.sf-collection-layout nav.pagination ol,.sf-collection-layout .pagination__list,.sf-collection-layout .pagination-wrapper ul,.sf-collection-layout .pagination-wrapper ol" +
+        "{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;width:100%;margin-inline:auto}" +
         "@media(min-width:750px){" +
         ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
         ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
@@ -1038,6 +1036,8 @@
       applyImportantStyle(pagers[i], "display", "flex");
       applyImportantStyle(pagers[i], "flex-direction", "row");
       applyImportantStyle(pagers[i], "flex-wrap", "wrap");
+      applyImportantStyle(pagers[i], "justify-content", "center");
+      applyImportantStyle(pagers[i], "align-items", "center");
       applyImportantStyle(pagers[i], "width", "100%");
     }
     if (layout.setAttribute) layout.setAttribute("data-sf-horizon-flat", "1");

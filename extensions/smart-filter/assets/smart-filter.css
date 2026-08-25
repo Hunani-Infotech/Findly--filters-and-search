@@ -2177,7 +2177,23 @@ results-list:has(.sf-collection-layout),
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: center;
   width: 100%;
+  text-align: center;
+}
+
+.sf-collection-layout nav.pagination ul,
+.sf-collection-layout nav.pagination ol,
+.sf-collection-layout .pagination__list,
+.sf-collection-layout .pagination-wrapper ul,
+.sf-collection-layout .pagination-wrapper ol {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-inline: auto;
 }
 
 [data-sf-pager-suppressed="1"],
