@@ -149,7 +149,7 @@ export default function ContactNavPage() {
   return (
     <Page
       title="Contact"
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Home", onAction: () => navigate("/app") }}
     >
       <Layout>
         <Layout.Section>

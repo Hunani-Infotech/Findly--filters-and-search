@@ -129,7 +129,7 @@
   color: #78716c;
 }
 
-.previewFilters label {
+.previewFilter {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -138,7 +138,7 @@
   font-size: 0.8125rem;
 }
 
-.previewFilters label span {
+.previewFilter span {
   width: 0.85rem;
   height: 0.85rem;
   border: 1px solid #d6d3d1;
@@ -146,7 +146,7 @@
   background: #fff;
 }
 
-.previewFilters label:first-of-type span {
+.previewFilter:first-of-type span {
   background: #0f766e;
   border-color: #0f766e;
 }

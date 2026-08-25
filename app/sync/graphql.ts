@@ -191,8 +191,13 @@ export const BULK_PRODUCTS_QUERY = `
                 id
                 tracked
                 inventoryLevels {
-                  quantities(names: ["available"]) { name quantity }
-                  location { id name isActive }
+                  edges {
+                    node {
+                      id
+                      quantities(names: ["available"]) { name quantity }
+                      location { id name isActive }
+                    }
+                  }
                 }
               }
             }

@@ -40,6 +40,183 @@
   }
 }
 
+.findly-skel {
+  display: inline-block;
+  vertical-align: middle;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e3e3e3 25%, #f1f1f1 37%, #e3e3e3 63%);
+  background-size: 400% 100%;
+  animation: findly-skeleton-shimmer 1.4s ease infinite;
+}
+
+.findly-skel--line {
+  height: 10px;
+}
+
+.findly-skel--text {
+  height: 14px;
+}
+
+.findly-skel--title {
+  height: 18px;
+}
+
+.findly-skel--field,
+.findly-skel--block,
+.findly-skel--thumb {
+  display: block;
+}
+
+.findly-skel--field {
+  height: 36px;
+  width: 100%;
+  border-radius: 8px;
+}
+
+.findly-skel--btn {
+  height: 28px;
+  width: 88px;
+  border-radius: 8px;
+}
+
+.findly-skel--chip {
+  height: 20px;
+  width: 72px;
+  border-radius: 999px;
+}
+
+.findly-skel--check {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.findly-skel--circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.findly-skel--icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.findly-skel--swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.findly-skel--thumb {
+  height: 92px;
+  width: 100%;
+  border-radius: 8px;
+}
+
+.findly-skel--block {
+  height: 72px;
+  width: 100%;
+  border-radius: 8px;
+}
+
+.findly-skel--grow {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.findly-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.findly-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.findly-skel-banner {
+  overflow: hidden;
+  border: 1px solid #b4e1fa;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.findly-skel-banner__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #cce7f8;
+}
+
+.findly-skel-banner__body {
+  padding: 12px 16px 16px;
+}
+
+.findly-skel-widget {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 220px;
+  padding: 10px;
+  border: 1px solid #e3e3e3;
+  border-radius: 10px;
+  background: #f6f6f7;
+}
+
+.findly-skel-widget__side,
+.findly-skel-widget__grid {
+  background: #fff;
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.findly-skel-widget__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-content: start;
+}
+
+.findly-skel-widget__tile {
+  height: 64px;
+  border-radius: 6px;
+  background: #f1f2f3;
+}
+
+.findly-skel-type {
+  display: flex;
+  gap: 4px;
+}
+
+.findly-skel-type > span {
+  width: 72px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.findly-skel-hex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.findly-skel-hex .findly-skel--field {
+  width: 88px;
+  flex: 0 0 88px;
+}
+
 /* Embedded admin iframe: center the page and keep last fields off the bottom edge. */
 .findly-admin-shell {
   box-sizing: border-box;
@@ -1389,6 +1566,7 @@
 
 .findly-i18n-tab {
   appearance: none;
+  display: inline-block;
   border: none;
   background: transparent;
   padding: 8px 12px;
@@ -1606,6 +1784,371 @@
 .findly-meta-applies__menu {
   padding: 12px;
   min-width: 180px;
+}
+
+.findly-plain-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid #8c9196;
+  border-radius: 8px;
+  background: #fff;
+  color: #202223;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.2;
+}
+
+.findly-plain-btn:hover {
+  background: #f6f6f7;
+  color: #202223;
+}
+
+.findly-home-hero {
+  margin: 0 0 20px;
+  animation: findly-hero-in 0.55s ease-out both;
+}
+
+.findly-home-hero__kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6d7175;
+}
+
+.findly-home-hero__title {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.15rem);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #1a1a1a;
+}
+
+.findly-home-hero__title span {
+  background: linear-gradient(90deg, #1a1a1a 0%, #5c4dff 40%, #1a1a1a 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: findly-hero-shine 4.5s ease-in-out infinite;
+}
+
+.findly-home-hero__sub {
+  margin: 8px 0 0;
+  max-width: 36rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #6d7175;
+}
+
+@keyframes findly-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes findly-hero-shine {
+  0% {
+    background-position: 100% 50%;
+  }
+  50% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .findly-home-hero,
+  .findly-home-hero__title span {
+    animation: none;
+  }
+
+  .findly-home-hero__title span {
+    color: #1a1a1a;
+    background: none;
+  }
+}
+
+.findly-setup__header {
+  padding: 16px 16px 12px;
+}
+
+.findly-setup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+}
+
+.findly-setup__item {
+  border-radius: 10px;
+}
+
+.findly-setup__item--open {
+  background: #f6f6f7;
+}
+
+.findly-setup__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 8px 8px 4px;
+}
+
+.findly-setup__toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.findly-setup__toggle:hover {
+  background: #f1f2f3;
+}
+
+.findly-setup__item--open .findly-setup__toggle:hover {
+  background: transparent;
+}
+
+.findly-setup__toggle:focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: 2px;
+}
+
+.findly-setup__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.findly-setup__done,
+.findly-setup__next {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.findly-setup__done {
+  color: #0c5132;
+}
+
+.findly-setup__next {
+  color: #916a00;
+}
+
+.findly-setup-marker {
+  box-sizing: border-box;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.findly-setup-marker--done {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.findly-setup-marker--current {
+  border: 2px solid #1a1a1a;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+.findly-setup-marker--todo {
+  border: 2px dashed #b5b5b5;
+  color: #8c9196;
+  background: #fff;
+}
+
+.findly-setup__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 8px 14px 42px;
+}
+
+.findly-perf__metric {
+  min-width: 0;
+}
+
+.findly-perf__insight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f6f6f7;
+  color: #6d7175;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.findly-stock-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.findly-stock-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #c9cccf;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.findly-stock-radio:hover {
+  border-color: #8c9196;
+}
+
+.findly-stock-radio--selected {
+  border-color: #005bd3;
+  background: #f2f7fe;
+  box-shadow: 0 0 0 1px #005bd3;
+}
+
+.findly-stock-radio--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.findly-stock-radio input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #005bd3;
+}
+
+.findly-stock-radio__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #202223;
+}
+
+.findly-stock-radio__help {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #6d7175;
+}
+
+.findly-sort-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.findly-sort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 6px 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #e4e5e7;
+  color: #202223;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: grab;
+  user-select: none;
+}
+
+.findly-sort-chip--dragging {
+  opacity: 0.45;
+}
+
+.findly-sort-chip--over {
+  box-shadow: inset 0 0 0 1px #005bd3;
+}
+
+.findly-sort-chip--disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.findly-sort-chip__handle {
+  display: inline-flex;
+  color: #8c9196;
+  flex-shrink: 0;
+}
+
+.findly-sort-chip__label {
+  min-width: 0;
+}
+
+.findly-sort-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #6d7175;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.findly-sort-chip__remove:hover:not(:disabled) {
+  background: #d2d5d8;
+  color: #202223;
+}
+
+.findly-sort-chip__remove:disabled {
+  cursor: default;
+}
+
+.findly-perf__insight::before {
+  content: "";
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #5c4dff;
+  box-shadow: 0 0 0 4px rgb(92 77 255 / 12%);
 }
 
 @media (max-width: 720px) {

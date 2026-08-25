@@ -1341,6 +1341,22 @@
     return String(handle || "").trim().toLowerCase() === "all";
   }
 
+  function shouldShowCollectionFacet(widget) {
+    if (widget && widget.searchQuery) return true;
+    var handle =
+      (widget && widget.collectionHandle) || inferCollectionHandle();
+    return isAllProductsCollectionHandle(handle);
+  }
+
+  function dropCollectionFacetUnlessCatalog(widget, facets) {
+    var list = Array.isArray(facets) ? facets : [];
+    if (shouldShowCollectionFacet(widget)) return list;
+    if (widget && widget.selected) delete widget.selected.collection;
+    return list.filter(function (facet) {
+      return !isCollectionFacet(facet);
+    });
+  }
+
   function isCollectionFilterKey(key) {
     return String(key || "").toLowerCase() === "collection";
   }
@@ -3948,7 +3964,10 @@
           this.applyI18nChrome();
 
           if (!append) {
-            this.facets = normalizeFacets(data);
+            this.facets = dropCollectionFacetUnlessCatalog(
+              this,
+              normalizeFacets(data),
+            );
             this.markFiltersApplied();
             this.renderFacets();
             setStatus(this.statusEl, "", false);
@@ -5107,7 +5126,7 @@
     this.applyI18n(cached);
     this.applySettings(cached.settings);
     this.applyI18nChrome();
-    this.facets = normalizeFacets(cached);
+    this.facets = dropCollectionFacetUnlessCatalog(this, normalizeFacets(cached));
     this.markFiltersApplied();
     this.renderFacets();
     setStatus(this.statusEl, "", false);

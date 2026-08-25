@@ -8,7 +8,7 @@ export function UnderConstructionGate({ feature }: { feature: string }) {
   return (
     <Page
       title={feature}
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Home", onAction: () => navigate("/app") }}
     >
       <Layout>
         <Layout.Section>

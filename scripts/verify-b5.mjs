@@ -106,6 +106,29 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("facets-form") || !filterJs.includes("facet-filters-form")) {
     fail("smart-filter.js must recognize Horizon/Dawn native facet hosts");
   }
+  const themeCompat = read("extensions/smart-filter/assets/smart-filter-theme.js");
+  if (!themeCompat.includes("discoverAnyThemeGrid")) {
+    fail("smart-filter-theme.js must discover product grids on any theme");
+  }
+  if (!themeCompat.includes("hideNativeChromeHeuristic")) {
+    fail("smart-filter-theme.js must hide native filter chrome without theme-specific class lists only");
+  }
+  if (!collectionLiquid.includes("smart-filter-theme.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-theme.min.js");
+  }
+  const embedLiquid = read(
+    "extensions/smart-filter/blocks/collection-filters-embed.liquid",
+  );
+  if (!embedLiquid.includes("smart-filter-theme.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-theme.min.js");
+  }
+  const instantJs = read("extensions/smart-filter/assets/instant-search.js");
+  if (
+    !instantJs.includes("suppressThemePredictive") ||
+    !instantJs.includes("predictive-search")
+  ) {
+    fail("instant search must bind any theme search input and hide native predictive results");
+  }
   if (!filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
   }
@@ -402,6 +425,7 @@ try {
   const processors = read("app/workers/processors.ts");
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
+  const syncModal = read("app/components/sync-details-modal.tsx");
   const proxy = read("app/proxy.server.ts");
   const eventsRoute = read("app/routes/events.app.products.tsx");
   const workerBoot = read("app/workers/ensure-running.server.ts");
@@ -433,8 +457,11 @@ try {
   if (!proxy.includes("getCatalogGeneration")) {
     fail("proxy.server.ts must key filter cache by catalog generation");
   }
-  if (!syncPage.includes("Re-sync catalog") || !syncPage.includes("Automatic updates")) {
-    fail("Sync page must present automatic updates with Re-sync as recovery");
+  if (!syncPage.includes("/app?sync=1")) {
+    fail("Sync route must open the Home sync popup");
+  }
+  if (!syncModal.includes("Automatic updates") || !syncModal.includes("Sync now")) {
+    fail("Sync popup must present automatic updates with Sync now as recovery");
   }
   const inventoryFromLevel = webhookInventoryItemGid({
     inventory_item_id: 271878346596884000,

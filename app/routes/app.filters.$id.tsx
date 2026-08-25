@@ -264,11 +264,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
   if (intent === "delete") {
     if (isNew) {
-      return redirect(withEmbeddedParamsFromRequest(request, "/app"));
+      return redirect(withEmbeddedParamsFromRequest(request, "/app/filters"));
     }
     const result = await deleteFilterTree(shop.id, treeId);
     if ("error" in result) return { error: result.error };
-    return redirect(withEmbeddedParamsFromRequest(request, "/app"));
+    return redirect(withEmbeddedParamsFromRequest(request, "/app/filters"));
   }
 
   const bool = (key: string) => form.get(key) === "true" || form.get(key) === "on";
@@ -624,7 +624,7 @@ export default function FilterTreeEditorPage() {
       title={pageTitle}
       backAction={{
         content: "Filters",
-        onAction: () => navigate("/app"),
+        onAction: () => navigate("/app/filters"),
       }}
       secondaryActions={
         isEditMode

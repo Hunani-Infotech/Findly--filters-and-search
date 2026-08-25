@@ -62,7 +62,7 @@ export default function App() {
           <a href="/app" rel="home">
             Home
           </a>
-          <a href="/app">Filters</a>
+          <a href="/app/filters">Filters</a>
           <a href="/app/search">Search</a>
           <a href="/app/settings">Settings</a>
           <a href="/app/translation">Translation</a>

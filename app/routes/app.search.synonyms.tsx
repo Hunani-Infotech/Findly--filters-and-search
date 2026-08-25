@@ -34,7 +34,7 @@ import { lastPageIndex, slicePage } from "../admin-list-page";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { useEmbeddedNavigate } from "../admin-path";
 
-export { SearchSubpageSkeleton as HydrateFallback } from "../components/admin-skeletons";
+export { SynonymsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 type SynonymDraft = {
   id: string;

@@ -206,7 +206,7 @@ export default function ValueGroupsPage() {
       title="Group values"
       backAction={{
         content: "Filters",
-        onAction: () => navigate("/app"),
+        onAction: () => navigate("/app/filters"),
       }}
       primaryAction={{
         content: "Add group",

@@ -41,7 +41,7 @@ import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
 import { useEmbeddedNavigate } from "../admin-path";
 
-export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
+export { CollectionFilterSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -344,7 +344,7 @@ export default function CollectionFilterConfigPage() {
         title="Collection not found"
         backAction={{
           content: "Collections",
-          onAction: () => navigate("/app"),
+          onAction: () => navigate("/app/filters"),
         }}
       >
         <Layout>
@@ -378,7 +378,7 @@ export default function CollectionFilterConfigPage() {
       }
       backAction={{
         content: "Collections",
-        onAction: () => navigate("/app"),
+        onAction: () => navigate("/app/filters"),
       }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",

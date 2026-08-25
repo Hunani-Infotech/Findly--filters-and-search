@@ -10,6 +10,7 @@ export const THEME_STEP_IDS = [
 ] as const;
 
 export type ThemeStepId = (typeof THEME_STEP_IDS)[number];
+export type SetupMarkId = ThemeStepId | "performance";
 
 export type SetupStep = {
   id: string;
@@ -42,10 +43,17 @@ export type SetupProgress = {
   completeCount: number;
   themeComplete: boolean;
   allComplete: boolean;
+  /** First-install checklist. Hidden after all steps are complete. */
+  showGuide: boolean;
   editorUrls: ThemeEditorUrls;
 };
 
 type ThemeSetupFlags = Record<ThemeStepId, boolean>;
+
+type SetupExtras = ThemeSetupFlags & {
+  guideDismissed: boolean;
+  performance: boolean;
+};
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -57,12 +65,35 @@ export function isThemeStepId(value: string): value is ThemeStepId {
   return (THEME_STEP_IDS as readonly string[]).includes(value);
 }
 
+export function isSetupMarkId(value: string): value is SetupMarkId {
+  return isThemeStepId(value) || value === "performance";
+}
+
 export function parseThemeSetupFlags(raw: unknown): ThemeSetupFlags {
   const setup = asRecord(asRecord(raw).setup);
   return {
     "collection-filters": setup["collection-filters"] === true,
     "product-search": setup["product-search"] === true,
     "instant-search": setup["instant-search"] === true,
+  };
+}
+
+function parseSetupExtras(raw: unknown): SetupExtras {
+  const setup = asRecord(asRecord(raw).setup);
+  return {
+    ...parseThemeSetupFlags(raw),
+    guideDismissed: setup.guideDismissed === true,
+    performance: setup.performance === true,
+  };
+}
+
+function setupExtrasPayload(extras: SetupExtras): Record<string, boolean> {
+  return {
+    "collection-filters": extras["collection-filters"],
+    "product-search": extras["product-search"],
+    "instant-search": extras["instant-search"],
+    guideDismissed: extras.guideDismissed,
+    performance: extras.performance,
   };
 }
 
@@ -94,6 +125,28 @@ const setupProgressCache = new Map<
   string,
   { value: SetupProgress; expires: number }
 >();
+
+function invalidateSetupProgress(shopId: string) {
+  for (const key of [...setupProgressCache.keys()]) {
+    if (key.startsWith(`${shopId}:`)) setupProgressCache.delete(key);
+  }
+}
+
+async function persistSetupExtras(shopId: string, extras: SetupExtras) {
+  const row = await prisma.appSettings.upsert({
+    where: { shopId },
+    create: { shopId },
+    update: {},
+    select: { adminExtras: true },
+  });
+  const adminExtras = asRecord(row.adminExtras);
+  adminExtras.setup = setupExtrasPayload(extras);
+  await prisma.appSettings.update({
+    where: { shopId },
+    data: { adminExtras: adminExtras as Prisma.InputJsonValue },
+  });
+  invalidateSetupProgress(shopId);
+}
 
 export async function getSetupProgress(
   shopId: string,
@@ -137,7 +190,8 @@ async function loadSetupProgress(
     }),
   ]);
 
-  const flags = parseThemeSetupFlags(settings?.adminExtras);
+  const extras = parseSetupExtras(settings?.adminExtras);
+  const flags = extras;
   const editorUrls = themeEditorUrls(shopDomain);
   const syncReady =
     syncJob?.status === "READY" || productCount > 0 || collectionCount > 0;
@@ -149,8 +203,8 @@ async function loadSetupProgress(
       number: 1,
       title: "Sync your catalog",
       description:
-        "Import products and collections so filters and search have real values.",
-      href: "/app/sync",
+        "Import products and collections so filters have real values to show.",
+      href: "/app?sync=1",
       actionLabel: syncReady ? "View sync" : "Run sync",
       status: syncReady ? "complete" : "todo",
     },
@@ -159,9 +213,9 @@ async function loadSetupProgress(
       number: 2,
       title: "Turn on a filter",
       description:
-        "Keep the default filter or add one so collection pages have Price, Vendor, Type, and Tags.",
-      href: "/app",
-      actionLabel: filterConfigured ? "View filters" : "Add a filter",
+        "Keep the default filter, or add one, so collection pages can use Price, Vendor, Type, and Tags.",
+      href: "/app/filters",
+      actionLabel: filterConfigured ? "View filters" : "Open filters",
       status: filterConfigured ? "complete" : "todo",
     },
   ];
@@ -172,11 +226,11 @@ async function loadSetupProgress(
       number: 3,
       title: "Enable Collection filters",
       description:
-        "Turn on the Collection filters app embed under Theme settings → App embeds. Filters appear automatically on collection pages, to the left of the product grid.",
+        "In the theme editor, open App embeds and turn on Collection filters. Save the theme.",
       href: editorUrls.collectionFilters,
       actionLabel: flags["collection-filters"]
         ? "Open app embeds"
-        : "Enable app embed",
+        : "Open theme editor",
       status: themeStatus(flags["collection-filters"]),
       external: true,
     },
@@ -185,20 +239,41 @@ async function loadSetupProgress(
       number: 4,
       title: "Add Product search",
       description:
-        "Place the Product search app block on the search template. You can also add it to the header from the theme editor.",
+        "In the theme editor, add Product search to the search template (or header), then save.",
       href: editorUrls.productSearch,
       actionLabel: flags["product-search"]
         ? "Open search editor"
-        : "Add to search template",
+        : "Open theme editor",
       status: themeStatus(flags["product-search"]),
       external: true,
     },
   ];
 
-  const steps = [...adminSteps, ...themeSteps];
+  const performanceStep: SetupStep = {
+    id: "performance",
+    number: 5,
+    title: "Check performance",
+    description:
+      "See how shoppers use search and filters. Counts stay at zero until the widgets are live on the storefront.",
+    href: "/app/analytics",
+    actionLabel: "View performance",
+    status: extras.performance ? "complete" : "todo",
+  };
+
+  const steps = [...adminSteps, ...themeSteps, performanceStep];
   const nextStep = steps.find((step) => step.status === "todo") ?? null;
   const completeCount = steps.filter((step) => step.status === "complete").length;
   const themeComplete = themeSteps.every((step) => step.status === "complete");
+  const allComplete = completeCount === steps.length;
+  let guideDismissed = extras.guideDismissed;
+  if (allComplete && !guideDismissed) {
+    try {
+      await persistSetupExtras(shopId, { ...extras, guideDismissed: true });
+      guideDismissed = true;
+    } catch {
+      // Still hide this request via allComplete; persist retries on the next load.
+    }
+  }
 
   return {
     shopDomain,
@@ -213,7 +288,8 @@ async function loadSetupProgress(
     nextStep,
     completeCount,
     themeComplete,
-    allComplete: completeCount === steps.length,
+    allComplete,
+    showGuide: !guideDismissed && !allComplete,
     editorUrls,
   };
 }
@@ -223,21 +299,21 @@ export async function setThemeStepComplete(
   stepId: ThemeStepId,
   complete: boolean,
 ): Promise<void> {
+  await setSetupMark(shopId, stepId, complete);
+}
+
+export async function setSetupMark(
+  shopId: string,
+  stepId: SetupMarkId,
+  complete: boolean,
+): Promise<void> {
   const row = await prisma.appSettings.upsert({
     where: { shopId },
     create: { shopId },
     update: {},
     select: { adminExtras: true },
   });
-  const extras = asRecord(row.adminExtras);
-  const setup = parseThemeSetupFlags(extras);
-  setup[stepId] = complete;
-  extras.setup = setup;
-  await prisma.appSettings.update({
-    where: { shopId },
-    data: { adminExtras: extras as Prisma.InputJsonValue },
-  });
-  for (const key of [...setupProgressCache.keys()]) {
-    if (key.startsWith(`${shopId}:`)) setupProgressCache.delete(key);
-  }
+  const extras = parseSetupExtras(row.adminExtras);
+  extras[stepId] = complete;
+  await persistSetupExtras(shopId, extras);
 }

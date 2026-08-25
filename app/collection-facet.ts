@@ -30,6 +30,18 @@ export function isAllProductsCollectionHandle(
   return String(handle || "").trim().toLowerCase() === "all";
 }
 
+/**
+ * Collection facet is a catalog-wide control. Show it on `/collections/all`
+ * and on search; hide it on individual collection pages.
+ */
+export function shouldShowCollectionFacet(options: {
+  isSearch?: boolean;
+  collectionHandle?: string | null;
+}): boolean {
+  if (options.isSearch) return true;
+  return isAllProductsCollectionHandle(options.collectionHandle);
+}
+
 export function parseCollectionParents(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Record<string, string> = {};

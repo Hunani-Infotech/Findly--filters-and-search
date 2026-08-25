@@ -128,15 +128,15 @@ export default function App() {
           <div className={styles.previewBody}>
             <aside className={styles.previewFilters}>
               <p>Filters</p>
-              <label>
+              <div className={styles.previewFilter}>
                 <span /> In stock
-              </label>
-              <label>
+              </div>
+              <div className={styles.previewFilter}>
                 <span /> Under $50
-              </label>
-              <label>
+              </div>
+              <div className={styles.previewFilter}>
                 <span /> Vendor: Findly
-              </label>
+              </div>
               <div className={styles.previewSwatches}>
                 <i />
                 <i />

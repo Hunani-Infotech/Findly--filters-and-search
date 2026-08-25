@@ -12,17 +12,79 @@
   var HOST_ID = "findly-grid-host";
   var THEME_CARD_HOST_SELECTOR = [
     "product-card",
+    "product-item",
+    "grid-item",
     ".product-card",
+    ".product-card-wrapper",
+    ".product-card__wrapper",
+    ".card-wrapper",
+    ".card--product",
+    ".card-product",
     "[data-product-handle]",
     "[data-product-id]",
+    "[data-product-card]",
     "li.grid__item",
+    ".grid__item",
     ".product-grid__item",
-    ".card-wrapper",
+    ".product-grid-item",
+    ".product-item",
+    ".productitem",
+    ".product-block",
+    ".product-index",
+    ".grid-product",
+    ".grid-view-item",
+    ".collection-product-card",
+    ".product__item",
+    "article.card",
   ].join(", ");
   var RESULTS_LIST_SELECTOR =
-    "results-list, .results-list, #ResultsList";
-  var PRODUCT_GRID_SELECTOR =
-    "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, [data-id='product-grid'], [data-product-grid], .grid.product-grid";
+    "results-list, .results-list, #ResultsList, [data-results-list]";
+  var PRODUCT_GRID_SELECTOR = [
+    "#product-grid",
+    "#ProductGrid",
+    "ul.product-grid",
+    "ol.product-grid",
+    "[data-id='product-grid']",
+    "[data-product-grid]",
+    "[product-grid-view]",
+    ".grid.product-grid",
+    ".product-grid",
+    "ul[id*='product-grid']",
+    "ul[class*='product-grid']",
+    "#ProductGridContainer",
+    "#CollectionProductGrid",
+    "#CollectionAjaxContent",
+    "#collection-products",
+    "#CollectionLoop",
+    "#product-loop",
+    "#product-list",
+    "product-list",
+    ".ProductList",
+    ".ProductList--grid",
+    ".product-list",
+    ".product-list__inner",
+    ".product-listing",
+    ".collection-grid",
+    ".collection-products",
+    ".grid-uniform",
+    ".grid--uniform",
+    ".grid--view-items",
+    ".grid-products",
+    ".products-grid",
+    ".products-list",
+    "[data-collection-products]",
+    "[data-products-grid]",
+    "[data-product-list]",
+    ".collection__products",
+    ".collection-product-list",
+    "#main-collection-product-grid",
+    ".productgrid--items",
+    ".productgrid",
+    ".boost-sd-grid",
+    ".boost-pfs-filter-products",
+    ".sf-grid",
+    ".sf-app-grid",
+  ].join(", ");
 
   function findlyLog() {
     var args = ["[Findly]"];
@@ -317,7 +379,7 @@
       if (
         el.closest &&
         el.closest(
-          "header, footer, product-recommendations, .related-products, [data-related-products], .recently-viewed",
+          "header, footer, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal",
         )
       ) {
         continue;
@@ -443,7 +505,7 @@
     }
     var cls = " " + String(el.className || "") + " ";
     return (
-      / card__inner | card__content | card__media | card__information | card__heading | card-information | full-unstyled-link | media-wrapper | card__text /.test(
+      / card__inner | card__content | card__media | card__information | card__heading | card-information | full-unstyled-link | media-wrapper | card__text | product-item__info | product-card__image | productitem--info | grid-view-item__link | product-block__image | card__details /.test(
         cls,
       ) &&
       tag !== "product-card" &&
@@ -467,10 +529,23 @@
     if (el.classList && el.classList.contains("sf-app-card")) return false;
     if (isInnerCardSlice(el)) return false;
     var tag = String(el.tagName || "").toLowerCase();
-    if (tag === "product-card") return true;
-    if (el.classList && el.classList.contains("product-card")) return true;
-    if (el.classList && el.classList.contains("grid__item")) return true;
-    if (el.classList && el.classList.contains("product-grid__item")) return true;
+    if (
+      tag === "product-card" ||
+      tag === "product-item" ||
+      tag === "grid-item"
+    ) {
+      return true;
+    }
+    if (el.classList) {
+      if (el.classList.contains("product-card")) return true;
+      if (el.classList.contains("grid__item")) return true;
+      if (el.classList.contains("product-grid__item")) return true;
+      if (el.classList.contains("product-item")) return true;
+      if (el.classList.contains("grid-product")) return true;
+      if (el.classList.contains("grid-view-item")) return true;
+      if (el.classList.contains("product-block")) return true;
+      if (el.classList.contains("productitem")) return true;
+    }
     return Boolean(handleFromCard(el));
   }
 
@@ -507,7 +582,7 @@
 
   function findThemeCardParent(hint) {
     var skip =
-      "header, footer, product-recommendations, .related-products, [data-related-products], .recently-viewed";
+      "header, footer, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal";
     if (hint && hint.nodeType === 1) {
       var promoted = promoteToGridHost(hint);
       if (promoted && gridHasProductLinks(promoted) && !isSkippedCardRegion(promoted)) {
@@ -516,11 +591,13 @@
     }
 
     var cards = document.querySelectorAll(
-      "main product-card, main .product-card, " +
+      "main product-card, main .product-card, main .product-item, main .grid-product, " +
         RESULTS_LIST_SELECTOR +
         " product-card, " +
         RESULTS_LIST_SELECTOR +
-        " .product-card",
+        " .product-card, " +
+        RESULTS_LIST_SELECTOR +
+        " .product-item",
     );
     var i;
     for (i = 0; i < cards.length; i++) {
@@ -554,7 +631,7 @@
       var item =
         (link.closest &&
           link.closest(
-            "li.grid__item, li.product-grid__item, product-card, .product-card",
+            "li.grid__item, li.product-grid__item, product-card, .product-card, .product-item, .grid-product, .grid-view-item, .product-block",
           )) ||
         link.parentElement;
       if (item && item.parentElement && !isSkippedCardRegion(item.parentElement)) {

@@ -590,7 +590,7 @@ export default function SwatchesPage() {
     return (
       <Page
         title="Swatch"
-        backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+        backAction={{ content: "Filters", onAction: () => navigate("/app/filters") }}
       >
         <Layout>
           <Layout.Section>
@@ -620,7 +620,7 @@ export default function SwatchesPage() {
     <Page
       title="Swatch"
       fullWidth
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Filters", onAction: () => navigate("/app/filters") }}
       secondaryActions={[
         {
           content: "Auto-fill with AI",

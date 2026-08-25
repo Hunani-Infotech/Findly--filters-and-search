@@ -64,3 +64,12 @@ export function useEmbeddedNavigate() {
     [navigate, searchParams],
   );
 }
+
+/** In-app href that keeps Shopify embedded session params. */
+export function useEmbeddedHref() {
+  const [searchParams] = useSearchParams();
+  return useCallback(
+    (to: string) => withEmbeddedParams(to, searchParams),
+    [searchParams],
+  );
+}

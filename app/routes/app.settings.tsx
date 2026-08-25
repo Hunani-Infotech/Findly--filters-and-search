@@ -36,12 +36,12 @@ import {
   LayoutPicker,
   WidgetLookPreview,
 } from "../components/widget-preview";
+import { SortOptionsPicker } from "../components/sort-options-picker";
 import {
   HIDE_OUT_OF_STOCK_OPTIONS,
   PAGING_STYLE_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
-  SORT_OPTION_KEYS,
   SORT_OPTION_LABELS,
   WIDGET_RADIUS_MAX,
   WIDGET_RADIUS_MIN,
@@ -595,7 +595,7 @@ export default function SettingsPage() {
     <Page
       title="Settings"
       subtitle="General, filter panel, and metafields."
-      backAction={{ content: "Filters", onAction: () => navigate("/app") }}
+      backAction={{ content: "Home", onAction: () => navigate("/app") }}
       primaryAction={
         hidePageSave
           ? undefined
@@ -744,19 +744,58 @@ export default function SettingsPage() {
                           }))
                         }
                       />
-                      <Select
-                        label="Out-of-stock"
-                        options={HIDE_OUT_OF_STOCK_OPTIONS}
-                        value={settings.hideOutOfStock}
-                        disabled={saving}
-                        helpText="Show all, hide sold-out products, or hide them only after a shopper applies a filter. The availability filter still works."
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            hideOutOfStock: parseHideOutOfStock(value),
-                          }))
-                        }
-                      />
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodyMd">
+                          Out-of-stock
+                        </Text>
+                        <div
+                          className="findly-stock-radios"
+                          role="radiogroup"
+                          aria-label="Out-of-stock"
+                        >
+                          {HIDE_OUT_OF_STOCK_OPTIONS.map((option) => {
+                            const selected =
+                              settings.hideOutOfStock === option.value;
+                            return (
+                              <label
+                                key={option.value}
+                                className={`findly-stock-radio${
+                                  selected
+                                    ? " findly-stock-radio--selected"
+                                    : ""
+                                }${
+                                  saving ? " findly-stock-radio--disabled" : ""
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="findlyHideOutOfStock"
+                                  value={option.value}
+                                  checked={selected}
+                                  disabled={saving}
+                                  onChange={() =>
+                                    setSettings((s) => ({
+                                      ...s,
+                                      hideOutOfStock: parseHideOutOfStock(
+                                        option.value,
+                                      ),
+                                    }))
+                                  }
+                                />
+                                <span className="findly-stock-radio__label">
+                                  {option.label}
+                                  <span className="findly-stock-radio__help">
+                                    {option.helpText}
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          The availability filter still works with every option.
+                        </Text>
+                      </BlockStack>
                       <Checkbox
                         label="Display in-stock products on top"
                         checked={settings.inStockOnTop}
@@ -813,52 +852,11 @@ export default function SettingsPage() {
                         active filters. Featured order comes from the Shopify
                         collection (sync after changing collection sort).
                         Extra metafield sort keys come from Settings →
-                        Metafields (Applies to: Sort), not the checkboxes below.
+                        Metafields (Applies to: Sort), not the list below.
                         Best-selling sorting is not available yet.
                       </Text>
-                      <Checkbox
-                        label="Hide the Sort By dropdown"
-                        checked={settings.hideSortDropdown}
-                        disabled={saving}
-                        helpText="Products still use the default sort. Uncheck every option below to hide the dropdown the same way."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            hideSortDropdown: checked,
-                          }))
-                        }
-                      />
-                      <FormLayout>
-                        {SORT_OPTION_KEYS.map((key) => (
-                          <Checkbox
-                            key={key}
-                            label={SORT_OPTION_LABELS[key]}
-                            checked={settings.sortOptionsEnabled.includes(key)}
-                            disabled={saving}
-                            onChange={(checked) =>
-                              setSettings((s) => {
-                                const next = checked
-                                  ? s.sortOptionsEnabled.includes(key)
-                                    ? s.sortOptionsEnabled
-                                    : [...s.sortOptionsEnabled, key]
-                                  : s.sortOptionsEnabled.filter(
-                                      (option) => option !== key,
-                                    );
-                                const defaultSort = next.includes(s.defaultSort)
-                                  ? s.defaultSort
-                                  : parseSortOption(next[0] ?? "manual");
-                                return {
-                                  ...s,
-                                  sortOptionsEnabled: next,
-                                  defaultSort,
-                                };
-                              })
-                            }
-                          />
-                        ))}
-                      </FormLayout>
                       <Select
-                        label="Default sort"
+                        label="Default sort products by"
                         options={(settings.sortOptionsEnabled.length
                           ? settings.sortOptionsEnabled
                           : ["manual" as const]
@@ -881,6 +879,34 @@ export default function SettingsPage() {
                           setSettings((s) => ({
                             ...s,
                             defaultSort: parseSortOption(value),
+                          }))
+                        }
+                      />
+                      <SortOptionsPicker
+                        selected={settings.sortOptionsEnabled}
+                        disabled={saving}
+                        onChange={(next) =>
+                          setSettings((s) => {
+                            const defaultSort = next.includes(s.defaultSort)
+                              ? s.defaultSort
+                              : parseSortOption(next[0] ?? "manual");
+                            return {
+                              ...s,
+                              sortOptionsEnabled: next,
+                              defaultSort,
+                            };
+                          })
+                        }
+                      />
+                      <Checkbox
+                        label="Hide the Sort By dropdown"
+                        checked={settings.hideSortDropdown}
+                        disabled={saving}
+                        helpText="Products still use the default sort. Remove every option above to hide the dropdown the same way."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            hideSortDropdown: checked,
                           }))
                         }
                       />

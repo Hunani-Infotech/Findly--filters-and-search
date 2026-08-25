@@ -1,110 +1,236 @@
-import { Badge, BlockStack, Button, Card, InlineStack, Text } from "@shopify/polaris";
-import { useNavigation } from "react-router";
-import type { SetupProgress, SetupStep } from "../setup-progress.server";
+import { useEffect, useRef, useState } from "react";
+import {
+  Button,
+  Card,
+  Collapsible,
+  InlineStack,
+  Text,
+} from "@shopify/polaris";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { useFetcher, useNavigation } from "react-router";
+import {
+  isSetupMarkId,
+  isThemeStepId,
+  type SetupMarkId,
+  type SetupProgress,
+  type SetupStep,
+} from "../setup-progress.server";
 import { isNavigatingTo } from "./admin-loading";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedHref, useEmbeddedNavigate } from "../admin-path";
 
-function statusBadge(step: SetupStep) {
-  if (step.status === "complete") {
-    return <Badge tone="success">Done</Badge>;
-  }
-  if (step.status === "optional") {
-    return <Badge>Optional</Badge>;
-  }
-  return <Badge tone="attention">Next</Badge>;
+function markerClass(step: SetupStep, isNext: boolean) {
+  if (step.status === "complete") return "findly-setup-marker findly-setup-marker--done";
+  if (isNext) return "findly-setup-marker findly-setup-marker--current";
+  return "findly-setup-marker findly-setup-marker--todo";
 }
 
 export function SetupGuide({ progress }: { progress: SetupProgress }) {
   const navigate = useEmbeddedNavigate();
+  const hrefFor = useEmbeddedHref();
   const navigation = useNavigation();
-  const next = progress.nextStep;
+  const shopify = useAppBridge();
+  const fetcher = useFetcher<{
+    ok?: boolean;
+    intent?: string;
+    done?: boolean;
+  }>();
+  const lastResult = useRef<unknown>(null);
+  const nextId = progress.nextStep?.id ?? "";
+  const [expandedId, setExpandedId] = useState(
+    () => nextId || progress.steps[0]?.id || "",
+  );
+  const [trackedNextId, setTrackedNextId] = useState(nextId);
+  if (nextId !== trackedNextId) {
+    setTrackedNextId(nextId);
+    if (nextId) setExpandedId(nextId);
+  }
+
+  useEffect(() => {
+    const result = fetcher.data;
+    if (!result || fetcher.state !== "idle") return;
+    if (lastResult.current === result) return;
+    lastResult.current = result;
+    if (!result.ok || result.intent !== "setup-theme") return;
+    shopify.toast.show(
+      result.done ? "Step marked as done" : "Step unmarked",
+    );
+  }, [fetcher.data, fetcher.state, shopify]);
+
+  const pendingStep =
+    fetcher.state !== "idle"
+      ? String(fetcher.formData?.get("step") || "")
+      : "";
+
+  const markStep = (stepId: SetupMarkId, done: boolean) => {
+    const formData = new FormData();
+    formData.set("intent", "setup-theme");
+    formData.set("step", stepId);
+    formData.set("done", done ? "true" : "false");
+    fetcher.submit(formData, { method: "POST" });
+  };
+
+  const openStep = (step: SetupStep) => {
+    if (step.external) {
+      window.open(step.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    navigate(step.href);
+  };
 
   return (
-    <Card>
-      <BlockStack gap="400">
-        <BlockStack gap="100">
+    <Card padding="0">
+      <div className="findly-setup">
+        <div className="findly-setup__header">
           <Text as="h2" variant="headingMd">
             Get started
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            Sync the catalog, turn on a filter, then add the Collection
-            filters and Product search theme blocks. You can do this from the
-            theme editor without a developer.
+            {`${progress.completeCount} of ${progress.steps.length} completed`}
+            {progress.nextStep
+              ? ` · Next: ${progress.nextStep.title}`
+              : " · All steps are done"}
           </Text>
-        </BlockStack>
+        </div>
 
-        {next ? (
-          <InlineStack gap="300" blockAlign="center" wrap>
-            {next.external ? (
-              <Button variant="primary" url={next.href} target="_blank">
-                {`${next.number}. ${next.actionLabel}`}
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={() => navigate(next.href)}
-                loading={isNavigatingTo(navigation, next.href)}
-              >
-                {`${next.number}. ${next.actionLabel}`}
-              </Button>
-            )}
-            <Text as="p" variant="bodySm" tone="subdued">
-              {progress.completeCount} of {progress.steps.length} steps ready
-              · {progress.productCount} products · {progress.collectionCount}{" "}
-              collections
-              {progress.mappedFilterCount
-                ? ` · ${progress.mappedFilterCount} metafield filters`
-                : ""}
-            </Text>
-          </InlineStack>
-        ) : (
-          <Text as="p" variant="bodySm" tone="success">
-            Setup is complete. Filters and search are ready on the storefront
-            once you save the theme.
-          </Text>
-        )}
-
-        <BlockStack gap="300">
+        <ol className="findly-setup__list">
           {progress.steps.map((step) => {
+            const complete = step.status === "complete";
+            const isNext = progress.nextStep?.id === step.id;
+            const expanded = expandedId === step.id;
             const loading =
-              !step.external && isNavigatingTo(navigation, step.href);
+              !step.external && isNavigatingTo(navigation, step.href.split("?")[0]);
+            const canMark = isSetupMarkId(step.id);
+            const themeStep = isThemeStepId(step.id);
+            const marking = pendingStep === step.id;
+            const viewHref = step.external ? step.href : hrefFor(step.href);
+
             return (
-              <InlineStack
+              <li
                 key={step.id}
-                align="space-between"
-                blockAlign="start"
-                gap="400"
-                wrap
+                className={
+                  expanded
+                    ? "findly-setup__item findly-setup__item--open"
+                    : "findly-setup__item"
+                }
               >
-                <BlockStack gap="050">
-                  <InlineStack gap="200" blockAlign="center" wrap>
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">
-                      {step.number}. {step.title}
-                    </Text>
-                    {statusBadge(step)}
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {step.description}
-                  </Text>
-                </BlockStack>
-                {step.external ? (
-                  <Button url={step.href} target="_blank">
-                    {step.actionLabel}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => navigate(step.href)}
-                    loading={loading}
-                    disabled={loading}
+                <div className="findly-setup__row">
+                  <button
+                    type="button"
+                    className="findly-setup__toggle"
+                    aria-expanded={expanded}
+                    onClick={() => setExpandedId(expanded ? "" : step.id)}
                   >
-                    {step.actionLabel}
-                  </Button>
-                )}
-              </InlineStack>
+                    <span className={markerClass(step, isNext)} aria-hidden="true">
+                      {complete ? (
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                          <path
+                            d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : (
+                        step.number
+                      )}
+                    </span>
+                    <span className="findly-setup__title">
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {step.title}
+                      </Text>
+                      {complete ? (
+                        <span className="findly-setup__done">Done</span>
+                      ) : isNext ? (
+                        <span className="findly-setup__next">Current step</span>
+                      ) : null}
+                    </span>
+                  </button>
+                  {complete ? (
+                    <Button
+                      size="slim"
+                      url={step.external ? step.href : undefined}
+                      target={step.external ? "_blank" : undefined}
+                      onClick={
+                        step.external
+                          ? undefined
+                          : () => navigate(step.href)
+                      }
+                      loading={!step.external && loading}
+                    >
+                      View
+                    </Button>
+                  ) : null}
+                </div>
+
+                <Collapsible
+                  open={expanded}
+                  id={`findly-setup-${step.id}`}
+                  transition={{ duration: "120ms", timingFunction: "ease-out" }}
+                >
+                  <div className="findly-setup__body">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {step.description}
+                    </Text>
+                    {themeStep && !complete ? (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Open the theme editor, save your change, then mark this
+                        step as done.
+                      </Text>
+                    ) : null}
+                    <InlineStack gap="200" wrap>
+                      {complete ? (
+                        <Button
+                          url={step.external ? viewHref : undefined}
+                          target={step.external ? "_blank" : undefined}
+                          onClick={
+                            step.external ? undefined : () => openStep(step)
+                          }
+                          loading={!step.external && loading}
+                        >
+                          View
+                        </Button>
+                      ) : step.external ? (
+                        <Button
+                          variant={isNext ? "primary" : "secondary"}
+                          url={step.href}
+                          target="_blank"
+                        >
+                          {step.actionLabel}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant={isNext ? "primary" : "secondary"}
+                          onClick={() => {
+                            if (step.id === "performance") {
+                              markStep("performance", true);
+                            }
+                            navigate(step.href);
+                          }}
+                          loading={loading}
+                          disabled={loading}
+                        >
+                          {step.actionLabel}
+                        </Button>
+                      )}
+                      {canMark ? (
+                        <Button
+                          variant={complete ? "plain" : "secondary"}
+                          loading={marking}
+                          disabled={marking}
+                          onClick={() => markStep(step.id as SetupMarkId, !complete)}
+                        >
+                          {complete ? "Mark as not done" : "I've done this"}
+                        </Button>
+                      ) : null}
+                    </InlineStack>
+                  </div>
+                </Collapsible>
+              </li>
             );
           })}
-        </BlockStack>
-      </BlockStack>
+        </ol>
+      </div>
     </Card>
   );
 }

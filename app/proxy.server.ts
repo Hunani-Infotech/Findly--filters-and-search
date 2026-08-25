@@ -54,6 +54,7 @@ import { withWidgetChrome } from "./filters.server";
 import {
   COLLECTION_FACET_KEY,
   isAllProductsCollectionHandle,
+  shouldShowCollectionFacet,
   nestCollectionValues,
   parseCollectionParents,
   withCollectionMeta,
@@ -674,7 +675,7 @@ async function loadCollectionFilterPayload(input: {
   }
 
   const collectionHandle = (input.collectionHandle || "").trim();
-  const isAll = isAllProductsCollectionHandle(collectionHandle);
+  let isAll = isAllProductsCollectionHandle(collectionHandle);
   let collectionGid =
     input.collectionGid ||
     (input.collectionId
@@ -687,6 +688,12 @@ async function loadCollectionFilterPayload(input: {
       select: { collectionGid: true },
     });
     collectionGid = byHandle?.collectionGid ?? null;
+  } else if (!isAll && !collectionHandle && collectionGid) {
+    const byGid = await prisma.collection.findFirst({
+      where: { shopId: shop.id, collectionGid },
+      select: { handle: true },
+    });
+    isAll = isAllProductsCollectionHandle(byGid?.handle);
   }
 
   if (!collectionGid && !isAll) {
@@ -792,6 +799,7 @@ async function loadCollectionFilterPayload(input: {
     rows: allRows,
     selected: input.selected,
     collectionGid,
+    isAllProductsCollection: isAll,
     shopWideCollectionCounts: isAll,
     sort: input.sort,
     query: collectionQuery || null,
@@ -814,6 +822,7 @@ async function buildFacetPayload(input: {
   rows: ProductFacetRow[];
   selected: SelectedFilters;
   collectionGid?: string | null;
+  isAllProductsCollection?: boolean;
   shopWideCollectionCounts?: boolean;
   query?: string | null;
   sort?: string | null;
@@ -906,9 +915,15 @@ async function buildFacetPayload(input: {
   const displayOrder = Array.isArray(input.config.displayOrder)
     ? (input.config.displayOrder as string[])
     : [];
-  const wantsCollection = displayOrder.includes(COLLECTION_FACET_KEY);
+  const showCollectionFacet = shouldShowCollectionFacet({
+    isSearch: input.isSearch,
+    collectionHandle: input.isAllProductsCollection ? "all" : "",
+  });
+  const wantsCollection =
+    showCollectionFacet && displayOrder.includes(COLLECTION_FACET_KEY);
   const selectedCollection = Boolean(
-    input.selected &&
+    showCollectionFacet &&
+      input.selected &&
       Array.isArray(input.selected[COLLECTION_FACET_KEY]) &&
       input.selected[COLLECTION_FACET_KEY].length,
   );
@@ -952,10 +967,16 @@ async function buildFacetPayload(input: {
   const facets = expandFacetsWithOptions(
     facetsFromConfig(input.config, cappedMappings),
     visibleRows,
-  ).map((facet) => {
-    const custom = facetSettings[facet.key]?.label;
-    return custom ? { ...facet, label: custom } : facet;
-  });
+  )
+    .map((facet) => {
+      const custom = facetSettings[facet.key]?.label;
+      return custom ? { ...facet, label: custom } : facet;
+    })
+    .filter(
+      (facet) =>
+        showCollectionFacet ||
+        (facet.source !== "collection" && facet.key !== COLLECTION_FACET_KEY),
+    );
   const selectedForMatch: SelectedFilters = { ...input.selected };
   for (const facet of facets) {
     const current = selectedForMatch[facet.key];

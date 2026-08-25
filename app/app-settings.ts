@@ -116,10 +116,23 @@ export type HideOutOfStockMode = (typeof HIDE_OUT_OF_STOCK_MODES)[number];
 export const HIDE_OUT_OF_STOCK_OPTIONS: {
   label: string;
   value: HideOutOfStockMode;
+  helpText: string;
 }[] = [
-  { label: "Show in default order", value: "show" },
-  { label: "Hide", value: "hide" },
-  { label: "Only hide when filtering", value: "hide_after_filter" },
+  {
+    label: "Show in default order",
+    value: "show",
+    helpText: "Sold-out products stay mixed with in-stock products.",
+  },
+  {
+    label: "Hide",
+    value: "hide",
+    helpText: "Sold-out products never appear in collection or search results.",
+  },
+  {
+    label: "Only hide when filtering",
+    value: "hide_after_filter",
+    helpText: "Show sold-out products until a shopper applies a filter.",
+  },
 ];
 
 export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {

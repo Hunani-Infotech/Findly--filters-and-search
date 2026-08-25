@@ -3,7 +3,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { ensureShopAccess } from "../billing.server";
 import { UnderConstructionGate } from "../components/under-construction";
-import { SimplePageSkeleton } from "../components/admin-skeletons";
+import { UnderConstructionSkeleton } from "../components/admin-skeletons";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -16,7 +16,7 @@ export default function RecommendationsPage() {
 }
 
 export function HydrateFallback() {
-  return <SimplePageSkeleton title="Recommendations" />;
+  return <UnderConstructionSkeleton title="Recommendations" />;
 }
 
 export const headers: HeadersFunction = (headersArgs) =>
