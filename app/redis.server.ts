@@ -14,9 +14,15 @@ function createRedis() {
   });
 }
 
+/** Shared client for Queue / cache. Do not pass this to a BullMQ Worker. */
 export function getRedis() {
   if (!global.redisGlobal) {
     global.redisGlobal = createRedis();
   }
   return global.redisGlobal;
+}
+
+/** Dedicated connection for BullMQ Worker (blocking commands cannot share Queue's client). */
+export function createRedisConnection() {
+  return createRedis();
 }

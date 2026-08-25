@@ -58,9 +58,9 @@ export function ThemeSetupCard({ progress }: { progress: SetupProgress }) {
             )}
           </InlineStack>
           <Text as="p" variant="bodySm" tone="subdued">
-            Shoppers only see filters and search after you add three Online
-            Store 2.0 blocks. No developer is required — open the theme
-            editor, add the block, save, then mark the step done.
+            Shoppers only see filters and search after you enable Collection
+            filters and add Product search. No developer is required — open
+            the theme editor, add the block, save, then mark the step done.
           </Text>
         </BlockStack>
 

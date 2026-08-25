@@ -32,6 +32,14 @@ const JOBS = [
     ),
     banner: "/* generated from smart-filter-grid.js — do not edit */\n",
   },
+  {
+    src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-pager.js"),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-pager.min.js",
+    ),
+    banner: "/* generated from smart-filter-pager.js — do not edit */\n",
+  },
 ];
 
 export async function minifyThemeExtension() {

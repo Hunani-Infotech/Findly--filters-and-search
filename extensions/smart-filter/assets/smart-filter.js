@@ -13,7 +13,7 @@
   var MSG_APPLY_NOW = "Apply now";
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
-  var FILTER_CACHE_TTL_MS = 30 * 1000;
+  var FILTER_CACHE_TTL_MS = 5 * 1000;
   var CARD_SELECTOR = [
     ".sf-app-card",
     "[data-product-id]",
@@ -764,8 +764,17 @@
     }, 0);
   }
 
-  var THEME_PAGER_SELECTOR =
-    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination]";
+  var THEME_PAGER_SELECTOR = [
+    "nav.pagination",
+    ".pagination",
+    ".pagination-wrapper",
+    "[data-pagination]",
+    "load-more-button",
+    ".load-more-button",
+    ".pagination__load-more",
+    "[data-load-more]",
+    "button[name='load-more']",
+  ].join(", ");
   var THEME_FACET_HIDE_SELECTOR = [
     ".facets__wrapper",
     "#FacetsWrapperDesktop",
@@ -1135,35 +1144,6 @@
 
   function ensureThemeBridgeStyles() {
     if (document.getElementById(THEME_BRIDGE_STYLE_ID)) return;
-    var css =
-      "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
-      ".sf-grid-busy{opacity:.45;pointer-events:none;transition:opacity .15s ease}" +
-      ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0}" +
-      ".sf-collection-layout__aside,.sf-collection-layout__main{box-sizing:border-box;min-width:0}" +
-      "@media(min-width:750px){" +
-      ".sf-collection-layout--left,.sf-collection-layout--right{display:flex!important;align-items:flex-start;gap:32px;width:100%}" +
-      ".sf-collection-layout--left .sf-collection-layout__aside,.sf-collection-layout--right .sf-collection-layout__aside," +
-      ".sf-collection-layout--left .smart-filter,.sf-collection-layout--right .smart-filter," +
-      ".sf-collection-layout--left .shopify-block:has(.smart-filter),.sf-collection-layout--right .shopify-block:has(.smart-filter)" +
-      "{flex:0 0 280px;width:280px;max-width:280px;min-width:280px}" +
-      ".sf-collection-layout--left .sf-collection-layout__main,.sf-collection-layout--right .sf-collection-layout__main" +
-      "{flex:1 1 auto;min-width:0;max-width:100%}" +
-      ".sf-sort-host{display:flex;justify-content:flex-end;width:100%;margin:0 0 14px}" +
-      ".sf-sort-host .smart-filter__sort{display:inline-flex;width:fit-content;max-width:100%;margin:0 0 0 auto}" +
-      ".sf-collection-layout--top{display:flex;flex-direction:column;gap:16px}" +
-      "}" +
-      ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
-      "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
-      ".smart-filter .smart-filter__option input[type=checkbox]," +
-      ".smart-filter .smart-filter__option input[type=radio]{" +
-      "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
-      "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
-      "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-      ".sf-app-grid>:not(.sf-app-card){display:none!important}";
-    var style = document.createElement("style");
-    style.id = THEME_BRIDGE_STYLE_ID;
-    style.textContent = css;
-    (document.head || document.documentElement).appendChild(style);
   }
 
   function bindNativeFacetGuard() {
@@ -1512,23 +1492,6 @@
       out.push(key);
     });
     return out;
-  }
-
-  function pageWindow(current, count) {
-    var pages = [];
-    var start = Math.max(1, current - 2);
-    var end = Math.min(count, current + 2);
-    var i;
-    if (start > 1) {
-      pages.push(1);
-      if (start > 2) pages.push("ellipsis");
-    }
-    for (i = start; i <= end; i++) pages.push(i);
-    if (end < count) {
-      if (end < count - 1) pages.push("ellipsis");
-      pages.push(count);
-    }
-    return pages;
   }
 
   var SORT_LABELS = {
@@ -2069,6 +2032,7 @@
     this._pageTotal = 0;
     this._pagerEl = null;
     this._infiniteObserver = null;
+    this._infiniteOnScroll = null;
     this._themePagesCached = {};
     this._themeNoMore = false;
     this._pagingFallback = false;
@@ -3423,6 +3387,8 @@
 
     var grid = this.ensureGridParent();
     var position = POSITIONS[this.position] ? this.position : "left";
+    var existingLayout = closestLayoutEl(mount);
+    if (existingLayout) applyLayoutPositionClass(existingLayout, position);
 
     if (!grid) {
       this.placeAtMainFallback(mount);
@@ -3858,150 +3824,10 @@
     this.fetchFilters({ page: next });
   };
 
-  Widget.prototype.bindInfinite = function (sentinel) {
-    var self = this;
-    this.disconnectInfinite();
-    if (!sentinel) return;
-    if (typeof window.IntersectionObserver !== "function") {
-      this.renderLoadMore(this.ensurePagerEl());
-      return;
-    }
-    this._infiniteObserver = new IntersectionObserver(
-      function (entries) {
-        var hit = false;
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) hit = true;
-        }
-        if (!hit) return;
-        if (self._loadingPage || !self._hasNext) return;
-        self.disconnectInfinite();
-        self.loadNextPage();
-      },
-      { root: null, rootMargin: "400px", threshold: 0 },
-    );
-    this._infiniteObserver.observe(sentinel);
-  };
-
-  Widget.prototype.renderLoadMore = function (el) {
-    el.innerHTML = "";
-    if (!this._hasNext) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "sf-pager__more";
-    btn.textContent = this.t("load_more", "Load more");
-    btn.disabled = Boolean(this._loadingPage || this._appending);
-    btn.addEventListener(
-      "click",
-      function () {
-        this.loadNextPage();
-      }.bind(this),
-    );
-    el.appendChild(btn);
-  };
-
-  Widget.prototype.renderNumberedPager = function (el) {
-    var size = this.pageSize || 16;
-    var total = this._pageTotal || 0;
-    var pageCount = Math.max(1, Math.ceil(total / size) || 1);
-    var page = Math.max(1, this.page || 1);
-    el.innerHTML = "";
-    if (pageCount <= 1) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    var list = document.createElement("div");
-    list.className = "sf-pager__nav";
-
-    var prev = document.createElement("button");
-    prev.type = "button";
-    prev.className = "sf-pager__btn sf-pager__btn--prev";
-    prev.textContent = this.t("previous", "Previous");
-    prev.setAttribute("aria-label", this.t("previous", "Previous"));
-    prev.disabled = page <= 1 || this._loadingPage;
-    prev.addEventListener(
-      "click",
-      function () {
-        this.goToPage(page - 1);
-      }.bind(this),
-    );
-    list.appendChild(prev);
-
-    var pages = document.createElement("div");
-    pages.className = "sf-pager__pages";
-    pageWindow(page, pageCount).forEach(
-      function (item) {
-        if (item === "ellipsis") {
-          var dots = document.createElement("span");
-          dots.className = "sf-pager__ellipsis";
-          dots.textContent = "…";
-          pages.appendChild(dots);
-          return;
-        }
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "sf-pager__page" + (item === page ? " is-current" : "");
-        btn.textContent = String(item);
-        btn.setAttribute("aria-label", this.t("page", "Page") + " " + item);
-        if (item === page) btn.setAttribute("aria-current", "page");
-        btn.disabled = this._loadingPage;
-        btn.addEventListener(
-          "click",
-          function () {
-            this.goToPage(item);
-          }.bind(this),
-        );
-        pages.appendChild(btn);
-      }.bind(this),
-    );
-    list.appendChild(pages);
-
-    var next = document.createElement("button");
-    next.type = "button";
-    next.className = "sf-pager__btn sf-pager__btn--next";
-    next.textContent = this.t("next", "Next");
-    next.setAttribute("aria-label", this.t("next", "Next"));
-    next.disabled = page >= pageCount || this._loadingPage;
-    next.addEventListener(
-      "click",
-      function () {
-        this.goToPage(page + 1);
-      }.bind(this),
-    );
-    list.appendChild(next);
-    el.appendChild(list);
-  };
-
-  Widget.prototype.renderPager = function () {
-    var el = this.ensurePagerEl();
-    var style = this.paginationStyle;
-    if (style === "load_more") {
-      this.disconnectInfinite();
-      this.renderLoadMore(el);
-      return;
-    }
-    if (style === "infinite") {
-      el.innerHTML = "";
-      if (!this._hasNext) {
-        el.hidden = true;
-        this.disconnectInfinite();
-        return;
-      }
-      el.hidden = false;
-      var sentinel = document.createElement("div");
-      sentinel.className = "sf-pager__sentinel";
-      sentinel.setAttribute("aria-hidden", "true");
-      el.appendChild(sentinel);
-      this.bindInfinite(sentinel);
-      return;
-    }
-    this.disconnectInfinite();
-    this.renderNumberedPager(el);
-  };
+  Widget.prototype.bindInfinite = function () {};
+  Widget.prototype.renderLoadMore = function () {};
+  Widget.prototype.renderNumberedPager = function () {};
+  Widget.prototype.renderPager = function () {};
 
   Widget.prototype.finishEnabledFalse = function () {
     this.page = 1;

@@ -59,7 +59,7 @@ export async function enqueueSyncJob(
   opts?: { jobId?: string; delay?: number },
 ) {
   const { ensureWorkerRunning } = await import("./workers/ensure-running.server");
-  ensureWorkerRunning();
+  await ensureWorkerRunning();
   const queue = getSyncQueue();
   const jobId = bullJobId(opts?.jobId);
 
@@ -83,22 +83,37 @@ export async function enqueueSyncJob(
         if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
           return existing;
         }
-        const followupId = `${jobId}_followup`;
-        const followup = await queue.getJob(followupId);
-        if (followup) {
-          const followupState = await followup.getState();
-          if (
-            followupState === "waiting" ||
-            followupState === "delayed" ||
-            followupState === "active"
-          ) {
-            return followup;
+        for (const suffix of ["followup", "followup2"] as const) {
+          const followupId = `${jobId}_${suffix}`;
+          const followup = await queue.getJob(followupId);
+          if (followup) {
+            const followupState = await followup.getState();
+            if (followupState === "delayed") {
+              if (
+                opts?.delay != null &&
+                typeof followup.changeDelay === "function"
+              ) {
+                await followup.changeDelay(opts.delay);
+              }
+              return followup;
+            }
+            if (followupState === "waiting") {
+              return followup;
+            }
+            if (followupState === "active") {
+              continue;
+            }
+            if (followupState === "failed" || followupState === "completed") {
+              await followup.remove();
+            }
           }
-          if (followupState === "failed" || followupState === "completed") {
-            await followup.remove();
-          }
+          return queue.add(name, data, jobAddOpts(followupId, opts?.delay));
         }
-        return queue.add(name, data, jobAddOpts(followupId, opts?.delay));
+        return queue.add(
+          name,
+          data,
+          jobAddOpts(`${jobId}_followup_${Date.now()}`, opts?.delay),
+        );
       }
     }
   }

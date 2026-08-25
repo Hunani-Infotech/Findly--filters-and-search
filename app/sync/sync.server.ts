@@ -701,6 +701,8 @@ export async function upsertProduct(
       },
     });
 
+  await bumpCatalogGeneration(shopDomain);
+
   await recordDiscoveredMetafields(
     shop.id,
     (facet.metafields as Record<string, string>) || {},
@@ -1030,7 +1032,7 @@ export async function syncInventoryItem(
     : json.data?.inventoryItem;
   const productGid = productGidFromInventoryItem(item);
   if (!productGid) {
-    if (lookupError) {
+    if (lookupError || item) {
       throw new Error(`Inventory lookup failed ${inventoryItemGid}`);
     }
     log.warn(`[sync] inventory item ${inventoryItemGid} has no product`);

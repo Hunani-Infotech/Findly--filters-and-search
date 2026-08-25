@@ -193,19 +193,6 @@ async function loadSetupProgress(
       status: themeStatus(flags["product-search"]),
       external: true,
     },
-    {
-      id: "instant-search",
-      number: 5,
-      title: "Enable Instant search",
-      description:
-        "Turn on the Instant search app embed under Theme settings → App embeds so suggestions appear as shoppers type.",
-      href: editorUrls.instantSearch,
-      actionLabel: flags["instant-search"]
-        ? "Open app embeds"
-        : "Enable app embed",
-      status: themeStatus(flags["instant-search"]),
-      external: true,
-    },
   ];
 
   const steps = [...adminSteps, ...themeSteps];

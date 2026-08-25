@@ -185,15 +185,16 @@ export function variantAvailableQuantity(
 
 /**
  * In-stock when a variant can actually be sold from inventory.
- * Qty 0 + tracked inventory is out of stock even if "continue selling" keeps
- * availableForSale true. Incomplete payloads (no inventory fields) stay in stock
- * so bulk JSONL without inventoryItem does not blank the catalog.
+ * Qty 0 is out of stock unless inventory is explicitly untracked, even if
+ * "continue selling" keeps availableForSale true. Incomplete payloads (no
+ * quantity fields) stay in stock so partial GraphQL/bulk lines do not blank
+ * the catalog.
  */
 export function variantIsInStock(variant: ShopifyVariantNode): boolean {
   if (variant.availableForSale === false) return false;
   const tracked = variant.inventoryItem?.tracked;
   const qty = variantAvailableQuantity(variant);
-  if (tracked === true && qty === 0) return false;
+  if (qty === 0 && tracked !== false) return false;
   if (qty != null && qty > 0) return true;
   return true;
 }
@@ -379,7 +380,12 @@ export function mapProductToFacet(
       status: product.status ?? "ACTIVE",
       imageUrl: product.featuredImage?.url ?? null,
       variantImages: buildVariantImages(variants) as JsonObject,
-      variants: buildStoredVariants(variants) as JsonObject,
+      variants: buildStoredVariants(
+        variants.map((variant) => ({
+          ...variant,
+          available: variantIsInStock(variant),
+        })),
+      ) as JsonObject,
       metafields: metafields as JsonObject,
       variantMetafields: variantMetafields as JsonObject,
       marketPrices: mergeProductMarketPrices(product) as JsonObject,

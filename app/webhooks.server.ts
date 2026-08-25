@@ -91,9 +91,7 @@ export function webhookInventoryItemGid(
 
   const id =
     nested.inventory_item_id ??
-    payload.inventory_item_id ??
-    nested.id ??
-    payload.id;
+    payload.inventory_item_id;
   if (typeof id === "string" && id) {
     if (id.startsWith("gid://shopify/InventoryItem/")) return id;
     if (/^\d+$/.test(id)) return `gid://shopify/InventoryItem/${id}`;
@@ -137,7 +135,23 @@ async function enqueueCatalogJob(
     log.error(`[webhooks] enqueue ${name} failed; running inline`, error);
     const { runSyncJobInline } = await import("./workers/processors");
     await runSyncJobInline(name, data);
+    return;
   }
+
+  const { isSyncWorkerRunning } = await import("./workers/ensure-running.server");
+  if (isSyncWorkerRunning()) return;
+  if (
+    name !== "product.upsert" &&
+    name !== "product.delete" &&
+    name !== "inventory.sync" &&
+    name !== "variant.sync" &&
+    name !== "collection.rebuild"
+  ) {
+    return;
+  }
+  log.warn(`[webhooks] worker not running; processing ${name} inline`);
+  const { runSyncJobInline } = await import("./workers/processors");
+  await runSyncJobInline(name, data);
 }
 
 export async function handleProductEvent(

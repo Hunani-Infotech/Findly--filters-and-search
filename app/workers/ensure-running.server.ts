@@ -10,32 +10,26 @@ declare global {
 
 /**
  * Hostinger Passenger starts `react-router-serve.cjs`, not `server.js`.
- * Run the BullMQ worker in-process so it shares the Node app env
- * (DATABASE_URL, REDIS_URL, Shopify keys). Spawning `tsx app/workers/index.ts`
- * fails in production (tsx is a devDependency; Passenger often kills children).
- *
- * LiteSpeed sets LSNODE_CONSOLE_LOG on the running app only.
- * Set START_WORKER=1 to force (e.g. other hosts). START_WORKER=0 disables.
+ * Run the BullMQ worker in-process so it shares the Node app env.
+ * Always start unless START_WORKER=0 (or this process is already the worker).
  */
-export function ensureWorkerRunning() {
-  if (process.env.START_WORKER === "0") return;
-  if (process.env.FINDLY_WORKER_CHILD === "1") return;
+export function isSyncWorkerRunning() {
+  return Boolean(globalThis.__findlySyncWorker);
+}
+
+export function ensureWorkerRunning(): Promise<void> {
+  if (process.env.START_WORKER === "0") return Promise.resolve();
+  if (process.env.FINDLY_WORKER_CHILD === "1") return Promise.resolve();
 
   const lifecycle = process.env.npm_lifecycle_event ?? "";
-  if (lifecycle === "build" || lifecycle === "postinstall") return;
-
-  const passengerRuntime = Boolean(process.env.LSNODE_CONSOLE_LOG);
-  const production = process.env.NODE_ENV === "production";
-  if (
-    process.env.START_WORKER !== "1" &&
-    !passengerRuntime &&
-    !production
-  ) {
-    return;
+  if (lifecycle === "build" || lifecycle === "postinstall") {
+    return Promise.resolve();
   }
 
-  if (globalThis.__findlySyncWorker) return;
-  if (globalThis.__findlySyncWorkerStarting) return;
+  if (globalThis.__findlySyncWorker) return Promise.resolve();
+  if (globalThis.__findlySyncWorkerStarting) {
+    return globalThis.__findlySyncWorkerStarting;
+  }
 
   globalThis.__findlySyncWorkerStarting = startInProcessWorker().catch(
     (error) => {
@@ -43,20 +37,21 @@ export function ensureWorkerRunning() {
       globalThis.__findlySyncWorkerStarting = undefined;
     },
   );
+  return globalThis.__findlySyncWorkerStarting ?? Promise.resolve();
 }
 
 async function startInProcessWorker() {
   if (globalThis.__findlySyncWorker) return;
 
   const { Worker } = await import("bullmq");
-  const { getRedis } = await import("../redis.server");
+  const { createRedisConnection } = await import("../redis.server");
   const { SYNC_QUEUE } = await import("../queues.server");
   const { processSyncJob } = await import("./processors");
 
   if (globalThis.__findlySyncWorker) return;
 
   const worker = new Worker(SYNC_QUEUE, processSyncJob, {
-    connection: getRedis(),
+    connection: createRedisConnection(),
     concurrency: 2,
   });
 

@@ -28,8 +28,8 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
             Sync the catalog, turn on a filter, then add the Collection
-            filters, Product search, and Instant search theme blocks. You can
-            do this from the theme editor without a developer.
+            filters and Product search theme blocks. You can do this from the
+            theme editor without a developer.
           </Text>
         </BlockStack>
 

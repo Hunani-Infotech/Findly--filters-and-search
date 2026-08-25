@@ -144,6 +144,39 @@
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
+    if (!document.getElementById("findly-theme-bridge")) {
+      var bridge = document.createElement("style");
+      bridge.id = "findly-theme-bridge";
+      bridge.textContent =
+        "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
+        ".sf-grid-busy{opacity:.45;pointer-events:none;transition:opacity .15s ease}" +
+        ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0}" +
+        ".sf-collection-layout__aside,.sf-collection-layout__main{box-sizing:border-box;min-width:0}" +
+        "@media(min-width:750px){" +
+        ".sf-collection-layout--left,.sf-collection-layout--right{display:flex!important;align-items:flex-start;gap:32px;width:100%}" +
+        ".sf-collection-layout--left .sf-collection-layout__aside,.sf-collection-layout--right .sf-collection-layout__aside," +
+        ".sf-collection-layout--left .smart-filter,.sf-collection-layout--right .smart-filter," +
+        ".sf-collection-layout--left .shopify-block:has(.smart-filter),.sf-collection-layout--right .shopify-block:has(.smart-filter)" +
+        "{flex:0 0 280px;width:280px;max-width:280px;min-width:280px}" +
+        ".sf-collection-layout--left .sf-collection-layout__main,.sf-collection-layout--right .sf-collection-layout__main" +
+        "{flex:1 1 auto;min-width:0;max-width:100%}" +
+        ".sf-sort-host{display:flex;justify-content:flex-end;width:100%;margin:0 0 14px}" +
+        ".sf-sort-host .smart-filter__sort{display:inline-flex;width:fit-content;max-width:100%;margin:0 0 0 auto}" +
+        ".sf-collection-layout--top{display:flex!important;flex-direction:column;gap:16px;width:100%}" +
+        ".sf-collection-layout--top>.sf-collection-layout__aside,.sf-collection-layout--top>.smart-filter," +
+        ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
+        "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        "}" +
+        ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
+        "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
+        ".smart-filter .smart-filter__option input[type=checkbox]," +
+        ".smart-filter .smart-filter__option input[type=radio]{" +
+        "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
+        "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
+        "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
+        ".sf-app-grid>:not(.sf-app-card){display:none!important}";
+      (document.head || document.documentElement).appendChild(bridge);
+    }
     findlyLog("css injected", {
       id: STYLE_ID,
       checkCssLink: Boolean(
@@ -337,6 +370,19 @@
     if (typeof parent.appendChild !== "function") return false;
     if (child.contains && child.contains(parent)) return false;
     return true;
+  }
+
+  function stampLayoutPosition(el, position) {
+    if (!el || !el.classList) return;
+    var next = position || "left";
+    el.classList.add("sf-collection-layout");
+    el.classList.remove(
+      "sf-collection-layout--left",
+      "sf-collection-layout--right",
+      "sf-collection-layout--top",
+      "sf-collection-layout--offcanvas",
+    );
+    el.classList.add("sf-collection-layout--" + next);
   }
 
   function hostDisplay(el) {
@@ -691,6 +737,61 @@
     }
   }
 
+  function isOffcanvasPosition(widget) {
+    if (!widget) return false;
+    if (widget.position === "offcanvas") return true;
+    var root = widget.root;
+    if (!root) return false;
+    if (root.classList && root.classList.contains("smart-filter--offcanvas")) {
+      return true;
+    }
+    return root.getAttribute && root.getAttribute("data-position") === "offcanvas";
+  }
+
+  function shouldPortalDrawer(widget) {
+    return isMobileDrawer() || isOffcanvasPosition(widget);
+  }
+
+  function copyDrawerThemeVars(widget, target) {
+    if (!widget || !widget.root || !target || !target.style) return;
+    var names = [
+      "--sf-ink",
+      "--sf-muted",
+      "--sf-border",
+      "--sf-surface",
+      "--sf-surface-hover",
+      "--sf-accent",
+      "--sf-accent-soft",
+      "--sf-focus",
+      "--sf-radius",
+      "--sf-space",
+      "--sf-gutter",
+      "--sf-check-size",
+      "--sf-check-radius",
+      "--sf-row-pad",
+      "--sf-tree-indent",
+      "--sf-shadow",
+      "--sf-check",
+      "--sf-font-body",
+      "--sf-font-heading",
+    ];
+    var cs;
+    try {
+      cs = window.getComputedStyle(widget.root);
+    } catch (err) {
+      cs = null;
+    }
+    var i;
+    var name;
+    var value;
+    for (i = 0; i < names.length; i++) {
+      name = names[i];
+      value = cs ? cs.getPropertyValue(name) : "";
+      if (!value) value = widget.root.style.getPropertyValue(name);
+      if (value) target.style.setProperty(name, value);
+    }
+  }
+
   function toolbarHost() {
     var host = document.querySelector(".sf-sort-host");
     if (host) return host;
@@ -725,7 +826,7 @@
       toggle = document.querySelector(".smart-filter__toggle--toolbar");
     }
     if (!panel) return;
-    if (isMobileDrawer()) {
+    if (shouldPortalDrawer(widget)) {
       if (backdrop && backdrop.parentNode !== document.body) {
         backdrop.classList.add("sf-drawer-portal");
         document.body.appendChild(backdrop);
@@ -734,11 +835,29 @@
         panel.classList.add("sf-drawer-portal");
         document.body.appendChild(panel);
       }
-      var host = toolbarHost();
-      if (toggle && host && toggle.parentNode !== host) {
-        toggle.classList.add("smart-filter__toggle--toolbar");
-        if (host.firstChild) host.insertBefore(toggle, host.firstChild);
-        else host.appendChild(toggle);
+      copyDrawerThemeVars(widget, panel);
+      if (isMobileDrawer()) {
+        var host = toolbarHost();
+        if (toggle && host && toggle.parentNode !== host) {
+          toggle.classList.add("smart-filter__toggle--toolbar");
+          if (host.firstChild) host.insertBefore(toggle, host.firstChild);
+          else host.appendChild(toggle);
+        }
+      } else if (
+        toggle &&
+        toggle.classList.contains("smart-filter__toggle--toolbar") &&
+        widget.root
+      ) {
+        toggle.classList.remove("smart-filter__toggle--toolbar");
+        widget.root.insertBefore(toggle, widget.root.firstChild);
+      }
+      if (widget.root && widget.root.classList.contains("is-drawer-open")) {
+        panel.classList.add("is-open");
+        if (backdrop) {
+          backdrop.hidden = false;
+          backdrop.classList.add("is-open");
+        }
+        document.documentElement.classList.add("is-sf-drawer-open");
       }
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
@@ -1328,14 +1447,26 @@
             host: host.tagName,
             same: host === existing,
           });
-          if (host.classList) host.classList.add("sf-collection-layout__main");
+          stampLayoutPosition(existing, position);
+          if (host !== existing && host.classList) {
+            host.classList.add("sf-collection-layout__main");
+          }
           if (mount && mount.classList) {
             mount.classList.add("sf-collection-layout__aside");
+          }
+          if (position === "right") {
+            if (existing.lastChild !== mount) existing.appendChild(mount);
+          } else if (existing.firstChild !== mount) {
+            existing.insertBefore(mount, existing.firstChild);
           }
           return existing;
         }
         if (existing && host && !canMoveNode(existing, host)) {
           findlyLog("wrapHostWithLayout skip append", { host: host.tagName });
+          stampLayoutPosition(existing, position);
+          if (mount && mount.classList) {
+            mount.classList.add("sf-collection-layout__aside");
+          }
           return existing;
         }
         return origWrap ? origWrap.call(this, host, mount, position) : null;
@@ -1453,6 +1584,47 @@
       if (this.ensurePageSize) this.ensurePageSize();
       if (origInit) origInit.apply(this, arguments);
       portalMobileDrawer(this);
+    };
+
+    var origBindDrawer = proto.bindDrawer;
+    proto.bindDrawer = function () {
+      if (origBindDrawer) origBindDrawer.apply(this, arguments);
+      var missedToggle = !this.toggleEl;
+      var missedClose = !this.closeEl;
+      var missedBackdrop = !this.backdropEl;
+      if (!this.panelEl) {
+        this.panelEl = document.querySelector("[data-drawer-panel]");
+      }
+      if (!this.backdropEl) {
+        this.backdropEl = document.querySelector("[data-drawer-backdrop]");
+      }
+      if (!this.toggleEl) {
+        this.toggleEl = document.querySelector("[data-drawer-toggle]");
+      }
+      if (!this.closeEl) {
+        this.closeEl =
+          (this.panelEl && this.panelEl.querySelector("[data-drawer-close]")) ||
+          document.querySelector("[data-drawer-close]");
+      }
+      if (!this.countEl && this.toggleEl) {
+        this.countEl = this.toggleEl.querySelector("[data-drawer-count]");
+      }
+      var self = this;
+      if (missedToggle && this.toggleEl) {
+        this.toggleEl.addEventListener("click", function () {
+          self.openDrawer();
+        });
+      }
+      if (missedClose && this.closeEl) {
+        this.closeEl.addEventListener("click", function () {
+          self.closeDrawer();
+        });
+      }
+      if (missedBackdrop && this.backdropEl) {
+        this.backdropEl.addEventListener("click", function () {
+          self.closeDrawer();
+        });
+      }
     };
 
     var origOpen = proto.openDrawer;

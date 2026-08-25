@@ -28,6 +28,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
             compareAtPrice
             availableForSale
             inventoryPolicy
+            inventoryQuantity
             image {
               url
             }
@@ -173,6 +174,7 @@ export const BULK_PRODUCTS_QUERY = `
               compareAtPrice
               availableForSale
               inventoryPolicy
+              inventoryQuantity
               image { url }
               selectedOptions { name value }
               metafields {
@@ -183,6 +185,14 @@ export const BULK_PRODUCTS_QUERY = `
                     key
                     value
                   }
+                }
+              }
+              inventoryItem {
+                id
+                tracked
+                inventoryLevels {
+                  quantities(names: ["available"]) { name quantity }
+                  location { id name isActive }
                 }
               }
             }

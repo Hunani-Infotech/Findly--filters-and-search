@@ -51,17 +51,50 @@ function assertStaticMarkers() {
   if (!settingsLib.includes("Load more button")) {
     fail("PAGING_STYLE_OPTIONS missing Load more button");
   }
-  const widget = readRepo(
+  const widget = [
+    readRepo("extensions", "smart-filter", "assets", "smart-filter.js"),
+    readRepo("extensions", "smart-filter", "assets", "smart-filter-pager.js"),
+  ].join("\n");
+  const pager = readRepo(
     "extensions",
     "smart-filter",
     "assets",
-    "smart-filter.js",
+    "smart-filter-pager.js",
   );
   if (!widget.includes("load_more") || !widget.includes("infinite")) {
     fail("smart-filter.js missing load_more / infinite paging");
   }
   if (!widget.includes("IntersectionObserver") || !widget.includes("sf-pager")) {
-    fail("smart-filter.js missing infinite-scroll sentinel / sf-pager");
+    fail("storefront missing infinite-scroll sentinel / sf-pager");
+  }
+  const bindStart = pager.indexOf("bindInfinite = function");
+  const bindEnd = pager.indexOf("renderLoadMore = function");
+  if (bindStart < 0 || bindEnd <= bindStart) {
+    fail("storefront missing bindInfinite / renderLoadMore");
+  }
+  if (pager.slice(bindStart, bindEnd).includes("renderLoadMore")) {
+    fail("infinite scroll must not render the Load more button");
+  }
+  if (!widget.includes("sf-pager--infinite")) {
+    fail("storefront missing sf-pager--infinite mode class");
+  }
+  const filtersLiq = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters.liquid",
+  );
+  const embedLiq = readRepo(
+    "extensions",
+    "smart-filter",
+    "blocks",
+    "collection-filters-embed.liquid",
+  );
+  if (!filtersLiq.includes("smart-filter-pager.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-pager.min.js");
+  }
+  if (!embedLiq.includes("smart-filter-pager.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-pager.min.js");
   }
   const css = readRepo(
     "extensions",
@@ -71,6 +104,9 @@ function assertStaticMarkers() {
   );
   if (!css.includes(".sf-pager") || !css.includes("sf-pager__sentinel")) {
     fail("smart-filter.css missing .sf-pager styles");
+  }
+  if (!css.includes(".sf-pager--infinite .sf-pager__more")) {
+    fail("smart-filter.css must hide Load more in infinite mode");
   }
   log.info("D9 static markers present");
 }

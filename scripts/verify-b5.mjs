@@ -422,6 +422,14 @@ try {
   if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
   }
+  const graphqlSync = read("app/sync/graphql.ts");
+  if (
+    !graphqlSync.includes("inventoryQuantity") ||
+    !graphqlSync.includes("inventoryItem") ||
+    !graphqlSync.includes("tracked")
+  ) {
+    fail("product/bulk GraphQL must fetch inventory quantity and tracked inventory items");
+  }
   if (!proxy.includes("getCatalogGeneration")) {
     fail("proxy.server.ts must key filter cache by catalog generation");
   }
@@ -502,6 +510,18 @@ try {
   }
   if (taggedOos.facet.available !== false) {
     fail("tracked inventory qty 0 must map to out of stock even if availableForSale is true");
+  }
+  const oosQtyOnly = mapProductToFacet("shop", {
+    id: "gid://shopify/Product/oos-qty",
+    handle: "oos-qty",
+    title: "OOS qty",
+    status: "ACTIVE",
+    variants: {
+      edges: [{ node: { availableForSale: true, inventoryQuantity: 0 } }],
+    },
+  });
+  if (oosQtyOnly.facet.available !== false) {
+    fail("inventoryQuantity 0 must map to out of stock even when tracked is omitted");
   }
   if (!productIsAvailable("ACTIVE", [{ availableForSale: true }])) {
     fail("incomplete variant payloads must stay in stock");

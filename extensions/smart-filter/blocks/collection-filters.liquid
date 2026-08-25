@@ -1,5 +1,6 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
+<script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 {% assign sf_page_size = 16 %}
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
