@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v2";
+  var STYLE_ID = "findly-theme-compat-v3";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -228,8 +228,17 @@
   }
 
   function injectCompatCss() {
-    var old = document.getElementById("findly-theme-compat-v1");
-    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var oldIds = [
+      "findly-theme-compat-v1",
+      "findly-theme-compat-v2",
+      "findly-theme-compat-v3",
+    ];
+    var oi;
+    for (oi = 0; oi < oldIds.length; oi++) {
+      if (oldIds[oi] === STYLE_ID) continue;
+      var old = document.getElementById(oldIds[oi]);
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
     if (document.getElementById(STYLE_ID)) return;
     var css =
       ".smart-filter,.smart-filter-search,.findly-instant,.smart-filter__panel{isolation:isolate}" +
@@ -255,11 +264,13 @@
       "html.sf-og [data-pagination]:not(.sf-pager),html.sf-og load-more-button,html.sf-og .load-more-button," +
       "html.sf-og .ajaxinate-pagination,html.sf-og #AjaxinatePagination,html.sf-og .Pagination," +
       "html.sf-og [data-load-more]:not(.sf-pager){display:none!important}" +
+      ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
+      "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
       "@media(min-width:750px){" +
-      ".sf-collection-layout--left,.sf-collection-layout--right{" +
-      "display:flex!important;align-items:flex-start;flex-wrap:wrap;gap:32px;width:100%}" +
+      ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important}" +
+      ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important}" +
       ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--right>.sf-collection-layout__main{" +
-      "flex:1 1 0%;min-width:0}" +
+      "min-width:0!important;max-width:none!important}" +
       "}" +
       ".sf-collection-layout__main:not(ul):not(ol):not(.product-grid):not(.main-collection-grid){min-width:0;flex:1 1 0%;display:block}" +
       ".smart-filter-search input,.findly-instant a{max-width:100%}";
@@ -267,13 +278,6 @@
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
-    if (!document.getElementById("findly-theme-bridge")) {
-      var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge";
-      bridge.textContent =
-        "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}";
-      (document.head || document.documentElement).appendChild(bridge);
-    }
   }
 
   function ensureSortHost(widget) {

@@ -122,6 +122,32 @@ function assertThemeContainerFit() {
   if (!gridJs.includes("closestCollectionWrapper")) {
     fail("layout host must wrap Horizon collection-wrapper, not the inner product grid");
   }
+  if (!gridJs.includes("flattenHorizonCollectionWrapper")) {
+    fail("Horizon collection-wrapper must be flattened so products are not trapped in one grid track");
+  }
+  if (!gridJs.includes("repairingLayout")) {
+    fail("layout repair must be re-entrant so wrap/unwrap cannot hang the tab");
+  }
+  if (!gridJs.includes("existing.contains(host)")) {
+    fail("wrapHostWithLayout must not re-wrap a host already inside the collection layout");
+  }
+  if (!gridJs.includes("armFilterReadyFailsafe")) {
+    fail("filter loading CSS must not hide products forever if layout init stalls");
+  }
+  if (!gridJs.includes("grid-template-columns:280px minmax(0,1fr)")) {
+    fail("left collection layout must use a 280px + remaining-width CSS grid");
+  }
+  if (!gridJs.includes("--grid-column--desktop:minmax(0,1fr)")) {
+    fail("Horizon --grid-column--desktop must be a single minmax track, not 250px 1fr");
+  }
+  const themeJs = read("extensions/smart-filter/assets/smart-filter-theme.js");
+  if (
+    /sf-collection-layout--left,.sf-collection-layout--right\{[^}]*display:flex!important/.test(
+      themeJs.replace(/\s+/g, ""),
+    )
+  ) {
+    fail("theme compat CSS must not force flex on left/right collection layout");
+  }
   const css = read("extensions/smart-filter/assets/smart-filter.css");
   if (!css.includes(".collection-wrapper > .sf-collection-layout")) {
     fail("Horizon collection-wrapper must span Findly layout across all grid columns");

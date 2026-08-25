@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v15";
+  var STYLE_ID = "findly-grid-takeover-v18";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -23,7 +23,7 @@
     ".sf-collection-layout .product-grid,.sf-og .product-grid," +
     ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid," +
     ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-    "{justify-content:start!important}";
+    "{justify-content:stretch!important;width:100%!important;max-width:100%!important}";
   var GRID_RESULT_HIDE =
     ":not([" +
     SKEL_ATTR +
@@ -338,7 +338,16 @@
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
-    if (!document.getElementById("findly-theme-bridge")) {
+    var existingBridge = document.getElementById("findly-theme-bridge");
+    if (
+      existingBridge &&
+      existingBridge.textContent &&
+      existingBridge.textContent.indexOf("grid-template-columns:280px") < 0
+    ) {
+      existingBridge.parentNode.removeChild(existingBridge);
+      existingBridge = null;
+    }
+    if (!existingBridge) {
       var bridge = document.createElement("style");
       bridge.id = "findly-theme-bridge";
       bridge.textContent =
@@ -358,7 +367,7 @@
         "ul.product-grid>.sf-collection-layout,.product-grid>.sf-collection-layout,ol.product-grid>.sf-collection-layout," +
         "results-list>.sf-collection-layout,.main-collection-grid>.sf-collection-layout,.sf-app-grid>.sf-collection-layout," +
         ".collection-wrapper>.sf-collection-layout,.product-grid-container>.sf-collection-layout" +
-        "{grid-column:1/-1;width:100%;max-width:100%;display:flex;flex-wrap:wrap}" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
         ".collection-wrapper>.sf-pager,.collection-wrapper>.sf-toolbar,.collection-wrapper>.sf-sort-host," +
         ".product-grid-container>.sf-pager,.product-grid-container>.sf-toolbar" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
@@ -374,18 +383,43 @@
         "{flex:1 1 100%;width:100%;max-width:100%;order:20}" +
         ".sf-collection-layout__main .product-grid,.sf-collection-layout__main ul.product-grid," +
         ".sf-collection-layout__main ol.product-grid,.sf-collection-layout__main .main-collection-grid," +
-        ".sf-collection-layout__main .sf-app-grid{width:100%;min-width:0;max-width:100%}" +
+        ".sf-collection-layout__main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:stretch!important}" +
+        ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter)," +
+        "results-list:has(.sf-collection-layout),.product-grid-container:has(.sf-collection-layout)" +
+        "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important;" +
+        "--grid-column--desktop:minmax(0,1fr);--grid-column--mobile:minmax(0,1fr);--centered-column-number:1}" +
+        ".collection-wrapper.grid:has(.sf-collection-layout),.collection-wrapper.grid:has(.smart-filter)," +
+        ".sf-collection-layout .collection-wrapper.grid" +
+        "{display:grid!important;grid-template-columns:minmax(0,1fr)!important;" +
+        "--grid-column--desktop:minmax(0,1fr)!important;--grid-column--mobile:minmax(0,1fr)!important}" +
+        ".collection-wrapper>.main-collection-grid,.collection-wrapper>results-list" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        ".collection-wrapper:has(.sf-collection-layout)>.sf-collection-layout," +
+        ".collection-wrapper:has(.smart-filter)>.sf-collection-layout" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
+        ".collection-wrapper:has(.sf-collection-layout) .main-collection-grid," +
+        ".sf-collection-layout .main-collection-grid" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        ".sf-pager,.sf-pager__nav,.sf-pager__pages{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
+        ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
+        "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
+        ".sf-collection-layout nav.pagination,.sf-collection-layout .pagination,.sf-collection-layout .pagination-wrapper" +
+        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
         "@media(min-width:750px){" +
-        ".sf-collection-layout--left,.sf-collection-layout--right{display:flex!important;align-items:flex-start;flex-wrap:wrap!important;gap:32px;width:100%}" +
-        ".sf-collection-layout--left .sf-collection-layout__aside,.sf-collection-layout--right .sf-collection-layout__aside," +
-        ".sf-collection-layout--left .smart-filter,.sf-collection-layout--right .smart-filter," +
-        ".sf-collection-layout--left .shopify-block:has(.smart-filter),.sf-collection-layout--right .shopify-block:has(.smart-filter)" +
-        "{flex:0 0 280px;width:280px;max-width:280px;min-width:280px}" +
-        ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--right>.sf-collection-layout__main" +
-        "{flex:1 1 0%!important;min-width:0!important;max-width:100%;width:auto}" +
-        ".sf-collection-layout--left>:not(.sf-collection-layout__aside):not(.sf-collection-layout__main):not(.smart-filter):not(.shopify-block)," +
-        ".sf-collection-layout--right>:not(.sf-collection-layout__aside):not(.sf-collection-layout__main):not(.smart-filter):not(.shopify-block)" +
-        "{flex:1 1 100%!important;width:100%!important;max-width:100%!important;order:20}" +
+        ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--left>.sf-collection-layout__aside,.sf-collection-layout--left>.smart-filter," +
+        ".sf-collection-layout--left>.shopify-block:has(.smart-filter)" +
+        "{grid-column:1!important;width:280px;max-width:280px;min-width:280px}" +
+        ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--left>.sf-toolbar," +
+        ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--left>.sf-sort-host" +
+        "{grid-column:2!important;min-width:0!important;width:auto!important;max-width:none!important}" +
+        ".sf-collection-layout--right>.sf-collection-layout__aside,.sf-collection-layout--right>.smart-filter," +
+        ".sf-collection-layout--right>.shopify-block:has(.smart-filter)" +
+        "{grid-column:2!important;width:280px;max-width:280px;min-width:280px}" +
+        ".sf-collection-layout--right>.sf-collection-layout__main,.sf-collection-layout--right>.sf-toolbar," +
+        ".sf-collection-layout--right>.sf-pager" +
+        "{grid-column:1!important;min-width:0!important;max-width:none!important}" +
         ".sf-collection-layout--top{display:flex!important;flex-direction:column;gap:16px;width:100%}" +
         ".sf-collection-layout--top>.sf-collection-layout__aside,.sf-collection-layout--top>.smart-filter," +
         ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
@@ -827,6 +861,11 @@
         existing.querySelector(".sf-collection-layout__main") || existing
       );
     }
+    var nested =
+      pageWidth.querySelector && pageWidth.querySelector(".sf-collection-layout");
+    if (nested) {
+      return nested.querySelector(".sf-collection-layout__main") || nested;
+    }
     var main = document.createElement("div");
     main.className = "sf-collection-layout__main";
     while (pageWidth.firstChild) main.appendChild(pageWidth.firstChild);
@@ -943,41 +982,185 @@
     }
   }
 
-  function repairCollectionLayout(widget) {
-    var layout = document.querySelector(".sf-collection-layout");
+  function applyImportantStyle(el, prop, value) {
+    if (!el || !el.style || typeof el.style.setProperty !== "function") return;
+    try {
+      if (
+        el.style.getPropertyValue(prop) === value &&
+        el.style.getPropertyPriority(prop) === "important"
+      ) {
+        return;
+      }
+      el.style.setProperty(prop, value, "important");
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  var repairingLayout = false;
+
+  function flattenHorizonCollectionWrapper(layout) {
     if (!layout) return;
-    var stamped = layout.querySelectorAll(".sf-collection-layout__main");
-    var si;
-    for (si = 0; si < stamped.length; si++) {
-      if (isProductGridLike(stamped[si]) || isThemeManagedGrid(stamped[si])) {
-        stamped[si].classList.remove("sf-collection-layout__main");
-        ensureBlockMain(stamped[si]);
-      }
-    }
-    liftLayoutOutOfProductGrid(layout);
-    normalizeLayoutShell(layout);
-    var pageWidth =
-      closestThemeWidth(
-        (widget && widget._gridParent) || collectionSearchGridEl(widget),
-      ) || findThemeWidthNearMain((widget && widget._gridParent) || null);
+    var wrap =
+      (layout.closest && layout.closest(".collection-wrapper")) ||
+      layout.querySelector(".collection-wrapper");
     if (
-      pageWidth &&
-      !isProductGridLike(pageWidth) &&
-      layout.parentNode &&
-      layout.parentNode !== pageWidth &&
-      !pageWidth.contains(layout) &&
-      !layout.contains(pageWidth)
+      layout.getAttribute &&
+      layout.getAttribute("data-sf-horizon-flat") === "1" &&
+      wrap &&
+      wrap.style &&
+      wrap.style.display === "block"
     ) {
-      var grid =
-        (widget && widget._gridParent) || collectionSearchGridEl(widget);
-      var child = themeWidthChildContaining(pageWidth, grid);
-      if (child && child.parentNode === pageWidth) {
-        pageWidth.insertBefore(layout, child);
-        var mainCol = layout.querySelector(".sf-collection-layout__main");
-        if (mainCol && !mainCol.contains(child)) mainCol.appendChild(child);
+      return;
+    }
+    applyImportantStyle(layout, "width", "100%");
+    applyImportantStyle(layout, "max-width", "100%");
+    applyImportantStyle(layout, "min-width", "0");
+    applyImportantStyle(layout, "grid-column", "1 / -1");
+
+    var hosts = [];
+    if (wrap) hosts.push(wrap);
+    var list =
+      (layout.closest && layout.closest("results-list")) ||
+      (layout.closest && layout.closest(".product-grid-container"));
+    if (list && hosts.indexOf(list) < 0) hosts.push(list);
+
+    var i;
+    for (i = 0; i < hosts.length; i++) {
+      applyImportantStyle(hosts[i], "display", "block");
+      applyImportantStyle(hosts[i], "grid-template-columns", "none");
+      applyImportantStyle(hosts[i], "width", "100%");
+      applyImportantStyle(hosts[i], "max-width", "100%");
+      applyImportantStyle(hosts[i], "--grid-column--desktop", "minmax(0, 1fr)");
+      applyImportantStyle(hosts[i], "--grid-column--mobile", "minmax(0, 1fr)");
+      applyImportantStyle(hosts[i], "--centered-column-number", "1");
+      if (hosts[i].classList && hosts[i].classList.contains("grid")) {
+        applyImportantStyle(hosts[i], "display", "grid");
+        applyImportantStyle(hosts[i], "grid-template-columns", "minmax(0, 1fr)");
       }
     }
-    normalizeLayoutShell(layout);
+
+    var grids = layout.querySelectorAll
+      ? layout.querySelectorAll(
+          ".main-collection-grid, ul.product-grid, ol.product-grid, .sf-app-grid",
+        )
+      : [];
+    for (i = 0; i < grids.length; i++) {
+      applyImportantStyle(grids[i], "width", "100%");
+      applyImportantStyle(grids[i], "max-width", "100%");
+      applyImportantStyle(grids[i], "min-width", "0");
+      applyImportantStyle(grids[i], "grid-column", "1 / -1");
+    }
+
+    var pagers = layout.querySelectorAll
+      ? layout.querySelectorAll(
+          ".sf-pager, .sf-pager__nav, .sf-pager__pages, nav.pagination, .pagination-wrapper",
+        )
+      : [];
+    for (i = 0; i < pagers.length; i++) {
+      applyImportantStyle(pagers[i], "display", "flex");
+      applyImportantStyle(pagers[i], "flex-direction", "row");
+      applyImportantStyle(pagers[i], "flex-wrap", "wrap");
+      applyImportantStyle(pagers[i], "width", "100%");
+    }
+    if (layout.setAttribute) layout.setAttribute("data-sf-horizon-flat", "1");
+  }
+
+  function repairCollectionLayout(widget) {
+    if (repairingLayout) return;
+    repairingLayout = true;
+    if (widget) widget._reapplyingGrid = true;
+    try {
+      var layout = document.querySelector(".sf-collection-layout");
+      if (!layout) return;
+      var stamped = layout.querySelectorAll(".sf-collection-layout__main");
+      var si;
+      for (si = 0; si < stamped.length; si++) {
+        if (isProductGridLike(stamped[si]) || isThemeManagedGrid(stamped[si])) {
+          stamped[si].classList.remove("sf-collection-layout__main");
+          ensureBlockMain(stamped[si]);
+        }
+      }
+      liftLayoutOutOfProductGrid(layout);
+      normalizeLayoutShell(layout);
+      var pageWidth =
+        closestThemeWidth(
+          (widget && widget._gridParent) || collectionSearchGridEl(widget),
+        ) || findThemeWidthNearMain((widget && widget._gridParent) || null);
+      if (
+        pageWidth &&
+        !isProductGridLike(pageWidth) &&
+        layout.parentNode &&
+        layout.parentNode !== pageWidth &&
+        !pageWidth.contains(layout) &&
+        !layout.contains(pageWidth)
+      ) {
+        var grid =
+          (widget && widget._gridParent) || collectionSearchGridEl(widget);
+        var child = themeWidthChildContaining(pageWidth, grid);
+        if (child && child.parentNode === pageWidth) {
+          pageWidth.insertBefore(layout, child);
+          var mainCol = layout.querySelector(".sf-collection-layout__main");
+          if (mainCol && !mainCol.contains(child)) mainCol.appendChild(child);
+        }
+      }
+      normalizeLayoutShell(layout);
+      flattenHorizonCollectionWrapper(layout);
+    } catch (err) {
+      try {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[Findly] repairCollectionLayout", err);
+        }
+      } catch (ignore) {}
+    } finally {
+      repairingLayout = false;
+      if (widget) widget._reapplyingGrid = false;
+    }
+  }
+
+  function scheduleRepairCollectionLayout(widget) {
+    if (!widget) {
+      repairCollectionLayout(widget);
+      return;
+    }
+    if (widget._repairScheduled) return;
+    widget._repairScheduled = true;
+    var run = function () {
+      widget._repairScheduled = false;
+      repairCollectionLayout(widget);
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
+  function placeMountOnExistingLayout(existing, mount, position) {
+    if (!existing) return existing;
+    existing = stampLayoutPosition(existing, position) || existing;
+    if (mount && mount.classList) {
+      mount.classList.add("sf-collection-layout__aside");
+    }
+    if (!mount) return existing;
+    if (position === "right") {
+      if (existing.lastChild !== mount) existing.appendChild(mount);
+    } else if (existing.firstChild !== mount) {
+      existing.insertBefore(mount, existing.firstChild);
+    }
+    return existing;
+  }
+
+  function armFilterReadyFailsafe() {
+    if (window.__findlyReadyFailsafe) return;
+    window.__findlyReadyFailsafe = window.setTimeout(function () {
+      window.__findlyReadyFailsafe = 0;
+      try {
+        paintGridBusy(null, false);
+      } catch (err) {
+        setFilterLoading(false);
+      }
+    }, 2500);
   }
 
   function fitLayoutIntoThemeContainer(widget) {
@@ -1970,6 +2153,7 @@
     ) {
       return;
     }
+    armFilterReadyFailsafe();
     var root = document.documentElement;
     if (
       root &&
@@ -2890,12 +3074,12 @@
     var debounceTimer = null;
     self._findlyObserverCount = 0;
     self._findlyGridObserver = new MutationObserver(function (records) {
-      if (self._reapplyingGrid) return;
+      if (repairingLayout || self._reapplyingGrid) return;
       if (mutationIsIgnored(records)) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function () {
         debounceTimer = null;
-        if (self._reapplyingGrid) return;
+        if (repairingLayout || self._reapplyingGrid) return;
         self._findlyObserverCount = (self._findlyObserverCount || 0) + 1;
         findlyLog("grid.observer", {
           n: self._findlyObserverCount,
@@ -3697,9 +3881,15 @@
           host.classList &&
           host.classList.contains("sf-collection-layout")
             ? host
-            : null);
-        if (host && existing && (host === existing || host.contains(existing))) {
-          existing = stampLayoutPosition(existing, position) || existing;
+            : null) ||
+          (host && host.closest && host.closest(".sf-collection-layout"));
+        if (existing && host && (host === existing || existing.contains(host))) {
+          existing = placeMountOnExistingLayout(existing, mount, position);
+          scheduleRepairCollectionLayout(this);
+          return existing;
+        }
+        if (host && existing && host.contains(existing)) {
+          existing = placeMountOnExistingLayout(existing, mount, position);
           if (
             host !== existing &&
             host.classList &&
@@ -3708,30 +3898,19 @@
           ) {
             host.classList.add("sf-collection-layout__main");
           }
-          if (mount && mount.classList) {
-            mount.classList.add("sf-collection-layout__aside");
-          }
-          if (position === "right") {
-            if (existing.lastChild !== mount) existing.appendChild(mount);
-          } else if (existing.firstChild !== mount) {
-            existing.insertBefore(mount, existing.firstChild);
-          }
-          repairCollectionLayout(this);
+          scheduleRepairCollectionLayout(this);
           return existing;
         }
         if (existing && host && !canMoveNode(existing, host)) {
-          existing = stampLayoutPosition(existing, position) || existing;
-          if (mount && mount.classList) {
-            mount.classList.add("sf-collection-layout__aside");
-          }
-          repairCollectionLayout(this);
+          existing = placeMountOnExistingLayout(existing, mount, position);
+          scheduleRepairCollectionLayout(this);
           return existing;
         }
         var wrapped = origWrap ? origWrap.call(this, host, mount, position) : null;
-        repairCollectionLayout(this);
+        scheduleRepairCollectionLayout(this);
         return wrapped;
       } catch (err) {
-        repairCollectionLayout(this);
+        scheduleRepairCollectionLayout(this);
         return (
           (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
           null
@@ -3791,7 +3970,6 @@
         /* ignore */
       }
       fitLayoutIntoThemeContainer(this);
-      repairCollectionLayout(this);
       portalMobileDrawer(this);
       mountFindlyPager(this);
       placeCollectionSearchOnGrid(this);
