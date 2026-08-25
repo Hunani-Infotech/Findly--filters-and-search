@@ -41,6 +41,23 @@
     }
   }
 
+  function renderSearchSkeletons(list, count) {
+    if (!list) return;
+    list.innerHTML = "";
+    var i;
+    for (i = 0; i < (count || 5); i++) {
+      var li = document.createElement("li");
+      li.className = "smart-filter-search__item is-skeleton";
+      li.setAttribute("aria-hidden", "true");
+      li.innerHTML =
+        '<span class="smart-filter-search__skel-img"></span>' +
+        '<span class="smart-filter-search__skel-body">' +
+        '<span class="smart-filter-search__skel-line"></span>' +
+        '<span class="smart-filter-search__skel-line is-short"></span></span>';
+      list.appendChild(li);
+    }
+  }
+
   function shopDomain() {
     return (window.Shopify && window.Shopify.shop) || "";
   }
@@ -541,6 +558,7 @@
 
     this.setEmptyVisible(false);
     setStatus(this.statusEl, this.t("search_loading", MSG_LOADING), false);
+    renderSearchSkeletons(this.resultsEl, 5);
 
     var url = this.proxyBase + "/search?q=" + encodeURIComponent(query);
     if (this.locale) {

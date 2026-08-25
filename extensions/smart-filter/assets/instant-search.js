@@ -472,6 +472,25 @@
     this.position();
   };
 
+  InstantSearch.prototype.showLoadingPanel = function () {
+    if (!this.panel) return;
+    this.applyChrome();
+    this.panel.innerHTML =
+      '<div class="findly-instant__layout is-skeleton" aria-hidden="true">' +
+      '<div class="findly-instant__main">' +
+      '<div class="findly-instant__skel-row"></div>' +
+      '<div class="findly-instant__skel-row"></div>' +
+      '<div class="findly-instant__skel-row is-short"></div>' +
+      '<div class="findly-instant__products">' +
+      '<div class="findly-instant__skel-card"></div>' +
+      '<div class="findly-instant__skel-card"></div>' +
+      '<div class="findly-instant__skel-card"></div>' +
+      '<div class="findly-instant__skel-card"></div>' +
+      "</div></div></div>";
+    setHidden(this.root, false);
+    this.position();
+  };
+
   InstantSearch.prototype.fetchJson = function (url) {
     if (this._abort) this._abort.abort();
     this._abort =
@@ -514,6 +533,7 @@
     this._lastQuery = query;
     var self = this;
     var reqId = ++this._reqId;
+    this.showLoadingPanel();
     var limit = (this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
     var url =
       this.proxyBase +
@@ -538,6 +558,11 @@
         if (err && err.name === "AbortError") return;
         if (reqId !== self._reqId) return;
         if (self._lastQuery === query) self._lastQuery = undefined;
+        if (!self.panel) return;
+        self.panel.innerHTML =
+          '<p class="findly-instant__empty">Search could not be loaded.</p>';
+        setHidden(self.root, false);
+        self.position();
       });
   };
 

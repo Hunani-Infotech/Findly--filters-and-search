@@ -126,11 +126,32 @@ function assertThemeSeoAndUi() {
   if (!gridJs.includes("findlyLog") || !gridJs.includes("__FINDLY_DUMP")) {
     fail("smart-filter-grid.js must keep storefront debug logs for grid hide/show");
   }
-  if (!gridJs.includes("GRID_BUSY_CSS") || !gridJs.includes("findly-grid-busy-overlay")) {
-    fail("smart-filter-grid.js must show a product-grid loader while filters fetch");
+  if (!gridJs.includes("fillMissingFilterCards") || !gridJs.includes("findly-grid-empty")) {
+    fail("smart-filter-grid.js must import off-page matches and show a grid empty state");
+  }
+  if (!gridJs.includes("shouldTakeOverThemeCards") || !gridJs.includes("keep-theme-cards")) {
+    fail("smart-filter-grid.js must keep native theme product cards unless a filter is active");
   }
   if (!filterCss.includes("findly-grid-busy-overlay")) {
     fail("smart-filter.css must show a product-grid loader while filters fetch");
+  }
+  if (
+    !gridJs.includes("GRID_BUSY_CSS") ||
+    !gridJs.includes("findly-grid-busy-overlay") ||
+    !gridJs.includes("data-findly-skel") ||
+    !gridJs.includes("findly-grid-skel__img") ||
+    !gridJs.includes("bootEarlyGridBusy")
+  ) {
+    fail("smart-filter-grid.js must show product-grid skeletons while filters fetch");
+  }
+  if (!filterCss.includes("findly-grid-skel__img")) {
+    fail("smart-filter.css must style product-grid skeleton cards");
+  }
+  if (
+    !searchJs.includes("renderSearchSkeletons") ||
+    !searchCss.includes("smart-filter-search__skel-img")
+  ) {
+    fail("product search must show result skeletons while fetching");
   }
   if (!filterJs.includes("syncProductGrid")) {
     fail("smart-filter.js must expose syncProductGrid so companions can hide cards without leaking titles");
@@ -138,12 +159,18 @@ function assertThemeSeoAndUi() {
   if (!themeCompat.includes("hideNativeChromeHeuristic")) {
     fail("smart-filter-theme.js must hide native filter chrome without theme-specific class lists only");
   }
+  if (!collectionLiquid.includes("smart-filter-grid.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-grid.min.js");
+  }
   if (!collectionLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters.liquid must load smart-filter-theme.min.js");
   }
   const embedLiquid = read(
     "extensions/smart-filter/blocks/collection-filters-embed.liquid",
   );
+  if (!embedLiquid.includes("smart-filter-grid.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-grid.min.js");
+  }
   if (!embedLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters-embed.liquid must load smart-filter-theme.min.js");
   }
@@ -153,6 +180,9 @@ function assertThemeSeoAndUi() {
     !instantJs.includes("predictive-search")
   ) {
     fail("instant search must bind any theme search input and hide native predictive results");
+  }
+  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant__skel-card")) {
+    fail("instant search must show a loading panel while fetching");
   }
   if (!filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");

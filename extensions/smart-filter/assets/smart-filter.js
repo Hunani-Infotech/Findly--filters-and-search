@@ -1183,7 +1183,13 @@
     window.__findlyFacetGuard = true;
     function isNativeFacetTarget(target) {
       if (!target || !target.closest) return false;
-      if (target.closest(".smart-filter, .sf-pager, .sf-app-card")) return false;
+      if (
+        target.closest(
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, [data-collection-search-wrap]",
+        )
+      ) {
+        return false;
+      }
       if (target.closest(NATIVE_FACET_HOST_SELECTOR)) return true;
       var name = "";
       if (target.getAttribute) name = String(target.getAttribute("name") || "");
@@ -1204,7 +1210,11 @@
     function stopNativeClick(event) {
       var target = event.target;
       if (!target || !target.closest) return;
-      if (target.closest(".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host")) {
+      if (
+        target.closest(
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, [data-collection-search-wrap]",
+        )
+      ) {
         return;
       }
       var link = target.closest("a[href]");
@@ -2309,6 +2319,7 @@
     this.renderSortSelect(settings);
     this.renderCollectionSearch(settings);
     this.placeSortOnGrid();
+    if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
     this.hideThemeDuplicateChrome();
   };
 
@@ -2338,6 +2349,7 @@
     });
     input.addEventListener("keydown", function (event) {
       if (event.key === "Enter") {
+        event.preventDefault();
         window.clearTimeout(timer);
         timer = 0;
         applyValue();
@@ -2366,6 +2378,7 @@
     if (input && input.value !== this.collectionQuery) {
       input.value = this.collectionQuery;
     }
+    if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
   };
 
   Widget.prototype.bindSort = function () {
@@ -2453,6 +2466,7 @@
       else main.appendChild(host);
     }
     if (wrap.parentNode !== host) host.appendChild(wrap);
+    if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
   };
 
   Widget.prototype.hideThemeDuplicateChrome = function () {
@@ -2461,7 +2475,12 @@
     var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
     function isProtected(el) {
       if (!el) return true;
-      if (el.closest && el.closest(".smart-filter, .sf-sort-host, .sf-app-card, .sf-pager")) {
+      if (
+        el.closest &&
+        el.closest(
+          ".smart-filter, .sf-sort-host, .sf-collection-search-host, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
+        )
+      ) {
         return true;
       }
       if (root && (el.contains(root) || root.contains(el))) return true;
@@ -3646,7 +3665,8 @@
     var self = this;
     return uniqueHandleList(handles).filter(function (handle) {
       if (self._cardCache[handle]) return false;
-      if (String(handle).indexOf("::") !== -1) return false;
+      var base = String(handle || "").split("::")[0];
+      if (base && self._cardCache[base]) return false;
       return true;
     });
   };
@@ -3671,7 +3691,9 @@
         var added = self.importCardsFromDocument(doc);
         self._themePagesCached[page] = true;
         if (!added && page !== currentThemePage()) {
-          self._themeNoMore = true;
+          var hasProductLink =
+            doc.querySelector && doc.querySelector('a[href*="/products/"]');
+          if (!hasProductLink) self._themeNoMore = true;
         }
         return true;
       })
@@ -3874,6 +3896,8 @@
   Widget.prototype.goToPage = function (page) {
     var next = Math.max(1, Math.floor(Number(page) || 1));
     if (next === this.page || this._loadingPage) return;
+    this._loadingPage = true;
+    this.renderPager();
     this.fetchFilters({ page: next });
   };
 
@@ -3918,7 +3942,7 @@
       this._shownHandles = [];
       this._lastProducts = [];
       this._pagingFallback = false;
-      this._loadingPage = false;
+      this._loadingPage = true;
     }
 
     if (!append && !this.hasFacetChrome()) {
@@ -3927,6 +3951,7 @@
     this.hideThemeDuplicateChrome();
     this.ensurePageSize();
     if (!append) this.setGridBusy(true);
+    if (!append) this.renderPager();
     if (!append && this.autoApplyFilters === false && this.facetsEl) {
       var applyNowBtn = this.facetsEl.querySelector(".smart-filter__apply-now");
       if (applyNowBtn) {
@@ -4047,16 +4072,16 @@
               self.defaultSort,
             );
             self._visibleHandles = visible || [];
-            self.setGridBusy(false);
             self.hideThemeDuplicateChrome();
-            if (
-              !(
-                self._appGridActive ||
-                (self.isAppGridMode && self.isAppGridMode())
-              )
-            ) {
+            if (!(self.isAppGridMode && self.isAppGridMode())) {
               self.syncProductGrid(visible);
             }
+            if (!self._importingCards) {
+              self.setGridBusy(false);
+              self._loadingPage = false;
+              self._appending = false;
+            }
+            self.renderPager();
             self.watchThemeGrid();
             applyVariantImages(
               self.showMatchingVariantImage === false ? [] : self._lastProducts,

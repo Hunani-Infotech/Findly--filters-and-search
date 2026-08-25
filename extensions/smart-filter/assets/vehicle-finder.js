@@ -441,6 +441,24 @@
     return visibleHandles;
   };
 
+  YmmWidget.prototype.renderSkeletons = function (count) {
+    var list = this.resultsEl;
+    if (!list) return;
+    list.innerHTML = "";
+    var i;
+    for (i = 0; i < (count || 4); i++) {
+      var li = document.createElement("li");
+      li.className = "smart-filter-ymm__result is-skeleton";
+      li.setAttribute("aria-hidden", "true");
+      li.innerHTML =
+        '<span class="smart-filter-ymm__skel-img"></span>' +
+        '<span class="smart-filter-ymm__skel-body">' +
+        '<span class="smart-filter-ymm__skel-line"></span>' +
+        '<span class="smart-filter-ymm__skel-line is-short"></span></span>';
+      list.appendChild(li);
+    }
+  };
+
   YmmWidget.prototype.search = function () {
     var self = this;
     var selected = this.selectedValues();
@@ -449,6 +467,7 @@
       return;
     }
     setStatus(this.statusEl, MSG_SEARCHING, false);
+    this.renderSkeletons(4);
     var reqId = ++this._reqId;
     this.fetchJson(this.buildUrl("search", selected))
       .then(function (payload) {
@@ -478,6 +497,7 @@
       .catch(function () {
         if (reqId !== self._reqId) return;
         setStatus(self.statusEl, MSG_ERROR, true);
+        if (self.resultsEl) self.resultsEl.innerHTML = "";
       });
   };
 

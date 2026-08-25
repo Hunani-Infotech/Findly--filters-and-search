@@ -42,6 +42,14 @@ function assertStaticMarkers() {
     join(ROOT, "extensions/smart-filter/assets/smart-filter.js"),
     "utf8",
   );
+  const gridJs = readFileSync(
+    join(ROOT, "extensions/smart-filter/assets/smart-filter-grid.js"),
+    "utf8",
+  );
+  const filterCss = readFileSync(
+    join(ROOT, "extensions/smart-filter/assets/smart-filter.css"),
+    "utf8",
+  );
 
   if (!settingsPage.includes("enableCollectionSearch")) {
     fail("admin settings missing Enable search on collection pages");
@@ -63,6 +71,22 @@ function assertStaticMarkers() {
     !widgetJs.includes("enableCollectionSearch")
   ) {
     fail("smart-filter.js missing collection search bar wiring");
+  }
+  if (
+    !gridJs.includes("sf-collection-search-host") ||
+    !gridJs.includes("placeCollectionSearchOnGrid") ||
+    !gridJs.includes("isLayoutShell")
+  ) {
+    fail("collection search must mount above the product grid, not in the sidebar");
+  }
+  if (!filterCss.includes("smart-filter__collection-search--toolbar")) {
+    fail("collection search toolbar styles missing");
+  }
+  if (!filterCss.includes(".smart-filter > .smart-filter__collection-search")) {
+    fail("collection search must stay hidden while still in the filter sidebar");
+  }
+  if (!filterCss.includes(":has(> li:nth-child(6))")) {
+    fail("facet option lists must scroll only when they have many values");
   }
 }
 

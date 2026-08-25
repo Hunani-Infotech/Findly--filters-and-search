@@ -90,6 +90,7 @@
       btn.className = "sf-pager__more";
       btn.textContent = this.t("load_more", "Load more");
       btn.disabled = Boolean(this._loadingPage || this._appending);
+      if (btn.disabled) btn.setAttribute("aria-busy", "true");
       btn.addEventListener(
         "click",
         function () {
@@ -97,6 +98,12 @@
         }.bind(this),
       );
       el.appendChild(btn);
+      if (this._loadingPage || this._appending) {
+        var spin = document.createElement("span");
+        spin.className = "sf-pager__spin";
+        spin.setAttribute("aria-hidden", "true");
+        btn.appendChild(spin);
+      }
     };
 
     proto.renderNumberedPager = function (el) {
@@ -202,7 +209,9 @@
         }
         el.hidden = false;
         var sentinel = document.createElement("div");
-        sentinel.className = "sf-pager__sentinel";
+        sentinel.className =
+          "sf-pager__sentinel" +
+          (this._loadingPage || this._appending ? " is-busy" : "");
         sentinel.setAttribute("aria-hidden", "true");
         el.appendChild(sentinel);
         this.bindInfinite(sentinel);

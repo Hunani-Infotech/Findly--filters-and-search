@@ -8,10 +8,12 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v6";
+  var STYLE_ID = "findly-grid-takeover-v7";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
+  var SKEL_ATTR = "data-findly-skel";
+  var SKEL_COUNT = 8;
   var PRODUCT_GRID_START_CSS =
     ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
     ".sf-collection-layout #product-grid,.sf-og #product-grid," +
@@ -24,11 +26,19 @@
     "{justify-content:start!important}";
   var GRID_BUSY_CSS =
     "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
-    "#findly-grid-busy-overlay{position:fixed;z-index:40;box-sizing:border-box;pointer-events:none;" +
-    "background:rgb(255 255 255 / .55)}" +
+    "@keyframes sf-skeleton-pulse{50%{opacity:.55}}" +
+    "#findly-grid-busy-overlay{position:fixed;z-index:80;box-sizing:border-box;pointer-events:auto;" +
+    "background:rgb(255 255 255 / .28)}" +
     "#findly-grid-busy-overlay::after{content:\"\";position:absolute;top:50%;left:50%;width:2rem;height:2rem;" +
     "margin:-1rem 0 0 -1rem;border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);" +
     "border-radius:50%;animation:sf-grid-spin .7s linear infinite}" +
+    ".findly-grid-is-busy{position:relative;min-height:22rem;pointer-events:none}" +
+    "[" + SKEL_ATTR + "='1']{pointer-events:none;list-style:none;min-width:0}" +
+    ".findly-grid-skel__img{display:block;width:100%;aspect-ratio:1;border-radius:8px;background:#ececec}" +
+    ".findly-grid-skel__line{display:block;height:.7rem;margin-top:.55rem;border-radius:4px;background:#ececec;width:78%}" +
+    ".findly-grid-skel__line.is-short{width:42%;margin-top:.4rem}" +
+    "[" + SKEL_ATTR + "='1'] .findly-grid-skel__img,[" + SKEL_ATTR + "='1'] .findly-grid-skel__line{" +
+    "animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
     "#" +
     "findly-grid-empty,.sf-grid-empty{grid-column:1/-1;width:100%;min-height:12rem;display:flex;flex-direction:column;" +
     "align-items:center;justify-content:center;text-align:center;padding:2.5rem 1.5rem;box-sizing:border-box}" +
@@ -308,6 +318,10 @@
         "{flex:1 1 auto;min-width:0;max-width:100%}" +
         ".sf-sort-host{display:flex;justify-content:flex-end;width:100%;margin:0 0 14px;overflow:visible;position:relative;z-index:6}" +
         ".sf-sort-host .smart-filter__sort{display:inline-flex;position:relative;width:fit-content;max-width:100%;margin:0 0 0 auto;overflow:visible}" +
+        ".sf-collection-search-host{display:block;width:100%;max-width:100%;margin:0 0 16px}" +
+        ".smart-filter>.smart-filter__collection-search{display:none!important}" +
+        ".smart-filter__collection-search--toolbar{display:flex;width:100%;max-width:100%;margin:0}" +
+        ".smart-filter__collection-search--toolbar .smart-filter__collection-search-input{width:100%;max-width:none;flex:1 1 auto;min-width:0}" +
         ".sf-collection-layout--top{display:flex!important;flex-direction:column;gap:16px;width:100%}" +
         ".sf-collection-layout--top>.sf-collection-layout__aside,.sf-collection-layout--top>.smart-filter," +
         ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
@@ -703,10 +717,12 @@
       return true;
     }
     if (el.id === CARD_TRAY_ID || el.id === EMPTY_ID) return true;
+    if (el.getAttribute && el.getAttribute(SKEL_ATTR) === "1") return true;
     var cls = el.classList;
     if (!cls) return false;
     return (
       cls.contains("sf-sort-host") ||
+      cls.contains("sf-collection-search-host") ||
       cls.contains("sf-pager") ||
       cls.contains("pagination") ||
       cls.contains("facets-container") ||
@@ -1181,6 +1197,7 @@
       if (
         (cls &&
           (cls.contains("sf-sort-host") ||
+            cls.contains("sf-collection-search-host") ||
             cls.contains("sf-pager") ||
             cls.contains("pagination"))) ||
         tag === "nav"
@@ -1215,6 +1232,7 @@
 
   function sweepHostOrphans(host, shownEls, allowed, tray) {
     if (!host || !host.querySelectorAll || !tray || !allowed) return;
+    if (!shownEls || !shownEls.length) return;
     var links = host.querySelectorAll('a[href*="/products/"]');
     var i;
     var s;
@@ -1255,6 +1273,177 @@
     }
   }
 
+  function isBusyPainted() {
+    return Boolean(
+      document.getElementById("findly-grid-busy-overlay") ||
+        document.querySelector("[" + SKEL_ATTR + "='1']"),
+    );
+  }
+
+  function discoverBusyHost(hint) {
+    var parent =
+      hint ||
+      document.querySelector(PRODUCT_GRID_SELECTOR) ||
+      findResultsList();
+    var host = resolveCardHost(parent) || parent;
+    if (host && isLayoutShell(host) && host.querySelector) {
+      var inner =
+        host.querySelector(".main-collection-grid") ||
+        host.querySelector("#product-grid") ||
+        host.querySelector("#ProductGrid") ||
+        host.querySelector("ul.product-grid") ||
+        host.querySelector("ol.product-grid");
+      if (inner) host = inner;
+    }
+    return host;
+  }
+
+  function clearGridSkeletons(host) {
+    var scope = host && host.querySelectorAll ? host : document;
+    var nodes = scope.querySelectorAll("[" + SKEL_ATTR + "='1']");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i].parentNode) nodes[i].parentNode.removeChild(nodes[i]);
+    }
+  }
+
+  function mountGridSkeletons(host, count) {
+    if (!host || !host.appendChild) return;
+    clearGridSkeletons(host);
+    var sample = null;
+    var i;
+    for (i = 0; i < host.children.length; i++) {
+      var kid = host.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (isGridChrome(kid) || kid.id === CARD_TRAY_ID) continue;
+      if (isOuterThemeCard(kid)) {
+        sample = kid;
+        break;
+      }
+    }
+    var hostTag = String(host.tagName || "").toLowerCase();
+    var tag = hostTag === "ul" || hostTag === "ol" ? "LI" : "DIV";
+    var sampleTag = sample ? String(sample.tagName || "") : "";
+    var className = "";
+    if (
+      sample &&
+      sample.className &&
+      sampleTag.indexOf("-") === -1
+    ) {
+      className = String(sample.className || "");
+    }
+    var n = count || SKEL_COUNT;
+    for (i = 0; i < n; i++) {
+      var el = document.createElement(tag);
+      el.setAttribute(SKEL_ATTR, "1");
+      el.setAttribute("aria-hidden", "true");
+      if (className) el.className = className;
+      el.innerHTML =
+        '<span class="findly-grid-skel__img"></span>' +
+        '<span class="findly-grid-skel__line"></span>' +
+        '<span class="findly-grid-skel__line is-short"></span>';
+      host.appendChild(el);
+    }
+  }
+
+  function positionBusyOverlay(host, overlay) {
+    if (!host || !overlay || !host.getBoundingClientRect) return;
+    var rect = host.getBoundingClientRect();
+    var vh = window.innerHeight || 800;
+    var top = Math.max(0, rect.top);
+    overlay.style.top = top + "px";
+    overlay.style.left = Math.max(0, rect.left) + "px";
+    overlay.style.width = Math.max(160, rect.width) + "px";
+    overlay.style.height =
+      Math.max(352, Math.min(rect.height || 0, Math.max(120, vh - top))) + "px";
+  }
+
+  function removeBusyOverlay() {
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  var busyLayoutBound = false;
+  function bindBusyOverlayLayout() {
+    if (busyLayoutBound) return;
+    busyLayoutBound = true;
+    function relayout() {
+      var overlay = document.getElementById("findly-grid-busy-overlay");
+      if (!overlay) return;
+      var host =
+        document.querySelector(".findly-grid-is-busy") || discoverBusyHost();
+      positionBusyOverlay(host, overlay);
+    }
+    window.addEventListener("scroll", relayout, true);
+    window.addEventListener("resize", relayout);
+  }
+
+  function paintGridBusy(host, on) {
+    host = host || discoverBusyHost();
+    if (!on) {
+      clearGridSkeletons(host);
+      if (!host) clearGridSkeletons(document);
+      removeBusyOverlay();
+      var busyHosts = document.querySelectorAll(".findly-grid-is-busy");
+      var b;
+      for (b = 0; b < busyHosts.length; b++) {
+        busyHosts[b].classList.remove("findly-grid-is-busy");
+        busyHosts[b].removeAttribute("aria-busy");
+      }
+      return;
+    }
+    if (!host) return;
+    var stale = document.querySelectorAll(".findly-grid-is-busy");
+    var s;
+    for (s = 0; s < stale.length; s++) {
+      if (stale[s] === host) continue;
+      stale[s].classList.remove("findly-grid-is-busy");
+      stale[s].removeAttribute("aria-busy");
+      clearGridSkeletons(stale[s]);
+    }
+    if (host.classList) host.classList.add("findly-grid-is-busy");
+    host.setAttribute("aria-busy", "true");
+    var cards = collectDirectThemeCards(host);
+    var rect = host.getBoundingClientRect ? host.getBoundingClientRect() : null;
+    if (!cards.length || (rect && rect.height < 120)) {
+      mountGridSkeletons(host, SKEL_COUNT);
+    } else {
+      clearGridSkeletons(host);
+    }
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "findly-grid-busy-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      (document.body || document.documentElement).appendChild(overlay);
+    }
+    positionBusyOverlay(host, overlay);
+    bindBusyOverlayLayout();
+  }
+
+  function bootEarlyGridBusy(attempt) {
+    if (
+      !document.getElementById("smart-filter-root") &&
+      !document.getElementById("smart-filter-embed")
+    ) {
+      return;
+    }
+    if (isBusyPainted()) return;
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (widget && widget._reqId > 0) return;
+    var host = discoverBusyHost();
+    if (host) {
+      paintGridBusy(host, true);
+      return;
+    }
+    attempt = attempt || 0;
+    if (attempt < 24) {
+      window.setTimeout(function () {
+        bootEarlyGridBusy(attempt + 1);
+      }, 80);
+    }
+  }
+
   function mountCachedCards(widget, handles, parent) {
     if (!widget || !widget._cardCache || !parent || !handles) return 0;
     var n = 0;
@@ -1272,11 +1461,28 @@
     return n;
   }
 
+  function uniqueAllowedCount(handles) {
+    if (!handles || !handles.length) return 0;
+    var seen = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < handles.length; i++) {
+      var base = String(handles[i] || "")
+        .split("::")[0]
+        .toLowerCase();
+      if (!base || seen[base]) continue;
+      seen[base] = true;
+      n += 1;
+    }
+    return n;
+  }
+
   function countAllowedInHost(parent, handles) {
     if (!parent || !handles) return 0;
     var allowed = allowedHandleSet(handles);
     if (!allowed) return 0;
-    var cards = collectDirectThemeCards(parent);
+    var host = resolveCardHost(parent) || parent;
+    var cards = collectThemeCards(host);
     var n = 0;
     var i;
     for (i = 0; i < cards.length; i++) {
@@ -1286,6 +1492,7 @@
   }
 
   function syncGridEmptyState(widget, parent, handles, shownCount) {
+    if (isBusyPainted() || (widget && widget._importingCards)) return;
     var emptyEl = document.getElementById(EMPTY_ID);
     var filtering =
       widget && widget.hasActiveFilters && widget.hasActiveFilters();
@@ -1318,38 +1525,48 @@
     findlyLog("grid.empty", { parent: describeHost(parent) });
   }
 
+  function shouldTakeOverThemeCards(widget) {
+    if (!widget) return false;
+    if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
+    if (widget.collectionQuery) return true;
+    if (widget.searchQuery) return true;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function fillMissingFilterCards(widget, handles, parent) {
     if (!widget || widget._importingCards || !handles || !handles.length) return;
+    if (!shouldTakeOverThemeCards(widget)) return;
+    var reqId = widget._reqId;
+    parent = resolveCardHost(parent) || parent;
+    if (parent) widget._gridParent = parent;
+    if (widget.setGridBusy) widget.setGridBusy(true);
+    function stale() {
+      return widget._reqId !== reqId;
+    }
     function finish() {
+      if (stale()) return;
       mountCachedCards(widget, handles, parent);
       applyNativeFilterGrid(handles, parent);
       var shown = countAllowedInHost(parent, handles);
-      if (
-        shown === 0 &&
-        widget.applyAppGrid &&
-        (widget._lastProducts || handles)
-      ) {
-        widget.applyAppGrid(
-          {
-            products: widget._lastProducts || [],
-            total: widget._pageTotal,
-          },
-          handles,
-          false,
-        );
-        applyNativeFilterGrid(handles, parent);
-        shown = countAllowedInHost(parent, handles);
-      }
-      syncGridEmptyState(
-        widget,
-        parent,
-        shown === 0 ? [] : handles,
-        shown,
-      );
       findlyLog("grid.imported", {
         shown: shown,
         handles: handles.length,
       });
+      if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
+      if (widget._reqId === reqId) {
+        widget._loadingPage = false;
+        widget._appending = false;
+        if (widget.renderPager) widget.renderPager();
+      }
+      syncGridEmptyState(widget, parent, handles, shown);
     }
     findlyLog("grid.missing", {
       handles: handles.slice ? handles.slice(0, 8) : handles,
@@ -1461,22 +1678,22 @@
 
   function applyNativeAfterGrid(self) {
     if (!self) return;
-    if (self._appGridActive || (self.isAppGridMode && self.isAppGridMode())) {
+    if (self._importingCards || isBusyPainted()) return;
+    if (self.isAppGridMode && self.isAppGridMode()) {
       var parent = self._gridParent;
       if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
       return;
     }
-    if (self.appGridTemplate && self.appGridTemplate()) return;
+    if (!shouldTakeOverThemeCards(self)) {
+      applyNativeFilterGrid(null, self._gridParent);
+      return;
+    }
     var handles =
       self._visibleHandles && self._visibleHandles.length
         ? self._visibleHandles
         : self._shownHandles;
     if (!handles || !handles.length) {
-      if (self.hasActiveFilters && self.hasActiveFilters()) {
-        applyNativeFilterGrid(handles || [], self._gridParent);
-      } else {
-        applyNativeFilterGrid(null, self._gridParent);
-      }
+      applyNativeFilterGrid(handles || [], self._gridParent);
       return;
     }
     applyNativeFilterGrid(handles, self._gridParent);
@@ -1897,9 +2114,18 @@
       if (node.id === "findly-grid-busy-overlay" || node.id === CARD_TRAY_ID) {
         return true;
       }
+      if (node.getAttribute && node.getAttribute(SKEL_ATTR) === "1") return true;
       if (node.closest) {
         return Boolean(
-          node.closest("#findly-grid-busy-overlay, #" + CARD_TRAY_ID),
+          node.closest(
+            "#findly-grid-busy-overlay, #" +
+              CARD_TRAY_ID +
+              ", #" +
+              EMPTY_ID +
+              ", [" +
+              SKEL_ATTR +
+              "='1']",
+          ),
         );
       }
       return false;
@@ -2236,6 +2462,107 @@
     for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
   }
 
+  function isLayoutShell(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el === document.body || el === document.documentElement) return true;
+    var cls = el.classList;
+    if (!cls) return false;
+    return (
+      cls.contains("sf-collection-layout") ||
+      cls.contains("sf-collection-layout__main") ||
+      cls.contains("sf-collection-layout__aside") ||
+      cls.contains("smart-filter")
+    );
+  }
+
+  function collectionSearchGridEl(widget) {
+    var main = document.querySelector(".sf-collection-layout__main");
+    var scope = main || document;
+    var precise = scope.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
+    );
+    if (precise && !isLayoutShell(precise)) return precise;
+    var grid = widget && widget._gridParent;
+    if (grid && !isLayoutShell(grid) && (!main || main.contains(grid))) {
+      return grid;
+    }
+    try {
+      return scope.querySelector(PRODUCT_GRID_SELECTOR);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function placeCollectionSearchOnGrid(widget) {
+    if (!widget) return;
+    var wrap =
+      widget.collectionSearchWrap ||
+      document.querySelector("[data-collection-search-wrap]");
+    if (!wrap) return;
+    widget.collectionSearchWrap = wrap;
+    widget.collectionSearchEl =
+      widget.collectionSearchEl ||
+      wrap.querySelector("[data-collection-search]");
+    if (wrap.hidden) return;
+    wrap.classList.add("smart-filter__collection-search--toolbar");
+
+    var main = document.querySelector(".sf-collection-layout__main");
+    var grid = collectionSearchGridEl(widget);
+    var parent = null;
+    var before = null;
+
+    if (grid && grid.parentNode && !isLayoutShell(grid)) {
+      parent = grid.parentNode;
+      before = grid;
+      if (parent.nodeType === 1 && /^(UL|OL)$/i.test(parent.tagName)) {
+        before = parent;
+        parent = parent.parentNode;
+      }
+    }
+
+    if (!parent || parent.nodeType !== 1 || isLayoutShell(parent)) {
+      parent = main;
+      before = null;
+      if (parent && grid && parent.contains(grid) && !isLayoutShell(grid)) {
+        parent = grid.parentNode;
+        before = grid;
+        if (parent && parent.nodeType === 1 && /^(UL|OL)$/i.test(parent.tagName)) {
+          before = parent;
+          parent = parent.parentNode;
+        }
+      }
+    }
+
+    if (!parent || parent.nodeType !== 1) return;
+
+    var host = document.querySelector(".sf-collection-search-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "sf-collection-search-host";
+    }
+
+    if (before && before.parentNode === parent) {
+      if (host.nextSibling !== before) parent.insertBefore(host, before);
+    } else if (host.parentNode !== parent) {
+      var sortHost = null;
+      var kids = parent.children;
+      var i;
+      for (i = 0; i < kids.length; i++) {
+        if (kids[i].classList && kids[i].classList.contains("sf-sort-host")) {
+          sortHost = kids[i];
+          break;
+        }
+      }
+      if (sortHost) {
+        if (sortHost.nextSibling) parent.insertBefore(host, sortHost.nextSibling);
+        else parent.appendChild(host);
+      } else {
+        parent.appendChild(host);
+      }
+    }
+    if (wrap.parentNode !== host) host.appendChild(wrap);
+  }
+
   function patchWidget(widget) {
     if (!widget) return;
     liftOutOfThemeForm(widget);
@@ -2304,15 +2631,21 @@
           moveCardsToHost(this._gridParent, parent);
         }
         this._gridParent = parent;
+        placeCollectionSearchOnGrid(this);
         return parent;
       }
 
-      if (!inAppMode) return null;
+      if (!inAppMode) {
+        placeCollectionSearchOnGrid(this);
+        return null;
+      }
       if (results && results.parentElement) {
         this._gridParent = results.parentElement;
+        placeCollectionSearchOnGrid(this);
         return this._gridParent;
       }
       this._gridParent = fallbackHost();
+      placeCollectionSearchOnGrid(this);
       return this._gridParent;
     };
 
@@ -2391,12 +2724,51 @@
       setOwnsGrid(false);
     };
 
+    proto.shouldInterceptPaging = function () {
+      if (this.isAppGridMode && this.isAppGridMode()) return true;
+      if (this._pagingFallback) return false;
+      return shouldTakeOverThemeCards(this);
+    };
+
+    var origCount = proto.syncThemeProductCount;
+    proto.syncThemeProductCount = function (count) {
+      if (!shouldTakeOverThemeCards(this)) return;
+      if (origCount) origCount.call(this, count);
+    };
+
+    var origLegacy = proto.applyThemeGridLegacy;
+    proto.applyThemeGridLegacy = function (data, handles) {
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, this._gridParent);
+        return;
+      }
+      if (origLegacy) origLegacy.call(this, data, handles);
+    };
+
     var origApply = proto.applyAppGrid;
     proto.applyAppGrid = function (data, handles, append) {
-      var sliced = pageSlicePayload(this, data, handles, append);
+      var sliced = this._skipPageSlice
+        ? { data: data, handles: handles }
+        : pageSlicePayload(this, data, handles, append);
       var parent =
-        this._gridParent ||
-        (this.ensureGridParent && this.ensureGridParent());
+        resolveCardHost(
+          this._gridParent ||
+            (this.ensureGridParent && this.ensureGridParent()),
+        ) || this._gridParent;
+      if (parent) this._gridParent = parent;
+      if (!(this.isAppGridMode && this.isAppGridMode())) {
+        findlyLog("grid.app.skip", {
+          reason: "keep-theme-cards",
+          handles: sliced.handles && sliced.handles.length,
+        });
+        mountCachedCards(this, sliced.handles, parent);
+        if (shouldTakeOverThemeCards(this)) {
+          applyNativeFilterGrid(sliced.handles, parent);
+        } else {
+          applyNativeFilterGrid(null, parent);
+        }
+        return countAllowedInHost(parent, sliced.handles) > 0;
+      }
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
         : false;
@@ -2409,6 +2781,39 @@
       return ok;
     };
 
+    var origMissing = proto.missingHandles;
+    proto.missingHandles = function (handles) {
+      var cache = this._cardCache || {};
+      var list = handles || [];
+      var out = [];
+      var seen = {};
+      var i;
+      for (i = 0; i < list.length; i++) {
+        var key = String(list[i] || "").toLowerCase();
+        if (!key || seen[key]) continue;
+        seen[key] = true;
+        var base = key.split("::")[0];
+        if (cache[key] || (base && cache[base])) continue;
+        out.push(base || key);
+      }
+      if (out.length || !origMissing) return out;
+      return origMissing.call(this, handles);
+    };
+
+    var origThemePage = proto.fetchThemePage;
+    proto.fetchThemePage = function (page) {
+      var self = this;
+      if (!origThemePage) return Promise.resolve(false);
+      return origThemePage.call(this, page).then(function (ok) {
+        if (!self._themeNoMore) return ok;
+        var pending = self._visibleHandles || self._shownHandles;
+        if (pending && pending.length && self.missingHandles(pending).length) {
+          self._themeNoMore = false;
+        }
+        return ok;
+      });
+    };
+
     var origIntercept = proto.applyInterceptGrid;
     proto.applyInterceptGrid = function (handles, append) {
       var next = pageSlice(this, handles, append);
@@ -2418,17 +2823,22 @@
             (this.ensureGridParent && this.ensureGridParent()),
         ) || this._gridParent;
       if (host) this._gridParent = host;
-      var ok = origIntercept ? origIntercept.call(this, next, append) : false;
-      mountCachedCards(this, next, host);
-      if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
-        applyNativeFilterGrid(
-          this._shownHandles && this._shownHandles.length
-            ? this._shownHandles
-            : next,
-          host,
-        );
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, host);
+        return true;
       }
-      return ok || countAllowedInHost(host, next) > 0;
+      if (origIntercept) origIntercept.call(this, next, append);
+      mountCachedCards(this, next, host);
+      applyNativeFilterGrid(
+        this._shownHandles && this._shownHandles.length
+          ? this._shownHandles
+          : next,
+        host,
+      );
+      return (
+        uniqueAllowedCount(next) > 0 &&
+        countAllowedInHost(host, next) >= uniqueAllowedCount(next)
+      );
     };
 
     var origFetch = proto.fetchFilters;
@@ -2444,8 +2854,17 @@
       var self = this;
       if (result && typeof result.then === "function") {
         return result.then(function (value) {
+          var host = resolveCardHost(self._gridParent);
+          var handles = self._visibleHandles || self._shownHandles;
           if (
-            !(self._appGridActive || (self.isAppGridMode && self.isAppGridMode()))
+            shouldTakeOverThemeCards(self) &&
+            Array.isArray(handles) &&
+            handles.length &&
+            countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
+          ) {
+            fillMissingFilterCards(self, handles, host);
+          } else if (
+            !(self.isAppGridMode && self.isAppGridMode())
           ) {
             applyNativeAfterGrid(self);
           } else if (self._gridParent && self.hideNativeGridCards) {
@@ -2469,10 +2888,21 @@
       enhanceSortMenu(this);
     };
 
+    proto.placeCollectionSearchOnGrid = function () {
+      placeCollectionSearchOnGrid(this);
+    };
+
+    var origRenderSearch = proto.renderCollectionSearch;
+    proto.renderCollectionSearch = function (settings) {
+      if (origRenderSearch) origRenderSearch.call(this, settings);
+      placeCollectionSearchOnGrid(this);
+    };
+
     var origPlaceSort = proto.placeSortOnGrid;
     proto.placeSortOnGrid = function () {
       if (origPlaceSort) origPlaceSort.call(this);
       enhanceSortMenu(this);
+      placeCollectionSearchOnGrid(this);
     };
 
     var origInit = proto.init;
@@ -2550,45 +2980,16 @@
       var parent =
         this._gridParent ||
         (this.ensureGridParent && this.ensureGridParent());
-      var host = resolveCardHost(parent) || parent;
-      if (host && isLayoutShell(host) && host.querySelector) {
-        var inner =
-          host.querySelector(".main-collection-grid") ||
-          host.querySelector("#product-grid") ||
-          host.querySelector("#ProductGrid") ||
-          host.querySelector("ul.product-grid");
-        if (inner) host = inner;
-      }
-      function stamp(el, on) {
-        if (!el || el.nodeType !== 1) return;
-        if (on) el.setAttribute("aria-busy", "true");
-        else el.setAttribute("aria-busy", "false");
-        if (el.classList) el.classList.remove("sf-grid-busy");
-      }
-      if (parent && parent !== host) stamp(parent, false);
-      stamp(host, busy);
-      var overlay = document.getElementById("findly-grid-busy-overlay");
-      if (!busy) {
-        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-        overlay = null;
-      } else if (host && host.getBoundingClientRect) {
-        var rect = host.getBoundingClientRect();
-        if (!overlay) {
-          overlay = document.createElement("div");
-          overlay.id = "findly-grid-busy-overlay";
-          overlay.setAttribute("aria-hidden", "true");
-          (document.body || document.documentElement).appendChild(overlay);
-        }
-        overlay.style.top = Math.max(0, rect.top) + "px";
-        overlay.style.left = Math.max(0, rect.left) + "px";
-        overlay.style.width = Math.max(0, rect.width) + "px";
-        overlay.style.height = Math.max(80, rect.height) + "px";
-      }
+      var host = discoverBusyHost(parent);
+      if (parent && parent.classList) parent.classList.remove("sf-grid-busy");
+      if (host && host.classList) host.classList.remove("sf-grid-busy");
+      paintGridBusy(host, busy);
       findlyLog("grid.busy", {
         busy: Boolean(busy),
         host: describeHost(host),
         parent: describeHost(parent),
-        overlay: Boolean(overlay || document.getElementById("findly-grid-busy-overlay")),
+        overlay: Boolean(document.getElementById("findly-grid-busy-overlay")),
+        skel: document.querySelectorAll("[" + SKEL_ATTR + "='1']").length,
         stack: shortStack(),
       });
       if (origBusy && origBusy !== proto.setGridBusy && !host) {
@@ -2596,21 +2997,39 @@
       }
     };
 
-    var origSyncGrid = proto.syncProductGrid;
     proto.syncProductGrid = function (handles) {
       var parent = resolveCardHost(
         this._gridParent ||
           (this.ensureGridParent && this.ensureGridParent()),
       );
       if (parent) this._gridParent = parent;
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, parent);
+        syncGridEmptyState(this, parent, null, 0);
+        placeCollectionSearchOnGrid(this);
+        return;
+      }
       mountCachedCards(this, handles, parent);
+      var shownBefore = countAllowedInHost(parent, handles);
+      if (
+        Array.isArray(handles) &&
+        handles.length &&
+        shownBefore < uniqueAllowedCount(handles)
+      ) {
+        this.setGridBusy(true);
+      }
       applyNativeFilterGrid(handles, parent);
       var shown = countAllowedInHost(parent, handles);
-      if (Array.isArray(handles) && handles.length && shown === 0) {
+      if (
+        Array.isArray(handles) &&
+        handles.length &&
+        shown < uniqueAllowedCount(handles)
+      ) {
         fillMissingFilterCards(this, handles, parent);
       } else {
         syncGridEmptyState(this, parent, handles, shown);
       }
+      placeCollectionSearchOnGrid(this);
     };
     proto.watchThemeGrid = function () {
       if (this._gridObserver) {
@@ -2674,6 +3093,11 @@
     injectCss();
     bindFindlyChangeCapture();
     bindHashChange();
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bootEarlyGridBusy);
+    } else {
+      bootEarlyGridBusy();
+    }
     if (!window.__findlyDrawerResize) {
       window.__findlyDrawerResize = true;
       window.addEventListener("resize", function () {

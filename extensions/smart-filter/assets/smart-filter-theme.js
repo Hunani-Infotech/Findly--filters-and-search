@@ -11,7 +11,7 @@
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
-    ".smart-filter, .smart-filter-search, .findly-instant, .sf-sort-host, .sf-pager, .sf-app-card, .sf-collection-layout";
+    ".smart-filter, .smart-filter-search, .findly-instant, .sf-sort-host, .sf-collection-search-host, .sf-pager, .sf-app-card, .sf-collection-layout";
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
@@ -293,6 +293,32 @@
     widget.sortWrap.classList.add("smart-filter__sort--toolbar");
   }
 
+  function ensureCollectionSearchHost(widget) {
+    if (!widget) return;
+    if (widget.placeCollectionSearchOnGrid) {
+      widget.placeCollectionSearchOnGrid();
+      return;
+    }
+    var wrap = widget.collectionSearchWrap;
+    if (!wrap || wrap.hidden) return;
+    var main =
+      document.querySelector(".sf-collection-layout__main") ||
+      (widget._gridParent && widget._gridParent.parentElement);
+    if (!main) return;
+    wrap.classList.add("smart-filter__collection-search--toolbar");
+    var host = main.querySelector
+      ? main.querySelector(".sf-collection-search-host")
+      : null;
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "sf-collection-search-host";
+      var grid = widget._gridParent;
+      if (grid && grid.parentNode === main) main.insertBefore(host, grid);
+      else main.appendChild(host);
+    }
+    if (wrap.parentNode !== host) host.appendChild(wrap);
+  }
+
   function liftOutOfAnyFilterForm(widget) {
     if (!widget || !widget.root || !widget.root.closest) return;
     var mount =
@@ -350,6 +376,7 @@
     proto.placeSortOnGrid = function () {
       if (origPlaceSort) origPlaceSort.call(this);
       ensureSortHost(this);
+      ensureCollectionSearchHost(this);
     };
 
     var origCount = proto.syncThemeProductCount;
@@ -374,6 +401,7 @@
       var result = origSync ? origSync.apply(this, arguments) : undefined;
       hideNativeChromeHeuristic();
       ensureSortHost(this);
+      ensureCollectionSearchHost(this);
       return result;
     };
 
@@ -394,6 +422,7 @@
     widget._gridParent = null;
     if (widget.ensureGridParent) widget.ensureGridParent();
     if (widget.syncCollectionLayout) widget.syncCollectionLayout();
+    if (widget.placeCollectionSearchOnGrid) widget.placeCollectionSearchOnGrid();
     if (widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
     if (widget.watchThemeGrid) widget.watchThemeGrid();
     if (Array.isArray(widget._visibleHandles) && window.applyProductVisibility) {

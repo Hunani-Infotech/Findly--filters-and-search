@@ -142,13 +142,18 @@ export function LayoutPicker({
   );
 }
 
-function MiniProductGrid() {
+function MiniProductGrid({ showSearch = false }: { showSearch?: boolean }) {
   return (
-    <div className={styles.miniGrid} aria-hidden="true">
-      <div className={styles.miniCard} />
-      <div className={styles.miniCard} />
-      <div className={styles.miniCard} />
-      <div className={styles.miniCard} />
+    <div className={styles.miniGridCol} aria-hidden="true">
+      {showSearch ? (
+        <div className={styles.collectionSearch}>Search products</div>
+      ) : null}
+      <div className={styles.miniGrid}>
+        <div className={styles.miniCard} />
+        <div className={styles.miniCard} />
+        <div className={styles.miniCard} />
+        <div className={styles.miniCard} />
+      </div>
     </div>
   );
 }
@@ -176,9 +181,6 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
       <p className={title ? styles.title : `${styles.title} ${styles.titleHidden}`}>
         {title}
       </p>
-      {settings.enableCollectionSearch ? (
-        <div className={styles.collectionSearch}>Search products</div>
-      ) : null}
       {showRefine ? (
         <>
           <div className={styles.filterBy}>
@@ -339,7 +341,9 @@ export function WidgetLookPreview({
           ? `${styles.stage} ${styles.stageOffcanvas}`
           : `${styles.stage} ${styles.stageLeft}`;
   const widget = <FilterWidget settings={settings} />;
-  const grid = <MiniProductGrid />;
+  const grid = (
+    <MiniProductGrid showSearch={Boolean(settings.enableCollectionSearch)} />
+  );
 
   return (
     <div className={styles.preview}>
