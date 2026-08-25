@@ -2,7 +2,7 @@
 
 Paste-ready text for **Apps → Findly → Distribution → Manage listing**. No prior draft existed in the repo; this is the source of truth.
 
-Cross-checked on 21 Aug 2026 against `app/routes/app.tsx` NavMenu and the pages those links open. Do not invent extras in the Partner form.
+Cross-checked on 25 Aug 2026 against `app/routes/app.tsx` NavMenu and the pages those links open. Do not invent extras in the Partner form.
 
 ## NavMenu vs listing (current)
 
@@ -10,7 +10,8 @@ Enabled in `NavMenu` right now:
 
 | Nav item | Route | Listing? | Why |
 |---|---|---|---|
-| Home / Filters | `/app` | Yes | Filter sets, swatches, value groups |
+| Home | `/app` | Yes | Onboarding, catalog sync popup, performance |
+| Filters | `/app/filters` | Yes | Filter sets, color swatches, value groups |
 | Search | `/app/search` | Yes | Search fields, instant widget, pinnings, synonyms, redirects |
 | Settings | `/app/settings` | Yes | Panel position, metafields — not under construction |
 | Translation | `/app/translation` | Yes | Widget label locales |
@@ -18,7 +19,7 @@ Enabled in `NavMenu` right now:
 | Analytics | `/app/analytics` | **Yes, one feature line only** | Real dashboard (not Under construction) **and** visible in nav |
 | Pricing plans | `/app/billing` | Yes (pricing fields) | Free / Standard / Pro in `billing.server.ts` |
 | Contact | `/app/contact` | No | In-app form emails Gmail (AS-H4). Use the same address in listing support (AS-L8). |
-| Sync | `/app/sync` | Yes (how it works) | Catalog sync status |
+| Sync | `/app/sync` → `/app?sync=1` | Yes (how it works) | Opens the Home catalog sync popup |
 
 **Not in NavMenu** (routes exist as Under construction — do **not** advertise):
 
@@ -60,10 +61,10 @@ Shoppers filter collections and search products in your theme. Add the widget as
 ### App details (≤500)
 
 ```
-Findly adds collection filters and storefront search via a theme app block. Enable filter sets on Home. Map metafields and set left, right, or top placement in Settings. Search includes keyword search, instant suggestions, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Free, Standard, and Pro.
+Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword search, instant suggestions, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Free, Standard, and Pro.
 ```
 
-499 characters.
+498 characters.
 
 ### Feature list (≤80 each)
 
@@ -80,8 +81,8 @@ Feature 8 is allowed only because Analytics is a finished page **and** it is in 
 
 ### How it works
 
-1. Install Findly. Catalog sync starts; open Sync to check status or run a full sync.
-2. On Home, enable a filter set. Choose price, availability, vendor, type, tags, options, and metafields.
+1. Install Findly. Catalog sync starts; open Sync (or Home → View details) to check status or run a full sync.
+2. On Filters, enable a filter set. Choose price, availability, vendor, type, tags, options, and metafields.
 3. In the theme editor, add **Collection filters** on collection templates. Add **Product search** and/or **Instant search** for storefront search.
 4. Optional: Settings for panel look, Search for pins / synonyms / redirects, Translation for labels.
 

@@ -1074,9 +1074,40 @@
 }
 
 .sf-grid-busy {
-  opacity: 0.45;
+  position: relative !important;
+  opacity: 1 !important;
   pointer-events: none;
-  transition: opacity 0.15s ease;
+  min-height: 8rem;
+}
+
+.sf-grid-busy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgb(255 255 255 / 0.55);
+  pointer-events: none;
+}
+
+.sf-grid-busy::after {
+  content: "";
+  position: absolute;
+  z-index: 21;
+  top: 50%;
+  left: 50%;
+  width: 2rem;
+  height: 2rem;
+  margin: -1rem 0 0 -1rem;
+  border: 2px solid rgb(0 0 0 / 0.12);
+  border-top-color: var(--sf-accent, #111);
+  border-radius: 50%;
+  animation: sf-grid-spin 0.7s linear infinite;
+}
+
+@keyframes sf-grid-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .smart-filter__toggle {

@@ -117,6 +117,18 @@ function assertThemeSeoAndUi() {
   if (!gridJs.includes("liftFragileLayout") || !gridJs.includes("findly-card-tray") || !gridJs.includes("resolveCardHost") || !gridJs.includes("sweepHostOrphans")) {
     fail("smart-filter-grid.js must tray-hide unmatched cards on any theme without leaking titles");
   }
+  if (!gridJs.includes("PRODUCT_GRID_START_CSS") || !gridJs.includes("justify-content:start")) {
+    fail("smart-filter-grid.js must left-align leftover filtered cards in a product grid");
+  }
+  if (gridJs.includes("minmax(11rem,1fr)")) {
+    fail("smart-filter-grid.js must not override theme product-card grid columns");
+  }
+  if (!gridJs.includes("GRID_BUSY_CSS") || !gridJs.includes("sf-grid-spin")) {
+    fail("smart-filter-grid.js must show a product-grid loader while filters fetch");
+  }
+  if (!filterCss.includes("sf-grid-spin")) {
+    fail("smart-filter.css must show a product-grid loader while filters fetch");
+  }
   if (!filterJs.includes("syncProductGrid")) {
     fail("smart-filter.js must expose syncProductGrid so companions can hide cards without leaking titles");
   }

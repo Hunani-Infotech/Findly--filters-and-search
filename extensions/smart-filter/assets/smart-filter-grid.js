@@ -8,9 +8,25 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v5";
+  var STYLE_ID = "findly-grid-takeover-v6";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
+  var PRODUCT_GRID_START_CSS =
+    ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
+    ".sf-collection-layout #product-grid,.sf-og #product-grid," +
+    ".sf-collection-layout #ProductGrid,.sf-og #ProductGrid," +
+    ".sf-collection-layout ul.product-grid,.sf-og ul.product-grid," +
+    ".sf-collection-layout ol.product-grid,.sf-og ol.product-grid," +
+    ".sf-collection-layout .product-grid,.sf-og .product-grid," +
+    ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid," +
+    ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
+    "{justify-content:start!important}";
+  var GRID_BUSY_CSS =
+    "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
+    ".sf-grid-busy{position:relative!important;opacity:1!important;pointer-events:none;min-height:8rem}" +
+    ".sf-grid-busy::before{content:\"\";position:absolute;inset:0;z-index:20;background:rgb(255 255 255 / .55);pointer-events:none}" +
+    ".sf-grid-busy::after{content:\"\";position:absolute;z-index:21;top:50%;left:50%;width:2rem;height:2rem;margin:-1rem 0 0 -1rem;" +
+    "border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);border-radius:50%;animation:sf-grid-spin .7s linear infinite}";
   var STRICT_CARD_SELECTOR = [
     "product-card",
     "product-item",
@@ -164,6 +180,8 @@
     if (legacy3 && legacy3.parentNode) legacy3.parentNode.removeChild(legacy3);
     var legacy4 = document.getElementById("findly-grid-takeover-v4");
     if (legacy4 && legacy4.parentNode) legacy4.parentNode.removeChild(legacy4);
+    var legacy5 = document.getElementById("findly-grid-takeover-v5");
+    if (legacy5 && legacy5.parentNode) legacy5.parentNode.removeChild(legacy5);
     injectCatalogCss();
     if (document.getElementById(STYLE_ID)) return;
     var css =
@@ -216,7 +234,7 @@
       bridge.id = "findly-theme-bridge";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
-        ".sf-grid-busy{opacity:.45;pointer-events:none;transition:opacity .15s ease}" +
+        GRID_BUSY_CSS +
         ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0}" +
         ".sf-collection-layout__aside,.sf-collection-layout__main{box-sizing:border-box;min-width:0}" +
         "@media(min-width:750px){" +
@@ -236,14 +254,9 @@
         "}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
-        ".collection-wrapper.sf-collection-layout--left,.collection-wrapper.sf-collection-layout--right," +
-        ".main-collection-grid.sf-collection-layout--left,.main-collection-grid.sf-collection-layout--right," +
-        "results-list.sf-collection-layout--left,results-list.sf-collection-layout--right" +
-        "{display:grid!important;flex:none;width:100%;max-width:100%;min-width:0}" +
         ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
         "{display:block!important;width:100%;min-width:0}" +
-        ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-        "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%}" +
+        PRODUCT_GRID_START_CSS +
         ".smart-filter .smart-filter__option input[type=checkbox]," +
         ".smart-filter .smart-filter__option input[type=radio]{" +
         "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
@@ -258,23 +271,21 @@
     var oldCatalog =
       document.getElementById("findly-catalog-grid-v1") ||
       document.getElementById("findly-catalog-grid-v2") ||
-      document.getElementById("findly-catalog-grid-v3");
+      document.getElementById("findly-catalog-grid-v3") ||
+      document.getElementById("findly-catalog-grid-v4") ||
+      document.getElementById("findly-catalog-grid-v5");
     if (oldCatalog && oldCatalog.parentNode) oldCatalog.parentNode.removeChild(oldCatalog);
-    if (document.getElementById("findly-catalog-grid-v4")) return;
+    if (document.getElementById("findly-catalog-grid-v6")) return;
     var catalog = document.createElement("style");
-    catalog.id = "findly-catalog-grid-v4";
+    catalog.id = "findly-catalog-grid-v6";
     catalog.textContent =
       "#" +
       CARD_TRAY_ID +
       "{display:none!important;position:absolute;left:-9999px;width:0;height:0;overflow:hidden}" +
-      ".collection-wrapper.sf-collection-layout--left,.collection-wrapper.sf-collection-layout--right," +
-      ".main-collection-grid.sf-collection-layout--left,.main-collection-grid.sf-collection-layout--right," +
-      "results-list.sf-collection-layout--left,results-list.sf-collection-layout--right" +
-      "{display:grid!important;flex:none;width:100%;max-width:100%;min-width:0}" +
       ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
       "{display:block!important;width:100%;min-width:0}" +
-      ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-      "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%}";
+      PRODUCT_GRID_START_CSS +
+      GRID_BUSY_CSS;
     (document.head || document.documentElement).appendChild(catalog);
   }
 
@@ -2272,6 +2283,37 @@
       if (this.panelEl) this.panelEl.classList.remove("is-open");
       if (this.backdropEl) this.backdropEl.classList.remove("is-open");
       document.documentElement.classList.remove("is-sf-drawer-open");
+    };
+
+    var origBusy = proto.setGridBusy;
+    proto.setGridBusy = function (busy) {
+      var parent =
+        this._gridParent ||
+        (this.ensureGridParent && this.ensureGridParent());
+      var host = resolveCardHost(parent) || parent;
+      if (host && isLayoutShell(host) && host.querySelector) {
+        var inner =
+          host.querySelector(".main-collection-grid") ||
+          host.querySelector("#product-grid") ||
+          host.querySelector("#ProductGrid") ||
+          host.querySelector("ul.product-grid");
+        if (inner) host = inner;
+      }
+      function stamp(el, on) {
+        if (!el || !el.classList) return;
+        if (on) {
+          el.classList.add("sf-grid-busy");
+          el.setAttribute("aria-busy", "true");
+        } else {
+          el.classList.remove("sf-grid-busy");
+          el.setAttribute("aria-busy", "false");
+        }
+      }
+      if (parent && parent !== host) stamp(parent, false);
+      stamp(host, busy);
+      if (origBusy && origBusy !== proto.setGridBusy && !host) {
+        origBusy.call(this, busy);
+      }
     };
 
     var origSyncGrid = proto.syncProductGrid;
