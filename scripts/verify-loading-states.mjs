@@ -82,7 +82,13 @@ function assertSourceMarkers() {
   if (!block.includes("smart-filter-grid.min.js") || !embed.includes("smart-filter-grid.min.js")) {
     fail("both collection blocks must load the grid companion");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v7")) {
+  if (/\bcrossorigin\b/.test(block) || /\bcrossorigin\b/.test(embed)) {
+    fail("filter JSON preload must not use crossorigin; it breaks same-origin fetch");
+  }
+  if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
+    fail("fetchFilters must time out and clear the facet skeleton on error");
+  }
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v19")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   if (!/#findly-grid-busy-overlay[\s\S]{0,220}pointer-events:\s*auto/.test(css)) {

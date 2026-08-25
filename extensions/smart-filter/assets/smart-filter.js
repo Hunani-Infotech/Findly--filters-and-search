@@ -5,6 +5,7 @@
   var DEBOUNCE_MS = 300;
   var MSG_LOADING = "Loading filters…";
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
+  var FILTER_FETCH_MS = 12000;
   var MSG_NO_MATCH = "No matching products.";
   var MSG_DISABLED = "Filters are not enabled for this collection.";
   var MSG_CLEAR = "Clear All";
@@ -2475,24 +2476,19 @@
   Widget.prototype.placeSortOnGrid = function () {
     var wrap = this.sortWrap;
     if (!wrap || wrap.hidden) return;
-    var main = document.querySelector(".sf-collection-layout__main");
-    if (!main) return;
     wrap.classList.add("smart-filter__sort--toolbar");
-    var host = null;
-    var kids = main.children;
-    var i;
-    for (i = 0; i < kids.length; i++) {
-      if (kids[i].classList && kids[i].classList.contains("sf-sort-host")) {
-        host = kids[i];
-        break;
-      }
-    }
-    if (!host) {
+    if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
+    var host =
+      document.querySelector(".sf-toolbar .sf-sort-host") ||
+      document.querySelector(".sf-sort-host");
+    var main = document.querySelector(".sf-collection-layout__main");
+    if (!host && main) {
       host = document.createElement("div");
       host.className = "sf-sort-host";
       if (main.firstChild) main.insertBefore(host, main.firstChild);
       else main.appendChild(host);
     }
+    if (!host) return;
     if (wrap.parentNode !== host) host.appendChild(wrap);
     if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
   };
@@ -2668,10 +2664,18 @@
         return;
       }
       if (!Array.isArray(self._visibleHandles)) return;
-      self._reapplyingGrid = true;
-      self.syncProductGrid(self._visibleHandles);
-      self.hideThemeDuplicateChrome();
-      self._reapplyingGrid = false;
+      if (self._gridWatchTimer) return;
+      self._gridWatchTimer = window.setTimeout(function () {
+        self._gridWatchTimer = 0;
+        if (self._appGridActive || self._reapplyingGrid) return;
+        if (!Array.isArray(self._visibleHandles)) return;
+        self._reapplyingGrid = true;
+        try {
+          self.syncProductGrid(self._visibleHandles);
+        } finally {
+          self._reapplyingGrid = false;
+        }
+      }, 150);
     });
     this._gridObserver.observe(host, { childList: true, subtree: true });
   };
@@ -4023,7 +4027,24 @@
       !append && typeof AbortController === "function"
         ? new AbortController()
         : null;
-    if (ctrl) this._abortCtrl = ctrl;
+    var timedOut = false;
+    var timeoutId = 0;
+    if (ctrl) {
+      this._abortCtrl = ctrl;
+      timeoutId = window.setTimeout(function () {
+        timedOut = true;
+        try {
+          ctrl.abort();
+        } catch (ignore) {}
+      }, FILTER_FETCH_MS);
+    }
+
+    var clearFetchTimer = function () {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+        timeoutId = 0;
+      }
+    };
 
     var request = fetch(url, {
       credentials: "same-origin",
@@ -4033,6 +4054,7 @@
     })
       .then(
         function (response) {
+          clearFetchTimer();
           if (!response.ok) {
             throw new Error("Request failed (" + response.status + ")");
           }
@@ -4214,10 +4236,10 @@
       )
       .catch(
         function (err) {
-          if (err && err.name === "AbortError") return;
+          clearFetchTimer();
           if (reqId !== this._reqId) return;
-          this.setGridBusy(false);
-          logFilterError(this.t("error", MSG_ERROR), err);
+          if (err && err.name === "AbortError" && !timedOut) return;
+          this.failFilterLoad(err);
           if (append) {
             this.page = Math.max(1, (this.page || 1) - 1);
             this._loadingPage = false;
@@ -5221,6 +5243,15 @@
         q: this.collectionQuery || "",
       })
     );
+  };
+
+  Widget.prototype.failFilterLoad = function (err) {
+    this.setGridBusy(false);
+    this._loadingPage = false;
+    if (this.facetsEl) this.facetsEl.innerHTML = "";
+    setStatus(this.statusEl, this.t("error", MSG_ERROR), true);
+    logFilterError(this.t("error", MSG_ERROR), err);
+    if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
   };
 
   Widget.prototype.hasFacetChrome = function () {

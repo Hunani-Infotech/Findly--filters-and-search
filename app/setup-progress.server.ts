@@ -259,14 +259,6 @@ async function loadSetupProgress(
   };
 }
 
-export async function setThemeStepComplete(
-  shopId: string,
-  stepId: ThemeStepId,
-  complete: boolean,
-): Promise<void> {
-  await setSetupMark(shopId, stepId, complete);
-}
-
 export async function setSetupMark(
   shopId: string,
   stepId: SetupMarkId,

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v18";
+  var STYLE_ID = "findly-grid-takeover-v19";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -66,11 +66,7 @@
     GRID_RESULT_HIDE +
     "{display:none!important}" +
     gridLoadingHideCss("html.sf-filter-loading") +
-    gridLoadingHideCss("html:has(#smart-filter-root):not(.sf-filter-ready)") +
-    gridLoadingHideCss("html:has(#smart-filter-embed):not(.sf-filter-ready)") +
     gridLoadingMinCss("html.sf-filter-loading") +
-    gridLoadingMinCss("html:has(#smart-filter-root):not(.sf-filter-ready)") +
-    gridLoadingMinCss("html:has(#smart-filter-embed):not(.sf-filter-ready)") +
     "[" + SKEL_ATTR + "='1']{pointer-events:none;list-style:none;min-width:0}" +
     ".findly-grid-skel__img{display:block;width:100%;aspect-ratio:1;border-radius:8px;background:#ececec}" +
     ".findly-grid-skel__line{display:block;height:.7rem;margin-top:.55rem;border-radius:4px;background:#ececec;width:78%}" +
@@ -1073,6 +1069,10 @@
     try {
       var layout = document.querySelector(".sf-collection-layout");
       if (!layout) return;
+      if (layout.getAttribute("data-sf-layout-stable") === "1") {
+        flattenHorizonCollectionWrapper(layout);
+        return;
+      }
       var stamped = layout.querySelectorAll(".sf-collection-layout__main");
       var si;
       for (si = 0; si < stamped.length; si++) {
@@ -1106,6 +1106,7 @@
       }
       normalizeLayoutShell(layout);
       flattenHorizonCollectionWrapper(layout);
+      if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
     } catch (err) {
       try {
         if (typeof console !== "undefined" && console.warn) {
@@ -1138,11 +1139,35 @@
 
   function placeMountOnExistingLayout(existing, mount, position) {
     if (!existing) return existing;
+    var alreadyPlaced =
+      mount &&
+      mount.parentNode === existing &&
+      (position === "right"
+        ? existing.lastElementChild === mount
+        : existing.firstElementChild === mount);
+    if (alreadyPlaced) {
+      if (mount.classList) mount.classList.add("sf-collection-layout__aside");
+      if (existing.classList) {
+        var next = position || "left";
+        existing.classList.add("sf-collection-layout");
+        existing.classList.remove(
+          "sf-collection-layout--left",
+          "sf-collection-layout--right",
+          "sf-collection-layout--top",
+          "sf-collection-layout--offcanvas",
+        );
+        existing.classList.add("sf-collection-layout--" + next);
+      }
+      return existing;
+    }
     existing = stampLayoutPosition(existing, position) || existing;
     if (mount && mount.classList) {
       mount.classList.add("sf-collection-layout__aside");
     }
     if (!mount) return existing;
+    if (existing.contains(mount) && mount.parentNode !== existing) {
+      return existing;
+    }
     if (position === "right") {
       if (existing.lastChild !== mount) existing.appendChild(mount);
     } else if (existing.firstChild !== mount) {
@@ -1233,6 +1258,9 @@
 
   function isLayoutUnsafeHost(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return false;
+    }
     if (isResultsListEl(el) || isListHost(el) || isThemeManagedGrid(el)) {
       return true;
     }
@@ -1313,6 +1341,9 @@
 
   function isThemeManagedGrid(el) {
     if (!el) return false;
+    if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return false;
+    }
     if (isResultsListEl(el)) return true;
     var display = hostDisplay(el);
     return (
@@ -2406,29 +2437,31 @@
       if (needMove) placeCardInGrid(parent, expected[i]);
       showCardTree(expected[i]);
     }
-    for (i = 0; i < shown.length; i++) {
-      if (!shown[i].orphan) continue;
-      if (
-        !attachOrphanToShown(shown[i].el, shown[i].handle, shown) &&
-        !attachOrphanToShown(shown[i].el, shown[i].handle, hidden)
-      ) {
-        if (shown[i].el.parentNode !== tray) tray.appendChild(shown[i].el);
-      }
-    }
-    for (i = 0; i < hidden.length; i++) {
-      if (hidden[i].orphan) {
+    if (needMove) {
+      for (i = 0; i < shown.length; i++) {
+        if (!shown[i].orphan) continue;
         if (
-          !attachOrphanToShown(hidden[i].el, hidden[i].handle, hidden) &&
-          !attachOrphanToShown(hidden[i].el, hidden[i].handle, shown)
+          !attachOrphanToShown(shown[i].el, shown[i].handle, shown) &&
+          !attachOrphanToShown(shown[i].el, shown[i].handle, hidden)
         ) {
-          if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+          if (shown[i].el.parentNode !== tray) tray.appendChild(shown[i].el);
         }
-        continue;
       }
-      showCardTree(hidden[i].el);
-      if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+      for (i = 0; i < hidden.length; i++) {
+        if (hidden[i].orphan) {
+          if (
+            !attachOrphanToShown(hidden[i].el, hidden[i].handle, hidden) &&
+            !attachOrphanToShown(hidden[i].el, hidden[i].handle, shown)
+          ) {
+            if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+          }
+          continue;
+        }
+        showCardTree(hidden[i].el);
+        if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+      }
+      sweepHostOrphans(parent, shownHosts, allowed, tray);
     }
-    sweepHostOrphans(parent, shownHosts, allowed, tray);
     findlyLog("grid.apply", {
       parent: describeHost(parent),
       allowed: allowed ? Object.keys(allowed).length : null,
@@ -3081,6 +3114,14 @@
         debounceTimer = null;
         if (repairingLayout || self._reapplyingGrid) return;
         self._findlyObserverCount = (self._findlyObserverCount || 0) + 1;
+        if (self._findlyObserverCount > 8) {
+          try {
+            self._findlyGridObserver.disconnect();
+          } catch (err) {
+            /* ignore */
+          }
+          return;
+        }
         findlyLog("grid.observer", {
           n: self._findlyObserverCount,
           handles: self._visibleHandles && self._visibleHandles.length,
@@ -3100,13 +3141,41 @@
         }
         self._reapplyingGrid = true;
         try {
+          try {
+            self._findlyGridObserver.disconnect();
+          } catch (err) {
+            /* ignore */
+          }
           applyNativeAfterGrid(self);
         } finally {
           self._reapplyingGrid = false;
+          if (
+            self._findlyObserverCount <= 8 &&
+            self._findlyGridObserver &&
+            self._findlyObserveRoot
+          ) {
+            try {
+              self._findlyGridObserver.observe(self._findlyObserveRoot, {
+                childList: true,
+                subtree: true,
+              });
+            } catch (err) {
+              /* ignore */
+            }
+          }
         }
       }, 80);
     });
-    self._findlyGridObserver.observe(document.documentElement, {
+    var observeRoot =
+      (self._gridParent && self._gridParent.nodeType === 1
+        ? self._gridParent
+        : null) ||
+      document.querySelector(
+        ".main-collection-grid, ul.product-grid, ol.product-grid, #product-grid, #ProductGrid",
+      ) ||
+      document.body;
+    self._findlyObserveRoot = observeRoot;
+    self._findlyGridObserver.observe(observeRoot, {
       childList: true,
       subtree: true,
     });
@@ -3647,9 +3716,16 @@
     }
     var parent = grid && grid.parentNode ? grid.parentNode : null;
     var beforeEl = grid;
-    while (parent && parent.nodeType === 1 && (isProductGridLike(parent) || isThemeManagedGrid(parent))) {
+    var hops = 0;
+    while (
+      parent &&
+      parent.nodeType === 1 &&
+      hops < 8 &&
+      (isProductGridLike(parent) || isThemeManagedGrid(parent))
+    ) {
       beforeEl = parent;
       parent = parent.parentNode;
+      hops += 1;
     }
     if (!parent || parent.nodeType !== 1 || isFindlyLayoutChrome(parent)) {
       var fallbackGrid = document.querySelector(
@@ -3659,9 +3735,16 @@
         (fallbackGrid && fallbackGrid.parentNode) ||
         document.querySelector("#MainContent, #main, main, [role='main']");
       beforeEl = fallbackGrid || null;
-      while (parent && parent.nodeType === 1 && (isProductGridLike(parent) || isThemeManagedGrid(parent))) {
+      hops = 0;
+      while (
+        parent &&
+        parent.nodeType === 1 &&
+        hops < 8 &&
+        (isProductGridLike(parent) || isThemeManagedGrid(parent))
+      ) {
         beforeEl = parent;
         parent = parent.parentNode;
+        hops += 1;
       }
     }
     return { parent: parent, before: beforeEl };
@@ -3918,13 +4001,6 @@
       }
     };
 
-    var origPlaceSort = proto.placeSortOnGrid;
-    proto.placeSortOnGrid = function () {
-      placeCollectionSearchOnGrid(this);
-      if (origPlaceSort) origPlaceSort.call(this);
-      placeCollectionSearchOnGrid(this);
-    };
-
     var origFindHost = proto.findLayoutHost;
     proto.findLayoutHost = function (grid) {
       var host = origFindHost ? origFindHost.call(this, grid) : grid;
@@ -3969,7 +4045,13 @@
       } catch (err) {
         /* ignore */
       }
-      fitLayoutIntoThemeContainer(this);
+      if (
+        !document.querySelector(
+          ".sf-collection-layout[data-sf-layout-stable='1']",
+        )
+      ) {
+        fitLayoutIntoThemeContainer(this);
+      }
       portalMobileDrawer(this);
       mountFindlyPager(this);
       placeCollectionSearchOnGrid(this);
@@ -4194,9 +4276,15 @@
 
     var origPlaceSort = proto.placeSortOnGrid;
     proto.placeSortOnGrid = function () {
-      if (origPlaceSort) origPlaceSort.call(this);
-      placeCollectionSearchOnGrid(this);
-      enhanceSortMenu(this);
+      if (this._placingSort) return;
+      this._placingSort = true;
+      try {
+        if (origPlaceSort) origPlaceSort.call(this);
+        placeCollectionSearchOnGrid(this);
+        enhanceSortMenu(this);
+      } finally {
+        this._placingSort = false;
+      }
     };
 
     var origInit = proto.init;

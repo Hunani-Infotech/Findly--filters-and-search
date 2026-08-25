@@ -125,11 +125,35 @@ function assertThemeContainerFit() {
   if (!gridJs.includes("flattenHorizonCollectionWrapper")) {
     fail("Horizon collection-wrapper must be flattened so products are not trapped in one grid track");
   }
+  if (!gridJs.includes("data-sf-layout-stable")) {
+    fail("layout repair must stop after the first stable pass");
+  }
+  if (!gridJs.includes("_findlyObserverCount > 8")) {
+    fail("grid MutationObserver must disconnect after a few passes to avoid hanging the tab");
+  }
   if (!gridJs.includes("repairingLayout")) {
     fail("layout repair must be re-entrant so wrap/unwrap cannot hang the tab");
   }
   if (!gridJs.includes("existing.contains(host)")) {
     fail("wrapHostWithLayout must not re-wrap a host already inside the collection layout");
+  }
+  if (
+    !/function isLayoutUnsafeHost[\s\S]{0,280}contains\("sf-collection-layout"\)[\s\S]{0,40}return false/.test(
+      gridJs,
+    )
+  ) {
+    fail("Findly layout shells must not be treated as unsafe theme grids");
+  }
+  if (!gridJs.includes("alreadyPlaced")) {
+    fail("placeMountOnExistingLayout must skip lift when the mount is already placed");
+  }
+  if ((gridJs.match(/var origPlaceSort/g) || []).length !== 1) {
+    fail(
+      "placeSortOnGrid must be wrapped once; duplicate var origPlaceSort self-recurses",
+    );
+  }
+  if (!gridJs.includes("this._placingSort")) {
+    fail("placeSortOnGrid must guard against re-entrant wraps");
   }
   if (!gridJs.includes("armFilterReadyFailsafe")) {
     fail("filter loading CSS must not hide products forever if layout init stalls");
