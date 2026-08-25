@@ -79,6 +79,16 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("sf-pager__spin") || !pagerJs.includes("is-busy")) {
     fail("pager loading spinner missing");
   }
+  if (!pagerJs.includes("syncThemePager") || !pagerJs.includes("usesThemeNumberedPager")) {
+    fail("pager must reuse the theme numbered pagination");
+  }
+  const themeJs = read("extensions/smart-filter/assets/smart-filter-theme.js");
+  if (
+    !themeJs.includes("sf-custom-pager") ||
+    themeJs.includes("html.sf-og nav.pagination")
+  ) {
+    fail("theme compat must keep theme pagination visible unless load more / infinite");
+  }
   if (!block.includes("smart-filter-grid.min.js") || !embed.includes("smart-filter-grid.min.js")) {
     fail("both collection blocks must load the grid companion");
   }

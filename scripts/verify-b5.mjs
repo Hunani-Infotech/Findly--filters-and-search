@@ -132,6 +132,9 @@ function assertThemeSeoAndUi() {
   if (!gridJs.includes("shouldTakeOverThemeCards") || !gridJs.includes("keep-theme-cards")) {
     fail("smart-filter-grid.js must keep native theme product cards unless a filter is active");
   }
+  if (!gridJs.includes("markGridTakeover") || !gridJs.includes("_keepThemeCards")) {
+    fail("Clear All must keep the Findly product grid after a filter session");
+  }
   if (!gridJs.includes("resolveOuterThemeCard") || !gridJs.includes("isInnerCardSlice")) {
     fail("smart-filter-grid.js must move outer theme cards only, never title links");
   }
