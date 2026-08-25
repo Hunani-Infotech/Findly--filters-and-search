@@ -524,7 +524,7 @@
 .smart-filter__option {
   display: flex !important;
   position: relative;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75em;
   padding: var(--sf-row-pad) 0.45em var(--sf-row-pad) 0.35em;
   margin: 0;

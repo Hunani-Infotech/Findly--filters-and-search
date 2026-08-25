@@ -1879,6 +1879,25 @@
     }
   }
 
+  function decorateCheckMarks(root) {
+    if (!root || !root.querySelectorAll) return;
+    var labels = root.querySelectorAll(
+      ".smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)",
+    );
+    var i;
+    for (i = 0; i < labels.length; i++) {
+      var label = labels[i];
+      if (!label || label.querySelector(".smart-filter__check")) continue;
+      var input = label.querySelector('input[type="checkbox"], input[type="radio"]');
+      if (!input) continue;
+      var mark = document.createElement("span");
+      mark.className = "smart-filter__check";
+      mark.setAttribute("aria-hidden", "true");
+      if (input.nextSibling) label.insertBefore(mark, input.nextSibling);
+      else label.appendChild(mark);
+    }
+  }
+
   function toolbarHost() {
     var host = document.querySelector(".sf-sort-host");
     if (host) return host;
@@ -1923,6 +1942,10 @@
         document.body.appendChild(panel);
       }
       copyDrawerThemeVars(widget, panel);
+      panel.style.setProperty("width", "min(400px, 88vw)", "important");
+      panel.style.setProperty("max-width", "88vw", "important");
+      panel.style.setProperty("box-sizing", "border-box", "important");
+      decorateCheckMarks(panel);
       if (isMobileDrawer()) {
         var host = toolbarHost();
         if (toggle && host && toggle.parentNode !== host) {
@@ -1949,6 +1972,9 @@
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
         panel.classList.remove("sf-drawer-portal", "is-open");
+        panel.style.removeProperty("width");
+        panel.style.removeProperty("max-width");
+        panel.style.removeProperty("box-sizing");
         widget.root.appendChild(panel);
       }
       if (backdrop && backdrop.classList.contains("sf-drawer-portal")) {
@@ -3064,6 +3090,7 @@
         ? origRenderFacets.apply(this, arguments)
         : undefined;
       enhancePriceSliders(this.root);
+      decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
       return result;
     };
   }
@@ -3082,6 +3109,9 @@
           applyLooseHash(next);
           if (next && next.root) enhancePriceSliders(next.root);
           enhanceSortMenu(next);
+          decorateCheckMarks(
+            (next && next.panelEl) || (next && next.facetsEl) || (next && next.root),
+          );
         },
       });
     } catch (err) {
@@ -3114,6 +3144,7 @@
       applyLooseHash(held);
       if (held.root) enhancePriceSliders(held.root);
       enhanceSortMenu(held);
+      decorateCheckMarks(held.panelEl || held.facetsEl || held.root);
     }
   }
 

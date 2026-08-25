@@ -270,3 +270,173 @@
   justify-content: space-between !important;
   width: 100% !important;
 }
+
+/* Visible checkmark (iOS/WebKit cannot draw ::after on <input>). */
+.smart-filter__option:has(> .smart-filter__check) > input[type="checkbox"],
+.smart-filter__option:has(> .smart-filter__check) > input[type="radio"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  pointer-events: none !important;
+}
+
+.smart-filter__check {
+  box-sizing: border-box !important;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1.5px solid #c3c3c3 !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  display: inline-grid !important;
+  place-content: center !important;
+  flex-shrink: 0 !important;
+  color: #111 !important;
+}
+
+.smart-filter__option input[type="radio"] + .smart-filter__check {
+  border-radius: 999px !important;
+}
+
+.smart-filter__check::after {
+  content: "";
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: scale(0) rotate(45deg);
+  margin-top: -1px;
+}
+
+.smart-filter__option input[type="radio"] + .smart-filter__check::after {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  transform: scale(0);
+  margin: 0;
+}
+
+.smart-filter__option input[type="checkbox"]:checked + .smart-filter__check,
+.smart-filter__option input[type="checkbox"]:indeterminate + .smart-filter__check {
+  background: #111 !important;
+  border-color: #111 !important;
+}
+
+.smart-filter__option input[type="checkbox"]:checked + .smart-filter__check::after {
+  transform: scale(1) rotate(45deg);
+}
+
+.smart-filter__option input[type="checkbox"]:indeterminate + .smart-filter__check::after {
+  width: 8px;
+  height: 0;
+  border: 0;
+  border-top: 2px solid #fff;
+  transform: none;
+  margin: 0;
+}
+
+.smart-filter__option input[type="radio"]:checked + .smart-filter__check {
+  background: #fff !important;
+  border-color: #111 !important;
+}
+
+.smart-filter__option input[type="radio"]:checked + .smart-filter__check::after {
+  transform: scale(1);
+  background: #111;
+}
+
+.smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) {
+  align-items: center !important;
+}
+
+.smart-filter__facet-tag {
+  display: none !important;
+}
+
+.smart-filter__panel.sf-drawer-portal,
+html.is-sf-drawer-open .smart-filter__panel {
+  width: min(400px, 88vw) !important;
+  max-width: 88vw !important;
+  box-sizing: border-box !important;
+  padding: 1.25rem 1.35rem 1.75rem !important;
+  font-size: 16px !important;
+  line-height: 1.45 !important;
+}
+
+@media (max-width: 989px) {
+  .smart-filter__panel-head {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    align-items: center !important;
+    column-gap: 0.75rem !important;
+    row-gap: 0.2rem !important;
+    padding: 0.1rem 0 1.1rem !important;
+  }
+
+  .smart-filter__panel-head .smart-filter__title {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    font-size: 1.25em !important;
+    font-weight: 700 !important;
+  }
+
+  .smart-filter__close {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .smart-filter__clear-all {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    justify-self: end !important;
+    font-size: 0.8125em !important;
+  }
+
+  .smart-filter__facet-label {
+    font-size: 0.95em !important;
+    font-weight: 700 !important;
+    padding: 0 0 0.85em !important;
+  }
+
+  .smart-filter__option-text {
+    font-size: 0.9375em !important;
+    font-weight: 400 !important;
+  }
+
+  .smart-filter__option:has(input:checked) .smart-filter__option-text {
+    font-weight: 600 !important;
+  }
+
+  .smart-filter__option-count {
+    color: #8a8a8a !important;
+    font-size: 0.8125em !important;
+  }
+
+  .smart-filter__chips {
+    margin: 0.85rem 0 0 !important;
+    padding: 0 0 1rem !important;
+  }
+
+  .smart-filter__facet {
+    padding-top: 1.05rem !important;
+    padding-bottom: 0.15rem !important;
+  }
+}
