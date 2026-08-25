@@ -16,6 +16,9 @@
   var FILTER_CACHE_TTL_MS = 5 * 1000;
   var CARD_SELECTOR = [
     ".sf-app-card",
+    "product-card",
+    "product-item",
+    "grid-item",
     "[data-product-id]",
     ".product-card",
     ".card-wrapper",
@@ -475,6 +478,10 @@
     return null;
   }
 
+  function isBareProductLink(el) {
+    return Boolean(el && String(el.tagName || "").toLowerCase() === "a");
+  }
+
   function closestProductCard(link) {
     if (!link) return link;
     var grid = closestGridHost(link);
@@ -483,12 +490,31 @@
       while (node && node.parentElement && node.parentElement !== grid) {
         node = node.parentElement;
       }
-      if (node && node.parentElement === grid && isLikelyProductCard(node)) {
+      if (
+        node &&
+        node.parentElement === grid &&
+        isLikelyProductCard(node) &&
+        !isBareProductLink(node)
+      ) {
         return node;
       }
     }
+    var viaHost =
+      link.closest &&
+      link.closest(
+        "product-card, product-item, grid-item, .product-card, .sf-app-card",
+      );
+    if (viaHost && isLikelyProductCard(viaHost)) return viaHost;
     var viaSel = (link.closest && link.closest(CARD_SELECTOR)) || null;
-    if (viaSel && isLikelyProductCard(viaSel)) return viaSel;
+    if (viaSel && isLikelyProductCard(viaSel) && !isBareProductLink(viaSel)) {
+      return viaSel;
+    }
+    if (isBareProductLink(link) && link.closest) {
+      var fromLink = link.closest(
+        "product-card, product-item, grid-item, li.grid__item, .grid__item, .card-wrapper, .product-card",
+      );
+      if (fromLink && isLikelyProductCard(fromLink)) return fromLink;
+    }
     return link;
   }
 
@@ -539,6 +565,7 @@
 
       var card = closestProductCard(link);
       if (isSkippedRegion(card)) return;
+      if (isBareProductLink(card)) return;
       if (seen) {
         if (seen.has(card)) return;
         seen.add(card);
@@ -625,7 +652,7 @@
       var handle = handleFromHref(link.getAttribute("href"));
       if (!handle) return;
       var card = closestProductCard(link);
-      if (!card || !card.parentNode) return;
+      if (!card || !card.parentNode || isBareProductLink(card)) return;
       if (seen) {
         if (seen.has(card)) return;
         seen.add(card);
@@ -1018,7 +1045,12 @@
 
   function isLikelyProductCard(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isBareProductLink(el)) return false;
     if (matchesSel(el, ".sf-app-card")) return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "product-card" || tag === "product-item" || tag === "grid-item") {
+      return true;
+    }
     if (!el.querySelector || !el.querySelector('a[href*="/products/"]')) {
       return matchesSel(el, "[data-product-id]");
     }
@@ -1459,6 +1491,7 @@
 
   function applyLayoutPositionClass(el, position) {
     if (!el || !el.classList) return;
+    if (isFragileLayoutHost(el) || isProductCardGrid(el)) return;
     el.classList.add("sf-collection-layout");
     el.classList.remove(
       "sf-collection-layout--left",

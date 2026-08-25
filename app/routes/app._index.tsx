@@ -28,7 +28,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { PLANS, ensureShopAccess, resolvePlanCaps } from "../billing.server";
 import prisma from "../db.server";
-import { enqueueSyncJob } from "../queues.server";
+import { queueFullSync } from "../sync/queue-full-sync";
 import { SetupGuide } from "../components/setup-guide";
 import { HomePerformance } from "../components/home-performance";
 import { SyncDetailsModal } from "../components/sync-details-modal";
@@ -120,11 +120,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync") {
     try {
-      await enqueueSyncJob(
-        "shop.fullSync",
-        { shop: session.shop },
-        { jobId: `${session.shop}:shop.fullSync` },
-      );
+      await queueFullSync(session.shop);
       return { ok: true, intent: "sync" as const };
     } catch {
       return { ok: false, intent: "sync" as const };
@@ -206,6 +202,20 @@ export default function Home() {
     syncFetcher.submit(formData, { method: "POST" });
     if (!syncOpen) openSync();
   };
+
+  const startedRunParam = useRef(false);
+  useEffect(() => {
+    if (searchParams.get("run") !== "1") return;
+    if (startedRunParam.current) return;
+    startedRunParam.current = true;
+    const formData = new FormData();
+    formData.set("intent", "sync");
+    syncFetcher.submit(formData, { method: "POST" });
+    const next = new URLSearchParams(searchParams);
+    next.delete("run");
+    next.set("sync", "1");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, syncFetcher]);
 
   useEffect(() => {
     if (!shouldPoll) return;
@@ -399,6 +409,7 @@ export default function Home() {
         metafieldsHref={hrefFor("/app/settings?tab=metafields")}
         defaultFiltersHref={hrefFor("/app/collections/default")}
         busy={syncBusy}
+        submitting={syncFetcher.state !== "idle"}
         onClose={closeSync}
         onSync={startSync}
       />

@@ -204,7 +204,7 @@ async function loadSetupProgress(
       title: "Sync your catalog",
       description:
         "Import products and collections so filters have real values to show.",
-      href: "/app?sync=1",
+      href: syncReady ? "/app?sync=1" : "/app?sync=1&run=1",
       actionLabel: syncReady ? "View sync" : "Run sync",
       status: syncReady ? "complete" : "todo",
     },

@@ -42,6 +42,7 @@ export function SyncDetailsModal({
   metafieldsHref,
   defaultFiltersHref,
   busy,
+  submitting,
   onClose,
   onSync,
 }: {
@@ -52,6 +53,7 @@ export function SyncDetailsModal({
   metafieldsHref: string;
   defaultFiltersHref: string;
   busy: boolean;
+  submitting: boolean;
   onClose: () => void;
   onSync: () => void;
 }) {
@@ -63,9 +65,9 @@ export function SyncDetailsModal({
       onClose={onClose}
       title="Catalog sync"
       primaryAction={{
-        content: syncing ? "Syncing…" : "Sync now",
-        loading: busy,
-        disabled: syncing,
+        content: submitting ? "Queueing…" : "Sync now",
+        loading: submitting,
+        disabled: submitting,
         onAction: onSync,
       }}
       secondaryActions={[{ content: "Close", onAction: onClose }]}

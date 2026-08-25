@@ -53,6 +53,8 @@ async function startInProcessWorker() {
   const worker = new Worker(SYNC_QUEUE, processSyncJob, {
     connection: createRedisConnection(),
     concurrency: 2,
+    lockDuration: 30 * 60 * 1000,
+    stalledInterval: 60_000,
   });
 
   worker.on("completed", (job) => {

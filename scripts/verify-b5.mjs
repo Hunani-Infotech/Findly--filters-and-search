@@ -88,6 +88,9 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("closestGridHost")) {
     fail("closestProductCard must walk the real product grid, not a fat .product-grid wrapper");
   }
+  if (!filterJs.includes("isBareProductLink") || !filterJs.includes("product-card")) {
+    fail("closestProductCard must keep Horizon product-card hosts, not title links");
+  }
   if (!filterJs.includes("isLikelyProductCard(viaSel)") && !filterJs.includes("isLikelyProductCard(node)")) {
     fail("closestProductCard must reject fat grid wrappers so each product can hide");
   }
@@ -109,6 +112,10 @@ function assertThemeSeoAndUi() {
   const themeCompat = read("extensions/smart-filter/assets/smart-filter-theme.js");
   if (!themeCompat.includes("discoverAnyThemeGrid")) {
     fail("smart-filter-theme.js must discover product grids on any theme");
+  }
+  const gridJs = read("extensions/smart-filter/assets/smart-filter-grid.js");
+  if (!gridJs.includes("liftFragileLayout") || !gridJs.includes("findly-catalog-grid-v2")) {
+    fail("smart-filter-grid.js must keep Horizon catalog product-card grid intact");
   }
   if (!themeCompat.includes("hideNativeChromeHeuristic")) {
     fail("smart-filter-theme.js must hide native filter chrome without theme-specific class lists only");
@@ -445,6 +452,16 @@ try {
   }
   if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
+  }
+  if (
+    !syncServer.includes("already in progress") ||
+    !syncServer.includes("already running")
+  ) {
+    fail("startFullSync must reuse an in-progress bulk operation instead of failing");
+  }
+  const queueFullSync = read("app/sync/queue-full-sync.ts");
+  if (!queueFullSync.includes("startFullSync")) {
+    fail("queueFullSync must fall back to inline startFullSync so manual sync is not blocked");
   }
   const graphqlSync = read("app/sync/graphql.ts");
   if (

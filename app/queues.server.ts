@@ -1,4 +1,5 @@
 import { Queue } from "bullmq";
+import { log } from "./log.server";
 import { getRedis } from "./redis.server";
 
 export const SYNC_QUEUE = "sync-queue";
@@ -81,6 +82,22 @@ export async function enqueueSyncJob(
         return existing;
       } else if (state === "active") {
         if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
+          const staleAfterMs = name === "shop.fullSync" ? 120_000 : 0;
+          const startedAt = existing.processedOn ?? existing.timestamp ?? 0;
+          if (
+            staleAfterMs &&
+            startedAt &&
+            Date.now() - startedAt > staleAfterMs
+          ) {
+            log.warn(
+              `[queue] queueing replacement ${name} for stuck ${jobId} after ${Date.now() - startedAt}ms`,
+            );
+            return queue.add(
+              name,
+              data,
+              jobAddOpts(`${jobId}_retry_${Date.now()}`, opts?.delay),
+            );
+          }
           return existing;
         }
         for (const suffix of ["followup", "followup2"] as const) {

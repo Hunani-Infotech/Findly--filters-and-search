@@ -140,17 +140,19 @@ async function enqueueCatalogJob(
 
   const { isSyncWorkerRunning } = await import("./workers/ensure-running.server");
   if (isSyncWorkerRunning()) return;
-  if (
-    name !== "product.upsert" &&
-    name !== "product.delete" &&
-    name !== "inventory.sync" &&
-    name !== "variant.sync" &&
-    name !== "collection.rebuild"
-  ) {
-    return;
-  }
+
   log.warn(`[webhooks] worker not running; processing ${name} inline`);
   const { runSyncJobInline } = await import("./workers/processors");
+  const heavy =
+    name === "shop.fullSync" ||
+    name === "shop.ingestBulk" ||
+    name === "shop.cleanup";
+  if (heavy) {
+    void runSyncJobInline(name, data).catch((error) => {
+      log.error(`[webhooks] inline ${name} failed`, error);
+    });
+    return;
+  }
   await runSyncJobInline(name, data);
 }
 

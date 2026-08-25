@@ -373,6 +373,84 @@ export async function syncShopContent(shopDomain: string) {
   return { pages: seenPages.size, articles: seenArticles.size };
 }
 
+type BulkOperationSnapshot = {
+  id?: string;
+  status?: string;
+  url?: string | null;
+};
+
+function bulkAlreadyInProgress(message: string) {
+  return /already in progress|already running/i.test(message);
+}
+
+function bulkGraphqlMessage(json: {
+  errors?: unknown;
+  data?: {
+    bulkOperationRunQuery?: {
+      userErrors?: Array<{ message?: string }>;
+    };
+  };
+}) {
+  const userErrors = json.data?.bulkOperationRunQuery?.userErrors ?? [];
+  const fromUsers = userErrors
+    .map((error) => error.message)
+    .filter((message): message is string => Boolean(message))
+    .join("; ");
+  if (fromUsers) return fromUsers;
+  return graphqlErrors(json);
+}
+
+async function readCurrentBulkOperation(
+  admin: GraphqlClient,
+): Promise<BulkOperationSnapshot | null> {
+  const response = await admin.graphql(CURRENT_BULK_OPERATION_QUERY);
+  const json = (await response.json()) as {
+    data?: { currentBulkOperation?: BulkOperationSnapshot | null };
+  };
+  return json.data?.currentBulkOperation ?? null;
+}
+
+async function reuseCurrentBulkOperation(
+  shopId: string,
+  shopDomain: string,
+  op: BulkOperationSnapshot | null,
+) {
+  const id = op?.id;
+  if (!id) return null;
+  const status = (op.status || "").toUpperCase();
+
+  if (status === "CREATED" || status === "RUNNING") {
+    const syncJob = await setSyncStatus(shopId, {
+      status: "SYNCING",
+      bulkOperationId: id,
+      errorLog: null,
+    });
+    log.info(`[sync] bulk already running ${id}; waiting for finish webhook`);
+    return { syncJob, bulkOperationId: id, reused: true as const };
+  }
+
+  if (status === "COMPLETED" && op.url) {
+    const syncJob = await setSyncStatus(shopId, {
+      status: "SYNCING",
+      bulkOperationId: id,
+      errorLog: null,
+    });
+    try {
+      await enqueueSyncJob(
+        "shop.ingestBulk",
+        { shop: shopDomain, bulkOperationId: id },
+        { jobId: `${shopDomain}:shop.ingestBulk:${id}` },
+      );
+    } catch (error) {
+      log.warn("[sync] ingest enqueue failed after completed bulk", error);
+    }
+    log.info(`[sync] bulk ${id} already completed; queued ingest`);
+    return { syncJob, bulkOperationId: id, reused: true as const };
+  }
+
+  return null;
+}
+
 export async function startFullSync(shopDomain: string) {
   const shop = await ensureShop(shopDomain);
 
@@ -394,32 +472,53 @@ export async function startFullSync(shopDomain: string) {
       log.error("Pages/articles sync failed", error);
     }
 
+    let current: BulkOperationSnapshot | null = null;
+    try {
+      current = await readCurrentBulkOperation(admin);
+    } catch (error) {
+      log.warn("[sync] current bulk lookup failed", error);
+    }
+    const reused = await reuseCurrentBulkOperation(shop.id, shopDomain, current);
+    if (reused) {
+      return { shop, ...reused };
+    }
+
     log.info("[sync] starting bulk product query");
     const response = await admin.graphql(BULK_PRODUCTS_MUTATION, {
       variables: { query: BULK_PRODUCTS_QUERY },
     });
     const json = await response.json();
     const payload = json.data?.bulkOperationRunQuery;
-    const userErrors = payload?.userErrors ?? [];
+    const bulkId = payload?.bulkOperation?.id as string | undefined;
+    const message =
+      bulkGraphqlMessage(json) || "Failed to start bulk operation";
 
-    if (userErrors.length || !payload?.bulkOperation?.id) {
-      const message =
-        userErrors.map((e: { message: string }) => e.message).join("; ") ||
-        "Failed to start bulk operation";
+    if (!bulkId) {
+      if (bulkAlreadyInProgress(message)) {
+        const latest = await readCurrentBulkOperation(admin);
+        const recovered = await reuseCurrentBulkOperation(
+          shop.id,
+          shopDomain,
+          latest,
+        );
+        if (recovered) {
+          return { shop, ...recovered };
+        }
+      }
       await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
       throw new Error(message);
     }
 
     const syncJob = await setSyncStatus(shop.id, {
       status: "SYNCING",
-      bulkOperationId: payload.bulkOperation.id,
+      bulkOperationId: bulkId,
       errorLog: null,
     });
 
     return {
       shop,
       syncJob,
-      bulkOperationId: payload.bulkOperation.id as string,
+      bulkOperationId: bulkId,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
