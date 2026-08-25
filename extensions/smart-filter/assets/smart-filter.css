@@ -1130,7 +1130,7 @@
 
 .smart-filter__sort-select {
   appearance: none;
-  min-width: 12rem;
+  min-width: 14em;
   max-width: 100%;
   width: 100%;
   min-height: 2.5rem;
@@ -1145,17 +1145,27 @@
 
 .smart-filter__sort--toolbar {
   display: inline-flex;
+  position: relative;
   margin: 0;
   margin-inline-start: auto;
   justify-content: flex-end;
   width: fit-content;
   max-width: 100%;
   flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .smart-filter__sort--toolbar .smart-filter__sort-select {
   width: auto;
-  min-width: 12rem;
+  min-width: 14em;
+  max-width: min(22em, calc(100vw - 2.5rem));
+}
+
+@media (max-width: 749px) {
+  .smart-filter__sort--toolbar .smart-filter__sort-select {
+    min-width: 9.5em;
+    max-width: min(16em, calc(100vw - 7rem));
+  }
 }
 
 .sf-sort-host {
@@ -1166,6 +1176,69 @@
   gap: 0.65rem 1rem;
   width: 100%;
   margin: 0 0 0.85rem;
+  overflow: visible;
+  position: relative;
+  z-index: 6;
+}
+
+.smart-filter__sort-menu {
+  position: fixed;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: 100060;
+  box-sizing: border-box;
+  min-width: 12em;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  margin: 0;
+  padding: 0.3rem 0;
+  background: var(--sf-surface, #fff);
+  color: var(--sf-ink, inherit);
+  border: 1px solid var(--sf-border, #ececec);
+  border-radius: min(8px, var(--sf-radius, 8px));
+  box-shadow: 0 10px 28px rgb(0 0 0 / 14%);
+}
+
+.smart-filter__sort-menu[hidden] {
+  display: none !important;
+}
+
+.smart-filter__sort-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  appearance: none;
+  margin: 0;
+  padding: 0.5rem 1.1rem 0.5rem 1.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.smart-filter__sort-option:hover,
+.smart-filter__sort-option:focus {
+  background: var(--sf-accent-soft, #f3f3f3);
+}
+
+.smart-filter__sort-option.is-selected {
+  font-weight: 700;
+}
+
+.smart-filter__sort-option.is-selected::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.65rem;
+  width: 0.38rem;
+  height: 0.7rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-60%) rotate(45deg);
 }
 
 .sf-sort-host .smart-filter__toggle--toolbar {
@@ -1319,8 +1392,8 @@
     bottom: 0;
     left: 0;
     z-index: 100050;
-    width: min(20.5rem, 90vw);
-    max-width: 100%;
+    width: min(420px, 92vw);
+    max-width: 92vw;
     padding: 1.15rem 1.2rem 1.5rem;
     overflow: auto;
     background: var(--sf-surface);
@@ -1456,8 +1529,8 @@
     bottom: 0;
     left: 0;
     z-index: 100050;
-    width: min(20.5rem, 90vw);
-    max-width: 100%;
+    width: min(420px, 92vw);
+    max-width: 92vw;
     padding: 1.15rem 1.2rem 1.5rem;
     overflow: auto;
     background: var(--sf-surface);
@@ -1492,8 +1565,8 @@
     bottom: 0;
     left: 0;
     z-index: 100050;
-    width: min(20.5rem, 90vw);
-    max-width: 100%;
+    width: min(420px, 92vw);
+    max-width: 92vw;
     padding: 1.15rem 1.2rem 1.5rem;
     overflow: auto;
     background: var(--sf-surface, #fff);
@@ -1549,6 +1622,7 @@
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
+  overflow: visible;
 }
 
 @media (min-width: 990px) {
