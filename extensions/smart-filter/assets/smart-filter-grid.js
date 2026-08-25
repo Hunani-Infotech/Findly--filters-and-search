@@ -8,8 +8,23 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v4";
+  var STYLE_ID = "findly-grid-takeover-v5";
   var HOST_ID = "findly-grid-host";
+  var CARD_TRAY_ID = "findly-card-tray";
+  var STRICT_CARD_SELECTOR = [
+    "product-card",
+    "product-item",
+    "grid-item",
+    "li.grid__item",
+    ".product-card",
+    ".product-grid__item",
+    ".product-item",
+    ".grid-product",
+    ".grid-view-item",
+    ".product-block",
+    ".productitem",
+    "article.card",
+  ].join(", ");
   var THEME_CARD_HOST_SELECTOR = [
     "product-card",
     "product-item",
@@ -65,6 +80,7 @@
     ".product-list__inner",
     ".product-listing",
     ".collection-grid",
+    ".main-collection-grid",
     ".collection-products",
     ".grid-uniform",
     ".grid--uniform",
@@ -85,28 +101,6 @@
     ".sf-grid",
     ".sf-app-grid",
   ].join(", ");
-
-  function findlyLog() {
-    var args = ["[Findly]"];
-    var i;
-    for (i = 0; i < arguments.length; i++) args.push(arguments[i]);
-    try {
-      if (typeof console !== "undefined" && console.info) {
-        console.info.apply(console, args);
-      }
-    } catch (err) {
-      /* ignore */
-    }
-    try {
-      window.__FINDLY_LOGS = window.__FINDLY_LOGS || [];
-      window.__FINDLY_LOGS.push({
-        t: Date.now(),
-        m: Array.prototype.slice.call(arguments),
-      });
-    } catch (err2) {
-      /* ignore */
-    }
-  }
 
   function decodeHashValue(value) {
     try {
@@ -146,11 +140,6 @@
       widget.selected = selected;
     }
     if (sort) widget.sortKey = sort;
-    findlyLog("loose hash applied", {
-      hash: raw,
-      selected: widget.selected,
-      sort: widget.sortKey,
-    });
     return true;
   }
 
@@ -160,7 +149,6 @@
     window.addEventListener("hashchange", function () {
       var widget = window.__FINDLY_FILTER_WIDGET;
       if (!widget || !widget.fetchFilters) return;
-      findlyLog("hashchange", window.location.hash);
       if (widget.restoreFromHash) widget.restoreFromHash();
       applyLooseHash(widget);
       widget.fetchFilters();
@@ -174,6 +162,9 @@
     if (legacy2 && legacy2.parentNode) legacy2.parentNode.removeChild(legacy2);
     var legacy3 = document.getElementById("findly-grid-takeover-v3");
     if (legacy3 && legacy3.parentNode) legacy3.parentNode.removeChild(legacy3);
+    var legacy4 = document.getElementById("findly-grid-takeover-v4");
+    if (legacy4 && legacy4.parentNode) legacy4.parentNode.removeChild(legacy4);
+    injectCatalogCss();
     if (document.getElementById(STYLE_ID)) return;
     var css =
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=checkbox]," +
@@ -250,12 +241,9 @@
         "results-list.sf-collection-layout--left,results-list.sf-collection-layout--right" +
         "{display:grid!important;flex:none;width:100%;max-width:100%;min-width:0}" +
         ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
-        "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%;min-width:0}" +
+        "{display:block!important;width:100%;min-width:0}" +
         ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-        "{display:contents}" +
-        ".sf-collection-layout results-list>product-card,.sf-og results-list>product-card," +
-        ".sf-collection-layout .main-collection-grid>product-card,.sf-og .main-collection-grid>product-card" +
-        "{display:flex!important;flex-direction:column;min-width:0}" +
+        "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%}" +
         ".smart-filter .smart-filter__option input[type=checkbox]," +
         ".smart-filter .smart-filter__option input[type=radio]{" +
         "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
@@ -264,42 +252,30 @@
         ".sf-app-grid>:not(.sf-app-card){display:none!important}";
       (document.head || document.documentElement).appendChild(bridge);
     }
-    var oldCatalog = document.getElementById("findly-catalog-grid-v1");
+  }
+
+  function injectCatalogCss() {
+    var oldCatalog =
+      document.getElementById("findly-catalog-grid-v1") ||
+      document.getElementById("findly-catalog-grid-v2") ||
+      document.getElementById("findly-catalog-grid-v3");
     if (oldCatalog && oldCatalog.parentNode) oldCatalog.parentNode.removeChild(oldCatalog);
-    if (!document.getElementById("findly-catalog-grid-v2")) {
-      var catalog = document.createElement("style");
-      catalog.id = "findly-catalog-grid-v2";
-      catalog.textContent =
-        ".collection-wrapper.sf-collection-layout--left,.collection-wrapper.sf-collection-layout--right," +
-        ".main-collection-grid.sf-collection-layout--left,.main-collection-grid.sf-collection-layout--right," +
-        "results-list.sf-collection-layout--left,results-list.sf-collection-layout--right" +
-        "{display:grid!important;flex:none;width:100%;max-width:100%;min-width:0}" +
-        ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
-        "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%;min-width:0}" +
-        ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-        "{grid-column:1/-1;display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:inherit;width:100%}" +
-        ".sf-collection-layout results-list>product-card,.sf-og results-list>product-card," +
-        ".sf-collection-layout .main-collection-grid>product-card,.sf-og .main-collection-grid>product-card," +
-        ".collection-wrapper>product-card" +
-        "{display:flex!important;flex-direction:column;min-width:0}" +
-        ".sf-collection-layout product-card[hidden],.sf-og product-card[hidden]," +
-        ".sf-collection-layout product-card[data-smart-filter-hidden='true']," +
-        ".sf-og product-card[data-smart-filter-hidden='true']," +
-        ".sf-collection-layout .product-card[data-smart-filter-hidden='true']," +
-        ".sf-og .grid__item[data-smart-filter-hidden='true']" +
-        "{display:none!important}" +
-        ".sf-collection-layout product-card[hidden] *,.sf-og product-card[hidden] *," +
-        ".sf-collection-layout product-card[data-smart-filter-hidden='true'] *," +
-        ".sf-og product-card[data-smart-filter-hidden='true'] *" +
-        "{display:none!important}";
-      (document.head || document.documentElement).appendChild(catalog);
-    }
-    findlyLog("css injected", {
-      id: STYLE_ID,
-      checkCssLink: Boolean(
-        document.querySelector('link[href*="smart-filter-check"]'),
-      ),
-    });
+    if (document.getElementById("findly-catalog-grid-v4")) return;
+    var catalog = document.createElement("style");
+    catalog.id = "findly-catalog-grid-v4";
+    catalog.textContent =
+      "#" +
+      CARD_TRAY_ID +
+      "{display:none!important;position:absolute;left:-9999px;width:0;height:0;overflow:hidden}" +
+      ".collection-wrapper.sf-collection-layout--left,.collection-wrapper.sf-collection-layout--right," +
+      ".main-collection-grid.sf-collection-layout--left,.main-collection-grid.sf-collection-layout--right," +
+      "results-list.sf-collection-layout--left,results-list.sf-collection-layout--right" +
+      "{display:grid!important;flex:none;width:100%;max-width:100%;min-width:0}" +
+      ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
+      "{display:block!important;width:100%;min-width:0}" +
+      ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
+      "{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:1.2rem 1.25rem;width:100%}";
+    (document.head || document.documentElement).appendChild(catalog);
   }
 
   function setOwnsGrid(on) {
@@ -384,11 +360,6 @@
       count++;
     }
     return count;
-  }
-
-  function countAppCards(parent) {
-    if (!parent || !parent.querySelectorAll) return 0;
-    return parent.querySelectorAll(".sf-app-card").length;
   }
 
   function hostVisibility(el) {
@@ -592,8 +563,24 @@
   function isInnerCardSlice(el) {
     if (!el || el.nodeType !== 1) return false;
     var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "a") {
+      var aCls = el.classList;
+      if (
+        aCls &&
+        (aCls.contains("product-card") ||
+          aCls.contains("card-wrapper") ||
+          aCls.contains("grid-view-item") ||
+          aCls.contains("product-grid-item") ||
+          aCls.contains("product-item"))
+      ) {
+        return false;
+      }
+      if (el.querySelector && el.querySelector("img, picture, video")) {
+        return false;
+      }
+      return true;
+    }
     if (
-      tag === "a" ||
       tag === "h1" ||
       tag === "h2" ||
       tag === "h3" ||
@@ -630,9 +617,75 @@
     }
   }
 
+  function isGridChrome(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (
+      tag === "nav" ||
+      tag === "script" ||
+      tag === "style" ||
+      tag === "link" ||
+      tag === "noscript"
+    ) {
+      return true;
+    }
+    if (el.id === CARD_TRAY_ID) return true;
+    var cls = el.classList;
+    if (!cls) return false;
+    return (
+      cls.contains("sf-sort-host") ||
+      cls.contains("sf-pager") ||
+      cls.contains("pagination") ||
+      cls.contains("facets-container") ||
+      cls.contains("smart-filter")
+    );
+  }
+
+  function countStrictDescendantCards(el) {
+    if (!el || !el.querySelectorAll) return 0;
+    try {
+      return el.querySelectorAll(STRICT_CARD_SELECTOR).length;
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function isLayoutShell(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (
+      tag === "results-list" ||
+      tag === "collection-wrapper" ||
+      tag === "product-list" ||
+      tag === "main"
+    ) {
+      return true;
+    }
+    var cls = el.classList;
+    if (cls) {
+      if (cls.contains("collection-wrapper")) return true;
+      if (cls.contains("main-collection-grid")) return true;
+      if (cls.contains("product-grid-container")) return true;
+      if (cls.contains("collection-grid")) return true;
+    }
+    if (isResultsListEl(el) || isGridHostEl(el)) return true;
+    if (
+      tag !== "product-card" &&
+      tag !== "product-item" &&
+      tag !== "grid-item" &&
+      tag !== "li" &&
+      tag !== "article" &&
+      countStrictDescendantCards(el) >= 2
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function isOuterThemeCard(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.classList && el.classList.contains("sf-app-card")) return false;
+    if (isLayoutShell(el)) return false;
     if (isInnerCardSlice(el)) return false;
     var tag = String(el.tagName || "").toLowerCase();
     if (
@@ -652,6 +705,14 @@
       if (el.classList.contains("product-block")) return true;
       if (el.classList.contains("productitem")) return true;
     }
+    return Boolean(handleFromCard(el));
+  }
+
+  function isOrphanProductNode(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isLayoutShell(el) || isGridChrome(el)) return false;
+    if (el.classList && el.classList.contains("sf-app-card")) return false;
+    if (isOuterThemeCard(el)) return false;
     return Boolean(handleFromCard(el));
   }
 
@@ -758,6 +819,26 @@
     }
   }
 
+  function firstProductLink(root) {
+    if (!root) return null;
+    var link = root.querySelector && root.querySelector('a[href*="/products/"]');
+    if (link) return link;
+    if (root.shadowRoot) {
+      link = firstProductLink(root.shadowRoot);
+      if (link) return link;
+    }
+    if (!root.querySelectorAll) return null;
+    var nodes = root.querySelectorAll("*");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i].shadowRoot) {
+        link = firstProductLink(nodes[i].shadowRoot);
+        if (link) return link;
+      }
+    }
+    return null;
+  }
+
   function handleFromCard(card) {
     if (!card || card.nodeType !== 1) return "";
     var attrs = [
@@ -771,8 +852,7 @@
       var raw = card.getAttribute && card.getAttribute(attrs[a]);
       if (raw) return String(raw).split("::")[0].toLowerCase();
     }
-    var link =
-      card.querySelector && card.querySelector('a[href*="/products/"]');
+    var link = firstProductLink(card);
     if (link) return handleFromHref(link.getAttribute("href"));
     if (card.tagName && String(card.tagName).toLowerCase() === "a") {
       return handleFromHref(card.getAttribute("href"));
@@ -825,6 +905,77 @@
     setOwnsGrid(false);
   }
 
+  function onlyContentShellChild(parent) {
+    if (!parent || !parent.children) return null;
+    var shells = [];
+    var i;
+    for (i = 0; i < parent.children.length; i++) {
+      var child = parent.children[i];
+      if (!child || child.nodeType !== 1) continue;
+      if (isGridChrome(child)) continue;
+      if (isInnerCardSlice(child) && !handleFromCard(child)) continue;
+      if (isLayoutShell(child) && gridHasProductLinks(child)) shells.push(child);
+    }
+    return shells.length === 1 ? shells[0] : null;
+  }
+
+  function resolveCardHost(hint) {
+    var start = findThemeCardParent(hint) || hint;
+    if (!start || start.nodeType !== 1) return start;
+    var selfGrid =
+      start.classList && start.classList.contains("main-collection-grid")
+        ? start
+        : null;
+    var nestedGrid =
+      (start.querySelector && start.querySelector(".main-collection-grid")) ||
+      null;
+    var preferred = selfGrid || nestedGrid;
+    if (preferred && collectDirectThemeCards(preferred).length) return preferred;
+
+    var nestedProductGrid =
+      start.querySelector && start.querySelector(PRODUCT_GRID_SELECTOR);
+    if (
+      nestedProductGrid &&
+      nestedProductGrid !== start &&
+      collectDirectThemeCards(nestedProductGrid).length
+    ) {
+      return nestedProductGrid;
+    }
+
+    var guard = 0;
+    while (start && guard < 8) {
+      guard += 1;
+      var cards = collectDirectThemeCards(start);
+      var real = 0;
+      var i;
+      for (i = 0; i < cards.length; i++) {
+        if (!cards[i].orphan) real += 1;
+      }
+      var inner =
+        (start.querySelector &&
+          (start.querySelector(".main-collection-grid") ||
+            start.querySelector(PRODUCT_GRID_SELECTOR) ||
+            start.querySelector(RESULTS_LIST_SELECTOR))) ||
+        null;
+      var only = onlyContentShellChild(start);
+      if (isLayoutShell(start) && inner && inner !== start && real < 2) {
+        start = inner;
+        continue;
+      }
+      if (real >= 1) return start;
+      if (inner && inner !== start && !isOuterThemeCard(inner)) {
+        start = inner;
+        continue;
+      }
+      if (only && only !== start) {
+        start = only;
+        continue;
+      }
+      break;
+    }
+    return start;
+  }
+
   function collectDirectThemeCards(parent) {
     var cards = [];
     if (!parent || !parent.children) return cards;
@@ -832,25 +983,68 @@
     for (i = 0; i < parent.children.length; i++) {
       var child = parent.children[i];
       if (!child || child.nodeType !== 1) continue;
+      if (child.id === CARD_TRAY_ID) continue;
       if (child.classList && child.classList.contains("sf-app-card")) continue;
-      if (isInnerCardSlice(child)) continue;
-      if (!isOuterThemeCard(child) && !handleFromCard(child)) continue;
-      cards.push({ el: child, handle: handleFromCard(child) });
+      if (isGridChrome(child)) continue;
+      if (isLayoutShell(child)) continue;
+      if (isOuterThemeCard(child)) {
+        cards.push({ el: child, handle: handleFromCard(child), orphan: false });
+        continue;
+      }
+      if (isOrphanProductNode(child)) {
+        cards.push({ el: child, handle: handleFromCard(child), orphan: true });
+      }
     }
     return cards;
   }
 
   function collectThemeCards(parent) {
-    parent = promoteToGridHost(parent) || parent;
+    parent = resolveCardHost(parent) || parent;
     var cards = collectDirectThemeCards(parent);
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+    var i;
+    function add(el, handle, orphan) {
+      if (!el || el.nodeType !== 1) return;
+      if (seen) {
+        if (seen.has(el)) return;
+        seen.add(el);
+      } else {
+        var d;
+        for (d = 0; d < cards.length; d++) if (cards[d].el === el) return;
+      }
+      cards.push({
+        el: el,
+        handle: handle || handleFromCard(el),
+        orphan: Boolean(orphan),
+      });
+    }
+    for (i = 0; i < cards.length; i++) {
+      if (seen) seen.add(cards[i].el);
+    }
+    var root = parent && parent.parentElement;
+    var guard = 0;
+    while (root && isLayoutShell(root) && guard < 4) {
+      guard += 1;
+      var kids = root.children;
+      var k;
+      for (k = 0; k < kids.length; k++) {
+        var child = kids[k];
+        if (!child || child === parent || isLayoutShell(child) || isGridChrome(child)) {
+          continue;
+        }
+        if (isOuterThemeCard(child)) add(child, handleFromCard(child), false);
+        else if (isOrphanProductNode(child)) add(child, handleFromCard(child), true);
+      }
+      root = root.parentElement;
+    }
     if (cards.length) return cards;
     if (!parent || !parent.querySelector) return cards;
     var inner =
+      parent.querySelector(".main-collection-grid") ||
       parent.querySelector(PRODUCT_GRID_SELECTOR) ||
       parent.querySelector(RESULTS_LIST_SELECTOR);
     if (inner && inner !== parent && !isSkippedCardRegion(inner)) {
       cards = collectDirectThemeCards(inner);
-      if (cards.length) return cards;
     }
     return cards;
   }
@@ -877,28 +1071,186 @@
     }
   }
 
+  function cardTray() {
+    var el = document.getElementById(CARD_TRAY_ID);
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = CARD_TRAY_ID;
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    el.style.setProperty("display", "none", "important");
+    el.style.setProperty("position", "absolute");
+    el.style.setProperty("left", "-9999px");
+    (document.body || document.documentElement).appendChild(el);
+    return el;
+  }
+
+  function collectTrayAndGridCards(parent) {
+    var items = collectThemeCards(parent);
+    var tray = document.getElementById(CARD_TRAY_ID);
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+    var out = [];
+    var i;
+    function add(el, handle, orphan) {
+      if (!el || el.nodeType !== 1) return;
+      if (seen) {
+        if (seen.has(el)) return;
+        seen.add(el);
+      } else {
+        var d;
+        for (d = 0; d < out.length; d++) if (out[d].el === el) return;
+      }
+      out.push({
+        el: el,
+        handle: handle || handleFromCard(el),
+        orphan: Boolean(orphan),
+      });
+    }
+    for (i = 0; i < items.length; i++) {
+      add(items[i].el, items[i].handle, items[i].orphan);
+    }
+    if (tray && tray.children) {
+      for (i = 0; i < tray.children.length; i++) {
+        var child = tray.children[i];
+        add(child, handleFromCard(child), !isOuterThemeCard(child));
+      }
+    }
+    return out;
+  }
+
+  function placeCardInGrid(parent, el) {
+    if (!parent || !el) return;
+    var chrome = null;
+    var kids = parent.children;
+    var i;
+    for (i = 0; i < kids.length; i++) {
+      var kid = kids[i];
+      var cls = kid.classList;
+      var tag = String(kid.tagName || "").toLowerCase();
+      if (
+        (cls &&
+          (cls.contains("sf-sort-host") ||
+            cls.contains("sf-pager") ||
+            cls.contains("pagination"))) ||
+        tag === "nav"
+      ) {
+        chrome = kid;
+        break;
+      }
+    }
+    if (chrome && el !== chrome) parent.insertBefore(el, chrome);
+    else parent.appendChild(el);
+  }
+
+  function attachOrphanToShown(orphanEl, handle, shownCards) {
+    if (!orphanEl || !handle || !shownCards) return false;
+    var i;
+    for (i = 0; i < shownCards.length; i++) {
+      var card = shownCards[i];
+      if (!card || card.orphan || !card.el || card.el === orphanEl) continue;
+      if (card.handle === handle) {
+        if (card.el.contains && !card.el.contains(orphanEl)) {
+          card.el.appendChild(orphanEl);
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function sweepHostOrphans(host, shownEls, allowed, tray) {
+    if (!host || !host.querySelectorAll || !tray) return;
+    var links = host.querySelectorAll('a[href*="/products/"]');
+    var i;
+    var s;
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (isSkippedCardRegion(link)) continue;
+      if (tray.contains && tray.contains(link)) continue;
+      var inside = false;
+      for (s = 0; s < shownEls.length; s++) {
+        if (!shownEls[s]) continue;
+        if (shownEls[s] === link) {
+          inside = true;
+          break;
+        }
+        if (shownEls[s].contains && shownEls[s].contains(link)) {
+          inside = true;
+          break;
+        }
+      }
+      if (inside) continue;
+      var handle = handleFromHref(link.getAttribute && link.getAttribute("href"));
+      if (allowed && handle && allowed[handle]) {
+        var attached = false;
+        for (s = 0; s < shownEls.length; s++) {
+          if (!shownEls[s] || shownEls[s] === link) continue;
+          if (handleFromCard(shownEls[s]) === handle) {
+            if (shownEls[s].contains && !shownEls[s].contains(link)) {
+              shownEls[s].appendChild(link);
+            }
+            attached = true;
+            break;
+          }
+        }
+        if (!attached) tray.appendChild(link);
+      } else {
+        tray.appendChild(link);
+      }
+    }
+  }
+
   function applyNativeFilterGrid(handles, hint) {
     stripAppCards(document);
-    var parent = findThemeCardParent(hint);
+    var parent = resolveCardHost(hint);
+    if (!parent) return false;
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
-    var cards = collectThemeCards(parent);
-    resetInnerFilterHides(parent);
+    var cards = collectTrayAndGridCards(parent);
+    var tray = cardTray();
+    var shown = [];
+    var hidden = [];
     var i;
     for (i = 0; i < cards.length; i++) {
       var item = cards[i];
       if (!allowed) {
-        showCardTree(item.el);
+        shown.push(item);
         continue;
       }
-      if (item.handle && allowed[item.handle]) showCardTree(item.el);
-      else hideEl(item.el);
+      if (item.handle && allowed[item.handle]) shown.push(item);
+      else hidden.push(item);
     }
-    findlyLog("native filter grid", {
-      parent: describeHost(parent),
-      firstCard: cards[0] ? describeHost(cards[0].el) : null,
-      total: cards.length,
-      allowed: handles ? handles.length : null,
-    });
+    if (allowed && handles && handles.length) {
+      var rank = {};
+      for (i = 0; i < handles.length; i++) {
+        rank[String(handles[i] || "").split("::")[0].toLowerCase()] = i;
+      }
+      shown.sort(function (a, b) {
+        var ia = rank[a.handle];
+        var ib = rank[b.handle];
+        if (ia == null) ia = 9999;
+        if (ib == null) ib = 9999;
+        return ia - ib;
+      });
+    }
+    var shownHosts = [];
+    for (i = 0; i < shown.length; i++) {
+      if (shown[i].orphan) continue;
+      placeCardInGrid(parent, shown[i].el);
+      showCardTree(shown[i].el);
+      shownHosts.push(shown[i].el);
+    }
+    for (i = 0; i < shown.length; i++) {
+      if (!shown[i].orphan) continue;
+      if (!attachOrphanToShown(shown[i].el, shown[i].handle, shown)) {
+        placeCardInGrid(parent, shown[i].el);
+      }
+      showCardTree(shown[i].el);
+    }
+    for (i = 0; i < hidden.length; i++) {
+      showCardTree(hidden[i].el);
+      tray.appendChild(hidden[i].el);
+    }
+    sweepHostOrphans(parent, shownHosts, allowed, tray);
     return cards.length > 0;
   }
 
@@ -1202,22 +1554,6 @@
     return to;
   }
 
-  function describeHost(el) {
-    if (!el) return null;
-    var vis = hostVisibility(el);
-    return {
-      tag: el.tagName,
-      id: el.id || "",
-      className: String(el.className || "").slice(0, 160),
-      visible: vis.visible,
-      w: vis.w,
-      h: vis.h,
-      display: vis.display,
-      appCards: countAppCards(el),
-      inResults: Boolean(el.closest && el.closest(RESULTS_LIST_SELECTOR)),
-    };
-  }
-
   function hideNestedThemeCards(parent) {
     if (!parent || !parent.querySelectorAll) return;
     var nested = parent.querySelectorAll(THEME_CARD_HOST_SELECTOR);
@@ -1323,12 +1659,6 @@
         var widget = window.__FINDLY_FILTER_WIDGET;
         if (!widget || !widget.commitFilters) return;
         event.stopImmediatePropagation();
-        findlyLog("checkbox change", {
-          name: input.getAttribute("name"),
-          value: input.value,
-          checked: input.checked,
-          autoApply: widget.autoApplyFilters,
-        });
         applyFindlyInputChange(widget, input);
       },
       true,
@@ -1686,13 +2016,6 @@
       var size = fromCards || fromPager || fromAttrs || fromBlock || 16;
       this._themePageSize = size;
       this.pageSize = size;
-      findlyLog("theme page size", {
-        fromCards: fromCards,
-        fromPager: fromPager,
-        fromAttrs: fromAttrs,
-        fromBlock: fromBlock,
-        size: size,
-      });
       return this.pageSize;
     };
 
@@ -1754,10 +2077,6 @@
             ? host
             : null);
         if (host && existing && (host === existing || host.contains(existing))) {
-          findlyLog("wrapHostWithLayout skip cycle", {
-            host: host.tagName,
-            same: host === existing,
-          });
           existing = stampLayoutPosition(existing, position) || existing;
           if (host !== existing && host.classList) {
             host.classList.add("sf-collection-layout__main");
@@ -1773,7 +2092,6 @@
           return existing;
         }
         if (existing && host && !canMoveNode(existing, host)) {
-          findlyLog("wrapHostWithLayout skip append", { host: host.tagName });
           existing = stampLayoutPosition(existing, position) || existing;
           if (mount && mount.classList) {
             mount.classList.add("sf-collection-layout__aside");
@@ -1782,7 +2100,6 @@
         }
         return origWrap ? origWrap.call(this, host, mount, position) : null;
       } catch (err) {
-        findlyLog("wrapHostWithLayout error", String((err && err.message) || err));
         return (
           (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
           null
@@ -1796,10 +2113,7 @@
       try {
         layout = origSync ? origSync.apply(this, arguments) : undefined;
       } catch (err) {
-        findlyLog(
-          "syncCollectionLayout error",
-          String((err && err.message) || err),
-        );
+        /* ignore */
       }
       portalMobileDrawer(this);
       return layout;
@@ -1835,31 +2149,26 @@
         restyleAppCardsAsThemeItems(parent);
       }
       setOwnsGrid(true);
-      findlyLog("applyAppGrid", {
-        products: sliced.handles && sliced.handles.length,
-        total: sliced.data && sliced.data.total,
-        shown: this._shownHandles && this._shownHandles.length,
-      });
       return ok;
     };
 
     var origIntercept = proto.applyInterceptGrid;
     proto.applyInterceptGrid = function (handles, append) {
       var next = pageSlice(this, handles, append);
-      return origIntercept ? origIntercept.call(this, next, append) : false;
+      var ok = origIntercept ? origIntercept.call(this, next, append) : false;
+      if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
+        applyNativeFilterGrid(
+          this._shownHandles && this._shownHandles.length
+            ? this._shownHandles
+            : next,
+          this._gridParent,
+        );
+      }
+      return ok;
     };
 
     var origFetch = proto.fetchFilters;
     proto.fetchFilters = function () {
-      var url = this.buildProxyUrl ? this.buildProxyUrl() : "";
-      findlyLog("fetchFilters", {
-        selected: this.selected,
-        price: this.price,
-        url: url,
-        hash: String(window.location.hash || ""),
-        appGrid: Boolean(this.isAppGridMode && this.isAppGridMode()),
-        autoApply: this.autoApplyFilters,
-      });
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       if (result && typeof result.then === "function") {
@@ -1898,11 +2207,6 @@
     var origInit = proto.init;
     proto.init = function () {
       applyLooseHash(this);
-      findlyLog("init", {
-        selected: this.selected,
-        hash: String(window.location.hash || ""),
-        collectionId: this.collectionId,
-      });
       if (this.ensureGridParent) this.ensureGridParent();
       if (this.ensurePageSize) this.ensurePageSize();
       if (origInit) origInit.apply(this, arguments);
@@ -1970,9 +2274,26 @@
       document.documentElement.classList.remove("is-sf-drawer-open");
     };
 
-    var origWatch = proto.watchThemeGrid;
+    var origSyncGrid = proto.syncProductGrid;
+    proto.syncProductGrid = function (handles) {
+      var parent =
+        this._gridParent ||
+        (this.ensureGridParent && this.ensureGridParent());
+      applyNativeFilterGrid(handles, parent);
+      if (origSyncGrid && origSyncGrid !== proto.syncProductGrid) {
+        /* tray owns visibility; skip CSS hide/order that leaks titles */
+      }
+    };
     proto.watchThemeGrid = function () {
-      if (origWatch) origWatch.call(this);
+      if (this._gridObserver) {
+        try {
+          this._gridObserver.disconnect();
+        } catch (err) {
+          /* ignore */
+        }
+        this._gridObserver = null;
+        this._gridObserveEl = null;
+      }
       if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
         applyNativeAfterGrid(this);
       }
@@ -2042,10 +2363,6 @@
       if (held.root) enhancePriceSliders(held.root);
       enhanceSortMenu(held);
     }
-    findlyLog("companion ready", {
-      widget: Boolean(held),
-      hash: String(window.location.hash || ""),
-    });
   }
 
   install();

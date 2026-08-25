@@ -2622,7 +2622,7 @@
       }
       if (!Array.isArray(self._visibleHandles)) return;
       self._reapplyingGrid = true;
-      applyProductVisibility(self._visibleHandles);
+      self.syncProductGrid(self._visibleHandles);
       self.hideThemeDuplicateChrome();
       self._reapplyingGrid = false;
     });
@@ -3758,6 +3758,11 @@
     this.removeImportedCards();
   };
 
+  Widget.prototype.syncProductGrid = function (handles) {
+    applyProductVisibility(handles);
+    applyProductOrder(handles);
+  };
+
   Widget.prototype.enterPagingFallback = function (handles, data) {
     this._pagingFallback = true;
     this._appending = false;
@@ -3765,8 +3770,7 @@
     this.restoreThemePaging();
     if (handles) {
       this._visibleHandles = handles;
-      applyProductVisibility(handles);
-      applyProductOrder(handles);
+      this.syncProductGrid(handles);
       applyVariantImages(
         this.showMatchingVariantImage === false
           ? []
@@ -3805,7 +3809,6 @@
     var allowed = allowedHandleMap(shown);
     eachProductCard(parent, function (handle, card) {
       if (handleIsAllowed(allowed, handle)) return;
-      setCardHidden(card, true);
     });
     this._shownHandles = shown;
     return true;
@@ -3898,8 +3901,7 @@
       dispatchUpdate(handles);
       return;
     }
-    applyProductVisibility(handles);
-    applyProductOrder(handles);
+    this.syncProductGrid(handles);
     applyVariantImages(
       this.showMatchingVariantImage === false ? [] : data && data.products,
     );
@@ -3975,7 +3977,7 @@
             this.applyI18nChrome();
             this.facets = [];
             if (this.facetsEl) this.facetsEl.innerHTML = "";
-            applyProductVisibility(null);
+            this.syncProductGrid(null);
             applyVariantImages([]);
             dispatchUpdate([]);
             writeHash(
@@ -4052,7 +4054,7 @@
                 (self.isAppGridMode && self.isAppGridMode())
               )
             ) {
-              applyProductVisibility(visible);
+              self.syncProductGrid(visible);
             }
             self.watchThemeGrid();
             applyVariantImages(
@@ -4149,7 +4151,7 @@
           }
           if (this.autoApplyFilters === false) this.renderApplyBar();
           if (Array.isArray(this._visibleHandles)) {
-            applyProductVisibility(this._visibleHandles);
+            this.syncProductGrid(this._visibleHandles);
             this.hideThemeDuplicateChrome();
           } else {
             this.enterPagingFallback(null);
@@ -5224,7 +5226,7 @@
     if (widget && scope.querySelector(GRID_HINT_SELECTOR)) {
       widget._gridParent = null;
       if (Array.isArray(widget._visibleHandles)) {
-        applyProductVisibility(widget._visibleHandles);
+        widget.syncProductGrid(widget._visibleHandles);
       }
       widget.hideThemeDuplicateChrome();
       widget.watchThemeGrid();

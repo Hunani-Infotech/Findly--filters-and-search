@@ -17,19 +17,6 @@
   var PAGER_HINT =
     "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], load-more-button, .load-more-button, [data-load-more], .ajaxinate-pagination, #AjaxinatePagination, .Pagination, .infinite-scroll, .js-load-more, .btn--load-more, .pagination__load-more";
 
-  function findlyLog() {
-    try {
-      if (typeof console !== "undefined" && console.info) {
-        var args = ["[Findly theme]"];
-        var i;
-        for (i = 0; i < arguments.length; i++) args.push(arguments[i]);
-        console.info.apply(console, args);
-      }
-    } catch (err) {
-      /* ignore */
-    }
-  }
-
   function isFindlyUi(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.closest) return Boolean(el.closest(PROTECT));
@@ -472,9 +459,6 @@
     injectCompatCss();
     bindThemeLifecycle();
     installSetter();
-    findlyLog("compat ready", {
-      widget: Boolean(window.__FINDLY_FILTER_WIDGET),
-    });
   }
 
   install();

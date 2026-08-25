@@ -114,8 +114,11 @@ function assertThemeSeoAndUi() {
     fail("smart-filter-theme.js must discover product grids on any theme");
   }
   const gridJs = read("extensions/smart-filter/assets/smart-filter-grid.js");
-  if (!gridJs.includes("liftFragileLayout") || !gridJs.includes("findly-catalog-grid-v2")) {
-    fail("smart-filter-grid.js must keep Horizon catalog product-card grid intact");
+  if (!gridJs.includes("liftFragileLayout") || !gridJs.includes("findly-card-tray") || !gridJs.includes("resolveCardHost") || !gridJs.includes("sweepHostOrphans")) {
+    fail("smart-filter-grid.js must tray-hide unmatched cards on any theme without leaking titles");
+  }
+  if (!filterJs.includes("syncProductGrid")) {
+    fail("smart-filter.js must expose syncProductGrid so companions can hide cards without leaking titles");
   }
   if (!themeCompat.includes("hideNativeChromeHeuristic")) {
     fail("smart-filter-theme.js must hide native filter chrome without theme-specific class lists only");
