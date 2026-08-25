@@ -7,11 +7,11 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v1";
+  var STYLE_ID = "findly-theme-compat-v3";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
-    ".smart-filter, .smart-filter-search, .findly-instant, .sf-sort-host, .sf-pager, .sf-app-card, .sf-collection-layout";
+    ".smart-filter, .smart-filter-search, .findly-instant, .sf-toolbar, .sf-sort-host, .sf-collection-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
@@ -228,6 +228,17 @@
   }
 
   function injectCompatCss() {
+    var oldIds = [
+      "findly-theme-compat-v1",
+      "findly-theme-compat-v2",
+      "findly-theme-compat-v3",
+    ];
+    var oi;
+    for (oi = 0; oi < oldIds.length; oi++) {
+      if (oldIds[oi] === STYLE_ID) continue;
+      var old = document.getElementById(oldIds[oi]);
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
     if (document.getElementById(STYLE_ID)) return;
     var css =
       ".smart-filter,.smart-filter-search,.findly-instant,.smart-filter__panel{isolation:isolate}" +
@@ -245,38 +256,41 @@
       "width:18px!important;height:18px!important;min-width:18px!important;margin:0!important;" +
       "border:1.5px solid #c3c3c3!important;background:#fff!important;display:inline-grid!important;" +
       "clip:auto!important;transform:none!important}" +
-      ".sf-collection-layout{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box}" +
+      ".sf-collection-layout{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-inline:0}" +
+      ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout,.container>.sf-collection-layout{width:100%!important;max-width:100%!important}" +
       ".sf-collection-layout,[data-findly-theme-hidden='1'],[data-findly-native-chrome='1']{--findly-theme-compat:1}" +
       "[data-findly-native-chrome='1'],[data-findly-theme-hidden='1']{display:none!important}" +
-      "html.sf-og nav.pagination,html.sf-og .pagination,html.sf-og .pagination-wrapper," +
-      "html.sf-og [data-pagination],html.sf-og load-more-button,html.sf-og .load-more-button," +
+      "html.sf-og nav.pagination:not(.sf-pager),html.sf-og .pagination:not(.sf-pager),html.sf-og .pagination-wrapper:not(.sf-pager)," +
+      "html.sf-og [data-pagination]:not(.sf-pager),html.sf-og load-more-button,html.sf-og .load-more-button," +
       "html.sf-og .ajaxinate-pagination,html.sf-og #AjaxinatePagination,html.sf-og .Pagination," +
       "html.sf-og [data-load-more]:not(.sf-pager){display:none!important}" +
+      ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
+      "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
       "@media(min-width:750px){" +
-      ".sf-collection-layout--left,.sf-collection-layout--right{" +
-      "display:flex!important;align-items:flex-start;gap:32px;width:100%}" +
+      ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important}" +
+      ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important}" +
+      ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--right>.sf-collection-layout__main{" +
+      "min-width:0!important;max-width:none!important}" +
       "}" +
-      ".sf-collection-layout__main{min-width:0;flex:1 1 auto}" +
+      ".sf-collection-layout__main:not(ul):not(ol):not(.product-grid):not(.main-collection-grid){min-width:0;flex:1 1 0%;display:block}" +
       ".smart-filter-search input,.findly-instant a{max-width:100%}";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
-    if (!document.getElementById("findly-theme-bridge")) {
-      var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge";
-      bridge.textContent =
-        "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}";
-      (document.head || document.documentElement).appendChild(bridge);
-    }
   }
 
   function ensureSortHost(widget) {
+    if (widget && widget.placeCollectionSearchOnGrid) {
+      widget.placeCollectionSearchOnGrid();
+      return;
+    }
     if (!widget || !widget.sortWrap || widget.sortWrap.hidden) return;
     if (widget.sortWrap.closest && widget.sortWrap.closest(".sf-sort-host")) {
       return;
     }
     var main =
+      document.querySelector(".sf-collection-layout > .sf-collection-layout__main") ||
       document.querySelector(".sf-collection-layout__main") ||
       widget._gridParent;
     if (!main) return;
@@ -291,6 +305,33 @@
     }
     if (widget.sortWrap.parentNode !== host) host.appendChild(widget.sortWrap);
     widget.sortWrap.classList.add("smart-filter__sort--toolbar");
+  }
+
+  function ensureCollectionSearchHost(widget) {
+    if (!widget) return;
+    if (widget.placeCollectionSearchOnGrid) {
+      widget.placeCollectionSearchOnGrid();
+      return;
+    }
+    var wrap = widget.collectionSearchWrap;
+    if (!wrap || wrap.hidden) return;
+    var main =
+      document.querySelector(".sf-collection-layout > .sf-collection-layout__main") ||
+      document.querySelector(".sf-collection-layout__main") ||
+      (widget._gridParent && widget._gridParent.parentElement);
+    if (!main) return;
+    wrap.classList.add("smart-filter__collection-search--toolbar");
+    var host = main.querySelector
+      ? main.querySelector(".sf-collection-search-host")
+      : null;
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "sf-collection-search-host";
+      var grid = widget._gridParent;
+      if (grid && grid.parentNode === main) main.insertBefore(host, grid);
+      else main.appendChild(host);
+    }
+    if (wrap.parentNode !== host) host.appendChild(wrap);
   }
 
   function liftOutOfAnyFilterForm(widget) {
@@ -332,10 +373,20 @@
     proto.findLayoutHost = function (grid) {
       var host = origFindHost ? origFindHost.call(this, grid) : grid;
       if (host && isFragileHost(host) && host.parentElement) {
-        host = host.parentElement;
+        var parent = host.parentElement;
+        var parentCls = " " + String(parent.className || "") + " ";
+        var stayInside =
+          / page-width | page-width-desktop | page-width--narrow /.test(parentCls) ||
+          (parent.classList && parent.classList.contains("shopify-section")) ||
+          String(parent.tagName || "").toLowerCase() === "main";
+        if (!stayInside) host = parent;
       }
       if (host && hostDisplay(host) === "contents" && host.parentElement) {
-        host = host.parentElement;
+        var contentsParent = host.parentElement;
+        var contentsCls = " " + String(contentsParent.className || "") + " ";
+        if (!/ page-width | page-width-desktop /.test(contentsCls)) {
+          host = contentsParent;
+        }
       }
       return host;
     };
@@ -350,6 +401,7 @@
     proto.placeSortOnGrid = function () {
       if (origPlaceSort) origPlaceSort.call(this);
       ensureSortHost(this);
+      ensureCollectionSearchHost(this);
     };
 
     var origCount = proto.syncThemeProductCount;
@@ -374,6 +426,7 @@
       var result = origSync ? origSync.apply(this, arguments) : undefined;
       hideNativeChromeHeuristic();
       ensureSortHost(this);
+      ensureCollectionSearchHost(this);
       return result;
     };
 
@@ -394,6 +447,7 @@
     widget._gridParent = null;
     if (widget.ensureGridParent) widget.ensureGridParent();
     if (widget.syncCollectionLayout) widget.syncCollectionLayout();
+    if (widget.placeCollectionSearchOnGrid) widget.placeCollectionSearchOnGrid();
     if (widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
     if (widget.watchThemeGrid) widget.watchThemeGrid();
     if (Array.isArray(widget._visibleHandles) && window.applyProductVisibility) {

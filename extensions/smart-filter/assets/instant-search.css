@@ -228,3 +228,50 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.findly-instant__skel-row,
+.findly-instant__skel-card {
+  display: block;
+  border-radius: 8px;
+  background: #ececec;
+  animation: fi-skel-pulse 1.1s ease-in-out infinite;
+}
+
+.findly-instant__skel-row {
+  height: 0.75rem;
+  width: 78%;
+  margin: 0 0 0.55rem;
+}
+
+.findly-instant__skel-row.is-short {
+  width: 46%;
+}
+
+.findly-instant__skel-card {
+  min-height: 5.5rem;
+  width: 100%;
+}
+
+@keyframes fi-skel-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.findly-instant-bar {
+  display: flex;
+  align-items: center;
+  width: min(100%, 22rem);
+  margin: 0.5rem 1rem;
+}
+
+.findly-instant-bar__input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}

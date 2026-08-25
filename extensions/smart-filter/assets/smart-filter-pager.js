@@ -77,6 +77,54 @@
       maybeLoad();
     };
 
+    proto.placePagerEl = function (el) {
+      if (!el) return el;
+      el.classList.add("sf-pager");
+      el.removeAttribute("data-smart-filter-hidden");
+      el.removeAttribute("data-findly-theme-hidden");
+      var main = document.querySelector(
+        ".sf-collection-layout > .sf-collection-layout__main",
+      ) || document.querySelector(".sf-collection-layout__main");
+      if (
+        main &&
+        main.classList &&
+        (main.classList.contains("collection-wrapper") ||
+          main.classList.contains("main-collection-grid") ||
+          main.classList.contains("product-grid") ||
+          main.classList.contains("product-grid-container"))
+      ) {
+        main = main.parentElement;
+      }
+      var grid = this._gridParent;
+      var parent = main || null;
+      var after = null;
+      if (main && grid && main.contains(grid)) after = grid;
+      if (!parent) {
+        var layout = document.querySelector(".sf-collection-layout");
+        if (layout && layout.parentNode) {
+          parent = layout.parentNode;
+          after = layout;
+        } else if (grid && grid.parentNode) {
+          parent = grid.parentNode;
+          after = grid;
+        }
+      }
+      if (parent) {
+        if (after && after.parentNode === parent) {
+          if (after.nextSibling !== el) parent.insertBefore(el, after.nextSibling);
+        } else if (el.parentNode !== parent) {
+          parent.appendChild(el);
+        }
+        return el;
+      }
+      if (!el.parentNode && this.root && this.root.parentNode) {
+        this.root.parentNode.appendChild(el);
+      } else if (!el.parentNode) {
+        document.body.appendChild(el);
+      }
+      return el;
+    };
+
     proto.renderLoadMore = function (el) {
       if (this.paginationStyle === "infinite") return;
       el.innerHTML = "";
@@ -90,6 +138,7 @@
       btn.className = "sf-pager__more";
       btn.textContent = this.t("load_more", "Load more");
       btn.disabled = Boolean(this._loadingPage || this._appending);
+      if (btn.disabled) btn.setAttribute("aria-busy", "true");
       btn.addEventListener(
         "click",
         function () {
@@ -97,6 +146,12 @@
         }.bind(this),
       );
       el.appendChild(btn);
+      if (this._loadingPage || this._appending) {
+        var spin = document.createElement("span");
+        spin.className = "sf-pager__spin";
+        spin.setAttribute("aria-hidden", "true");
+        btn.appendChild(spin);
+      }
     };
 
     proto.renderNumberedPager = function (el) {
@@ -110,6 +165,8 @@
         return;
       }
       el.hidden = false;
+      el.removeAttribute("hidden");
+      el.style.removeProperty("display");
       var list = document.createElement("div");
       list.className = "sf-pager__nav";
 
@@ -175,6 +232,7 @@
 
     proto.renderPager = function () {
       var el = this.ensurePagerEl();
+      if (this.placePagerEl) this.placePagerEl(el);
       var style = this.paginationStyle;
       el.classList.remove(
         "sf-pager--pagination",
@@ -202,7 +260,9 @@
         }
         el.hidden = false;
         var sentinel = document.createElement("div");
-        sentinel.className = "sf-pager__sentinel";
+        sentinel.className =
+          "sf-pager__sentinel" +
+          (this._loadingPage || this._appending ? " is-busy" : "");
         sentinel.setAttribute("aria-hidden", "true");
         el.appendChild(sentinel);
         this.bindInfinite(sentinel);
@@ -241,7 +301,10 @@
     } catch (err) {
       /* ignore */
     }
-    if (held) patchWidget(held);
+    if (held) {
+      patchWidget(held);
+      if (held.renderPager) held.renderPager();
+    }
   }
 
   installSetter();

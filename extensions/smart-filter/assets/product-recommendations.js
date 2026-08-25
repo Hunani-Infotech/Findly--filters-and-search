@@ -255,6 +255,24 @@
     this.root.style.setProperty("--recs-cols", String(limit));
   };
 
+  RecsWidget.prototype.renderSkeletons = function (count) {
+    var list = this.resultsEl;
+    if (!list) return;
+    list.innerHTML = "";
+    this.setColumns(count || 4);
+    var i;
+    for (i = 0; i < (count || 4); i++) {
+      var li = document.createElement("li");
+      li.className = "smart-filter-recs__result is-skeleton";
+      li.setAttribute("aria-hidden", "true");
+      li.innerHTML =
+        '<span class="smart-filter-recs__skel-img"></span>' +
+        '<span class="smart-filter-recs__skel-line"></span>' +
+        '<span class="smart-filter-recs__skel-line is-short"></span>';
+      list.appendChild(li);
+    }
+  };
+
   RecsWidget.prototype.renderProducts = function (products, limit) {
     var list = this.resultsEl;
     if (!list) return;
@@ -332,6 +350,8 @@
     var fetchLimit = override > 0 ? override : 12;
     var reqId = ++this._reqId;
     setStatus(this.statusEl, MSG_LOADING, false);
+    setHidden(this.root, false);
+    this.renderSkeletons(fetchLimit > 6 ? 6 : fetchLimit || 4);
     return this.fetchJson(this.buildUrl(fetchLimit))
       .then(function (payload) {
         if (reqId !== self._reqId) return;
@@ -341,6 +361,7 @@
       .catch(function () {
         if (reqId !== self._reqId) return;
         setStatus(self.statusEl, MSG_ERROR, true);
+        if (self.resultsEl) self.resultsEl.innerHTML = "";
         rememberView(self.productHandle);
       });
   };

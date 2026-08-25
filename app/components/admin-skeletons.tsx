@@ -695,56 +695,6 @@ export function ContactPageSkeleton() {
   );
 }
 
-export function SyncPageSkeleton() {
-  return (
-    <SkeletonPage title="Sync" primaryAction>
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  Status
-                </Text>
-                {Array.from({ length: 4 }, (_, index) => (
-                  <InlineStack
-                    key={index}
-                    align="space-between"
-                    blockAlign="center"
-                  >
-                    <Skel kind="text" width="28%" />
-                    <Skel kind="text" width="22%" />
-                  </InlineStack>
-                ))}
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  Automatic updates
-                </Text>
-                <Skel kind="text" width="92%" />
-                <Skel kind="text" width="74%" />
-                <Skel kind="text" width="68%" />
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  What to do next
-                </Text>
-                <CheckboxRow width="62%" />
-                <CheckboxRow width="54%" />
-                <CheckboxRow width="70%" />
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-    </SkeletonPage>
-  );
-}
-
 export function IntegrationsPageSkeleton() {
   return (
     <SkeletonPage title="Integrations" backAction>
@@ -1180,7 +1130,7 @@ export function UnderConstructionSkeleton({ title }: { title: string }) {
   );
 }
 
-export function SimplePageSkeleton({ title = "Loading" }: { title?: string }) {
+function SimplePageSkeleton({ title = "Loading" }: { title?: string }) {
   return (
     <SkeletonPage title={title} backAction>
       <Layout>

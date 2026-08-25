@@ -156,6 +156,15 @@ export function shopifyVariantNodes(
   return conn?.nodes ?? [];
 }
 
+/** True when Shopify included the inventoryLevels connection (even if empty). */
+export function variantsIncludeInventoryLevels(
+  variants: ShopifyVariantNode[],
+): boolean {
+  return variants.some(
+    (variant) => variant.inventoryItem?.inventoryLevels != null,
+  );
+}
+
 function variantInventoryLevels(variant: ShopifyVariantNode): ShopifyInventoryLevelNode[] {
   const conn = variant.inventoryItem?.inventoryLevels;
   return [

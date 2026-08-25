@@ -8,9 +8,12 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v6";
+  var STYLE_ID = "findly-grid-takeover-v19";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
+  var EMPTY_ID = "findly-grid-empty";
+  var SKEL_ATTR = "data-findly-skel";
+  var SKEL_COUNT = 8;
   var PRODUCT_GRID_START_CSS =
     ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
     ".sf-collection-layout #product-grid,.sf-og #product-grid," +
@@ -20,13 +23,61 @@
     ".sf-collection-layout .product-grid,.sf-og .product-grid," +
     ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid," +
     ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-    "{justify-content:start!important}";
+    "{justify-content:stretch!important;width:100%!important;max-width:100%!important}";
+  var GRID_RESULT_HIDE =
+    ":not([" +
+    SKEL_ATTR +
+    "='1']):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count)" +
+    ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)";
+  var GRID_BUSY_HOSTS = [
+    ".main-collection-grid",
+    "#product-grid",
+    "#ProductGrid",
+    "ul.product-grid",
+    "ol.product-grid",
+    ".sf-app-grid",
+  ];
+  function gridLoadingHideCss(prefix) {
+    var i;
+    var parts = [];
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      parts.push(prefix + " " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
+    }
+    return parts.join(",") + "{display:none!important}";
+  }
+  function gridLoadingMinCss(prefix) {
+    var i;
+    var parts = [];
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      parts.push(prefix + " " + GRID_BUSY_HOSTS[i]);
+    }
+    return parts.join(",") + "{position:relative;min-height:22rem}";
+  }
   var GRID_BUSY_CSS =
     "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
-    ".sf-grid-busy{position:relative!important;opacity:1!important;pointer-events:none;min-height:8rem}" +
-    ".sf-grid-busy::before{content:\"\";position:absolute;inset:0;z-index:20;background:rgb(255 255 255 / .55);pointer-events:none}" +
-    ".sf-grid-busy::after{content:\"\";position:absolute;z-index:21;top:50%;left:50%;width:2rem;height:2rem;margin:-1rem 0 0 -1rem;" +
-    "border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);border-radius:50%;animation:sf-grid-spin .7s linear infinite}";
+    "@keyframes sf-skeleton-pulse{50%{opacity:.55}}" +
+    "#findly-grid-busy-overlay{position:fixed;z-index:80;box-sizing:border-box;pointer-events:auto;" +
+    "background:rgb(255 255 255 / .28)}" +
+    "#findly-grid-busy-overlay::after{content:\"\";position:absolute;top:50%;left:50%;width:2rem;height:2rem;" +
+    "margin:-1rem 0 0 -1rem;border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);" +
+    "border-radius:50%;animation:sf-grid-spin .7s linear infinite}" +
+    ".findly-grid-is-busy{position:relative;min-height:22rem;pointer-events:none}" +
+    ".findly-grid-is-busy>" +
+    GRID_RESULT_HIDE +
+    "{display:none!important}" +
+    gridLoadingHideCss("html.sf-filter-loading") +
+    gridLoadingMinCss("html.sf-filter-loading") +
+    "[" + SKEL_ATTR + "='1']{pointer-events:none;list-style:none;min-width:0}" +
+    ".findly-grid-skel__img{display:block;width:100%;aspect-ratio:1;border-radius:8px;background:#ececec}" +
+    ".findly-grid-skel__line{display:block;height:.7rem;margin-top:.55rem;border-radius:4px;background:#ececec;width:78%}" +
+    ".findly-grid-skel__line.is-short{width:42%;margin-top:.4rem}" +
+    "[" + SKEL_ATTR + "='1'] .findly-grid-skel__img,[" + SKEL_ATTR + "='1'] .findly-grid-skel__line{" +
+    "animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
+    "#" +
+    "findly-grid-empty,.sf-grid-empty{grid-column:1/-1;width:100%;min-height:12rem;display:flex;flex-direction:column;" +
+    "align-items:center;justify-content:center;text-align:center;padding:2.5rem 1.5rem;box-sizing:border-box}" +
+    ".sf-grid-empty__title{margin:0 0 .4rem;font-size:1.05rem;font-weight:650}" +
+    ".sf-grid-empty__copy{margin:0;opacity:.7;font-size:.9rem}";
   var STRICT_CARD_SELECTOR = [
     "product-card",
     "product-item",
@@ -118,6 +169,60 @@
     ".sf-app-grid",
   ].join(", ");
 
+  function describeHost(el) {
+    if (!el || el.nodeType !== 1) return String(el);
+    var id = el.id ? "#" + el.id : "";
+    var cls = String(el.className || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(".");
+    return String(el.tagName || "").toLowerCase() + id + (cls ? "." + cls : "");
+  }
+
+  function shortStack() {
+    try {
+      return String(new Error().stack || "")
+        .split("\n")
+        .slice(2, 7)
+        .map(function (line) {
+          return String(line).trim();
+        });
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function findlyLog(kind, data) {
+    var row = { t: Date.now(), kind: kind, data: data || {} };
+    try {
+      window.__FINDLY_LOGS = window.__FINDLY_LOGS || [];
+      window.__FINDLY_LOGS.push(row);
+      if (window.__FINDLY_LOGS.length > 400) window.__FINDLY_LOGS.shift();
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      if (typeof console !== "undefined" && console.info) {
+        console.info("[Findly]", kind, data || {});
+      }
+    } catch (err2) {
+      /* ignore */
+    }
+  }
+
+  try {
+    window.__FINDLY_DUMP = function () {
+      var logs = window.__FINDLY_LOGS || [];
+      if (typeof console !== "undefined" && console.info) {
+        console.info("[Findly] dump " + logs.length + " entries", logs);
+      }
+      return logs;
+    };
+  } catch (errDump) {
+    /* ignore */
+  }
+
   function decodeHashValue(value) {
     try {
       return decodeURIComponent(String(value || ""));
@@ -172,16 +277,13 @@
   }
 
   function injectCss() {
-    var legacy = document.getElementById("findly-grid-takeover");
-    if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
-    var legacy2 = document.getElementById("findly-grid-takeover-v2");
-    if (legacy2 && legacy2.parentNode) legacy2.parentNode.removeChild(legacy2);
-    var legacy3 = document.getElementById("findly-grid-takeover-v3");
-    if (legacy3 && legacy3.parentNode) legacy3.parentNode.removeChild(legacy3);
-    var legacy4 = document.getElementById("findly-grid-takeover-v4");
-    if (legacy4 && legacy4.parentNode) legacy4.parentNode.removeChild(legacy4);
-    var legacy5 = document.getElementById("findly-grid-takeover-v5");
-    if (legacy5 && legacy5.parentNode) legacy5.parentNode.removeChild(legacy5);
+    var oldTakeovers = document.querySelectorAll("[id^='findly-grid-takeover']");
+    var ti;
+    for (ti = 0; ti < oldTakeovers.length; ti++) {
+      if (oldTakeovers[ti].id !== STYLE_ID && oldTakeovers[ti].parentNode) {
+        oldTakeovers[ti].parentNode.removeChild(oldTakeovers[ti]);
+      }
+    }
     injectCatalogCss();
     if (document.getElementById(STYLE_ID)) return;
     var css =
@@ -217,10 +319,13 @@
       "}" +
       ".smart-filter__panel.sf-drawer-portal{" +
       "width:min(420px,92vw)!important;max-width:92vw!important;box-sizing:border-box!important}" +
-      ".smart-filter__sort--toolbar,.sf-sort-host{overflow:visible!important;position:relative}" +
-      ".smart-filter__sort-menu{z-index:100060;box-sizing:border-box;background:var(--sf-surface,#fff);" +
-      "color:inherit;border:1px solid var(--sf-border,#ececec);border-radius:8px;padding:6px 0;" +
-      "box-shadow:0 10px 28px rgb(0 0 0 / 14%)}" +
+      ".smart-filter__sort--toolbar,.sf-sort-host,.sf-sort-trigger{overflow:visible!important;position:relative}" +
+      ".sf-sort-trigger{display:block;width:100%}" +
+      ".smart-filter__sort-menu{position:absolute;top:calc(100% + 4px);left:auto;right:0;bottom:auto;" +
+      "z-index:100060;box-sizing:border-box;min-width:0;width:max-content;max-width:min(18rem,calc(100vw - 24px));margin:0;" +
+      "background:var(--sf-surface,#fff);color:inherit;border:1px solid var(--sf-border,#ececec);" +
+      "border-radius:8px;padding:6px 0;box-shadow:0 10px 28px rgb(0 0 0 / 14%)}" +
+      ".smart-filter__sort-menu.is-ported{position:fixed;top:auto;left:auto;right:auto;min-width:0;width:max-content}" +
       ".smart-filter__sort-menu[hidden]{display:none!important}" +
       ".smart-filter__sort-option{display:block;width:100%;appearance:none;margin:0;" +
       "padding:8px 18px 8px 30px;border:0;background:transparent;color:inherit;font:inherit;" +
@@ -229,29 +334,112 @@
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
-    if (!document.getElementById("findly-theme-bridge")) {
+    var existingBridge = document.getElementById("findly-theme-bridge");
+    if (
+      existingBridge &&
+      existingBridge.textContent &&
+      existingBridge.textContent.indexOf("grid-template-columns:280px") < 0
+    ) {
+      existingBridge.parentNode.removeChild(existingBridge);
+      existingBridge = null;
+    }
+    if (!existingBridge) {
       var bridge = document.createElement("style");
       bridge.id = "findly-theme-bridge";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
-        ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0}" +
+        ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin-inline:0}" +
+        ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout," +
+        ".page-width--narrow>.sf-collection-layout,.container>.sf-collection-layout,.Container>.sf-collection-layout" +
+        "{width:100%!important;max-width:100%!important;margin-left:0;margin-right:0}" +
         ".sf-collection-layout__aside,.sf-collection-layout__main{box-sizing:border-box;min-width:0}" +
+        ".sf-collection-layout__main:not(ul):not(ol):not(results-list):not(.product-grid):not(.main-collection-grid):not(product-list)" +
+        "{display:block;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
+        "ul.product-grid.sf-collection-layout__main,ol.product-grid.sf-collection-layout__main," +
+        ".product-grid.sf-collection-layout__main,.main-collection-grid.sf-collection-layout__main," +
+        "results-list.sf-collection-layout__main,product-list.sf-collection-layout__main" +
+        "{display:grid!important;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
+        "ul.product-grid>.sf-collection-layout,.product-grid>.sf-collection-layout,ol.product-grid>.sf-collection-layout," +
+        "results-list>.sf-collection-layout,.main-collection-grid>.sf-collection-layout,.sf-app-grid>.sf-collection-layout," +
+        ".collection-wrapper>.sf-collection-layout,.product-grid-container>.sf-collection-layout" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
+        ".collection-wrapper>.sf-pager,.collection-wrapper>.sf-toolbar,.collection-wrapper>.sf-sort-host," +
+        ".product-grid-container>.sf-pager,.product-grid-container>.sf-toolbar" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout__main>.collection-wrapper,.sf-collection-layout .collection-wrapper" +
+        "{display:block!important;width:100%;max-width:100%;min-width:0;grid-template-columns:none!important}" +
+        ".product-grid>.sf-toolbar,.product-grid>.sf-pager,.product-grid>.sf-sort-host,.product-grid>.sf-collection-search-host," +
+        "ul.product-grid>.sf-toolbar,ul.product-grid>.sf-pager,ul.product-grid>.sf-sort-host," +
+        ".main-collection-grid>.sf-toolbar,.main-collection-grid>.sf-pager,.main-collection-grid>.sf-sort-host," +
+        ".main-collection-grid>.sf-collection-search-host,results-list>.sf-toolbar,results-list>.sf-pager" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;display:flex}" +
+        ".sf-collection-layout>.sf-pager,.sf-collection-layout>.sf-toolbar,.sf-collection-layout>.sf-sort-host," +
+        ".sf-collection-layout>:not(.sf-collection-layout__aside):not(.sf-collection-layout__main):not(.smart-filter):not(.shopify-block)" +
+        "{flex:1 1 100%;width:100%;max-width:100%;order:20}" +
+        ".sf-collection-layout__main .product-grid,.sf-collection-layout__main ul.product-grid," +
+        ".sf-collection-layout__main ol.product-grid,.sf-collection-layout__main .main-collection-grid," +
+        ".sf-collection-layout__main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:stretch!important}" +
+        ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter)," +
+        "results-list:has(.sf-collection-layout),.product-grid-container:has(.sf-collection-layout)" +
+        "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important;" +
+        "--grid-column--desktop:minmax(0,1fr);--grid-column--mobile:minmax(0,1fr);--centered-column-number:1}" +
+        ".collection-wrapper.grid:has(.sf-collection-layout),.collection-wrapper.grid:has(.smart-filter)," +
+        ".sf-collection-layout .collection-wrapper.grid" +
+        "{display:grid!important;grid-template-columns:minmax(0,1fr)!important;" +
+        "--grid-column--desktop:minmax(0,1fr)!important;--grid-column--mobile:minmax(0,1fr)!important}" +
+        ".collection-wrapper>.main-collection-grid,.collection-wrapper>results-list" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        ".collection-wrapper:has(.sf-collection-layout)>.sf-collection-layout," +
+        ".collection-wrapper:has(.smart-filter)>.sf-collection-layout" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
+        ".collection-wrapper:has(.sf-collection-layout) .main-collection-grid," +
+        ".sf-collection-layout .main-collection-grid" +
+        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        ".sf-pager,.sf-pager__nav,.sf-pager__pages{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
+        ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
+        "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
+        ".sf-collection-layout nav.pagination,.sf-collection-layout .pagination,.sf-collection-layout .pagination-wrapper" +
+        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
         "@media(min-width:750px){" +
-        ".sf-collection-layout--left,.sf-collection-layout--right{display:flex!important;align-items:flex-start;gap:32px;width:100%}" +
-        ".sf-collection-layout--left .sf-collection-layout__aside,.sf-collection-layout--right .sf-collection-layout__aside," +
-        ".sf-collection-layout--left .smart-filter,.sf-collection-layout--right .smart-filter," +
-        ".sf-collection-layout--left .shopify-block:has(.smart-filter),.sf-collection-layout--right .shopify-block:has(.smart-filter)" +
-        "{flex:0 0 280px;width:280px;max-width:280px;min-width:280px}" +
-        ".sf-collection-layout--left .sf-collection-layout__main,.sf-collection-layout--right .sf-collection-layout__main" +
-        "{flex:1 1 auto;min-width:0;max-width:100%}" +
-        ".sf-sort-host{display:flex;justify-content:flex-end;width:100%;margin:0 0 14px;overflow:visible;position:relative;z-index:6}" +
-        ".sf-sort-host .smart-filter__sort{display:inline-flex;position:relative;width:fit-content;max-width:100%;margin:0 0 0 auto;overflow:visible}" +
+        ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--left>.sf-collection-layout__aside,.sf-collection-layout--left>.smart-filter," +
+        ".sf-collection-layout--left>.shopify-block:has(.smart-filter)" +
+        "{grid-column:1!important;width:280px;max-width:280px;min-width:280px}" +
+        ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--left>.sf-toolbar," +
+        ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--left>.sf-sort-host" +
+        "{grid-column:2!important;min-width:0!important;width:auto!important;max-width:none!important}" +
+        ".sf-collection-layout--right>.sf-collection-layout__aside,.sf-collection-layout--right>.smart-filter," +
+        ".sf-collection-layout--right>.shopify-block:has(.smart-filter)" +
+        "{grid-column:2!important;width:280px;max-width:280px;min-width:280px}" +
+        ".sf-collection-layout--right>.sf-collection-layout__main,.sf-collection-layout--right>.sf-toolbar," +
+        ".sf-collection-layout--right>.sf-pager" +
+        "{grid-column:1!important;min-width:0!important;max-width:none!important}" +
         ".sf-collection-layout--top{display:flex!important;flex-direction:column;gap:16px;width:100%}" +
         ".sf-collection-layout--top>.sf-collection-layout__aside,.sf-collection-layout--top>.smart-filter," +
         ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
         "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
         "}" +
+        ".sf-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;width:100%;max-width:100%;margin:0 0 18px;box-sizing:border-box}" +
+        ".sf-toolbar__search{flex:1 1 auto;min-width:0;margin:0;max-width:22rem}" +
+        ".sf-toolbar__end{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;gap:0;min-width:0}" +
+        ".sf-sort-host{display:flex;justify-content:flex-end;width:auto;margin:0;overflow:visible;position:relative;z-index:6}" +
+        ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-start;gap:.7rem;width:auto;margin:0;flex-wrap:nowrap}" +
+        ".sf-toolbar .smart-filter__sort-label{font-weight:450;font-size:.9375em;color:inherit;line-height:2.5rem;padding:0;margin:0;white-space:nowrap}" +
+        ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:10.75rem}" +
+        ".sf-toolbar .smart-filter__sort-select{width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;padding:.5rem 2rem .5rem .85rem;border:1px solid #111!important;border-radius:8px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23111111' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right .75rem center;background-size:.7rem;appearance:none!important;-webkit-appearance:none!important}" +
+        ".sf-collection-search-host{display:block;width:100%;max-width:100%;margin:0}" +
+        ".sf-total-count{margin:0;font-size:.8125em;line-height:1.3;color:#6d6d6d;white-space:nowrap;text-align:right}" +
+        ".sf-total-count[hidden],.sf-toolbar__search:not(:has(.smart-filter__collection-search:not([hidden]))){display:none!important}" +
+        ".sf-toolbar:not(:has(.sf-toolbar__search:has(.smart-filter__collection-search:not([hidden])))){justify-content:flex-end}" +
+        ".sf-sort-host:not(:has(.smart-filter__sort:not([hidden]))){display:none}" +
+        ".smart-filter>.smart-filter__collection-search{display:none!important}" +
+        ".smart-filter__collection-search--toolbar{display:flex;width:100%;max-width:100%;margin:0}" +
+        ".sf-toolbar .smart-filter__collection-search-input{width:100%;max-width:22rem;min-width:0;min-height:2.5rem;padding:.5rem 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:none;font:inherit;color:inherit}" +
+        ".sf-toolbar .smart-filter__collection-search-input::placeholder{color:#8a8a8a;opacity:1}" +
+        ".sf-toolbar input[type=search]::-webkit-search-decoration,.sf-toolbar input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}" +
+        "@media(max-width:749px){.sf-toolbar{flex-wrap:wrap}.sf-toolbar__search{flex:1 1 100%;max-width:none}.sf-toolbar__end{margin-left:auto}}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
         ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
@@ -262,7 +450,8 @@
         "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
         "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
         "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-        ".sf-app-grid>:not(.sf-app-card){display:none!important}";
+        ".sf-app-grid>.sf-pager,.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-collection-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
+        ".sf-app-grid>:not(.sf-app-card):not(.sf-pager):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-grid-empty){display:none!important}";
       (document.head || document.documentElement).appendChild(bridge);
     }
   }
@@ -273,11 +462,13 @@
       document.getElementById("findly-catalog-grid-v2") ||
       document.getElementById("findly-catalog-grid-v3") ||
       document.getElementById("findly-catalog-grid-v4") ||
-      document.getElementById("findly-catalog-grid-v5");
+      document.getElementById("findly-catalog-grid-v5") ||
+      document.getElementById("findly-catalog-grid-v6") ||
+      document.getElementById("findly-catalog-grid-v7");
     if (oldCatalog && oldCatalog.parentNode) oldCatalog.parentNode.removeChild(oldCatalog);
-    if (document.getElementById("findly-catalog-grid-v6")) return;
+    if (document.getElementById("findly-catalog-grid-v8")) return;
     var catalog = document.createElement("style");
-    catalog.id = "findly-catalog-grid-v6";
+    catalog.id = "findly-catalog-grid-v8";
     catalog.textContent =
       "#" +
       CARD_TRAY_ID +
@@ -471,8 +662,605 @@
     return true;
   }
 
+  var THEME_WIDTH_SELECTOR =
+    ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow, .page-width--compact, .container:not(.container-fluid), .Container, .wrapper, .page-container";
+
+  function isFullBleedHost(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el === document.body || el === document.documentElement) return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "main" || tag === "body" || tag === "html") return true;
+    var id = String(el.id || "");
+    if (
+      id === "MainContent" ||
+      id === "main" ||
+      id === "Main" ||
+      id === "PageContainer" ||
+      id === "PageContent"
+    ) {
+      return true;
+    }
+    if (el.getAttribute && el.getAttribute("role") === "main") return true;
+    if (el.classList && el.classList.contains("shopify-section")) return true;
+    return false;
+  }
+
+  function isProductGridLike(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isListHost(el) || isResultsListEl(el)) return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (
+      tag === "results-list" ||
+      tag === "product-list" ||
+      tag === "grid-list" ||
+      tag === "ul" ||
+      tag === "ol"
+    ) {
+      return true;
+    }
+    if (el.id === "product-grid" || el.id === "ProductGrid") return true;
+    var cls = el.classList;
+    if (!cls) return false;
+    return (
+      cls.contains("product-grid") ||
+      cls.contains("main-collection-grid") ||
+      cls.contains("sf-app-grid") ||
+      cls.contains("product-grid-container") ||
+      cls.contains("collection-wrapper")
+    );
+  }
+
+  function isThemeWidthContainer(el) {
+    if (!el || el.nodeType !== 1 || isFullBleedHost(el)) return false;
+    if (!el.classList) return false;
+    if (el.classList.contains("sf-collection-layout")) return false;
+    if (isProductGridLike(el)) return false;
+    if (el.classList.contains("page-width--full")) return false;
+    if (
+      el.classList.contains("page-width") ||
+      el.classList.contains("page-width-desktop") ||
+      el.classList.contains("page-width--narrow") ||
+      el.classList.contains("page-width--compact")
+    ) {
+      return true;
+    }
+    if (el.classList.contains("container") && !el.classList.contains("container-fluid")) {
+      return true;
+    }
+    return (
+      el.classList.contains("Container") || el.classList.contains("page-container")
+    );
+  }
+
+  function closestThemeWidth(el) {
+    var node = el;
+    var hops = 0;
+    while (node && node.nodeType === 1 && hops < 16) {
+      if (isThemeWidthContainer(node)) return node;
+      if (isFullBleedHost(node)) break;
+      node = node.parentElement;
+      hops += 1;
+    }
+    return null;
+  }
+
+  function findThemeWidthNearMain(grid) {
+    var fromGrid = closestThemeWidth(grid);
+    if (fromGrid) return fromGrid;
+    var main = document.querySelector(
+      "#MainContent, #main, #Main, main, [role='main']",
+    );
+    var scope = main || document;
+    var nodes = [];
+    try {
+      nodes = scope.querySelectorAll(THEME_WIDTH_SELECTOR);
+    } catch (err) {
+      nodes = [];
+    }
+    var i;
+    var fallback = null;
+    for (i = 0; i < nodes.length; i++) {
+      if (!nodes[i] || isFullBleedHost(nodes[i])) continue;
+      if (!fallback) fallback = nodes[i];
+      if (
+        nodes[i].querySelector &&
+        nodes[i].querySelector(
+          "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid, results-list",
+        )
+      ) {
+        return nodes[i];
+      }
+    }
+    return fallback;
+  }
+
+  function themeWidthChildContaining(pageWidth, grid) {
+    if (!pageWidth || !grid || grid === pageWidth) return null;
+    if (!pageWidth.contains(grid)) return null;
+    if (grid.parentElement === pageWidth) return grid;
+    var inner = grid;
+    var hops = 0;
+    while (inner && inner.parentElement && hops < 16) {
+      if (inner.parentElement === pageWidth) return inner;
+      inner = inner.parentElement;
+      hops += 1;
+    }
+    return null;
+  }
+
+  function needsBlockMainWrap(el) {
+    if (!el) return false;
+    if (isProductGridLike(el)) return true;
+    var display = hostDisplay(el);
+    if (display === "contents") return true;
+    var cls = " " + String(el.className || "") + " ";
+    return / collection-wrapper /.test(cls);
+  }
+
+  function ensureBlockMain(host) {
+    if (!host || !host.parentNode) return host;
+    var parent = host.parentNode;
+    if (
+      parent.classList &&
+      parent.classList.contains("sf-collection-layout__main") &&
+      !isProductGridLike(parent)
+    ) {
+      return parent;
+    }
+    if (isProductGridLike(host) || hostDisplay(host) === "contents") {
+      if (host.classList) host.classList.remove("sf-collection-layout__main");
+      var gridWrap = document.createElement("div");
+      gridWrap.className = "sf-collection-layout__main";
+      parent.insertBefore(gridWrap, host);
+      gridWrap.appendChild(host);
+      return gridWrap;
+    }
+    if (host.classList && host.classList.contains("sf-collection-layout__main")) {
+      return host;
+    }
+    if (!needsBlockMainWrap(host)) return host;
+    var wrap = document.createElement("div");
+    wrap.className = "sf-collection-layout__main";
+    parent.insertBefore(wrap, host);
+    wrap.appendChild(host);
+    return wrap;
+  }
+
+  function closestCollectionWrapper(el) {
+    var node = el;
+    var hops = 0;
+    while (node && node.nodeType === 1 && hops < 12) {
+      if (node.classList && node.classList.contains("collection-wrapper")) {
+        return node;
+      }
+      node = node.parentElement;
+      hops += 1;
+    }
+    return null;
+  }
+
+  function wrapInsidePageWidth(pageWidth) {
+    if (!pageWidth || isProductGridLike(pageWidth)) return null;
+    var existing = null;
+    var i;
+    for (i = 0; i < pageWidth.children.length; i++) {
+      if (
+        pageWidth.children[i].classList &&
+        pageWidth.children[i].classList.contains("sf-collection-layout")
+      ) {
+        existing = pageWidth.children[i];
+        break;
+      }
+    }
+    if (existing) {
+      return (
+        existing.querySelector(".sf-collection-layout__main") || existing
+      );
+    }
+    var nested =
+      pageWidth.querySelector && pageWidth.querySelector(".sf-collection-layout");
+    if (nested) {
+      return nested.querySelector(".sf-collection-layout__main") || nested;
+    }
+    var main = document.createElement("div");
+    main.className = "sf-collection-layout__main";
+    while (pageWidth.firstChild) main.appendChild(pageWidth.firstChild);
+    pageWidth.appendChild(main);
+    return main;
+  }
+
+  function constrainHostToThemeContainer(host, grid) {
+    if (!host) return host;
+    var listingShell =
+      closestCollectionWrapper(grid) || closestCollectionWrapper(host);
+    if (isProductGridLike(host) && listingShell && listingShell.contains(host)) {
+      host = listingShell;
+    } else if (isProductGridLike(host)) {
+      host = host.parentElement || host;
+    }
+    var pageWidth =
+      closestThemeWidth(grid) ||
+      (isThemeWidthContainer(host) ? host : closestThemeWidth(host));
+    if (pageWidth && isProductGridLike(pageWidth)) pageWidth = null;
+    if (!pageWidth) {
+      if (listingShell) return ensureBlockMain(listingShell);
+      if (isFullBleedHost(host) && grid && host.contains && host.contains(grid)) {
+        return ensureBlockMain(host);
+      }
+      return ensureBlockMain(host);
+    }
+    if (
+      host === pageWidth ||
+      isFullBleedHost(host) ||
+      isProductGridLike(host) ||
+      (host.contains && host.contains(pageWidth) && host !== pageWidth)
+    ) {
+      var child = themeWidthChildContaining(pageWidth, grid);
+      if (!child) {
+        var slot = pageWidth.querySelector(
+          "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid, results-list",
+        );
+        child = themeWidthChildContaining(pageWidth, slot);
+      }
+      if (child && child !== pageWidth && !isThemeWidthContainer(child)) {
+        return ensureBlockMain(child);
+      }
+      return wrapInsidePageWidth(pageWidth) || ensureBlockMain(host);
+    }
+    return ensureBlockMain(host);
+  }
+
+  function liftLayoutOutOfProductGrid(layout) {
+    if (!layout || !layout.parentNode) return;
+    var guard = 0;
+    while (layout.parentNode && isProductGridLike(layout.parentNode) && guard < 8) {
+      var gridHost = layout.parentNode;
+      var grand = gridHost.parentNode;
+      if (!grand) break;
+      grand.insertBefore(layout, gridHost);
+      var main = null;
+      var ci;
+      for (ci = 0; ci < layout.children.length; ci++) {
+        if (
+          layout.children[ci].classList &&
+          layout.children[ci].classList.contains("sf-collection-layout__main")
+        ) {
+          main = layout.children[ci];
+          break;
+        }
+      }
+      if (!main) {
+        main = document.createElement("div");
+        main.className = "sf-collection-layout__main";
+        layout.appendChild(main);
+      }
+      if (gridHost.parentNode === grand && !main.contains(gridHost)) {
+        main.appendChild(gridHost);
+      }
+      if (main.classList) main.classList.add("sf-collection-layout__main");
+      guard += 1;
+    }
+  }
+
+  function normalizeLayoutShell(layout) {
+    if (!layout || !layout.children) return;
+    var aside = null;
+    var main = null;
+    var i;
+    for (i = 0; i < layout.children.length; i++) {
+      var child = layout.children[i];
+      if (!child || !child.classList) continue;
+      if (child.classList.contains("sf-collection-layout__aside")) aside = child;
+      if (child.classList.contains("sf-collection-layout__main")) main = child;
+    }
+    if (!main) {
+      main = document.createElement("div");
+      main.className = "sf-collection-layout__main";
+      layout.appendChild(main);
+    }
+    if (main.classList) {
+      main.classList.remove("sf-collection-layout__aside");
+      main.classList.add("sf-collection-layout__main");
+    }
+    var nodes = [];
+    for (i = 0; i < layout.childNodes.length; i++) nodes.push(layout.childNodes[i]);
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (node === aside || node === main) continue;
+      if (node.nodeType !== 1) {
+        main.appendChild(node);
+        continue;
+      }
+      if (node.classList && node.classList.contains("sf-collection-layout__aside")) {
+        continue;
+      }
+      main.appendChild(node);
+    }
+  }
+
+  function applyImportantStyle(el, prop, value) {
+    if (!el || !el.style || typeof el.style.setProperty !== "function") return;
+    try {
+      if (
+        el.style.getPropertyValue(prop) === value &&
+        el.style.getPropertyPriority(prop) === "important"
+      ) {
+        return;
+      }
+      el.style.setProperty(prop, value, "important");
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  var repairingLayout = false;
+
+  function flattenHorizonCollectionWrapper(layout) {
+    if (!layout) return;
+    var wrap =
+      (layout.closest && layout.closest(".collection-wrapper")) ||
+      layout.querySelector(".collection-wrapper");
+    if (
+      layout.getAttribute &&
+      layout.getAttribute("data-sf-horizon-flat") === "1" &&
+      wrap &&
+      wrap.style &&
+      wrap.style.display === "block"
+    ) {
+      return;
+    }
+    applyImportantStyle(layout, "width", "100%");
+    applyImportantStyle(layout, "max-width", "100%");
+    applyImportantStyle(layout, "min-width", "0");
+    applyImportantStyle(layout, "grid-column", "1 / -1");
+
+    var hosts = [];
+    if (wrap) hosts.push(wrap);
+    var list =
+      (layout.closest && layout.closest("results-list")) ||
+      (layout.closest && layout.closest(".product-grid-container"));
+    if (list && hosts.indexOf(list) < 0) hosts.push(list);
+
+    var i;
+    for (i = 0; i < hosts.length; i++) {
+      applyImportantStyle(hosts[i], "display", "block");
+      applyImportantStyle(hosts[i], "grid-template-columns", "none");
+      applyImportantStyle(hosts[i], "width", "100%");
+      applyImportantStyle(hosts[i], "max-width", "100%");
+      applyImportantStyle(hosts[i], "--grid-column--desktop", "minmax(0, 1fr)");
+      applyImportantStyle(hosts[i], "--grid-column--mobile", "minmax(0, 1fr)");
+      applyImportantStyle(hosts[i], "--centered-column-number", "1");
+      if (hosts[i].classList && hosts[i].classList.contains("grid")) {
+        applyImportantStyle(hosts[i], "display", "grid");
+        applyImportantStyle(hosts[i], "grid-template-columns", "minmax(0, 1fr)");
+      }
+    }
+
+    var grids = layout.querySelectorAll
+      ? layout.querySelectorAll(
+          ".main-collection-grid, ul.product-grid, ol.product-grid, .sf-app-grid",
+        )
+      : [];
+    for (i = 0; i < grids.length; i++) {
+      applyImportantStyle(grids[i], "width", "100%");
+      applyImportantStyle(grids[i], "max-width", "100%");
+      applyImportantStyle(grids[i], "min-width", "0");
+      applyImportantStyle(grids[i], "grid-column", "1 / -1");
+    }
+
+    var pagers = layout.querySelectorAll
+      ? layout.querySelectorAll(
+          ".sf-pager, .sf-pager__nav, .sf-pager__pages, nav.pagination, .pagination-wrapper",
+        )
+      : [];
+    for (i = 0; i < pagers.length; i++) {
+      applyImportantStyle(pagers[i], "display", "flex");
+      applyImportantStyle(pagers[i], "flex-direction", "row");
+      applyImportantStyle(pagers[i], "flex-wrap", "wrap");
+      applyImportantStyle(pagers[i], "width", "100%");
+    }
+    if (layout.setAttribute) layout.setAttribute("data-sf-horizon-flat", "1");
+  }
+
+  function repairCollectionLayout(widget) {
+    if (repairingLayout) return;
+    repairingLayout = true;
+    if (widget) widget._reapplyingGrid = true;
+    try {
+      var layout = document.querySelector(".sf-collection-layout");
+      if (!layout) return;
+      if (layout.getAttribute("data-sf-layout-stable") === "1") {
+        flattenHorizonCollectionWrapper(layout);
+        return;
+      }
+      var stamped = layout.querySelectorAll(".sf-collection-layout__main");
+      var si;
+      for (si = 0; si < stamped.length; si++) {
+        if (isProductGridLike(stamped[si]) || isThemeManagedGrid(stamped[si])) {
+          stamped[si].classList.remove("sf-collection-layout__main");
+          ensureBlockMain(stamped[si]);
+        }
+      }
+      liftLayoutOutOfProductGrid(layout);
+      normalizeLayoutShell(layout);
+      var pageWidth =
+        closestThemeWidth(
+          (widget && widget._gridParent) || collectionSearchGridEl(widget),
+        ) || findThemeWidthNearMain((widget && widget._gridParent) || null);
+      if (
+        pageWidth &&
+        !isProductGridLike(pageWidth) &&
+        layout.parentNode &&
+        layout.parentNode !== pageWidth &&
+        !pageWidth.contains(layout) &&
+        !layout.contains(pageWidth)
+      ) {
+        var grid =
+          (widget && widget._gridParent) || collectionSearchGridEl(widget);
+        var child = themeWidthChildContaining(pageWidth, grid);
+        if (child && child.parentNode === pageWidth) {
+          pageWidth.insertBefore(layout, child);
+          var mainCol = layout.querySelector(".sf-collection-layout__main");
+          if (mainCol && !mainCol.contains(child)) mainCol.appendChild(child);
+        }
+      }
+      normalizeLayoutShell(layout);
+      flattenHorizonCollectionWrapper(layout);
+      if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
+    } catch (err) {
+      try {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[Findly] repairCollectionLayout", err);
+        }
+      } catch (ignore) {}
+    } finally {
+      repairingLayout = false;
+      if (widget) widget._reapplyingGrid = false;
+    }
+  }
+
+  function scheduleRepairCollectionLayout(widget) {
+    if (!widget) {
+      repairCollectionLayout(widget);
+      return;
+    }
+    if (widget._repairScheduled) return;
+    widget._repairScheduled = true;
+    var run = function () {
+      widget._repairScheduled = false;
+      repairCollectionLayout(widget);
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
+  function placeMountOnExistingLayout(existing, mount, position) {
+    if (!existing) return existing;
+    var alreadyPlaced =
+      mount &&
+      mount.parentNode === existing &&
+      (position === "right"
+        ? existing.lastElementChild === mount
+        : existing.firstElementChild === mount);
+    if (alreadyPlaced) {
+      if (mount.classList) mount.classList.add("sf-collection-layout__aside");
+      if (existing.classList) {
+        var next = position || "left";
+        existing.classList.add("sf-collection-layout");
+        existing.classList.remove(
+          "sf-collection-layout--left",
+          "sf-collection-layout--right",
+          "sf-collection-layout--top",
+          "sf-collection-layout--offcanvas",
+        );
+        existing.classList.add("sf-collection-layout--" + next);
+      }
+      return existing;
+    }
+    existing = stampLayoutPosition(existing, position) || existing;
+    if (mount && mount.classList) {
+      mount.classList.add("sf-collection-layout__aside");
+    }
+    if (!mount) return existing;
+    if (existing.contains(mount) && mount.parentNode !== existing) {
+      return existing;
+    }
+    if (position === "right") {
+      if (existing.lastChild !== mount) existing.appendChild(mount);
+    } else if (existing.firstChild !== mount) {
+      existing.insertBefore(mount, existing.firstChild);
+    }
+    return existing;
+  }
+
+  function armFilterReadyFailsafe() {
+    if (window.__findlyReadyFailsafe) return;
+    window.__findlyReadyFailsafe = window.setTimeout(function () {
+      window.__findlyReadyFailsafe = 0;
+      try {
+        paintGridBusy(null, false);
+      } catch (err) {
+        setFilterLoading(false);
+      }
+    }, 2500);
+  }
+
+  function fitLayoutIntoThemeContainer(widget) {
+    var layout = document.querySelector(".sf-collection-layout");
+    if (!layout || !layout.parentNode) return;
+    repairCollectionLayout(widget);
+    layout = document.querySelector(".sf-collection-layout");
+    if (!layout || !layout.parentNode) return;
+    var grid =
+      (widget && widget._gridParent) || collectionSearchGridEl(widget);
+    var pageWidth = closestThemeWidth(grid) || findThemeWidthNearMain(grid);
+    if (!pageWidth || isProductGridLike(pageWidth)) return;
+    if (pageWidth.contains(layout) && layout !== pageWidth) {
+      normalizeLayoutShell(layout);
+      return;
+    }
+
+    if (layout.contains(pageWidth)) {
+      var parent = layout.parentNode;
+      if (!parent) return;
+      parent.insertBefore(pageWidth, layout);
+      if (pageWidth.classList) {
+        pageWidth.classList.remove("sf-collection-layout__main");
+      }
+      var nestedMain = document.createElement("div");
+      nestedMain.className = "sf-collection-layout__main";
+      while (pageWidth.firstChild) nestedMain.appendChild(pageWidth.firstChild);
+      pageWidth.appendChild(layout);
+      layout.appendChild(nestedMain);
+      var aside =
+        layout.querySelector(".sf-collection-layout__aside") ||
+        (widget && widget.root);
+      if (aside && aside.parentNode === layout && layout.firstChild !== aside) {
+        layout.insertBefore(aside, layout.firstChild);
+      }
+      normalizeLayoutShell(layout);
+      return;
+    }
+
+    var child = themeWidthChildContaining(pageWidth, grid);
+    if (child && child.parentNode === pageWidth && !isThemeWidthContainer(child)) {
+      pageWidth.insertBefore(layout, child);
+      var mainCol = layout.querySelector(".sf-collection-layout__main");
+      if (mainCol && !mainCol.contains(child) && child.parentNode === pageWidth) {
+        mainCol.appendChild(child);
+      } else if (!mainCol) {
+        var wrapped = ensureBlockMain(child);
+        if (wrapped.parentNode !== layout) layout.appendChild(wrapped);
+      }
+      normalizeLayoutShell(layout);
+      return;
+    }
+    var slot = pageWidth.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid",
+    );
+    var before = themeWidthChildContaining(pageWidth, slot) || pageWidth.firstChild;
+    if (before && before.parentNode === pageWidth) {
+      pageWidth.insertBefore(layout, before);
+    } else {
+      pageWidth.appendChild(layout);
+    }
+    if (slot && !layout.contains(slot)) {
+      var col = layout.querySelector(".sf-collection-layout__main");
+      var move = themeWidthChildContaining(pageWidth, slot) || slot;
+      if (col && move && !col.contains(move)) col.appendChild(move);
+    }
+    liftLayoutOutOfProductGrid(layout);
+    normalizeLayoutShell(layout);
+  }
+
   function isLayoutUnsafeHost(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return false;
+    }
     if (isResultsListEl(el) || isListHost(el) || isThemeManagedGrid(el)) {
       return true;
     }
@@ -483,6 +1271,18 @@
   function liftFragileLayout(el, position) {
     if (!el || !el.parentNode) return el;
     var parent = el.parentNode;
+    var pos = position || "left";
+    var main;
+    if (el.classList) {
+      el.classList.remove(
+        "sf-collection-layout",
+        "sf-collection-layout--left",
+        "sf-collection-layout--right",
+        "sf-collection-layout--top",
+        "sf-collection-layout--offcanvas",
+        "sf-collection-layout__main",
+      );
+    }
     if (parent.classList && parent.classList.contains("sf-collection-layout")) {
       parent.classList.remove(
         "sf-collection-layout--left",
@@ -491,30 +1291,23 @@
         "sf-collection-layout--offcanvas",
       );
       parent.classList.add("sf-collection-layout");
-      parent.classList.add("sf-collection-layout--" + (position || "left"));
-      el.classList.remove(
-        "sf-collection-layout",
-        "sf-collection-layout--left",
-        "sf-collection-layout--right",
-        "sf-collection-layout--top",
-        "sf-collection-layout--offcanvas",
-      );
+      parent.classList.add("sf-collection-layout--" + pos);
+      if (isProductGridLike(el) || isThemeManagedGrid(el) || isLayoutUnsafeHost(el)) {
+        main = ensureBlockMain(el);
+        if (main.parentNode !== parent) parent.appendChild(main);
+        return parent;
+      }
       el.classList.add("sf-collection-layout__main");
       return parent;
     }
     var wrapper = document.createElement("div");
     parent.insertBefore(wrapper, el);
-    wrapper.appendChild(el);
-    el.classList.remove(
-      "sf-collection-layout",
-      "sf-collection-layout--left",
-      "sf-collection-layout--right",
-      "sf-collection-layout--top",
-      "sf-collection-layout--offcanvas",
-    );
-    el.classList.add("sf-collection-layout__main");
+    main = document.createElement("div");
+    main.className = "sf-collection-layout__main";
+    wrapper.appendChild(main);
+    main.appendChild(el);
     wrapper.classList.add("sf-collection-layout");
-    wrapper.classList.add("sf-collection-layout--" + (position || "left"));
+    wrapper.classList.add("sf-collection-layout--" + pos);
     return wrapper;
   }
 
@@ -548,6 +1341,9 @@
 
   function isThemeManagedGrid(el) {
     if (!el) return false;
+    if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return false;
+    }
     if (isResultsListEl(el)) return true;
     var display = hostDisplay(el);
     return (
@@ -609,7 +1405,7 @@
     }
     var cls = " " + String(el.className || "") + " ";
     return (
-      / card__inner | card__content | card__media | card__information | card__heading | card-information | full-unstyled-link | media-wrapper | card__text | product-item__info | product-card__image | productitem--info | grid-view-item__link | product-block__image | card__details /.test(
+      / card__inner | card__content | card__media | card__information | card__heading | card-information | full-unstyled-link | media-wrapper | card__text | product-item__info | product-card__image | product-card__content | product-card__info | product-card__title | productitem--info | grid-view-item__link | product-block__image | card__details /.test(
         cls,
       ) &&
       tag !== "product-card" &&
@@ -640,15 +1436,20 @@
     ) {
       return true;
     }
-    if (el.id === CARD_TRAY_ID) return true;
+    if (el.id === CARD_TRAY_ID || el.id === EMPTY_ID) return true;
+    if (el.getAttribute && el.getAttribute(SKEL_ATTR) === "1") return true;
     var cls = el.classList;
     if (!cls) return false;
     return (
+      cls.contains("sf-toolbar") ||
       cls.contains("sf-sort-host") ||
+      cls.contains("sf-collection-search-host") ||
+      cls.contains("sf-total-count") ||
       cls.contains("sf-pager") ||
       cls.contains("pagination") ||
       cls.contains("facets-container") ||
-      cls.contains("smart-filter")
+      cls.contains("smart-filter") ||
+      cls.contains("sf-grid-empty")
     );
   }
 
@@ -695,10 +1496,11 @@
 
   function isOuterThemeCard(el) {
     if (!el || el.nodeType !== 1) return false;
-    if (el.classList && el.classList.contains("sf-app-card")) return false;
+    if (el.classList && el.classList.contains("sf-app-card")) return true;
     if (isLayoutShell(el)) return false;
     if (isInnerCardSlice(el)) return false;
     var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "a") return false;
     if (
       tag === "product-card" ||
       tag === "product-item" ||
@@ -716,7 +1518,21 @@
       if (el.classList.contains("product-block")) return true;
       if (el.classList.contains("productitem")) return true;
     }
-    return Boolean(handleFromCard(el));
+    return false;
+  }
+
+  var OUTER_CARD_SEL =
+    "product-card, product-item, grid-item, li.grid__item, li.product-grid__item, " +
+    ".grid__item, .product-grid__item, .product-card, .product-item, .grid-product, " +
+    ".grid-view-item, .product-block, .productitem, .sf-app-card";
+
+  function resolveOuterThemeCard(el) {
+    if (!el || el.nodeType !== 1) return null;
+    if (isOuterThemeCard(el)) return el;
+    if (!el.closest) return null;
+    var outer = el.closest(OUTER_CARD_SEL);
+    if (outer && isOuterThemeCard(outer)) return outer;
+    return null;
   }
 
   function isOrphanProductNode(el) {
@@ -901,7 +1717,7 @@
 
   function stripAppCards(root) {
     var scope = root || document;
-    if (!scope.querySelectorAll) return;
+    if (!scope.querySelector || !scope.querySelector(".sf-app-card")) return;
     var nodes = scope.querySelectorAll(".sf-app-card");
     var i;
     for (i = 0; i < nodes.length; i++) {
@@ -994,8 +1810,7 @@
     for (i = 0; i < parent.children.length; i++) {
       var child = parent.children[i];
       if (!child || child.nodeType !== 1) continue;
-      if (child.id === CARD_TRAY_ID) continue;
-      if (child.classList && child.classList.contains("sf-app-card")) continue;
+      if (child.id === CARD_TRAY_ID || child.id === EMPTY_ID) continue;
       if (isGridChrome(child)) continue;
       if (isLayoutShell(child)) continue;
       if (isOuterThemeCard(child)) {
@@ -1060,28 +1875,6 @@
     return cards;
   }
 
-  function resetInnerFilterHides(parent) {
-    if (!parent || !parent.querySelectorAll) return;
-    var nodes = parent.querySelectorAll("[data-smart-filter-hidden='true']");
-    var i;
-    for (i = 0; i < nodes.length; i++) {
-      if (!isInnerCardSlice(nodes[i])) continue;
-      var host =
-        nodes[i].closest &&
-        nodes[i].closest(
-          "product-card, product-item, grid-item, .product-card, .grid__item, .card-wrapper, .sf-app-card",
-        );
-      if (
-        host &&
-        host !== nodes[i] &&
-        (host.hidden || host.getAttribute("data-smart-filter-hidden") === "true")
-      ) {
-        continue;
-      }
-      showEl(nodes[i]);
-    }
-  }
-
   function cardTray() {
     var el = document.getElementById(CARD_TRAY_ID);
     if (el) return el;
@@ -1131,6 +1924,15 @@
 
   function placeCardInGrid(parent, el) {
     if (!parent || !el) return;
+    var outer = resolveOuterThemeCard(el);
+    if (!outer) {
+      if (isOrphanProductNode(el)) {
+        var tray = cardTray();
+        if (tray && el.parentNode !== tray) tray.appendChild(el);
+      }
+      return;
+    }
+    el = outer;
     var chrome = null;
     var kids = parent.children;
     var i;
@@ -1140,7 +1942,10 @@
       var tag = String(kid.tagName || "").toLowerCase();
       if (
         (cls &&
-          (cls.contains("sf-sort-host") ||
+          (cls.contains("sf-toolbar") ||
+            cls.contains("sf-sort-host") ||
+            cls.contains("sf-collection-search-host") ||
+            cls.contains("sf-total-count") ||
             cls.contains("sf-pager") ||
             cls.contains("pagination"))) ||
         tag === "nav"
@@ -1148,6 +1953,10 @@
         chrome = kid;
         break;
       }
+    }
+    if (el.parentNode === parent) {
+      if (chrome && el.nextSibling === chrome) return;
+      if (!chrome && el === parent.lastElementChild) return;
     }
     if (chrome && el !== chrome) parent.insertBefore(el, chrome);
     else parent.appendChild(el);
@@ -1170,7 +1979,8 @@
   }
 
   function sweepHostOrphans(host, shownEls, allowed, tray) {
-    if (!host || !host.querySelectorAll || !tray) return;
+    if (!host || !host.querySelectorAll || !tray || !allowed) return;
+    if (!shownEls || !shownEls.length) return;
     var links = host.querySelectorAll('a[href*="/products/"]');
     var i;
     var s;
@@ -1211,8 +2021,364 @@
     }
   }
 
+  function isBusyPainted() {
+    return Boolean(
+      document.getElementById("findly-grid-busy-overlay") ||
+        document.querySelector("[" + SKEL_ATTR + "='1']"),
+    );
+  }
+
+  function discoverBusyHost(hint) {
+    var parent =
+      hint ||
+      document.querySelector(PRODUCT_GRID_SELECTOR) ||
+      findResultsList();
+    var host = resolveCardHost(parent) || parent;
+    if (host && isLayoutShell(host) && host.querySelector) {
+      var inner =
+        host.querySelector(".main-collection-grid") ||
+        host.querySelector("#product-grid") ||
+        host.querySelector("#ProductGrid") ||
+        host.querySelector("ul.product-grid") ||
+        host.querySelector("ol.product-grid");
+      if (inner) host = inner;
+    }
+    return host;
+  }
+
+  function clearGridSkeletons(host) {
+    var scope = host && host.querySelectorAll ? host : document;
+    var nodes = scope.querySelectorAll("[" + SKEL_ATTR + "='1']");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i].parentNode) nodes[i].parentNode.removeChild(nodes[i]);
+    }
+  }
+
+  function mountGridSkeletons(host, count) {
+    if (!host || !host.appendChild) return;
+    clearGridSkeletons(host);
+    var sample = null;
+    var i;
+    for (i = 0; i < host.children.length; i++) {
+      var kid = host.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (isGridChrome(kid) || kid.id === CARD_TRAY_ID) continue;
+      if (isOuterThemeCard(kid)) {
+        sample = kid;
+        break;
+      }
+    }
+    var hostTag = String(host.tagName || "").toLowerCase();
+    var tag = hostTag === "ul" || hostTag === "ol" ? "LI" : "DIV";
+    var sampleTag = sample ? String(sample.tagName || "") : "";
+    var className = "";
+    if (
+      sample &&
+      sample.className &&
+      sampleTag.indexOf("-") === -1
+    ) {
+      className = String(sample.className || "");
+    }
+    var n = count || SKEL_COUNT;
+    for (i = 0; i < n; i++) {
+      var el = document.createElement(tag);
+      el.setAttribute(SKEL_ATTR, "1");
+      el.setAttribute("aria-hidden", "true");
+      if (className) el.className = className;
+      el.innerHTML =
+        '<span class="findly-grid-skel__img"></span>' +
+        '<span class="findly-grid-skel__line"></span>' +
+        '<span class="findly-grid-skel__line is-short"></span>';
+      host.appendChild(el);
+    }
+  }
+
+  function positionBusyOverlay(host, overlay) {
+    if (!host || !overlay || !host.getBoundingClientRect) return;
+    var rect = host.getBoundingClientRect();
+    var vh = window.innerHeight || 800;
+    var top = Math.max(0, rect.top);
+    overlay.style.top = top + "px";
+    overlay.style.left = Math.max(0, rect.left) + "px";
+    overlay.style.width = Math.max(160, rect.width) + "px";
+    overlay.style.height =
+      Math.max(352, Math.min(rect.height || 0, Math.max(120, vh - top))) + "px";
+  }
+
+  function removeBusyOverlay() {
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  var busyLayoutBound = false;
+  function bindBusyOverlayLayout() {
+    if (busyLayoutBound) return;
+    busyLayoutBound = true;
+    function relayout() {
+      var overlay = document.getElementById("findly-grid-busy-overlay");
+      if (!overlay) return;
+      var host =
+        document.querySelector(".findly-grid-is-busy") || discoverBusyHost();
+      positionBusyOverlay(host, overlay);
+    }
+    window.addEventListener("scroll", relayout, true);
+    window.addEventListener("resize", relayout);
+  }
+
+  function setFilterLoading(on) {
+    var root = document.documentElement;
+    if (!root || !root.classList) return;
+    if (on) {
+      root.classList.add("sf-filter-loading");
+      root.classList.remove("sf-filter-ready");
+    } else {
+      root.classList.remove("sf-filter-loading");
+      root.classList.add("sf-filter-ready");
+    }
+  }
+
+  function paintGridBusy(host, on) {
+    host = host || discoverBusyHost();
+    if (!on) {
+      clearGridSkeletons(host);
+      if (!host) clearGridSkeletons(document);
+      var busyHosts = document.querySelectorAll(".findly-grid-is-busy");
+      var b;
+      for (b = 0; b < busyHosts.length; b++) {
+        busyHosts[b].classList.remove("findly-grid-is-busy");
+        busyHosts[b].removeAttribute("aria-busy");
+      }
+      setFilterLoading(false);
+      removeBusyOverlay();
+      return;
+    }
+    setFilterLoading(true);
+    if (!host) return;
+    var stale = document.querySelectorAll(".findly-grid-is-busy");
+    var s;
+    for (s = 0; s < stale.length; s++) {
+      if (stale[s] === host) continue;
+      stale[s].classList.remove("findly-grid-is-busy");
+      stale[s].removeAttribute("aria-busy");
+      clearGridSkeletons(stale[s]);
+    }
+    if (host.classList) host.classList.add("findly-grid-is-busy");
+    host.setAttribute("aria-busy", "true");
+    mountGridSkeletons(host, SKEL_COUNT);
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "findly-grid-busy-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      (document.body || document.documentElement).appendChild(overlay);
+    }
+    positionBusyOverlay(host, overlay);
+    bindBusyOverlayLayout();
+  }
+
+  function bootEarlyGridBusy(attempt) {
+    if (
+      !document.getElementById("smart-filter-root") &&
+      !document.getElementById("smart-filter-embed")
+    ) {
+      return;
+    }
+    armFilterReadyFailsafe();
+    var root = document.documentElement;
+    if (
+      root &&
+      root.classList &&
+      root.classList.contains("sf-filter-ready") &&
+      !isBusyPainted()
+    ) {
+      return;
+    }
+    setFilterLoading(true);
+    if (isBusyPainted()) return;
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (widget && widget._reqId > 0) return;
+    var host = discoverBusyHost();
+    if (host) {
+      paintGridBusy(host, true);
+      return;
+    }
+    attempt = attempt || 0;
+    if (attempt < 24) {
+      window.setTimeout(function () {
+        bootEarlyGridBusy(attempt + 1);
+      }, 80);
+    }
+  }
+
+  function mountCachedCards(widget, handles, parent) {
+    if (!widget || !widget._cardCache || !parent || !handles) return 0;
+    var n = 0;
+    var i;
+    for (i = 0; i < handles.length; i++) {
+      var key = String(handles[i] || "").toLowerCase();
+      if (!key) continue;
+      var card =
+        widget._cardCache[key] || widget._cardCache[key.split("::")[0]];
+      if (!card || card.nodeType !== 1) continue;
+      card = resolveOuterThemeCard(card);
+      if (!card) continue;
+      widget._cardCache[key] = card;
+      placeCardInGrid(parent, card);
+      showCardTree(card);
+      n += 1;
+    }
+    return n;
+  }
+
+  function uniqueAllowedCount(handles) {
+    if (!handles || !handles.length) return 0;
+    var seen = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < handles.length; i++) {
+      var base = String(handles[i] || "")
+        .split("::")[0]
+        .toLowerCase();
+      if (!base || seen[base]) continue;
+      seen[base] = true;
+      n += 1;
+    }
+    return n;
+  }
+
+  function countAllowedInHost(parent, handles) {
+    if (!parent || !handles) return 0;
+    var allowed = allowedHandleSet(handles);
+    if (!allowed) return 0;
+    var host = resolveCardHost(parent) || parent;
+    var cards = collectThemeCards(host);
+    var n = 0;
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      if (cards[i].handle && allowed[cards[i].handle]) n += 1;
+    }
+    return n;
+  }
+
+  function syncGridEmptyState(widget, parent, handles, shownCount) {
+    if (isBusyPainted() || (widget && widget._importingCards)) return;
+    var emptyEl = document.getElementById(EMPTY_ID);
+    var filtering =
+      widget && widget.hasActiveFilters && widget.hasActiveFilters();
+    var none =
+      Boolean(filtering) && Array.isArray(handles) && handles.length === 0;
+    if (Array.isArray(handles) && handles.length && shownCount === 0) {
+      none = false;
+    }
+    if (!none) {
+      if (emptyEl && emptyEl.parentNode) emptyEl.parentNode.removeChild(emptyEl);
+      return;
+    }
+    if (!parent) return;
+    if (!emptyEl) {
+      emptyEl = document.createElement("div");
+      emptyEl.id = EMPTY_ID;
+      emptyEl.className = "sf-grid-empty";
+      emptyEl.setAttribute("role", "status");
+    }
+    var title =
+      widget && widget.t
+        ? widget.t("no_match", "No matching products.")
+        : "No matching products.";
+    emptyEl.innerHTML =
+      '<p class="sf-grid-empty__title"></p><p class="sf-grid-empty__copy"></p>';
+    emptyEl.querySelector(".sf-grid-empty__title").textContent = title;
+    emptyEl.querySelector(".sf-grid-empty__copy").textContent =
+      "Try another filter or clear all filters.";
+    if (emptyEl.parentNode !== parent) parent.appendChild(emptyEl);
+    findlyLog("grid.empty", { parent: describeHost(parent) });
+  }
+
+  function shouldTakeOverThemeCards(widget) {
+    if (!widget) return false;
+    if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
+    if (widget.collectionQuery) return true;
+    if (widget.searchQuery) return true;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function fillMissingFilterCards(widget, handles, parent) {
+    if (!widget || widget._importingCards || !handles || !handles.length) return;
+    if (!shouldTakeOverThemeCards(widget)) return;
+    var reqId = widget._reqId;
+    parent = resolveCardHost(parent) || parent;
+    if (parent) widget._gridParent = parent;
+    if (widget.setGridBusy) widget.setGridBusy(true);
+    function stale() {
+      return widget._reqId !== reqId;
+    }
+    function finish() {
+      if (stale()) return;
+      mountCachedCards(widget, handles, parent);
+      applyNativeFilterGrid(handles, parent);
+      var shown = countAllowedInHost(parent, handles);
+      var needed = uniqueAllowedCount(handles);
+      if (
+        needed > shown &&
+        widget.applyAppGrid &&
+        !(widget.isAppGridMode && widget.isAppGridMode())
+      ) {
+        widget._skipPageSlice = true;
+        try {
+          widget.applyAppGrid(
+            { products: widget._lastProducts || [] },
+            handles,
+            false,
+          );
+        } finally {
+          widget._skipPageSlice = false;
+        }
+        shown = countAllowedInHost(parent, handles);
+        if (widget._shownHandles && widget._shownHandles.length) {
+          shown = Math.max(shown, uniqueAllowedCount(widget._shownHandles));
+        }
+      }
+      if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
+      if (widget._reqId === reqId) {
+        widget._loadingPage = false;
+        widget._appending = false;
+        if (widget.renderPager) widget.renderPager();
+        mountFindlyPager(widget);
+      }
+      syncGridEmptyState(widget, parent, handles, shown);
+    }
+    findlyLog("grid.missing", {
+      handles: handles.slice ? handles.slice(0, 8) : handles,
+      parent: describeHost(parent),
+    });
+    widget._importingCards = true;
+    widget._reapplyingGrid = true;
+    var done = function () {
+      widget._importingCards = false;
+      try {
+        finish();
+      } finally {
+        widget._reapplyingGrid = false;
+      }
+    };
+    if (widget.ensureCardsForHandles) {
+      Promise.resolve(widget.ensureCardsForHandles(handles)).then(done, done);
+      return;
+    }
+    done();
+  }
+
   function applyNativeFilterGrid(handles, hint) {
-    stripAppCards(document);
+    if (!Array.isArray(handles)) stripAppCards(document);
     var parent = resolveCardHost(hint);
     if (!parent) return false;
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
@@ -1244,45 +2410,91 @@
       });
     }
     var shownHosts = [];
+    var expected = [];
     for (i = 0; i < shown.length; i++) {
       if (shown[i].orphan) continue;
-      placeCardInGrid(parent, shown[i].el);
-      showCardTree(shown[i].el);
+      expected.push(shown[i].el);
       shownHosts.push(shown[i].el);
     }
-    for (i = 0; i < shown.length; i++) {
-      if (!shown[i].orphan) continue;
-      if (!attachOrphanToShown(shown[i].el, shown[i].handle, shown)) {
-        placeCardInGrid(parent, shown[i].el);
+    var existing = [];
+    for (i = 0; i < parent.children.length; i++) {
+      var kid = parent.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (kid.id === CARD_TRAY_ID || isGridChrome(kid)) continue;
+      if (!isOuterThemeCard(kid) && !isOrphanProductNode(kid)) continue;
+      existing.push(kid);
+    }
+    var needMove = expected.length !== existing.length;
+    if (!needMove) {
+      for (i = 0; i < expected.length; i++) {
+        if (expected[i] !== existing[i]) {
+          needMove = true;
+          break;
+        }
       }
-      showCardTree(shown[i].el);
     }
-    for (i = 0; i < hidden.length; i++) {
-      showCardTree(hidden[i].el);
-      tray.appendChild(hidden[i].el);
+    for (i = 0; i < expected.length; i++) {
+      if (needMove) placeCardInGrid(parent, expected[i]);
+      showCardTree(expected[i]);
     }
-    sweepHostOrphans(parent, shownHosts, allowed, tray);
+    if (needMove) {
+      for (i = 0; i < shown.length; i++) {
+        if (!shown[i].orphan) continue;
+        if (
+          !attachOrphanToShown(shown[i].el, shown[i].handle, shown) &&
+          !attachOrphanToShown(shown[i].el, shown[i].handle, hidden)
+        ) {
+          if (shown[i].el.parentNode !== tray) tray.appendChild(shown[i].el);
+        }
+      }
+      for (i = 0; i < hidden.length; i++) {
+        if (hidden[i].orphan) {
+          if (
+            !attachOrphanToShown(hidden[i].el, hidden[i].handle, hidden) &&
+            !attachOrphanToShown(hidden[i].el, hidden[i].handle, shown)
+          ) {
+            if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+          }
+          continue;
+        }
+        showCardTree(hidden[i].el);
+        if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+      }
+      sweepHostOrphans(parent, shownHosts, allowed, tray);
+    }
+    findlyLog("grid.apply", {
+      parent: describeHost(parent),
+      allowed: allowed ? Object.keys(allowed).length : null,
+      cards: cards.length,
+      shown: shownHosts.length,
+      hidden: hidden.length,
+      needMove: needMove,
+      tray: tray && tray.children ? tray.children.length : 0,
+      overlay: Boolean(document.getElementById("findly-grid-busy-overlay")),
+      busyHosts: document.querySelectorAll(".sf-grid-busy, [aria-busy='true']").length,
+      stack: shortStack(),
+    });
     return cards.length > 0;
   }
 
   function applyNativeAfterGrid(self) {
     if (!self) return;
-    if (self._appGridActive || (self.isAppGridMode && self.isAppGridMode())) {
+    if (self._importingCards || isBusyPainted()) return;
+    if (self.isAppGridMode && self.isAppGridMode()) {
       var parent = self._gridParent;
       if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
       return;
     }
-    if (self.appGridTemplate && self.appGridTemplate()) return;
+    if (!shouldTakeOverThemeCards(self)) {
+      applyNativeFilterGrid(null, self._gridParent);
+      return;
+    }
     var handles =
       self._visibleHandles && self._visibleHandles.length
         ? self._visibleHandles
         : self._shownHandles;
     if (!handles || !handles.length) {
-      if (self.hasActiveFilters && self.hasActiveFilters()) {
-        applyNativeFilterGrid(handles || [], self._gridParent);
-      } else {
-        applyNativeFilterGrid(null, self._gridParent);
-      }
+      applyNativeFilterGrid(handles || [], self._gridParent);
       return;
     }
     applyNativeFilterGrid(handles, self._gridParent);
@@ -1311,8 +2523,8 @@
     return isMobileDrawer() || isOffcanvasPosition(widget);
   }
 
-  function copyDrawerThemeVars(widget, target) {
-    if (!widget || !widget.root || !target || !target.style) return;
+  function copyThemeVarsFrom(source, target) {
+    if (!source || !target || !target.style) return;
     var names = [
       "--sf-ink",
       "--sf-muted",
@@ -1336,7 +2548,7 @@
     ];
     var cs;
     try {
-      cs = window.getComputedStyle(widget.root);
+      cs = window.getComputedStyle(source);
     } catch (err) {
       cs = null;
     }
@@ -1346,9 +2558,13 @@
     for (i = 0; i < names.length; i++) {
       name = names[i];
       value = cs ? cs.getPropertyValue(name) : "";
-      if (!value) value = widget.root.style.getPropertyValue(name);
+      if (!value && source.style) value = source.style.getPropertyValue(name);
       if (value) target.style.setProperty(name, value);
     }
+  }
+
+  function copyDrawerThemeVars(widget, target) {
+    copyThemeVarsFrom(widget && widget.root, target);
   }
 
   function useCustomSortMenu() {
@@ -1359,36 +2575,165 @@
     }
   }
 
+  function sortMenuSelect(wrap) {
+    if (!wrap || !wrap.querySelector) return null;
+    return (
+      wrap.querySelector(".smart-filter__sort-select") ||
+      wrap.querySelector("[data-sort]")
+    );
+  }
+
+  function sortMenuEl(wrap) {
+    if (!wrap) return null;
+    if (wrap._sfSortMenu && wrap._sfSortMenu.isConnected) return wrap._sfSortMenu;
+    return wrap.querySelector(".smart-filter__sort-menu");
+  }
+
+  function ensureSortTrigger(wrap, select) {
+    var trigger = wrap.querySelector(".sf-sort-trigger");
+    var control = wrap.querySelector(".sf-sort-control") || wrap;
+    if (!trigger) {
+      trigger = document.createElement("div");
+      trigger.className = "sf-sort-trigger";
+    }
+    if (trigger.parentNode !== control) {
+      if (select && select.parentNode === control) {
+        control.insertBefore(trigger, select);
+      } else if (control.firstChild) {
+        control.insertBefore(trigger, control.firstChild);
+      } else {
+        control.appendChild(trigger);
+      }
+    }
+    if (select && select.parentNode !== trigger) trigger.appendChild(select);
+    return trigger;
+  }
+
+  function resetSortMenuPosition(menu) {
+    if (!menu || !menu.style) return;
+    menu.style.position = "";
+    menu.style.top = "";
+    menu.style.left = "";
+    menu.style.right = "";
+    menu.style.bottom = "";
+    menu.style.width = "";
+    menu.style.minWidth = "";
+    menu.style.maxWidth = "";
+    menu.style.margin = "";
+    menu.style.zIndex = "";
+  }
+
   function closeSortMenu(wrap) {
     if (!wrap) return;
     wrap.classList.remove("is-sort-open");
-    var menu = wrap.querySelector(".smart-filter__sort-menu");
-    if (menu) menu.hidden = true;
+    var menu = sortMenuEl(wrap);
+    if (!menu) return;
+    menu.hidden = true;
+    menu.classList.remove("is-open");
+    menu.classList.remove("is-ported");
+    resetSortMenuPosition(menu);
+    var trigger = wrap.querySelector(".sf-sort-trigger") || wrap;
+    if (menu.parentNode !== trigger) trigger.appendChild(menu);
+  }
+
+  function positionSortMenu(wrap, menu) {
+    var select = sortMenuSelect(wrap);
+    var trigger = wrap.querySelector(".sf-sort-trigger");
+    var anchor = select || trigger || wrap;
+    var rect = anchor.getBoundingClientRect();
+    var viewportW = Math.max(
+      document.documentElement.clientWidth || 0,
+      window.innerWidth || 0,
+    );
+    var viewportH = Math.max(
+      document.documentElement.clientHeight || 0,
+      window.innerHeight || 0,
+    );
+    var maxWidth = Math.min(288, Math.max(160, viewportW - 24));
+    menu.style.minWidth = "0";
+    menu.style.width = "max-content";
+    menu.style.maxWidth = maxWidth + "px";
+    var contentWidth = Math.ceil(
+      (menu.scrollWidth || 0) > (menu.offsetWidth || 0)
+        ? menu.scrollWidth
+        : menu.getBoundingClientRect().width || menu.offsetWidth || 0,
+    );
+    var width = Math.min(
+      Math.max(rect.width || 0, contentWidth, 1),
+      maxWidth,
+    );
+    var left = rect.right - width;
+    if (left < 12) left = 12;
+    if (left + width > viewportW - 12) {
+      left = Math.max(12, viewportW - 12 - width);
+    }
+    var gap = 4;
+    var top = rect.bottom + gap;
+    var height = menu.offsetHeight || 0;
+    if (height && top + height > viewportH - 12) {
+      var above = rect.top - gap - height;
+      if (above >= 12) top = above;
+    }
+    menu.style.position = "fixed";
+    menu.style.top = Math.round(top) + "px";
+    menu.style.left = Math.round(left) + "px";
+    menu.style.right = "auto";
+    menu.style.bottom = "auto";
+    menu.style.width = Math.round(width) + "px";
+    menu.style.minWidth = "0";
+    menu.style.maxWidth = maxWidth + "px";
+    menu.style.margin = "0";
+    menu.style.zIndex = "100060";
   }
 
   function openSortMenu(wrap, menu) {
     if (!wrap || !menu) return;
-    var rect = wrap.getBoundingClientRect();
-    var viewport = Math.max(
-      document.documentElement.clientWidth || 0,
-      window.innerWidth || 0,
-    );
-    var maxWidth = Math.max(160, viewport - 24);
-    var width = Math.min(Math.max(rect.width, 240), maxWidth);
-    var left = rect.right - width;
-    if (left < 12) left = 12;
-    if (left + width > viewport - 12) {
-      left = Math.max(12, viewport - 12 - width);
+    wrap._sfSortMenu = menu;
+    copyThemeVarsFrom(wrap, menu);
+    if (menu.parentNode !== document.body) {
+      document.body.appendChild(menu);
     }
-    menu.style.position = "fixed";
-    menu.style.top = Math.round(rect.bottom + 4) + "px";
-    menu.style.left = Math.round(left) + "px";
-    menu.style.right = "auto";
-    menu.style.width = Math.round(width) + "px";
-    menu.style.maxWidth = maxWidth + "px";
-    menu.style.zIndex = "100060";
+    menu.classList.add("is-ported");
+    menu.classList.add("is-open");
+    menu.style.visibility = "hidden";
     menu.hidden = false;
     wrap.classList.add("is-sort-open");
+    positionSortMenu(wrap, menu);
+    menu.style.visibility = "";
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function () {
+        if (wrap.classList.contains("is-sort-open")) positionSortMenu(wrap, menu);
+      });
+    }
+  }
+
+  function bindSortMenuChrome() {
+    if (window.__findlySortMenuDoc) return;
+    window.__findlySortMenuDoc = true;
+    document.addEventListener("click", function (e) {
+      var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
+      if (!openWrap) return;
+      var menu = sortMenuEl(openWrap);
+      if (openWrap.contains(e.target) || (menu && menu.contains(e.target))) {
+        return;
+      }
+      closeSortMenu(openWrap);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
+      if (openWrap) closeSortMenu(openWrap);
+    });
+    window.addEventListener(
+      "scroll",
+      function () {
+        var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
+        if (!openWrap) return;
+        var menu = sortMenuEl(openWrap);
+        if (menu) positionSortMenu(openWrap, menu);
+      },
+      true,
+    );
   }
 
   function enhanceSortMenu(widget) {
@@ -1399,13 +2744,17 @@
       return;
     }
     copyDrawerThemeVars(widget, wrap);
-    var menu = wrap.querySelector(".smart-filter__sort-menu");
+    var trigger = ensureSortTrigger(wrap, select);
+    var menu = sortMenuEl(wrap);
     if (!menu) {
       menu = document.createElement("div");
       menu.className = "smart-filter__sort-menu";
       menu.setAttribute("role", "listbox");
       menu.hidden = true;
-      wrap.appendChild(menu);
+    }
+    wrap._sfSortMenu = menu;
+    if (!wrap.classList.contains("is-sort-open") && menu.parentNode !== trigger) {
+      trigger.appendChild(menu);
     }
     menu.innerHTML = "";
     Array.prototype.forEach.call(select.options, function (opt) {
@@ -1433,12 +2782,14 @@
     select.addEventListener("mousedown", function (e) {
       if (!useCustomSortMenu()) return;
       e.preventDefault();
-      var live = wrap.querySelector(".smart-filter__sort-menu") || menu;
+      var live = sortMenuEl(wrap) || menu;
       if (wrap.classList.contains("is-sort-open")) closeSortMenu(wrap);
       else openSortMenu(wrap, live);
       try {
         select.focus();
-      } catch (err) {}
+      } catch (err) {
+        /* ignore */
+      }
     });
     select.addEventListener("keydown", function (e) {
       if (!useCustomSortMenu()) return;
@@ -1448,25 +2799,34 @@
       }
       if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
         e.preventDefault();
-        openSortMenu(wrap, wrap.querySelector(".smart-filter__sort-menu") || menu);
+        openSortMenu(wrap, sortMenuEl(wrap) || menu);
       }
     });
-    if (!window.__findlySortMenuDoc) {
-      window.__findlySortMenuDoc = true;
-      document.addEventListener("click", function (e) {
-        var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
-        if (!openWrap || openWrap.contains(e.target)) return;
-        closeSortMenu(openWrap);
-      });
-      document.addEventListener("keydown", function (e) {
-        if (e.key !== "Escape") return;
-        var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
-        if (openWrap) closeSortMenu(openWrap);
-      });
+    bindSortMenuChrome();
+  }
+
+  function decorateCheckMarks(root) {
+    if (!root || !root.querySelectorAll) return;
+    var labels = root.querySelectorAll(
+      ".smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)",
+    );
+    var i;
+    for (i = 0; i < labels.length; i++) {
+      var label = labels[i];
+      if (!label || label.querySelector(".smart-filter__check")) continue;
+      var input = label.querySelector('input[type="checkbox"], input[type="radio"]');
+      if (!input) continue;
+      var mark = document.createElement("span");
+      mark.className = "smart-filter__check";
+      mark.setAttribute("aria-hidden", "true");
+      if (input.nextSibling) label.insertBefore(mark, input.nextSibling);
+      else label.appendChild(mark);
     }
   }
 
   function toolbarHost() {
+    var toolbar = document.querySelector(".sf-toolbar");
+    if (toolbar) return toolbar;
     var host = document.querySelector(".sf-sort-host");
     if (host) return host;
     var main = document.querySelector(".sf-collection-layout__main");
@@ -1475,11 +2835,11 @@
       main = grid && grid.parentElement;
     }
     if (!main) return null;
-    host = document.createElement("div");
-    host.className = "sf-sort-host";
-    if (main.firstChild) main.insertBefore(host, main.firstChild);
-    else main.appendChild(host);
-    return host;
+    toolbar = document.createElement("div");
+    toolbar.className = "sf-toolbar";
+    if (main.firstChild) main.insertBefore(toolbar, main.firstChild);
+    else main.appendChild(toolbar);
+    return toolbar;
   }
 
   function portalMobileDrawer(widget) {
@@ -1510,6 +2870,10 @@
         document.body.appendChild(panel);
       }
       copyDrawerThemeVars(widget, panel);
+      panel.style.setProperty("width", "min(400px, 88vw)", "important");
+      panel.style.setProperty("max-width", "88vw", "important");
+      panel.style.setProperty("box-sizing", "border-box", "important");
+      decorateCheckMarks(panel);
       if (isMobileDrawer()) {
         var host = toolbarHost();
         if (toggle && host && toggle.parentNode !== host) {
@@ -1536,6 +2900,9 @@
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
         panel.classList.remove("sf-drawer-portal", "is-open");
+        panel.style.removeProperty("width");
+        panel.style.removeProperty("max-width");
+        panel.style.removeProperty("box-sizing");
         widget.root.appendChild(panel);
       }
       if (backdrop && backdrop.classList.contains("sf-drawer-portal")) {
@@ -1690,14 +3057,76 @@
     }
   }
 
+  function mutationIsIgnored(records) {
+    if (!records || !records.length) return false;
+    var i;
+    var j;
+    function ignoredNode(node) {
+      if (!node) return true;
+      if (node.nodeType !== 1) node = node.parentElement;
+      if (!node || node.nodeType !== 1) return true;
+      if (node.id === "findly-grid-busy-overlay" || node.id === CARD_TRAY_ID) {
+        return true;
+      }
+      if (node.getAttribute && node.getAttribute(SKEL_ATTR) === "1") return true;
+      if (node.closest) {
+        return Boolean(
+          node.closest(
+            "#findly-grid-busy-overlay, #" +
+              CARD_TRAY_ID +
+              ", #" +
+              EMPTY_ID +
+              ", [" +
+              SKEL_ATTR +
+              "='1']",
+          ),
+        );
+      }
+      return false;
+    }
+    for (i = 0; i < records.length; i++) {
+      var rec = records[i];
+      var nodes = [];
+      if (rec.addedNodes) {
+        for (j = 0; j < rec.addedNodes.length; j++) nodes.push(rec.addedNodes[j]);
+      }
+      if (rec.removedNodes) {
+        for (j = 0; j < rec.removedNodes.length; j++) nodes.push(rec.removedNodes[j]);
+      }
+      if (!nodes.length && !ignoredNode(rec.target)) return false;
+      for (j = 0; j < nodes.length; j++) {
+        if (!ignoredNode(nodes[j])) return false;
+      }
+    }
+    return true;
+  }
+
   function ensureFindlyGridObserver(self) {
     if (!self || self._findlyGridObserver) return;
     if (typeof MutationObserver !== "function") return;
     var debounceTimer = null;
-    self._findlyGridObserver = new MutationObserver(function () {
+    self._findlyObserverCount = 0;
+    self._findlyGridObserver = new MutationObserver(function (records) {
+      if (repairingLayout || self._reapplyingGrid) return;
+      if (mutationIsIgnored(records)) return;
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function () {
         debounceTimer = null;
+        if (repairingLayout || self._reapplyingGrid) return;
+        self._findlyObserverCount = (self._findlyObserverCount || 0) + 1;
+        if (self._findlyObserverCount > 8) {
+          try {
+            self._findlyGridObserver.disconnect();
+          } catch (err) {
+            /* ignore */
+          }
+          return;
+        }
+        findlyLog("grid.observer", {
+          n: self._findlyObserverCount,
+          handles: self._visibleHandles && self._visibleHandles.length,
+          busy: Boolean(document.getElementById("findly-grid-busy-overlay")),
+        });
         try {
           var url = new URL(window.location.href);
           if (url.searchParams.has("page")) stripThemePageParam();
@@ -1710,10 +3139,43 @@
           if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
           return;
         }
-        applyNativeAfterGrid(self);
-      }, 50);
+        self._reapplyingGrid = true;
+        try {
+          try {
+            self._findlyGridObserver.disconnect();
+          } catch (err) {
+            /* ignore */
+          }
+          applyNativeAfterGrid(self);
+        } finally {
+          self._reapplyingGrid = false;
+          if (
+            self._findlyObserverCount <= 8 &&
+            self._findlyGridObserver &&
+            self._findlyObserveRoot
+          ) {
+            try {
+              self._findlyGridObserver.observe(self._findlyObserveRoot, {
+                childList: true,
+                subtree: true,
+              });
+            } catch (err) {
+              /* ignore */
+            }
+          }
+        }
+      }, 80);
     });
-    self._findlyGridObserver.observe(document.documentElement, {
+    var observeRoot =
+      (self._gridParent && self._gridParent.nodeType === 1
+        ? self._gridParent
+        : null) ||
+      document.querySelector(
+        ".main-collection-grid, ul.product-grid, ol.product-grid, #product-grid, #ProductGrid",
+      ) ||
+      document.body;
+    self._findlyObserveRoot = observeRoot;
+    self._findlyGridObserver.observe(observeRoot, {
       childList: true,
       subtree: true,
     });
@@ -1820,6 +3282,159 @@
       });
     if (!seen["sf-app-card"]) out.push("sf-app-card");
     return out.join(" ");
+  }
+
+  function pagerPageWindow(current, count) {
+    var pages = [];
+    var start = Math.max(1, current - 2);
+    var end = Math.min(count, current + 2);
+    var i;
+    if (start > 1) {
+      pages.push(1);
+      if (start > 2) pages.push("ellipsis");
+    }
+    for (i = start; i <= end; i++) pages.push(i);
+    if (end < count) {
+      if (end < count - 1) pages.push("ellipsis");
+      pages.push(count);
+    }
+    return pages;
+  }
+
+  function filterPageTotal(widget) {
+    var data = widget && widget._lastFilterData;
+    var total = Number(widget && widget._pageTotal);
+    var fromData = data ? Number(data.total) : NaN;
+    var fromCount = data ? Number(data.count) : NaN;
+    var fromHandles = 0;
+    if (data && Array.isArray(data.handles)) fromHandles = data.handles.length;
+    if (widget && Array.isArray(widget._allFilterHandles)) {
+      fromHandles = Math.max(fromHandles, widget._allFilterHandles.length);
+    }
+    if (!Number.isFinite(total) || total < 0) total = 0;
+    if (Number.isFinite(fromData) && fromData > total) total = fromData;
+    if (Number.isFinite(fromCount) && fromCount > total) total = fromCount;
+    if (fromHandles > total) total = fromHandles;
+    return total;
+  }
+
+  function mountFindlyPager(widget) {
+    if (!widget) return;
+    if (widget.ensurePageSize) widget.ensurePageSize();
+    var size = widget.pageSize || 16;
+    var total = filterPageTotal(widget);
+    widget._pageTotal = total;
+    var page = Math.max(1, widget.page || 1);
+    widget._hasNext = page * size < total;
+    var pageCount = Math.max(1, Math.ceil(total / size) || 1);
+    var show = shouldTakeOverThemeCards(widget) && pageCount > 1;
+    var el = widget._pagerEl;
+    if (!el) {
+      el = document.createElement("nav");
+      el.className = "sf-pager sf-pager--pagination";
+      el.id = "findly-sf-pager";
+      el.setAttribute("aria-label", widget.t ? widget.t("pagination", "Pagination") : "Pagination");
+      widget._pagerEl = el;
+    }
+    var layout = document.querySelector(".sf-collection-layout");
+    var grid = widget._gridParent;
+    var main = findColumnMainContaining(grid);
+    if (main && isProductGridLike(main)) main = null;
+    var after = null;
+    var parent = null;
+    if (main) {
+      parent = main;
+      after = grid && main.contains(grid) ? grid : null;
+      if (after && isProductGridLike(after.parentNode) && main.contains(after.parentNode)) {
+        after = after.parentNode;
+      }
+    } else if (layout && !isProductGridLike(layout.parentNode)) {
+      parent = layout.parentNode;
+      after = layout;
+    } else if (grid && grid.parentNode && !isProductGridLike(grid.parentNode)) {
+      parent = grid.parentNode;
+      after = grid;
+    }
+    if (parent && el.parentNode !== parent) {
+      if (after && after.parentNode === parent && after.nextSibling) {
+        parent.insertBefore(el, after.nextSibling);
+      } else {
+        parent.appendChild(el);
+      }
+    } else if (parent && after && after.parentNode === parent && el.previousElementSibling !== after && after.nextSibling !== el) {
+      if (after.nextSibling) parent.insertBefore(el, after.nextSibling);
+      else parent.appendChild(el);
+    } else if (!el.parentNode) {
+      document.body.appendChild(el);
+    }
+    if (!show) {
+      el.hidden = true;
+      el.setAttribute("hidden", "");
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.removeAttribute("hidden");
+    el.removeAttribute("data-smart-filter-hidden");
+    el.removeAttribute("data-findly-theme-hidden");
+    el.style.setProperty("display", "block", "important");
+    el.style.setProperty("visibility", "visible", "important");
+    el.style.setProperty("opacity", "1", "important");
+    el.style.setProperty("position", "relative", "important");
+    el.style.setProperty("z-index", "6", "important");
+    el.style.setProperty("width", "100%", "important");
+    el.style.setProperty("max-width", "100%", "important");
+    el.style.setProperty("margin", "16px 0 24px", "important");
+    el.innerHTML = "";
+    var list = document.createElement("div");
+    list.className = "sf-pager__nav";
+    function addBtn(className, label, target, disabled) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = className;
+      btn.textContent = label;
+      btn.disabled = Boolean(disabled || widget._loadingPage);
+      btn.addEventListener("click", function () {
+        if (widget.goToPage) widget.goToPage(target);
+      });
+      list.appendChild(btn);
+    }
+    addBtn(
+      "sf-pager__btn sf-pager__btn--prev",
+      widget.t ? widget.t("previous", "Previous") : "Previous",
+      page - 1,
+      page <= 1,
+    );
+    var pages = document.createElement("div");
+    pages.className = "sf-pager__pages";
+    pagerPageWindow(page, pageCount).forEach(function (item) {
+      if (item === "ellipsis") {
+        var dots = document.createElement("span");
+        dots.className = "sf-pager__ellipsis";
+        dots.textContent = "…";
+        pages.appendChild(dots);
+        return;
+      }
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sf-pager__page" + (item === page ? " is-current" : "");
+      btn.textContent = String(item);
+      if (item === page) btn.setAttribute("aria-current", "page");
+      btn.disabled = Boolean(widget._loadingPage);
+      btn.addEventListener("click", function () {
+        if (widget.goToPage) widget.goToPage(item);
+      });
+      pages.appendChild(btn);
+    });
+    list.appendChild(pages);
+    addBtn(
+      "sf-pager__btn sf-pager__btn--next",
+      widget.t ? widget.t("next", "Next") : "Next",
+      page + 1,
+      page >= pageCount,
+    );
+    el.appendChild(list);
+    if (widget.setThemePagerHidden) widget.setThemePagerHidden(true);
   }
 
   function restyleAppCardsAsThemeItems(parent) {
@@ -1990,6 +3605,253 @@
     for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
   }
 
+  function isFindlyLayoutChrome(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el === document.body || el === document.documentElement) return true;
+    var cls = el.classList;
+    if (!cls) return false;
+    return (
+      cls.contains("sf-collection-layout") ||
+      cls.contains("sf-collection-layout__aside") ||
+      cls.contains("smart-filter")
+    );
+  }
+
+  function isColumnMain(el) {
+    if (!el || el.nodeType !== 1 || !el.classList) return false;
+    if (!el.classList.contains("sf-collection-layout__main")) return false;
+    if (isProductGridLike(el) || isThemeManagedGrid(el)) return false;
+    return true;
+  }
+
+  function findColumnMainContaining(grid) {
+    var nodes = document.querySelectorAll(".sf-collection-layout__main");
+    var i;
+    var fallback = null;
+    for (i = 0; i < nodes.length; i++) {
+      if (!isColumnMain(nodes[i])) continue;
+      if (!fallback) fallback = nodes[i];
+      if (!grid || nodes[i] === grid || (nodes[i].contains && nodes[i].contains(grid))) {
+        return nodes[i];
+      }
+    }
+    return fallback;
+  }
+
+  function collectionSearchGridEl(widget) {
+    var main = findColumnMainContaining(widget && widget._gridParent);
+    var scope =
+      main && !isProductGridLike(main) && !isThemeManagedGrid(main)
+        ? main
+        : document;
+    var precise = scope.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
+    );
+    if (precise && !isFindlyLayoutChrome(precise)) return precise;
+    var grid = widget && widget._gridParent;
+    if (
+      grid &&
+      !isFindlyLayoutChrome(grid) &&
+      (!main || main.contains(grid) || grid.contains(main))
+    ) {
+      return grid;
+    }
+    try {
+      return document.querySelector(
+        "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
+      ) || scope.querySelector(PRODUCT_GRID_SELECTOR);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function ensureCollectionSearchMarkup(widget) {
+    if (!widget) return;
+    var wrap =
+      widget.collectionSearchWrap ||
+      document.querySelector("[data-collection-search-wrap]");
+    if (!wrap && widget.root) {
+      wrap = document.createElement("div");
+      wrap.className = "smart-filter__collection-search";
+      wrap.setAttribute("data-collection-search-wrap", "");
+      wrap.hidden = true;
+      var label = document.createElement("label");
+      label.className = "smart-filter__collection-search-label";
+      label.setAttribute("for", "smart-filter-collection-q");
+      label.textContent = widget.t
+        ? widget.t("search_submit", "Search")
+        : "Search";
+      var input = document.createElement("input");
+      input.id = "smart-filter-collection-q";
+      input.className = "smart-filter__collection-search-input";
+      input.type = "search";
+      input.setAttribute("data-collection-search", "");
+      input.setAttribute("placeholder", "Search products");
+      input.setAttribute("autocomplete", "off");
+      input.setAttribute("enterkeyhint", "search");
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      widget.root.appendChild(wrap);
+    }
+    if (!wrap) return;
+    widget.collectionSearchWrap = wrap;
+    widget.collectionSearchEl =
+      widget.collectionSearchEl ||
+      wrap.querySelector("[data-collection-search]");
+    if (widget.bindCollectionSearch) widget.bindCollectionSearch();
+  }
+
+  function listingToolbarAnchor(widget) {
+    var grid = collectionSearchGridEl(widget) || (widget && widget._gridParent);
+    var main = findColumnMainContaining(grid);
+    if (main && isColumnMain(main)) {
+      var before = grid && main.contains(grid) ? grid : null;
+      while (before && before.parentNode && before.parentNode !== main) {
+        before = before.parentNode;
+      }
+      if (before && isProductGridLike(before.parentNode) && main.contains(before.parentNode)) {
+        before = before.parentNode;
+      }
+      return { parent: main, before: before || main.firstChild };
+    }
+    var parent = grid && grid.parentNode ? grid.parentNode : null;
+    var beforeEl = grid;
+    var hops = 0;
+    while (
+      parent &&
+      parent.nodeType === 1 &&
+      hops < 8 &&
+      (isProductGridLike(parent) || isThemeManagedGrid(parent))
+    ) {
+      beforeEl = parent;
+      parent = parent.parentNode;
+      hops += 1;
+    }
+    if (!parent || parent.nodeType !== 1 || isFindlyLayoutChrome(parent)) {
+      var fallbackGrid = document.querySelector(
+        "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
+      );
+      parent =
+        (fallbackGrid && fallbackGrid.parentNode) ||
+        document.querySelector("#MainContent, #main, main, [role='main']");
+      beforeEl = fallbackGrid || null;
+      hops = 0;
+      while (
+        parent &&
+        parent.nodeType === 1 &&
+        hops < 8 &&
+        (isProductGridLike(parent) || isThemeManagedGrid(parent))
+      ) {
+        beforeEl = parent;
+        parent = parent.parentNode;
+        hops += 1;
+      }
+    }
+    return { parent: parent, before: beforeEl };
+  }
+
+  function placeCollectionSearchOnGrid(widget) {
+    if (!widget) return;
+    ensureCollectionSearchMarkup(widget);
+    var wrap = widget.collectionSearchWrap;
+    var loc = listingToolbarAnchor(widget);
+    var parent = loc.parent;
+    var before = loc.before;
+    if (!parent || parent.nodeType !== 1) return;
+
+    var host = document.querySelector(".sf-toolbar");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "sf-toolbar";
+    }
+    if (before && before.parentNode === parent) {
+      if (host.nextSibling !== before) parent.insertBefore(host, before);
+    } else if (host.parentNode !== parent) {
+      if (parent.firstChild) parent.insertBefore(host, parent.firstChild);
+      else parent.appendChild(host);
+    }
+
+    var searchHost =
+      host.querySelector(".sf-collection-search-host") ||
+      document.querySelector(".sf-collection-search-host");
+    if (!searchHost) {
+      searchHost = document.createElement("div");
+      searchHost.className = "sf-collection-search-host";
+    }
+    searchHost.classList.add("sf-toolbar__search");
+    if (searchHost.parentNode !== host) {
+      host.insertBefore(searchHost, host.firstChild);
+    }
+
+    var end = host.querySelector(".sf-toolbar__end");
+    if (!end) {
+      end = document.createElement("div");
+      end.className = "sf-toolbar__end";
+    }
+    if (end.parentNode !== host) host.appendChild(end);
+
+    var sortHost =
+      end.querySelector(".sf-sort-host") ||
+      document.querySelector(".sf-sort-host");
+    if (!sortHost) {
+      sortHost = document.createElement("div");
+      sortHost.className = "sf-sort-host";
+    }
+    if (sortHost.parentNode !== end) end.insertBefore(sortHost, end.firstChild);
+
+    var countEl =
+      end.querySelector(".sf-total-count") ||
+      document.querySelector(".sf-total-count");
+    if (!countEl) {
+      countEl = document.createElement("div");
+      countEl.className = "sf-total-count";
+      countEl.setAttribute("data-sf-total-count", "");
+    }
+    if (countEl.parentNode !== end) end.appendChild(countEl);
+    widget.totalCountEl = countEl;
+    countEl.hidden = widget.showTotalProductCount === false;
+
+    if (widget.sortWrap && !widget.sortWrap.hidden) {
+      widget.sortWrap.classList.add("smart-filter__sort--toolbar");
+      if (widget.sortWrap.parentNode !== sortHost) {
+        sortHost.appendChild(widget.sortWrap);
+      }
+      var select =
+        widget.sortEl ||
+        widget.sortWrap.querySelector("[data-sort], .smart-filter__sort-select");
+      var control = widget.sortWrap.querySelector(".sf-sort-control");
+      if (!control) {
+        control = document.createElement("div");
+        control.className = "sf-sort-control";
+      }
+      var label = widget.sortWrap.querySelector(".smart-filter__sort-label");
+      if (control.parentNode !== widget.sortWrap) {
+        if (label && label.parentNode === widget.sortWrap) {
+          if (label.nextSibling) {
+            widget.sortWrap.insertBefore(control, label.nextSibling);
+          } else {
+            widget.sortWrap.appendChild(control);
+          }
+        } else {
+          widget.sortWrap.appendChild(control);
+        }
+      }
+      if (select && !select.closest(".sf-sort-trigger") && select.parentNode !== control) {
+        control.insertBefore(select, control.firstChild);
+      }
+      if (countEl.parentNode !== control) control.appendChild(countEl);
+    } else if (countEl.parentNode !== end) {
+      end.appendChild(countEl);
+    }
+
+    if (wrap) {
+      wrap.classList.add("smart-filter__collection-search--toolbar");
+      if (wrap.parentNode !== searchHost) {
+        searchHost.appendChild(wrap);
+      }
+    }
+  }
+
   function patchWidget(widget) {
     if (!widget) return;
     liftOutOfThemeForm(widget);
@@ -2058,64 +3920,121 @@
           moveCardsToHost(this._gridParent, parent);
         }
         this._gridParent = parent;
+        placeCollectionSearchOnGrid(this);
         return parent;
       }
 
-      if (!inAppMode) return null;
+      if (!inAppMode) {
+        placeCollectionSearchOnGrid(this);
+        return null;
+      }
       if (results && results.parentElement) {
         this._gridParent = results.parentElement;
+        placeCollectionSearchOnGrid(this);
         return this._gridParent;
       }
       this._gridParent = fallbackHost();
+      placeCollectionSearchOnGrid(this);
       return this._gridParent;
     };
 
     var origWrap = proto.wrapHostWithLayout;
     proto.wrapHostWithLayout = function (host, mount, position) {
       try {
+        host = constrainHostToThemeContainer(
+          host,
+          this._gridParent || collectionSearchGridEl(this) || host,
+        );
         if (
           host &&
           host.parentElement &&
-          (isResultsListEl(host) || isListHost(host))
+          (isResultsListEl(host) || isListHost(host)) &&
+          !isThemeWidthContainer(host.parentElement) &&
+          !isFullBleedHost(host.parentElement)
         ) {
           host = host.parentElement;
         }
+        host = constrainHostToThemeContainer(
+          host,
+          this._gridParent || collectionSearchGridEl(this) || host,
+        );
         var existing =
           (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
           (host &&
           host.classList &&
           host.classList.contains("sf-collection-layout")
             ? host
-            : null);
-        if (host && existing && (host === existing || host.contains(existing))) {
-          existing = stampLayoutPosition(existing, position) || existing;
-          if (host !== existing && host.classList) {
+            : null) ||
+          (host && host.closest && host.closest(".sf-collection-layout"));
+        if (existing && host && (host === existing || existing.contains(host))) {
+          existing = placeMountOnExistingLayout(existing, mount, position);
+          scheduleRepairCollectionLayout(this);
+          return existing;
+        }
+        if (host && existing && host.contains(existing)) {
+          existing = placeMountOnExistingLayout(existing, mount, position);
+          if (
+            host !== existing &&
+            host.classList &&
+            !isProductGridLike(host) &&
+            !isThemeManagedGrid(host)
+          ) {
             host.classList.add("sf-collection-layout__main");
           }
-          if (mount && mount.classList) {
-            mount.classList.add("sf-collection-layout__aside");
-          }
-          if (position === "right") {
-            if (existing.lastChild !== mount) existing.appendChild(mount);
-          } else if (existing.firstChild !== mount) {
-            existing.insertBefore(mount, existing.firstChild);
-          }
+          scheduleRepairCollectionLayout(this);
           return existing;
         }
         if (existing && host && !canMoveNode(existing, host)) {
-          existing = stampLayoutPosition(existing, position) || existing;
-          if (mount && mount.classList) {
-            mount.classList.add("sf-collection-layout__aside");
-          }
+          existing = placeMountOnExistingLayout(existing, mount, position);
+          scheduleRepairCollectionLayout(this);
           return existing;
         }
-        return origWrap ? origWrap.call(this, host, mount, position) : null;
+        var wrapped = origWrap ? origWrap.call(this, host, mount, position) : null;
+        scheduleRepairCollectionLayout(this);
+        return wrapped;
       } catch (err) {
+        scheduleRepairCollectionLayout(this);
         return (
           (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
           null
         );
       }
+    };
+
+    var origFindHost = proto.findLayoutHost;
+    proto.findLayoutHost = function (grid) {
+      var host = origFindHost ? origFindHost.call(this, grid) : grid;
+      return constrainHostToThemeContainer(host, grid || this._gridParent);
+    };
+
+    var origFallback = proto.placeAtMainFallback;
+    proto.placeAtMainFallback = function (mount) {
+      if (!mount) {
+        return origFallback ? origFallback.call(this, mount) : false;
+      }
+      var grid =
+        this._gridParent ||
+        collectionSearchGridEl(this) ||
+        document.querySelector(PRODUCT_GRID_SELECTOR);
+      var pageWidth = findThemeWidthNearMain(grid);
+      if (pageWidth && !this._layoutFallbackDone) {
+        var host = constrainHostToThemeContainer(pageWidth, grid || pageWidth);
+        if (host && this.wrapHostWithLayout) {
+          var wrapped = this.wrapHostWithLayout(
+            host,
+            mount,
+            this.position || "left",
+          );
+          if (wrapped) {
+            this._layoutFallbackDone = true;
+            fitLayoutIntoThemeContainer(this);
+            return true;
+          }
+        }
+      }
+      var placed = origFallback ? origFallback.call(this, mount) : false;
+      if (placed) fitLayoutIntoThemeContainer(this);
+      return placed;
     };
 
     var origSync = proto.syncCollectionLayout;
@@ -2126,7 +4045,16 @@
       } catch (err) {
         /* ignore */
       }
+      if (
+        !document.querySelector(
+          ".sf-collection-layout[data-sf-layout-stable='1']",
+        )
+      ) {
+        fitLayoutIntoThemeContainer(this);
+      }
       portalMobileDrawer(this);
+      mountFindlyPager(this);
+      placeCollectionSearchOnGrid(this);
       return layout;
     };
 
@@ -2145,52 +4073,178 @@
       setOwnsGrid(false);
     };
 
+    proto.shouldInterceptPaging = function () {
+      if (this.isAppGridMode && this.isAppGridMode()) return true;
+      if (this._pagingFallback) return false;
+      return shouldTakeOverThemeCards(this);
+    };
+
+    var origCount = proto.syncThemeProductCount;
+    proto.syncThemeProductCount = function (count) {
+      placeCollectionSearchOnGrid(this);
+      var el = this.totalCountEl || document.querySelector(".sf-total-count");
+      var show = this.showTotalProductCount !== false;
+      var n = Number(count);
+      if (el) {
+        el.hidden = !show;
+        if (show && Number.isFinite(n) && n >= 0) {
+          el.textContent = this.productCountLabel
+            ? this.productCountLabel(n)
+            : n === 1
+              ? "1 product"
+              : n + " products";
+        }
+      }
+      if (this.applyThemeProductCountVisibility) {
+        this.applyThemeProductCountVisibility(false);
+      }
+      if (!shouldTakeOverThemeCards(this)) return;
+      if (origCount) origCount.call(this, count);
+    };
+
+    var origLegacy = proto.applyThemeGridLegacy;
+    proto.applyThemeGridLegacy = function (data, handles) {
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, this._gridParent);
+        return;
+      }
+      if (origLegacy) origLegacy.call(this, data, handles);
+    };
+
     var origApply = proto.applyAppGrid;
     proto.applyAppGrid = function (data, handles, append) {
-      var sliced = pageSlicePayload(this, data, handles, append);
+      var sliced = this._skipPageSlice
+        ? { data: data, handles: handles }
+        : pageSlicePayload(this, data, handles, append);
       var parent =
-        this._gridParent ||
-        (this.ensureGridParent && this.ensureGridParent());
+        resolveCardHost(
+          this._gridParent ||
+            (this.ensureGridParent && this.ensureGridParent()),
+        ) || this._gridParent;
+      if (parent) this._gridParent = parent;
+      if (!(this.isAppGridMode && this.isAppGridMode())) {
+        mountCachedCards(this, sliced.handles, parent);
+        if (shouldTakeOverThemeCards(this)) {
+          applyNativeFilterGrid(sliced.handles, parent);
+        } else {
+          applyNativeFilterGrid(null, parent);
+        }
+        var shownNative = countAllowedInHost(parent, sliced.handles);
+        var neededNative = uniqueAllowedCount(sliced.handles);
+        if (neededNative > 0 && shownNative >= neededNative) return true;
+        if (!shouldTakeOverThemeCards(this)) return shownNative > 0;
+      }
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
         : false;
       parent = this._gridParent || parent;
       if (parent && isGridHostEl(parent) && parent.classList) {
-        parent.classList.remove("sf-app-grid");
         restyleAppCardsAsThemeItems(parent);
       }
       setOwnsGrid(true);
+      if (this.setThemePagerHidden) this.setThemePagerHidden(true);
+      if (this.renderPager) this.renderPager();
+      mountFindlyPager(this);
       return ok;
     };
 
-    var origIntercept = proto.applyInterceptGrid;
+    var origMissing = proto.missingHandles;
+    proto.missingHandles = function (handles) {
+      var cache = this._cardCache || {};
+      var list = handles || [];
+      var out = [];
+      var seen = {};
+      var i;
+      for (i = 0; i < list.length; i++) {
+        var key = String(list[i] || "").toLowerCase();
+        if (!key || seen[key]) continue;
+        seen[key] = true;
+        var base = key.split("::")[0];
+        if (cache[key] || (base && cache[base])) continue;
+        out.push(base || key);
+      }
+      if (out.length || !origMissing) return out;
+      return origMissing.call(this, handles);
+    };
+
+    var origThemePage = proto.fetchThemePage;
+    proto.fetchThemePage = function (page) {
+      var self = this;
+      if (!origThemePage) return Promise.resolve(false);
+      return origThemePage.call(this, page).then(function (ok) {
+        if (!self._themeNoMore) return ok;
+        var pending = self._visibleHandles || self._shownHandles;
+        if (pending && pending.length && self.missingHandles(pending).length) {
+          self._themeNoMore = false;
+        }
+        return ok;
+      });
+    };
+
+    var origCache = proto.cacheNativeCards;
+    proto.cacheNativeCards = function () {
+      if (origCache) origCache.call(this);
+      var cache = this._cardCache || {};
+      var keys = Object.keys(cache);
+      var i;
+      for (i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var outer = resolveOuterThemeCard(cache[key]);
+        if (outer) cache[key] = outer;
+        else delete cache[key];
+      }
+    };
+
     proto.applyInterceptGrid = function (handles, append) {
       var next = pageSlice(this, handles, append);
-      var ok = origIntercept ? origIntercept.call(this, next, append) : false;
-      if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
-        applyNativeFilterGrid(
-          this._shownHandles && this._shownHandles.length
-            ? this._shownHandles
-            : next,
-          this._gridParent,
-        );
+      var host =
+        resolveCardHost(
+          this._gridParent ||
+            (this.ensureGridParent && this.ensureGridParent()),
+        ) || this._gridParent;
+      if (host) this._gridParent = host;
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, host);
+        return true;
       }
-      return ok;
+      mountCachedCards(this, next, host);
+      applyNativeFilterGrid(next, host);
+      return (
+        uniqueAllowedCount(next) > 0 &&
+        countAllowedInHost(host, next) >= uniqueAllowedCount(next)
+      );
     };
 
     var origFetch = proto.fetchFilters;
     proto.fetchFilters = function () {
+      findlyLog("grid.fetch", {
+        selected: this.selected,
+        price: this.price,
+        page: this.page,
+        url: this.buildProxyUrl ? this.buildProxyUrl() : "",
+        stack: shortStack(),
+      });
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       if (result && typeof result.then === "function") {
         return result.then(function (value) {
+          var host = resolveCardHost(self._gridParent);
+          var handles = self._visibleHandles || self._shownHandles;
           if (
-            !(self._appGridActive || (self.isAppGridMode && self.isAppGridMode()))
+            shouldTakeOverThemeCards(self) &&
+            Array.isArray(handles) &&
+            handles.length &&
+            countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
+          ) {
+            fillMissingFilterCards(self, handles, host);
+          } else if (
+            !(self.isAppGridMode && self.isAppGridMode())
           ) {
             applyNativeAfterGrid(self);
           } else if (self._gridParent && self.hideNativeGridCards) {
             self.hideNativeGridCards(self._gridParent);
           }
+          mountFindlyPager(self);
           return value;
         });
       }
@@ -2209,10 +4263,28 @@
       enhanceSortMenu(this);
     };
 
+    proto.placeCollectionSearchOnGrid = function () {
+      placeCollectionSearchOnGrid(this);
+    };
+
+    var origRenderSearch = proto.renderCollectionSearch;
+    proto.renderCollectionSearch = function (settings) {
+      ensureCollectionSearchMarkup(this);
+      if (origRenderSearch) origRenderSearch.call(this, settings);
+      placeCollectionSearchOnGrid(this);
+    };
+
     var origPlaceSort = proto.placeSortOnGrid;
     proto.placeSortOnGrid = function () {
-      if (origPlaceSort) origPlaceSort.call(this);
-      enhanceSortMenu(this);
+      if (this._placingSort) return;
+      this._placingSort = true;
+      try {
+        if (origPlaceSort) origPlaceSort.call(this);
+        placeCollectionSearchOnGrid(this);
+        enhanceSortMenu(this);
+      } finally {
+        this._placingSort = false;
+      }
     };
 
     var origInit = proto.init;
@@ -2290,41 +4362,56 @@
       var parent =
         this._gridParent ||
         (this.ensureGridParent && this.ensureGridParent());
-      var host = resolveCardHost(parent) || parent;
-      if (host && isLayoutShell(host) && host.querySelector) {
-        var inner =
-          host.querySelector(".main-collection-grid") ||
-          host.querySelector("#product-grid") ||
-          host.querySelector("#ProductGrid") ||
-          host.querySelector("ul.product-grid");
-        if (inner) host = inner;
-      }
-      function stamp(el, on) {
-        if (!el || !el.classList) return;
-        if (on) {
-          el.classList.add("sf-grid-busy");
-          el.setAttribute("aria-busy", "true");
-        } else {
-          el.classList.remove("sf-grid-busy");
-          el.setAttribute("aria-busy", "false");
-        }
-      }
-      if (parent && parent !== host) stamp(parent, false);
-      stamp(host, busy);
+      var host = discoverBusyHost(parent);
+      if (parent && parent.classList) parent.classList.remove("sf-grid-busy");
+      if (host && host.classList) host.classList.remove("sf-grid-busy");
+      paintGridBusy(host, busy);
+      findlyLog("grid.busy", {
+        busy: Boolean(busy),
+        host: describeHost(host),
+        parent: describeHost(parent),
+        overlay: Boolean(document.getElementById("findly-grid-busy-overlay")),
+        skel: document.querySelectorAll("[" + SKEL_ATTR + "='1']").length,
+        stack: shortStack(),
+      });
       if (origBusy && origBusy !== proto.setGridBusy && !host) {
         origBusy.call(this, busy);
       }
     };
 
-    var origSyncGrid = proto.syncProductGrid;
     proto.syncProductGrid = function (handles) {
-      var parent =
+      var parent = resolveCardHost(
         this._gridParent ||
-        (this.ensureGridParent && this.ensureGridParent());
-      applyNativeFilterGrid(handles, parent);
-      if (origSyncGrid && origSyncGrid !== proto.syncProductGrid) {
-        /* tray owns visibility; skip CSS hide/order that leaks titles */
+          (this.ensureGridParent && this.ensureGridParent()),
+      );
+      if (parent) this._gridParent = parent;
+      if (!shouldTakeOverThemeCards(this)) {
+        applyNativeFilterGrid(null, parent);
+        syncGridEmptyState(this, parent, null, 0);
+        placeCollectionSearchOnGrid(this);
+        return;
       }
+      mountCachedCards(this, handles, parent);
+      var shownBefore = countAllowedInHost(parent, handles);
+      if (
+        Array.isArray(handles) &&
+        handles.length &&
+        shownBefore < uniqueAllowedCount(handles)
+      ) {
+        this.setGridBusy(true);
+      }
+      applyNativeFilterGrid(handles, parent);
+      var shown = countAllowedInHost(parent, handles);
+      if (
+        Array.isArray(handles) &&
+        handles.length &&
+        shown < uniqueAllowedCount(handles)
+      ) {
+        fillMissingFilterCards(this, handles, parent);
+      } else {
+        syncGridEmptyState(this, parent, handles, shown);
+      }
+      placeCollectionSearchOnGrid(this);
     };
     proto.watchThemeGrid = function () {
       if (this._gridObserver) {
@@ -2353,12 +4440,19 @@
       return wrap;
     };
 
+    var origPager = proto.renderPager;
+    proto.renderPager = function () {
+      if (origPager) origPager.apply(this, arguments);
+      mountFindlyPager(this);
+    };
+
     var origRenderFacets = proto.renderFacets;
     proto.renderFacets = function () {
       var result = origRenderFacets
         ? origRenderFacets.apply(this, arguments)
         : undefined;
       enhancePriceSliders(this.root);
+      decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
       return result;
     };
   }
@@ -2377,6 +4471,9 @@
           applyLooseHash(next);
           if (next && next.root) enhancePriceSliders(next.root);
           enhanceSortMenu(next);
+          decorateCheckMarks(
+            (next && next.panelEl) || (next && next.facetsEl) || (next && next.root),
+          );
         },
       });
     } catch (err) {
@@ -2388,6 +4485,11 @@
     injectCss();
     bindFindlyChangeCapture();
     bindHashChange();
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bootEarlyGridBusy);
+    } else {
+      bootEarlyGridBusy();
+    }
     if (!window.__findlyDrawerResize) {
       window.__findlyDrawerResize = true;
       window.addEventListener("resize", function () {
@@ -2404,6 +4506,7 @@
       applyLooseHash(held);
       if (held.root) enhancePriceSliders(held.root);
       enhanceSortMenu(held);
+      decorateCheckMarks(held.panelEl || held.facetsEl || held.root);
     }
   }
 

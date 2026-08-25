@@ -246,17 +246,18 @@
   <div class="wrap">
     <h1>Shopify App Store approval jobs</h1>
     <p class="lede">
-      Checklist re-verified 25 Aug 2026 against the current repo plus the live Hostinger host.
-      Locked checkmarks were re-audited the same day (storage key v5).
+      Checklist re-verified 25 Aug 2026 (afternoon) against the current repo plus the live Hostinger host.
+      Locked checkmarks were re-audited the same pass (storage key v6 — hard-refresh this page).
       In code today: Home is the dashboard (SetupGuide, catalog sync popup, performance).
-      Filter sets, color swatches, and value groups live on <strong>Filters</strong> (<code>/app/filters</code>).
-      Storefront search (fields, instant widget, pinnings, synonyms, redirects),
-      Settings, Translation, Integrations, Analytics, billing API
-      (Free / Standard / Pro), GDPR handlers, and the Theme App Extension
+      Filter trees, color swatches, and value groups live on <strong>Filters</strong> (<code>/app/filters</code>).
+      Storefront search (Settings + Instant search widget tabs, plus pinnings / synonyms / redirects),
+      Settings (General, Filter panel, Metafields), Translation, Integrations, Analytics,
+      billing API (Free / Standard / Pro), GDPR handlers, and the Theme App Extension
       (Collection filters embed, Product search, Instant search) are shipped.
       Vehicle Finder and Product recommendations exist as theme blocks with storefront JS,
       but admin pages are still <strong>Under construction</strong> and are not in NavMenu — do not advertise them.
-      Production is <strong>Hostinger Node 22</strong> at
+      Production is a <strong>Hostinger Business Node.js website</strong> (CloudLinux, Node 22, <code>server.js</code>),
+      not VPS Docker and not WordPress <code>public_html</code>, at
       <code>https://deeppink-manatee-141983.hostingersite.com</code>
       with <strong>Supabase Postgres</strong> and <strong>Upstash Redis</strong> (not Hostinger MySQL).
       Former “blocker” jobs are now labeled <strong>submit-gate</strong> — they still must be done before App Store submit.
@@ -277,13 +278,15 @@
     <div class="split">
       <strong>Do not submit until every submit-gate is checked — including live QA.</strong>
       Shopify reviews the production app only. Code-complete is not the same as storefront-verified.
-      Live host (checked 25 Aug 2026): <code>https://deeppink-manatee-141983.hostingersite.com</code>
-      serves <code>/health</code>, <code>/privacy</code>, and <code>/terms</code> over HTTPS (Node 22, last good git deploy 25 Aug 04:16 UTC).
-      Four later git deploys that day <strong>failed</strong> — push/fix Hostinger build before treating production as current.
-      Postgres is <strong>Supabase</strong> (<code>DATABASE_URL</code> pooler :6543 + <code>DIRECT_URL</code> :5432), not the MySQL databases on this Hostinger account.
+      Live host (re-checked 25 Aug 2026): <code>https://deeppink-manatee-141983.hostingersite.com</code>
+      serves <code>/health</code>, <code>/privacy</code>, and <code>/terms</code> over HTTPS.
+      Last <strong>successful</strong> Hostinger git deploy: 25 Aug 04:16 UTC (Node 22, <code>entry_file</code> <code>server.js</code>, <code>app_type</code> react-router).
+      At least eight later git deploys the same day <strong>failed</strong> (through 09:30 UTC) — production is stale until the next completed build.
+      Live <code>/health</code> still returns the old static <code>{"ok":true,"service":"findly-smart-filters-search"}</code>
+      (no <code>checks.postgres</code> / <code>checks.redis</code>). Repo health already probes those.
+      Postgres is <strong>Supabase</strong> (<code>DATABASE_URL</code> pooler :6543 + <code>DIRECT_URL</code> :5432), not Hostinger MySQL.
       Redis is <strong>Upstash</strong> (<code>REDIS_URL</code> must be <code>rediss://</code>).
-      Repo <code>/health</code> now probes Postgres + Redis + in-process worker (no secrets). Live Hostinger still returns the old static JSON until the next successful deploy.
-      Worker: in-process via <code>ensureWorkerRunning()</code> when the web app boots (unless <code>START_WORKER=0</code>). Optional extra process: <code>npm run worker:prod</code>.
+      Worker: in-process via <code>entry.server.tsx</code> → <code>ensureWorkerRunning()</code> (unless <code>START_WORKER=0</code>). Optional extra process: <code>npm run worker:prod</code>.
       After a good Hostinger deploy, re-run <code>shopify app deploy</code> so Partner Dashboard matches (AS-P3).
     </div>
     <div class="note">
@@ -296,7 +299,7 @@
     </div>
     <div class="split">
       <strong>Shipped admin (NavMenu):</strong>
-      Home (SetupGuide, catalog sync popup, performance) · Filters (filter sets, color swatches, value groups) · Search (fields, instant widget, pinnings, synonyms, redirects) · Settings · Translation · Integrations · Analytics · Pricing plans · Contact · Sync (redirects to Home popup).
+      Home (SetupGuide, catalog sync popup, performance) · Filters (filter trees, color swatches, value groups) · Search (Settings + Instant search widget, pinnings, synonyms, redirects) · Settings · Translation · Integrations · Analytics · Pricing plans · Contact. Catalog sync is on Home, not a sidebar item.
       <strong>Not in nav:</strong> Vehicle Finder and Recommendations — admin is Under construction; theme blocks still appear in the editor (AS-H8).
     </div>
 
@@ -416,10 +419,10 @@
 
     <div class="h2">Suggested order</div>
     <ol>
-      <li>On Hostinger CloudLinux (Node 22 is already selected on git deploys): install Linux <code>node_modules</code> with <code>npm ci --omit=dev</code>. Run <code>npx prisma generate</code> then <code>npm run build</code>. Fix the failed 25 Aug git deploys before assuming production has the latest code.</li>
+      <li>Get a Hostinger git deploy to <strong>completed</strong> again (eight failures after 25 Aug 04:16 UTC). Build is <code>npm run build</code> (<code>prisma generate</code> + <code>react-router build</code>), start is <code>node server.js</code>. Do not treat production as current until that succeeds.</li>
       <li>Confirm Hostinger env: <code>DATABASE_URL</code> + <code>DIRECT_URL</code> (Supabase), <code>REDIS_URL</code> (<code>rediss://</code> Upstash), Shopify keys, <code>SHOPIFY_APP_URL=https://deeppink-manatee-141983.hostingersite.com</code>, <code>BILLING_TEST_MODE=false</code>, <code>GMAIL_USER</code>, <code>GMAIL_APP_PASSWORD</code>. Then hit <code>/health</code> and confirm <code>checks.postgres.ok</code> and <code>checks.redis.ok</code>.</li>
       <li>Worker is in-process on the web app. Optional second process: <code>npm run worker:prod</code>. Then <code>shopify app deploy</code>.</li>
-      <li>Live theme QA: enable Collection filters + Instant search app embeds, add Product search on the search template. Exercise filters, search extras, translation labels, and analytics. Skip Vehicle finder and Product recommendations blocks.</li>
+      <li>Live theme QA: enable Collection filters + Instant search app embeds, add Product search on the search template. SetupGuide covers sync, a filter tree, Collection filters embed, Product search, then Analytics — Instant search is still a separate live step. Skip Vehicle finder and Product recommendations blocks.</li>
       <li>Live billing Free → Standard → Pro on a development store.</li>
       <li>Partner listing: icon, screenshots of shipped admin + storefront, paste <code>docs/partner-listing-copy.md</code>, privacy/terms URLs.</li>
       <li>Automated checks, then submit.</li>
@@ -427,10 +430,10 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "findly-app-store-jobs-v5";
+    const STORAGE_KEY = "findly-app-store-jobs-v6";
 
     /** Jobs completed in the repo or live-proven (always checked; localStorage cannot uncheck them).
-     *  Re-audited 25 Aug 2026 against current code + Hostinger host. Live/Partner jobs stay open. */
+     *  Re-audited 25 Aug 2026 afternoon against current code + live Hostinger host. Live/Partner jobs stay open. */
     const REPO_DONE = [
       "AS-P2",
       "AS-P6",
@@ -445,7 +448,7 @@
       "AS-Q9",
       "PLAN-free", "PLAN-standard", "PLAN-pro",
     ];
-    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v5";
+    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v6";
 
     const LANES = {
       production: "Production",
@@ -499,19 +502,19 @@
     ];
 
     const JOBS = [
-      ["AS-P1", "production", "blocker", "Keep Hostinger web + in-process worker healthy (Supabase + Upstash)", "Live 25 Aug 2026: GET https://deeppink-manatee-141983.hostingersite.com/health returns the app JSON. Node 22 git deploys work when they succeed (last good 25 Aug 04:16 UTC). Four later deploys that day failed — production may be stale. BullMQ runs in-process via entry.server.tsx → ensureWorkerRunning() (not a required second process). Not done until a real catalog sync job completes on this host with REDIS_URL set, and /health checks.postgres + checks.redis are true after the next good deploy.", "Hostinger Node app, app/entry.server.tsx, app/workers/ensure-running.server.ts, /health"],
-      ["AS-P2", "production", "blocker", "App URL config is https://deeppink-manatee-141983.hostingersite.com", "Repo-complete: shopify.app.toml application_url + auth redirect + app proxy, fly.toml HOST/SHOPIFY_APP_URL, app/public-origin.ts, privacy/terms. Live host is this Hostinger URL; custom-domain DNS is optional.", "shopify.app.toml, app/public-origin.ts"],
+      ["AS-P1", "production", "blocker", "Keep Hostinger web + in-process worker healthy (Supabase + Upstash)", "Live 25 Aug 2026: GET /health on https://deeppink-manatee-141983.hostingersite.com still returns the old static JSON (no checks.*). Last good git deploy 25 Aug 04:16 UTC; eight later deploys failed through 09:30 UTC. Host is a Business Node.js website (server.js), not VPS Docker. BullMQ is in-process via entry.server.tsx → ensureWorkerRunning() unless START_WORKER=0. Not done until a successful deploy, /health checks.postgres + checks.redis are true, and a real catalog sync job completes with REDIS_URL=rediss://…", "Hostinger Node app, server.js, app/entry.server.tsx, app/workers/ensure-running.server.ts, /health"],
+      ["AS-P2", "production", "blocker", "App URL config is https://deeppink-manatee-141983.hostingersite.com", "Repo-complete: shopify.app.toml application_url + auth redirect + app proxy, fly.toml HOST/SHOPIFY_APP_URL, app/public-origin.ts, privacy/terms. Live host is this Hostinger URL; a custom hunaniinfotech.com hostname is optional and not required for submit.", "shopify.app.toml, app/public-origin.ts"],
       ["AS-P3", "production", "blocker", "Re-run shopify app deploy so Partner matches Hostinger", "Partner Dashboard still needs a deploy for App URL + proxy + webhooks (api_version 2026-07, including inventory_levels/update and [events] Product).", "Shopify CLI"],
-      ["AS-P4", "production", "blocker", "Set BILLING_TEST_MODE=false in Hostinger env", "Code still defaults to true (billing.server.ts). Set it in the Hostinger Node environment before charging real merchants. Local .env is gitignored.", "billing.server.ts, Hostinger env"],
-      ["AS-P5", "production", "later", "Align fly.toml SCOPES with shopify.app.toml", "Leftover: fly.toml SCOPES is still read_products,read_files,write_files. shopify.app.toml also has read_inventory,read_locations,read_content,read_markets plus optional read_companies. Production is Hostinger, not Fly.", "fly.toml vs shopify.app.toml"],
-      ["AS-P6", "production", "medium", "Hostinger Node version ≥22.12", "Live-proven 25 Aug 2026: Hostinger JS deployments use node_version 22. package.json engines requires ≥22.12.", "package.json engines, Hostinger Node version"],
-      ["AS-P7", "production", "medium", "Commit package-lock.json so production npm ci works", "Repo-complete: package-lock.json is tracked. .gitignore ignores yarn.lock/pnpm-lock.yaml and says the npm lockfile is tracked.", ".gitignore, package-lock.json"],
-      ["AS-P8", "production", "later", "Health check should probe Postgres + Redis", "Repo-complete 25 Aug 2026: app/routes/health.tsx probes Prisma SELECT 1, Redis PING, and in-process worker. Returns 503 if Postgres or Redis fails. Does not leak URLs or passwords. Live Hostinger still serves the old static body until the next successful deploy.", "app/routes/health.tsx"],
-      ["AS-P9", "production", "blocker", "Live host is https://deeppink-manatee-141983.hostingersite.com (Hostinger HTTPS)", "Live-proven 25 Aug 2026: /health, /privacy, and /terms load over HTTPS on this Hostinger origin.", "DNS + Hostinger SSL"],
+      ["AS-P4", "production", "blocker", "Set BILLING_TEST_MODE=false in Hostinger env", "Code still defaults to true (isBillingTestMode in billing.server.ts). Set it in the Hostinger Node environment before charging real merchants. Local .env is gitignored.", "billing.server.ts, Hostinger env"],
+      ["AS-P5", "production", "later", "Align fly.toml SCOPES with shopify.app.toml", "Leftover only if you ever use Fly: fly.toml SCOPES is still read_products,read_files,write_files and worker = npm run worker (--watch). shopify.app.toml also has read_inventory, read_locations, read_content, read_markets plus optional read_companies. Current production is Hostinger Node, not Fly.", "fly.toml vs shopify.app.toml"],
+      ["AS-P6", "production", "medium", "Hostinger Node version ≥22.12", "Repo + live-proven 25 Aug 2026: package.json engines is ≥22.12.0. Hostinger JS deployments set node_version 22. Dockerfile is Node 22-alpine and is not what Hostinger git deploys use.", "package.json engines, Hostinger Node version"],
+      ["AS-P7", "production", "medium", "Commit package-lock.json so production npm ci works", "Repo-complete: package-lock.json is tracked. .gitignore ignores yarn.lock and pnpm-lock.yaml and says the npm lockfile is tracked.", ".gitignore, package-lock.json"],
+      ["AS-P8", "production", "later", "Health check should probe Postgres + Redis", "Repo-complete: health.tsx probes Prisma SELECT 1, Redis PING, and isSyncWorkerRunning(). Returns 503 if Postgres or Redis fails. No URLs or passwords in the JSON. Live Hostinger (re-checked 25 Aug afternoon) still serves the pre-probe static body until the next completed git deploy — that is AS-P1, not a code gap.", "app/routes/health.tsx"],
+      ["AS-P9", "production", "blocker", "Live host is https://deeppink-manatee-141983.hostingersite.com (Hostinger HTTPS)", "Live-proven 25 Aug 2026 (re-checked afternoon): /health, /privacy, and /terms load over HTTPS on this Hostinger origin. /health body is still the old static JSON until AS-P1’s next good deploy.", "DNS + Hostinger SSL"],
       ["AS-P10", "production", "medium", "Prisma ships a CloudLinux query engine", "Repo-complete: binaryTargets native + rhel-openssl-1.1.x. On the server run npx prisma generate so libquery_engine-rhel-openssl-1.1.x.so.node exists.", "prisma/schema.prisma"],
       ["AS-P11", "production", "medium", "BullMQ Redis client matches Upstash TLS rules", "Repo-complete: one IORedis in app/redis.server.ts. maxRetriesPerRequest null, enableReadyCheck false, tls: {} only when REDIS_URL starts with rediss://. Queue uses getRedis(); in-process Worker uses createRedisConnection().", "app/redis.server.ts, app/queues.server.ts, app/workers/ensure-running.server.ts"],
       ["AS-P12", "production", "blocker", "Set REDIS_URL=rediss://… on Hostinger (Upstash)", "Hostinger MySQL databases on this account are unrelated. Findly Redis is Upstash. Confirm REDIS_URL in the Node env, then after deploy check /health checks.redis.ok.", "Hostinger Node env, .env.example"],
-      ["AS-P13", "production", "later", "Optional dedicated BullMQ worker process", "Not a submit-gate. Default Hostinger path is in-process (ensureWorkerRunning). npm run worker:prod exists for a second process. npm run worker still uses --watch (local only). Prove sync with AS-P1 / AS-Q1 instead.", "package.json worker:prod, app/workers/index.ts"],
+      ["AS-P13", "production", "later", "Optional dedicated BullMQ worker process", "Not a submit-gate. Hostinger Passenger/Node starts the web app only; default path is in-process (ensureWorkerRunning from entry.server.tsx). npm run worker:prod exists for a second process. npm run worker still uses --watch (local only). Prove sync with AS-P1 / AS-Q1 instead.", "package.json worker:prod, app/workers/index.ts, app/entry.server.tsx"],
 
       ["AS-B1", "billing", "blocker", "Add Standard to the Billing API (Free + Standard + Pro)", "Repo-complete: PLANS.free / standard / pro with $0 / $9.99 / $19.99 and 200 / 1,000 / 5,000 product caps, 5 / 12 / 25 metafield filters.", "app/billing.server.ts"],
       ["AS-B2", "billing", "blocker", "Pricing page shows Free, Standard, and Pro cards", "Repo-complete: three cards on /app/billing; Standard and Pro call createAppSubscription. Search extras / analytics / translation are on every plan (not billed separately).", "app/routes/app.billing.tsx"],
@@ -523,13 +526,13 @@
       ["AS-B8", "billing", "medium", "Lock Standard caps ($9.99, 1,000 products, 12 filters)", "Repo-complete: no longer draft. Listing must use these numbers (AS-L5).", "billing.server.ts"],
       ["AS-B9", "billing", "later", "Keep yearly billing out of launch", "Repo-complete: yearly ChoiceList is disabled (helpText: Yearly billing is not on Findly yet). Do not advertise yearly on the listing.", "app.billing.tsx"],
 
-      ["AS-H1", "product", "blocker", "Keep Vehicle Finder + Recommendations out of NavMenu", "Repo-complete: NavMenu is Home, Filters, Search, Settings, Translation, Integrations, Analytics, Pricing plans, Contact, Sync. Sync goes to /app/sync which redirects to the Home popup. Direct /app/vehicle-finder and /app/recommendations still render UnderConstructionGate — do not advertise. Theme editor blocks are AS-H8.", "app/routes/app.tsx"],
+      ["AS-H1", "product", "blocker", "Keep Vehicle Finder + Recommendations out of NavMenu", "Repo-complete: NavMenu is Home, Filters, Search, Settings, Translation, Integrations, Analytics, Pricing plans, Contact. Catalog sync lives on Home (popup); /app/sync still redirects to /app?sync=1 and is not in the sidebar. Direct /app/vehicle-finder and /app/recommendations still render UnderConstructionGate — do not advertise. Theme editor blocks are AS-H8.", "app/routes/app.tsx"],
       ["AS-H2", "product", "blocker", "Do not ship Settings Theme / Product as under construction", "Repo-complete: Settings tabs are General, Filter panel, Metafields. tab=theme|product|search|sort maps to General; tab=layout|look maps to Filter panel. General includes product-list Liquid, sort, and visibility.", "app/routes/app.settings.tsx"],
-      ["AS-H3", "product", "blocker", "Wire SetupGuide into Home", "Repo-complete: SetupGuide on /app (sync → filters → Collection filters embed → Product search → performance). ThemeSetupCard is unused. Instant search is a live theme embed (AS-Q4 / AS-Q10), not a SetupGuide step.", "app._index.tsx, setup-progress.server.ts"],
-      ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: GMAIL_USER + GMAIL_APP_PASSWORD send via smtp.gmail.com (port 465). Fails closed if missing. Generic SMTP_* remains a fallback.", "app/contact.server.ts"],
+      ["AS-H3", "product", "blocker", "Wire SetupGuide into Home", "Repo-complete: SetupGuide on /app with five steps — Sync your catalog, Turn on a filter (/app/filters), Enable Collection filters (app embed), Add Product search, Check performance (/app/analytics). Instant search is stored as a flag in setup-progress but is not a visible SetupGuide step — live theme work is AS-Q4 / AS-Q10.", "app._index.tsx, setup-progress.server.ts"],
+      ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: GMAIL_USER + GMAIL_APP_PASSWORD send via smtp.gmail.com (port 465 unless SMTP_HOST is local). Fails closed if missing. Generic SMTP_* remains a fallback. SUPPORT_EMAIL overrides the To address when Gmail is set.", "app/contact.server.ts"],
       ["AS-H5", "product", "blocker", "Drop unused write_products", "Repo-complete: scopes are read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets. optional_scopes = read_companies (B2B location prices). Seed script uses a separate custom-app token.", "shopify.app.toml"],
-      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete 25 Aug 2026: docs/partner-listing-copy.md lists Home as dashboard/sync and Filters /app/filters for sets, swatches, and groups. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing-copy.md"],
-      ["AS-H7", "product", "later", "Refresh stale launch docs", "Still open: docs/build-order.md still says search is NOT STARTED; docs/mvp-guide.md and docs/LAUNCH-SCOPE.md still say search/analytics are not shipped. The app has both.", "docs/build-order.md, docs/mvp-guide.md, docs/LAUNCH-SCOPE.md"],
+      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete: docs/partner-listing-copy.md lists Home as dashboard/sync and Filters /app/filters for trees, swatches, and groups. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing-copy.md"],
+      ["AS-H7", "product", "later", "Refresh stale launch docs and privacy hosting copy", "Still open: docs/build-order.md step 10 still says search is NOT STARTED. docs/mvp-guide.md and docs/LAUNCH-SCOPE.md still say search/analytics are not shipped (and listing still omits Standard). The app has search, analytics, synonyms, redirects, and three plans. privacy.tsx still says PostgreSQL is hosted with the app on Hostinger — production Postgres is Supabase.", "docs/build-order.md, docs/mvp-guide.md, docs/LAUNCH-SCOPE.md, app/routes/privacy.tsx"],
       ["AS-H8", "product", "blocker", "Do not let reviewers treat Vehicle finder / Recs as finished", "Theme editor lists Vehicle finder and Product recommendations (storefront JS + proxy routes exist). Admin is Under construction. Reviewer notes (AS-L7) must say: add only Collection filters, Product search, and Instant search. Do not screenshot those two blocks.", "extensions/smart-filter/blocks, app.vehicle-finder.tsx, app.recommendations.tsx"],
 
       ["AS-C1", "compliance", "blocker", "Public privacy policy page", "Repo-complete: /privacy covers scopes, analytics visitor ids, GDPR webhooks. After AS-P9, paste https://deeppink-manatee-141983.hostingersite.com/privacy into the Partner listing.", "app/routes/privacy.tsx"],
@@ -543,21 +546,21 @@
 
       ["AS-Q1", "qa", "blocker", "Live: catalog sync READY with 50+ products", "Code: queueFullSync / startFullSync (reuses an in-progress Shopify bulk op), Home catalog card + SyncDetailsModal, /app/sync redirects to /app?sync=1. Store round-trip is not signed off.", "app/sync, Home popup"],
       ["AS-Q2", "qa", "blocker", "Live: edit a product → ProductFacet updates", "products/create|update|delete, collections/*, inventory_levels/update, and [events] Product are in toml. Still unverified on a real store.", "product webhooks"],
-      ["AS-Q3", "qa", "blocker", "Live: enable Collection filters app embed on an OS 2.0 theme", "Online-store apps are rejected if the widget does not show. SetupGuide step 3 turns on the Collection filters app embed (not only a section block). Also enable a filter set on Filters.", "Theme editor → App embeds"],
-      ["AS-Q4", "qa", "blocker", "Live: add Product search block + Instant search embed", "Product search is a search-template/header block. Instant search is a body app embed. SetupGuide covers Collection filters + Product search; Instant search is still a live theme step (AS-Q10).", "Theme editor + App embeds"],
+      ["AS-Q3", "qa", "blocker", "Live: enable Collection filters app embed on an OS 2.0 theme", "Online-store apps are rejected if the widget does not show. SetupGuide step 3 turns on the Collection filters app embed (not only a section block). Also enable a filter tree on Filters.", "Theme editor → App embeds"],
+      ["AS-Q4", "qa", "blocker", "Live: add Product search block + Instant search embed", "Product search is a search-template/header block. Instant search is a body app embed. SetupGuide covers Collection filters + Product search only; Instant search is still a live theme step (AS-Q10) even though a setup flag exists in code.", "Theme editor + App embeds"],
       ["AS-Q5", "qa", "blocker", "Live: filter a collection (price, vendor, chips, mobile drawer)", "Code gate verify:b5 is not a substitute for storefront clicks.", "Dev store storefront"],
       ["AS-Q6", "qa", "blocker", "Live: storefront search + empty results", "Confirm keyword search, suggestions, and a garbage query shows the empty state (not a blank error page).", "Dev store search"],
       ["AS-Q7", "qa", "blocker", "Live: billing path covered by AS-B5–B7 (Free, Standard, Pro)", "Same QA visit should include a plan change.", "/app/billing"],
       ["AS-Q8", "qa", "medium", "Lighthouse: app must not drop storefront score by more than 10", "Shopify tests home / PDP / collection after the app is installed. Schema JS/CSS stay under the 100 KB theme-extension cap; companions load via asset_url.", "Theme + widget"],
       ["AS-Q9", "qa", "later", "Prefer private Cache-Control on filter JSON", "Repo-complete: apps.smart-filter.filters sends Cache-Control: private, no-store. Search / recs / ymm already use private.", "apps.smart-filter.filters.tsx"],
-      ["AS-Q10", "qa", "blocker", "Live: Search settings + Instant search widget", "Admin /app/search has Settings + Instant search widget tabs (fields, empty-query suggestions, popular terms, layout). Confirm typing in the storefront header shows instant results.", "/app/search + storefront"],
+      ["AS-Q10", "qa", "blocker", "Live: Search settings + Instant search widget", "Admin /app/search has Settings + Instant search widget tabs (fields, empty-query suggestions, popular terms, layout). Pinnings / synonyms / redirects are preference cards under Search, not extra tabs. Confirm typing in the storefront header shows instant results.", "/app/search + storefront"],
       ["AS-Q11", "qa", "medium", "Live: pinnings, synonyms, and redirects", "Pages: /app/search/pinnings, /synonyms, /redirects. Pick one synonym and one redirect and confirm storefront search honors them.", "/app/search/*"],
       ["AS-Q12", "qa", "medium", "Live: Translation labels on the widget", "/app/translation edits widget chrome strings per locale. Change one label, reload the collection with that locale, confirm the widget text updates.", "/app/translation"],
       ["AS-Q13", "qa", "medium", "Live: Analytics dashboard after storefront use", "/app/analytics has Filter + Search tabs (top queries, no-results, popular filters). Filter or search on the storefront, then confirm counts move. CSV export is in code.", "/app/analytics"],
       ["AS-Q14", "qa", "later", "Live: color swatches + grouped values", "Filters page links Color swatches (/app/swatches) and Group values (/app/groups). Optional for submission if listing screenshots show a color filter.", "/app/swatches, /app/groups"],
 
       ["AS-L1", "listing", "blocker", "App icon 1200×1200 JPEG or PNG", "No listing images in the repo. Upload in Partner Dashboard.", "Partner Dashboard"],
-      ["AS-L2", "listing", "blocker", "3–6 screenshots (1600×900) of real admin + storefront", "Use Home (filter sets), Search, Settings, and storefront filters + search. Do not screenshot Vehicle finder or Product recommendations.", "Partner listing"],
+      ["AS-L2", "listing", "blocker", "3–6 screenshots (1600×900) of real admin + storefront", "Use Home (filter trees + sync), Filters, Search, Settings, and storefront filters + search. Do not screenshot Vehicle finder or Product recommendations.", "Partner listing"],
       ["AS-L3", "listing", "blocker", "Feature media (image or short video)", "Listing card media. Promotional, not a long tutorial.", "Partner listing"],
       ["AS-L4", "listing", "blocker", "Paste listing copy into Partner Dashboard", "Copy is written in docs/partner-listing-copy.md (includes search extras + one analytics line). Still needs a human paste. Do not add YMM/recs.", "docs/partner-listing-copy.md"],
       ["AS-L5", "listing", "blocker", "Listing pricing lists Free $0 / Standard $9.99 / Pro $19.99", "Must match billing.server.ts. Do not list yearly.", "Partner pricing"],

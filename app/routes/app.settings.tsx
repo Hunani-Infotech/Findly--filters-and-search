@@ -674,7 +674,7 @@ export default function SettingsPage() {
                         label="Allow searching within collection pages"
                         checked={settings.enableCollectionSearch}
                         disabled={saving}
-                        helpText="Shows a search bar on collection pages. Matches stay inside that collection plus any active filters — not store-wide."
+                        helpText="Shows a search bar on collection pages, including Catalog (/collections/all). Matches stay inside that collection plus any active filters — not store-wide."
                         onChange={(checked) =>
                           setSettings((s) => ({
                             ...s,
