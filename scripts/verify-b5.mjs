@@ -132,6 +132,9 @@ function assertThemeSeoAndUi() {
   if (!gridJs.includes("shouldTakeOverThemeCards") || !gridJs.includes("keep-theme-cards")) {
     fail("smart-filter-grid.js must keep native theme product cards unless a filter is active");
   }
+  if (!gridJs.includes("resolveOuterThemeCard") || !gridJs.includes("isInnerCardSlice")) {
+    fail("smart-filter-grid.js must move outer theme cards only, never title links");
+  }
   if (!filterCss.includes("findly-grid-busy-overlay")) {
     fail("smart-filter.css must show a product-grid loader while filters fetch");
   }
@@ -472,9 +475,8 @@ try {
   const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import(
     "../app/webhooks.server.ts"
   );
-  const { mapProductToFacet, productIsAvailable } = await import(
-    "../app/sync/product-mapper.ts"
-  );
+  const { mapProductToFacet, productIsAvailable, variantsIncludeInventoryLevels } =
+    await import("../app/sync/product-mapper.ts");
 
   const toml = read("shopify.app.toml");
   const processors = read("app/workers/processors.ts");
@@ -502,10 +504,19 @@ try {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
   }
   if (
+    !syncServer.includes("countBulkQueryConnections") ||
+    !syncServer.includes("variantsIncludeInventoryLevels")
+  ) {
+    fail("startFullSync must guard Shopify's 5-connection bulk cap and preserve location facets");
+  }
+  if (
     !syncServer.includes("already in progress") ||
     !syncServer.includes("already running")
   ) {
     fail("startFullSync must reuse an in-progress bulk operation instead of failing");
+  }
+  if (!syncServer.includes("Bulk operation snapshot is stale")) {
+    fail("ingest must refuse a stale completed bulk snapshot");
   }
   const queueFullSync = read("app/sync/queue-full-sync.ts");
   if (!queueFullSync.includes("startFullSync")) {
@@ -518,6 +529,37 @@ try {
     !graphqlSync.includes("tracked")
   ) {
     fail("product/bulk GraphQL must fetch inventory quantity and tracked inventory items");
+  }
+  const {
+    completedBulkIsFresh,
+    countBulkQueryConnections,
+    BULK_PRODUCTS_QUERY,
+    SHOPIFY_BULK_MAX_CONNECTIONS,
+  } = await import("../app/sync/graphql.ts");
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000 - 1000).toISOString();
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  if (completedBulkIsFresh({ completedAt: twoHoursAgo })) {
+    fail("completed bulk older than 2 hours must not be re-ingested");
+  }
+  if (!completedBulkIsFresh({ completedAt: tenMinutesAgo })) {
+    fail("recently completed bulk must still be ingestible");
+  }
+  if (
+    !graphqlSync.includes("do not add inventoryLevels here") ||
+    /export const BULK_PRODUCTS_QUERY[\s\S]*inventoryLevels[\s\S]*export const BULK_PRODUCTS_MUTATION/.test(
+      graphqlSync,
+    )
+  ) {
+    fail("bulk product query must stay within Shopify's 5-connection cap (no nested inventoryLevels)");
+  }
+  const bulkConnections = countBulkQueryConnections(BULK_PRODUCTS_QUERY);
+  if (bulkConnections > SHOPIFY_BULK_MAX_CONNECTIONS) {
+    fail(
+      `BULK_PRODUCTS_QUERY has ${bulkConnections} connections; Shopify allows ${SHOPIFY_BULK_MAX_CONNECTIONS}`,
+    );
+  }
+  if (countBulkQueryConnections("edges { edges {") !== 2) {
+    fail("countBulkQueryConnections should count each edges { connection");
   }
   if (!proxy.includes("getCatalogGeneration")) {
     fail("proxy.server.ts must key filter cache by catalog generation");
@@ -614,6 +656,20 @@ try {
   });
   if (oosQtyOnly.facet.available !== false) {
     fail("inventoryQuantity 0 must map to out of stock even when tracked is omitted");
+  }
+  if (
+    !variantsIncludeInventoryLevels([
+      { inventoryItem: { inventoryLevels: { edges: [] } } },
+    ])
+  ) {
+    fail("empty inventoryLevels connection must still count as present");
+  }
+  if (
+    variantsIncludeInventoryLevels([
+      { inventoryItem: { id: "gid://shopify/InventoryItem/1", tracked: true } },
+    ])
+  ) {
+    fail("bulk variants without inventoryLevels must not look like a location payload");
   }
   if (!productIsAvailable("ACTIVE", [{ availableForSale: true }])) {
     fail("incomplete variant payloads must stay in stock");

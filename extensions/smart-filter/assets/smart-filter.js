@@ -502,7 +502,7 @@
     var viaHost =
       link.closest &&
       link.closest(
-        "product-card, product-item, grid-item, .product-card, .sf-app-card",
+        "product-card, product-item, grid-item, li.grid__item, .grid__item, .product-card, .sf-app-card",
       );
     if (viaHost && isLikelyProductCard(viaHost)) return viaHost;
     var viaSel = (link.closest && link.closest(CARD_SELECTOR)) || null;
@@ -513,9 +513,11 @@
       var fromLink = link.closest(
         "product-card, product-item, grid-item, li.grid__item, .grid__item, .card-wrapper, .product-card",
       );
-      if (fromLink && isLikelyProductCard(fromLink)) return fromLink;
+      if (fromLink && isLikelyProductCard(fromLink) && !isBareProductLink(fromLink)) {
+        return fromLink;
+      }
     }
-    return link;
+    return null;
   }
 
   function setCardHidden(card, hidden) {
@@ -1077,6 +1079,25 @@
 
   function isProductCardGrid(el) {
     if (!el || !el.children || isDocumentRoot(el)) return false;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (
+      tag === "product-card" ||
+      tag === "product-item" ||
+      tag === "grid-item" ||
+      tag === "li" ||
+      tag === "article"
+    ) {
+      return false;
+    }
+    if (
+      el.classList &&
+      (el.classList.contains("grid__item") ||
+        el.classList.contains("product-grid__item") ||
+        el.classList.contains("product-card") ||
+        el.classList.contains("product-item"))
+    ) {
+      return false;
+    }
     var childCount = el.children.length;
     if (!childCount) return false;
     var cards = countDirectProductCards(el);
@@ -1185,7 +1206,7 @@
       if (!target || !target.closest) return false;
       if (
         target.closest(
-          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, [data-collection-search-wrap]",
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
         )
       ) {
         return false;
@@ -1212,7 +1233,7 @@
       if (!target || !target.closest) return;
       if (
         target.closest(
-          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, [data-collection-search-wrap]",
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
         )
       ) {
         return;
@@ -1767,6 +1788,9 @@
 
   function extractHandles(payload) {
     if (!payload) return [];
+    if (Array.isArray(payload.handles) && payload.handles.length) {
+      return payload.handles.map(String);
+    }
     if (Array.isArray(payload.products) && payload.products.length) {
       return payload.products
         .map(function (item) {
@@ -1779,9 +1803,6 @@
           return item.handle ? String(item.handle) : null;
         })
         .filter(Boolean);
-    }
-    if (Array.isArray(payload.handles)) {
-      return payload.handles.map(String);
     }
     return [];
   }
@@ -2323,6 +2344,12 @@
     this.hideThemeDuplicateChrome();
   };
 
+  Widget.prototype.isCollectionListing = function () {
+    if (this.searchQuery) return false;
+    if (this.collectionId || this.collectionHandle) return true;
+    return Boolean(inferCollectionHandle());
+  };
+
   Widget.prototype.bindCollectionSearch = function () {
     var input = this.collectionSearchEl;
     if (!input || input.getAttribute("data-sf-bound") === "1") return;
@@ -2368,7 +2395,8 @@
     var input = this.collectionSearchEl;
     if (!wrap) return;
     var show =
-      Boolean(this.collectionId) && Boolean(settings.enableCollectionSearch);
+      Boolean(settings && settings.enableCollectionSearch) &&
+      this.isCollectionListing();
     wrap.hidden = !show;
     if (!show) {
       this.collectionQuery = "";
@@ -2478,7 +2506,7 @@
       if (
         el.closest &&
         el.closest(
-          ".smart-filter, .sf-sort-host, .sf-collection-search-host, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
+          ".smart-filter, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
         )
       ) {
         return true;
@@ -2826,7 +2854,21 @@
     for (i = 0; i < parent.children.length; i++) {
       var child = parent.children[i];
       if (!child || child.nodeType !== 1) continue;
-      if (child.classList && child.classList.contains("sf-app-card")) continue;
+      if (
+        child.classList &&
+        (child.classList.contains("sf-app-card") ||
+          child.classList.contains("sf-pager") ||
+          child.classList.contains("sf-sort-host") ||
+          child.classList.contains("sf-collection-search-host") ||
+          child.classList.contains("sf-toolbar") ||
+          child.classList.contains("sf-total-count") ||
+          child.classList.contains("sf-grid-empty"))
+      ) {
+        continue;
+      }
+      if (child.id === "findly-grid-empty" || child.id === "findly-card-tray") {
+        continue;
+      }
       setCardHidden(child, true);
     }
   };
@@ -3077,21 +3119,30 @@
     this.selected = parsed.selected || {};
     this.price = parsed.price || { min: "", max: "" };
     if (parsed.sort) this.sortKey = parsed.sort;
-    if (this.collectionId && parsed.query) this.collectionQuery = parsed.query;
+    if (
+      (this.collectionId || this.collectionHandle || this.isCollectionListing()) &&
+      parsed.query
+    ) {
+      this.collectionQuery = parsed.query;
+    }
   };
 
   Widget.prototype.buildProxyUrl = function () {
     var params = new URLSearchParams();
+    var onCollection = this.isCollectionListing();
     if (this.collectionId) {
       params.set("collection_id", this.collectionId);
-      if (this.collectionQuery) {
-        params.set("q", this.collectionQuery);
-      }
-    } else if (this.searchQuery) {
+    }
+    if (onCollection && this.collectionQuery) {
+      params.set("q", this.collectionQuery);
+    } else if (!onCollection && this.searchQuery) {
       params.set("q", this.searchQuery);
     }
     if (this.collectionHandle) {
       params.set("collection_handle", this.collectionHandle);
+    } else if (onCollection) {
+      var inferredHandle = inferCollectionHandle();
+      if (inferredHandle) params.set("collection_handle", inferredHandle);
     }
 
     Object.keys(this.selected).forEach(
@@ -3837,29 +3888,17 @@
     return true;
   };
 
+  Widget.prototype.placePagerEl = function (el) {
+    return el;
+  };
+
   Widget.prototype.ensurePagerEl = function () {
-    if (this._pagerEl && this._pagerEl.parentNode) return this._pagerEl;
+    if (this._pagerEl) return this.placePagerEl(this._pagerEl);
     var el = document.createElement("nav");
     el.className = "sf-pager";
     el.setAttribute("aria-label", this.t("pagination", "Pagination"));
-    var grid = this._gridParent;
-    if (grid && grid.parentNode) {
-      if (grid.nextSibling) {
-        grid.parentNode.insertBefore(el, grid.nextSibling);
-      } else {
-        grid.parentNode.appendChild(el);
-      }
-    } else if (this.root.parentNode) {
-      if (this.root.nextSibling) {
-        this.root.parentNode.insertBefore(el, this.root.nextSibling);
-      } else {
-        this.root.parentNode.appendChild(el);
-      }
-    } else {
-      document.body.appendChild(el);
-    }
     this._pagerEl = el;
-    return el;
+    return this.placePagerEl(el);
   };
 
   Widget.prototype.disconnectInfinite = function () {
@@ -3876,13 +3915,20 @@
       this.page = Math.floor(data.page);
     }
     this.ensurePageSize();
-    this._pageTotal =
-      typeof data.total === "number"
-        ? data.total
-        : typeof data.count === "number"
-          ? data.count
-          : handles.length;
-    this._hasNext = this.page * (this.pageSize || 16) < this._pageTotal;
+    var total = Number(data.total);
+    if (!Number.isFinite(total) || total < 0) total = Number(data.count);
+    var handleCount = Array.isArray(data.handles) ? data.handles.length : 0;
+    if (!Number.isFinite(total) || total < 0) {
+      total = handleCount || handles.length || 0;
+    } else if (handleCount > total) {
+      total = handleCount;
+    }
+    this._pageTotal = total;
+    var size = this.pageSize || 16;
+    if (handles.length > this._pageTotal) this._pageTotal = handles.length;
+    this._hasNext =
+      data.hasNext === true ||
+      this.page * size < this._pageTotal;
   };
 
   Widget.prototype.loadNextPage = function () {
@@ -4035,23 +4081,27 @@
           }
 
           var intercept = this.shouldInterceptPaging();
-          var allHandles = extractHandles(data);
+          var allHandles = Array.isArray(data && data.handles)
+            ? data.handles.map(String)
+            : extractHandles(data);
           var handles = allHandles;
+          this.ensurePageSize();
+          var pageSize = this.pageSize || 16;
           if (intercept) {
-            handles = extractHandles({
+            var fromProducts = extractHandles({
               products: data && data.products ? data.products : [],
             });
-            if (!handles.length && allHandles.length) {
-              this.ensurePageSize();
-              var sliceStart =
-                (Math.max(1, this.page) - 1) * (this.pageSize || 16);
-              handles = allHandles.slice(
-                sliceStart,
-                sliceStart + (this.pageSize || 16),
-              );
+            var sliceStart =
+              (Math.max(1, this.page) - 1) * pageSize;
+            if (fromProducts.length && fromProducts.length <= pageSize) {
+              handles = fromProducts;
+            } else {
+              handles = allHandles.slice(sliceStart, sliceStart + pageSize);
             }
           }
-          this.readPagingMeta(data, intercept ? handles : allHandles);
+          this._allFilterHandles = allHandles;
+          this._lastFilterData = data;
+          this.readPagingMeta(data, allHandles);
           if (append) {
             this._lastProducts = (this._lastProducts || []).concat(
               data && data.products ? data.products : [],

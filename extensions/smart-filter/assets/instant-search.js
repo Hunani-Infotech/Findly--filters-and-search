@@ -62,13 +62,17 @@
   function isIgnoredContainer(el) {
     return Boolean(
       el &&
-        (el.closest(".smart-filter-search") || el.closest(".findly-instant")),
+        (el.closest(".smart-filter-search") ||
+          el.closest(".findly-instant") ||
+          el.closest(".sf-collection-search-host") ||
+          el.closest(".smart-filter__collection-search")),
     );
   }
 
   function isThemeSearchInput(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
+    if (el.hasAttribute && el.hasAttribute("data-collection-search")) return false;
     if (isIgnoredContainer(el)) return false;
     var type = String(el.getAttribute("type") || "text").toLowerCase();
     if (
@@ -690,13 +694,82 @@
         }
         self.applyChrome();
         self.bind();
+        ensureFallbackSearchBar();
       })
       .catch(function () {});
   };
 
+  function findThemeSearchInputs() {
+    var nodes = document.querySelectorAll("input, textarea");
+    var found = [];
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (isThemeSearchInput(nodes[i])) found.push(nodes[i]);
+    }
+    return found;
+  }
+
+  function ensureFallbackSearchBar() {
+    if (document.querySelector(".findly-instant-bar")) return;
+    if (findThemeSearchInputs().length) return;
+    var bar = document.createElement("div");
+    bar.className = "findly-instant-bar";
+    var input = document.createElement("input");
+    input.className = "findly-instant-bar__input";
+    input.type = "search";
+    input.name = "q";
+    input.setAttribute("role", "searchbox");
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("enterkeyhint", "search");
+    input.setAttribute("aria-label", "Search");
+    input.setAttribute("placeholder", "Search");
+    bar.appendChild(input);
+    var header = document.querySelector(
+      "header, .header, .shopify-section-header, #shopify-section-header, [data-header]",
+    );
+    if (header) header.appendChild(bar);
+    else if (document.body && document.body.firstChild) {
+      document.body.insertBefore(bar, document.body.firstChild);
+    } else if (document.body) {
+      document.body.appendChild(bar);
+    }
+  }
+
+  function ensureInstantRoot() {
+    var existing = document.querySelector(".findly-instant");
+    if (existing) return existing;
+    var root = document.createElement("div");
+    root.className = "findly-instant";
+    root.setAttribute("hidden", "");
+    root.setAttribute("data-proxy-base", "/apps/smart-filter");
+    try {
+      if (window.Shopify && window.Shopify.locale) {
+        root.setAttribute("data-locale", String(window.Shopify.locale));
+      }
+      if (window.Shopify && window.Shopify.country) {
+        root.setAttribute("data-country", String(window.Shopify.country));
+      }
+      if (
+        window.Shopify &&
+        window.Shopify.currency &&
+        window.Shopify.currency.active
+      ) {
+        root.setAttribute("data-currency", String(window.Shopify.currency.active));
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    (document.body || document.documentElement).appendChild(root);
+    return root;
+  }
+
   function boot() {
     var roots = document.querySelectorAll(".findly-instant");
-    if (!roots.length) return;
+    if (!roots.length) {
+      var created = ensureInstantRoot();
+      if (!created) return;
+      roots = [created];
+    }
     roots.forEach(function (root) {
       if (root.getAttribute("data-findly-instant-ready") === "true") return;
       root.setAttribute("data-findly-instant-ready", "true");

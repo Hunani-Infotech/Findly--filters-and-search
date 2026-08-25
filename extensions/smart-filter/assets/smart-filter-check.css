@@ -263,6 +263,50 @@
   cursor: grabbing !important;
 }
 
+/* Hide theme product results until the filter finishes loading. */
+html:has(#smart-filter-root):not(.sf-filter-ready) .main-collection-grid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) .main-collection-grid,
+html:has(#smart-filter-root):not(.sf-filter-ready) #product-grid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) #product-grid,
+html:has(#smart-filter-root):not(.sf-filter-ready) #ProductGrid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) #ProductGrid,
+html:has(#smart-filter-root):not(.sf-filter-ready) ul.product-grid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) ul.product-grid,
+html:has(#smart-filter-root):not(.sf-filter-ready) ol.product-grid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) ol.product-grid,
+html:has(#smart-filter-root):not(.sf-filter-ready) .sf-app-grid,
+html:has(#smart-filter-embed):not(.sf-filter-ready) .sf-app-grid,
+html.sf-filter-loading .main-collection-grid,
+html.sf-filter-loading #product-grid,
+html.sf-filter-loading #ProductGrid,
+html.sf-filter-loading ul.product-grid,
+html.sf-filter-loading ol.product-grid,
+html.sf-filter-loading .sf-app-grid {
+  position: relative;
+  min-height: 22rem;
+}
+
+html:has(#smart-filter-root):not(.sf-filter-ready) .main-collection-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) .main-collection-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-root):not(.sf-filter-ready) #product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) #product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-root):not(.sf-filter-ready) #ProductGrid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) #ProductGrid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-root):not(.sf-filter-ready) ul.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) ul.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-root):not(.sf-filter-ready) ol.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) ol.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-root):not(.sf-filter-ready) .sf-app-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html:has(#smart-filter-embed):not(.sf-filter-ready) .sf-app-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading .main-collection-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading #product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading #ProductGrid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading ul.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading ol.product-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
+html.sf-filter-loading .sf-app-grid > :not([data-findly-skel="1"]):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty) {
+  display: none !important;
+}
+
 #smart-filter-root .smart-filter__price-bounds,
 #smart-filter-embed .smart-filter__price-bounds {
   grid-column: 1 / -1 !important;

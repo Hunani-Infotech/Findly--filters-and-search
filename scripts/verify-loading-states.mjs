@@ -39,6 +39,19 @@ function assertSourceMarkers() {
   if (!grid.includes("bootEarlyGridBusy") || !grid.includes("paintGridBusy")) {
     fail("grid missing early/busy painters");
   }
+  if (!grid.includes("setFilterLoading") || !grid.includes("sf-filter-ready")) {
+    fail("grid missing filter ready/loading flags");
+  }
+  if (!grid.includes("findly-grid-is-busy>") || !css.includes("findly-grid-is-busy")) {
+    fail("busy grid must hide product children while loading");
+  }
+  if (!css.includes("html.sf-filter-loading") || !css.includes("display: none !important")) {
+    fail("smart-filter.css must hide product results while loading");
+  }
+  const checkCss = read("extensions/smart-filter/assets/smart-filter-check.css");
+  if (!checkCss.includes("sf-filter-ready") || !checkCss.includes("sf-filter-loading")) {
+    fail("smart-filter-check.css must hide the product grid until the filter is ready");
+  }
   if (!grid.includes("data-findly-skel") || !grid.includes("findly-grid-skel__img")) {
     fail("grid missing skeleton markup");
   }
@@ -121,7 +134,11 @@ function writeHarness() {
     </div>
   </div>
   <results-list>
-    <div class="main-collection-grid" id="product-grid"></div>
+    <div class="main-collection-grid" id="product-grid">
+      <article class="product-card" data-product-handle="stale-item">
+        <a href="/products/stale-item">Stale product</a>
+      </article>
+    </div>
   </results-list>
   <div class="smart-filter-search">
     <div data-status></div>
@@ -178,13 +195,33 @@ function writeHarness() {
         if (skel.length < 4) throw new Error("grid skeletons missing: " + skel.length);
         if (!overlay) throw new Error("busy overlay missing");
         if (skel[0] && skel[0].tagName === "PRODUCT-CARD") throw new Error("used product-card custom element");
+        var staleCard = document.querySelector("[data-product-handle='stale-item']");
+        var staleDisplay = staleCard && window.getComputedStyle(staleCard).display;
+        if (staleDisplay !== "none") throw new Error("stale product visible while loading: " + staleDisplay);
+        if (!document.documentElement.classList.contains("sf-filter-loading")) {
+          throw new Error("html missing sf-filter-loading");
+        }
+        var busyDuring = grid && grid.classList.contains("findly-grid-is-busy");
+        var overlayH = overlay.style.height;
+        var overlayPx = parseFloat(overlay.style.height) || 0;
+        protoBusy.call(widget, false);
+        staleDisplay = staleCard && window.getComputedStyle(staleCard).display;
+        if (staleDisplay === "none") throw new Error("product still hidden after load");
+        if (!document.documentElement.classList.contains("sf-filter-ready")) {
+          throw new Error("html missing sf-filter-ready after load");
+        }
+        if (document.getElementById("findly-grid-busy-overlay")) {
+          throw new Error("overlay still present after load");
+        }
         extra = {
           earlySkel: skel.length,
-          overlay: Boolean(overlay),
-          overlayH: overlay ? overlay.style.height : "",
-          overlayPx: overlay ? parseFloat(overlay.style.height) : 0,
+          overlay: true,
+          overlayH: overlayH,
+          overlayPx: overlayPx,
           viewH: window.innerHeight || 0,
-          busyClass: grid && grid.classList.contains("findly-grid-is-busy"),
+          busyClass: busyDuring,
+          productShown: staleDisplay !== "none",
+          ready: document.documentElement.classList.contains("sf-filter-ready"),
           skelTag: skel[0] ? skel[0].tagName : "",
           searchSkel: document.querySelectorAll(".smart-filter-search__item.is-skeleton").length,
           recsReady: Boolean(recs),

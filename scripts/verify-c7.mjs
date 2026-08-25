@@ -68,7 +68,8 @@ function assertStaticMarkers() {
   }
   if (
     !widgetJs.includes("collectionQuery") ||
-    !widgetJs.includes("enableCollectionSearch")
+    !widgetJs.includes("enableCollectionSearch") ||
+    !widgetJs.includes("isCollectionListing")
   ) {
     fail("smart-filter.js missing collection search bar wiring");
   }

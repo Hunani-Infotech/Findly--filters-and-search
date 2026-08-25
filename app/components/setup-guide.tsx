@@ -14,7 +14,7 @@ import {
   type SetupMarkId,
   type SetupProgress,
   type SetupStep,
-} from "../setup-progress.server";
+} from "../setup-progress";
 import { isNavigatingTo } from "./admin-loading";
 import { useEmbeddedHref, useEmbeddedNavigate } from "../admin-path";
 

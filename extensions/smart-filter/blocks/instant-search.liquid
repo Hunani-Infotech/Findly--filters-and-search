@@ -10,11 +10,8 @@
 ></div>
 
 {% comment %}
-  Hidden from Theme Editor App embeds until app-data metafield
-  findly.instant_search_embed is true. Instant search overlays the
-  theme header search input — it does not render its own bar.
-  Collection listing search is enableCollectionSearch in app Settings.
-  Restore later: set that metafield to true, or remove available_if.
+  Instant search overlays the theme header search input. Collection listing
+  search is enableCollectionSearch in app Settings.
 {% endcomment %}
 {% schema %}
 {
@@ -22,7 +19,6 @@
   "target": "body",
   "stylesheet": "instant-search.css",
   "javascript": "instant-search.js",
-  "available_if": "{{ app.metafields.findly.instant_search_embed }}",
   "settings": []
 }
 {% endschema %}

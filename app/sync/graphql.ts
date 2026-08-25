@@ -149,6 +149,16 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
   }
 `;
 
+/**
+ * Shopify bulkOperationRunQuery allows 5 connections total and 2 nesting
+ * levels. This query uses exactly 5:
+ *   1. products
+ *   2. variants (nested 1)
+ *   3. variant metafields (nested 2)
+ *   4. product metafields (nested 1)
+ *   5. collections (nested 1)
+ * Keep inventoryQuantity on the variant (do not add inventoryLevels here).
+ */
 export const BULK_PRODUCTS_QUERY = `
 {
   products {
@@ -190,15 +200,6 @@ export const BULK_PRODUCTS_QUERY = `
               inventoryItem {
                 id
                 tracked
-                inventoryLevels {
-                  edges {
-                    node {
-                      id
-                      quantities(names: ["available"]) { name quantity }
-                      location { id name isActive }
-                    }
-                  }
-                }
               }
             }
           }
@@ -241,6 +242,13 @@ export const BULK_PRODUCTS_QUERY = `
 }
 `.trim();
 
+/** Shopify counts each `edges {` connection. Max is 5. */
+export const SHOPIFY_BULK_MAX_CONNECTIONS = 5;
+
+export function countBulkQueryConnections(query: string): number {
+  return query.match(/\bedges\s*\{/g)?.length ?? 0;
+}
+
 export const BULK_PRODUCTS_MUTATION = `#graphql
   mutation BulkProductsRun($query: String!) {
     bulkOperationRunQuery(query: $query) {
@@ -264,9 +272,24 @@ export const CURRENT_BULK_OPERATION_QUERY = `#graphql
       errorCode
       objectCount
       url
+      completedAt
     }
   }
 `;
+
+/** Re-ingest a completed bulk only if it just finished (missed finish webhook). */
+export const STALE_COMPLETED_BULK_MS = 2 * 60 * 60 * 1000;
+
+export function completedBulkIsFresh(
+  op: { completedAt?: string | null } | null | undefined,
+  now = Date.now(),
+): boolean {
+  const raw = op?.completedAt;
+  if (!raw) return false;
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return false;
+  return now - at <= STALE_COMPLETED_BULK_MS;
+}
 
 export const COLLECTIONS_LIST_QUERY = `#graphql
   query CollectionsList($cursor: String) {

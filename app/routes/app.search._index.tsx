@@ -594,7 +594,7 @@ export default function SearchPage() {
                         label="Enable Instant Search widget"
                         checked={state.searchExtras.instant.enabled}
                         disabled={saving}
-                        helpText="Shows live results while customers type in the store search bar."
+                        helpText="Shows live results while customers type in the store search bar. Enable the Instant search app embeds toggle in the theme editor if header search does not show suggestions."
                         onChange={(checked) =>
                           setState((s) => ({
                             ...s,
@@ -791,10 +791,10 @@ export default function SearchPage() {
 
                   <Banner tone="info">
                     <p>
-                      Instant search is held for now. It overlays the theme
-                      header search and does not add a bar on collection
-                      pages. For a listing-page search bar, use Settings →
-                      Allow searching within collection pages.
+                      Instant search overlays the theme header search with live
+                      results. For a listing-page search bar on collection
+                      pages (including Catalog / collections/all), use Settings
+                      → Allow searching within collection pages.
                     </p>
                   </Banner>
                 </BlockStack>

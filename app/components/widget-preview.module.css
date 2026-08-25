@@ -190,12 +190,82 @@
 }
 
 .preview .collectionSearch {
-  margin: 0 0 10px;
-  padding: 8px 10px;
-  border: 1px solid #e1e3e5;
-  border-radius: 8px;
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #8c9196;
   font-size: 12px;
+}
+
+.preview .miniGridCol .collectionSearch {
+  width: auto;
+  max-width: 140px;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 10px;
+  width: 100%;
+}
+
+.toolbarSpacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbarEnd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  flex: 0 0 auto;
+}
+
+.sortRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sortLabel {
+  font-size: 11px;
+  line-height: 26px;
+  color: #202223;
+  white-space: nowrap;
+}
+
+.sortControl {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.sortBy {
+  margin: 0;
+  padding: 5px 22px 5px 8px;
+  border: 1px solid #111;
+  border-radius: 6px;
+  color: #202223;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.totalCount {
+  margin: 0;
+  color: #8c9196;
+  font-size: 10px;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .preview .filterBy {
@@ -413,6 +483,17 @@
   padding-top: 0;
 }
 
+.pageFrame {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px dashed #d0d3d6;
+  border-radius: 10px;
+}
+
 .stage {
   display: grid;
   gap: 10px;
@@ -445,11 +526,6 @@
   flex-direction: column;
   min-width: 0;
   gap: 8px;
-}
-
-.preview .miniGridCol .collectionSearch {
-  width: 100%;
-  margin: 0;
 }
 
 .miniCard {

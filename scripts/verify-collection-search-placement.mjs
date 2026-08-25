@@ -78,15 +78,61 @@ function assertPlacementShape() {
   if (!fn.includes("insertBefore(host, before)")) {
     fail("search host must be inserted immediately before the product grid");
   }
+  if (!fn.includes("sf-toolbar") || !fn.includes("sf-total-count")) {
+    fail("listing toolbar must include search, sort, and total count");
+  }
   if (fn.includes("insertBefore(host, main")) {
     fail("must not insert the search host as a sibling of the main column");
   }
-  if (!fn.includes("isLayoutShell")) {
-    fail("placement must ignore layout/sidebar shells as the product grid");
+  if (!fn.includes("findColumnMainContaining")) {
+    fail("toolbar must anchor to a dedicated column main, not the product grid");
+  }
+  if (!fn.includes("isFindlyLayoutChrome")) {
+    fail("placement must ignore Findly layout chrome as the product grid");
+  }
+}
+
+function assertThemeContainerFit() {
+  const gridJs = read("extensions/smart-filter/assets/smart-filter-grid.js");
+  if (!gridJs.includes("constrainHostToThemeContainer")) {
+    fail("layout host must be constrained to the theme page-width container");
+  }
+  if (!gridJs.includes("fitLayoutIntoThemeContainer")) {
+    fail("layout must be moved inside the theme container when it wraps outside");
+  }
+  if (!gridJs.includes(".page-width")) {
+    fail("theme container detection must include .page-width");
+  }
+  if (!gridJs.includes("liftLayoutOutOfProductGrid")) {
+    fail("layout must be lifted out of the product CSS grid");
+  }
+  if (!gridJs.includes("function isProductGridLike")) {
+    fail("theme page-width detection must not treat the product grid as the container");
+  }
+  if (!gridJs.includes("flex-wrap:wrap!important")) {
+    fail("filter+grid row must wrap pager/title instead of squeezing them into extra columns");
+  }
+  if (
+    /sf-collection-layout--left,.sf-collection-layout--right\{[^}]*flex-wrap:nowrap/.test(
+      gridJs.replace(/\s+/g, ""),
+    )
+  ) {
+    fail("left/right collection layout must not use flex-wrap:nowrap");
+  }
+  if (!gridJs.includes("closestCollectionWrapper")) {
+    fail("layout host must wrap Horizon collection-wrapper, not the inner product grid");
+  }
+  const css = read("extensions/smart-filter/assets/smart-filter.css");
+  if (!css.includes(".collection-wrapper > .sf-collection-layout")) {
+    fail("Horizon collection-wrapper must span Findly layout across all grid columns");
+  }
+  if (!css.includes(".page-width > .sf-collection-layout")) {
+    fail("collection layout must fill the theme page-width, not sit outside it");
   }
 }
 
 assertStatic();
 assertPlacementShape();
+assertThemeContainerFit();
 log.info("collection search placement + facet scroller checks passed");
 console.log("STEP_COLLECTION_SEARCH_PLACEMENT_OK");

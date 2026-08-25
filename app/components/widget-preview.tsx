@@ -15,6 +15,8 @@ export type WidgetPreviewSettings = {
   widgetTitleSize: number;
   widgetTitleColor: string;
   enableCollectionSearch?: boolean;
+  hideSortDropdown?: boolean;
+  showTotalProductCount?: boolean;
   hideSingleValueFacets?: boolean;
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
@@ -142,11 +144,42 @@ export function LayoutPicker({
   );
 }
 
-function MiniProductGrid({ showSearch = false }: { showSearch?: boolean }) {
+function MiniProductGrid({
+  showSearch = false,
+  showSort = true,
+  showTotal = true,
+}: {
+  showSearch?: boolean;
+  showSort?: boolean;
+  showTotal?: boolean;
+}) {
   return (
     <div className={styles.miniGridCol} aria-hidden="true">
-      {showSearch ? (
-        <div className={styles.collectionSearch}>Search products</div>
+      {showSearch || showSort || showTotal ? (
+        <div className={styles.toolbar}>
+          {showSearch ? (
+            <div className={styles.collectionSearch}>Search products</div>
+          ) : (
+            <div className={styles.toolbarSpacer} />
+          )}
+          {showSort || showTotal ? (
+            <div className={styles.toolbarEnd}>
+              {showSort ? (
+                <div className={styles.sortRow}>
+                  <span className={styles.sortLabel}>Sort by</span>
+                  <div className={styles.sortControl}>
+                    <div className={styles.sortBy}>Featured</div>
+                    {showTotal ? (
+                      <div className={styles.totalCount}>163 products</div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : showTotal ? (
+                <div className={styles.totalCount}>163 products</div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <div className={styles.miniGrid}>
         <div className={styles.miniCard} />
@@ -342,27 +375,32 @@ export function WidgetLookPreview({
           : `${styles.stage} ${styles.stageLeft}`;
   const widget = <FilterWidget settings={settings} />;
   const grid = (
-    <MiniProductGrid showSearch={Boolean(settings.enableCollectionSearch)} />
+    <MiniProductGrid showSearch={Boolean(settings.enableCollectionSearch)}
+      showSort={!settings.hideSortDropdown}
+      showTotal={settings.showTotalProductCount !== false}
+    />
   );
 
   return (
     <div className={styles.preview}>
       <div className={styles.stageHint}>
-        Approximate look on the collection page. Theme fonts apply on the
-        storefront.
+        Approximate look on the collection page. Filters, search, and sort stay
+        inside the theme content width. Theme fonts apply on the storefront.
       </div>
-      <div className={stageClass}>
-        {pos === "right" ? (
-          <>
-            {grid}
-            {widget}
-          </>
-        ) : (
-          <>
-            {widget}
-            {grid}
-          </>
-        )}
+      <div className={styles.pageFrame}>
+        <div className={stageClass}>
+          {pos === "right" ? (
+            <>
+              {grid}
+              {widget}
+            </>
+          ) : (
+            <>
+              {widget}
+              {grid}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

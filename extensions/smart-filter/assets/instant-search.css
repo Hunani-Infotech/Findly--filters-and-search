@@ -257,3 +257,21 @@
     opacity: 0.55;
   }
 }
+
+.findly-instant-bar {
+  display: flex;
+  align-items: center;
+  width: min(100%, 22rem);
+  margin: 0.5rem 1rem;
+}
+
+.findly-instant-bar__input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}

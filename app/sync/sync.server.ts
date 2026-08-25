@@ -6,6 +6,7 @@ import { ensureShop } from "../shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
   BULK_PRODUCTS_QUERY,
+  SHOPIFY_BULK_MAX_CONNECTIONS,
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_LIST_QUERY,
   PAGES_LIST_QUERY,
@@ -16,12 +17,19 @@ import {
   PRODUCT_NODE_QUERY,
   PRODUCT_COLLECTIONS_QUERY,
   VARIANT_PRODUCT_QUERY,
+  completedBulkIsFresh,
+  countBulkQueryConnections,
 } from "./graphql";
 import {
   syncProductMarketPrices,
   syncShopMarketPrices,
 } from "./markets-sync";
-import { mapProductToFacet, parseBulkJsonlProducts } from "./product-mapper";
+import {
+  mapProductToFacet,
+  parseBulkJsonlProducts,
+  shopifyVariantNodes,
+  variantsIncludeInventoryLevels,
+} from "./product-mapper";
 import { enqueueSyncJob } from "../queues.server";
 
 type GraphqlClient = {
@@ -377,6 +385,7 @@ type BulkOperationSnapshot = {
   id?: string;
   status?: string;
   url?: string | null;
+  completedAt?: string | null;
 };
 
 function bulkAlreadyInProgress(message: string) {
@@ -430,6 +439,12 @@ async function reuseCurrentBulkOperation(
   }
 
   if (status === "COMPLETED" && op.url) {
+    if (!completedBulkIsFresh(op)) {
+      log.info(
+        `[sync] completed bulk ${id} is stale; starting a new product query`,
+      );
+      return null;
+    }
     const syncJob = await setSyncStatus(shopId, {
       status: "SYNCING",
       bulkOperationId: id,
@@ -481,6 +496,13 @@ export async function startFullSync(shopDomain: string) {
     const reused = await reuseCurrentBulkOperation(shop.id, shopDomain, current);
     if (reused) {
       return { shop, ...reused };
+    }
+
+    const bulkConnections = countBulkQueryConnections(BULK_PRODUCTS_QUERY);
+    if (bulkConnections > SHOPIFY_BULK_MAX_CONNECTIONS) {
+      const message = `Bulk query has ${bulkConnections} connections; Shopify allows ${SHOPIFY_BULK_MAX_CONNECTIONS}`;
+      await setSyncStatus(shop.id, { status: "ERROR", errorLog: message });
+      throw new Error(message);
     }
 
     log.info("[sync] starting bulk product query");
@@ -563,10 +585,13 @@ async function ingestCompletedBulkOperation(
   const json = await response.json();
   const op = json.data?.currentBulkOperation;
 
-  if (!op || (bulkOperationId && op.id !== bulkOperationId)) {
-    if (!op?.url) {
-      throw new Error("Bulk operation not ready or missing URL");
-    }
+  if (!op) {
+    throw new Error("Bulk operation not ready or missing URL");
+  }
+  if (bulkOperationId && op.id !== bulkOperationId) {
+    throw new Error(
+      `Bulk operation mismatch: expected ${bulkOperationId}, got ${op.id}`,
+    );
   }
 
   if (op.status === "FAILED" || op.status === "CANCELED") {
@@ -579,6 +604,9 @@ async function ingestCompletedBulkOperation(
 
   if (op.status !== "COMPLETED" || !op.url) {
     throw new Error(`Bulk operation status: ${op.status}`);
+  }
+  if (!completedBulkIsFresh(op)) {
+    throw new Error("Bulk operation snapshot is stale; start a new full sync");
   }
 
   const fileRes = await fetch(op.url);
@@ -594,6 +622,9 @@ async function ingestCompletedBulkOperation(
   log.info(`[sync] ingesting ${toIngest.length} products (limit ${productLimit})`);
   for (const product of toIngest) {
     const { facet, collectionGids } = mapProductToFacet(shop.id, product);
+    const writeInventoryLocations = variantsIncludeInventoryLevels(
+      shopifyVariantNodes(product),
+    );
     await prisma.productFacet.upsert({
       where: {
         shopId_productGid: { shopId: shop.id, productGid: facet.productGid },
@@ -613,7 +644,9 @@ async function ingestCompletedBulkOperation(
         compareAtMax: facet.compareAtMax,
         salePct: facet.salePct,
         available: facet.available,
-        inventoryLocations: facet.inventoryLocations,
+        ...(writeInventoryLocations
+          ? { inventoryLocations: facet.inventoryLocations }
+          : {}),
         status: facet.status,
         imageUrl: facet.imageUrl,
         variantImages: facet.variantImages as object,
@@ -769,6 +802,9 @@ export async function upsertProduct(
   const pagedGids = await fetchProductCollectionGids(admin, productGid);
   const collectionGids =
     pagedGids ?? (mappedGids.length ? mappedGids : null);
+  const writeInventoryLocations = variantsIncludeInventoryLevels(
+    shopifyVariantNodes(product),
+  );
 
   await prisma.productFacet.upsert({
     where: {
@@ -789,7 +825,9 @@ export async function upsertProduct(
       compareAtMax: facet.compareAtMax,
       salePct: facet.salePct,
       available: facet.available,
-      inventoryLocations: facet.inventoryLocations,
+      ...(writeInventoryLocations
+        ? { inventoryLocations: facet.inventoryLocations }
+        : {}),
       status: facet.status,
         imageUrl: facet.imageUrl,
         variantImages: facet.variantImages,

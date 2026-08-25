@@ -2,7 +2,7 @@ import { Badge, BlockStack, Button, Card, InlineStack, Text } from "@shopify/pol
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
-import type { SetupProgress, SetupStep, ThemeStepId } from "../setup-progress.server";
+import type { SetupProgress, SetupStep, ThemeStepId } from "../setup-progress";
 
 function statusBadge(step: SetupStep) {
   if (step.status === "complete") {
