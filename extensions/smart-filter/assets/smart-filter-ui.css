@@ -101,11 +101,44 @@
 }
 
 #smart-filter-root .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6)),
-#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6)),
+#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6)) {
+  height: 220px !important;
+  max-height: 220px !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdbdbd #f3f3f3;
+  scrollbar-gutter: stable;
+}
+
+#smart-filter-root .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar,
+#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar {
+  width: 6px;
+}
+
+#smart-filter-root .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar-track,
+#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar-track {
+  background: #f3f3f3;
+  border-radius: 999px;
+}
+
+#smart-filter-root .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar-thumb,
+#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6))::-webkit-scrollbar-thumb {
+  background: #bdbdbd;
+  border-radius: 999px;
+}
+
 #smart-filter-root .smart-filter__options--collection-tree .smart-filter__tree-children:has(> li:nth-child(6)),
 #smart-filter-embed .smart-filter__options--collection-tree .smart-filter__tree-children:has(> li:nth-child(6)) {
-  max-height: none !important;
-  overflow: visible !important;
+  height: 180px !important;
+  max-height: 180px !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdbdbd #f3f3f3;
+  scrollbar-gutter: stable;
 }
 
 #smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill),
