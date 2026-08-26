@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v3";
+  var STYLE_ID = "findly-theme-compat-v5";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -143,6 +143,25 @@
     if (el.querySelector && el.querySelector(".smart-filter, .sf-app-card, .sf-pager")) {
       return;
     }
+    try {
+      if (
+        el.matches &&
+        (el.matches(PAGER_HINT) || (el.closest && el.closest(PAGER_HINT)))
+      ) {
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (
+          !(
+            widget &&
+            (widget.paginationStyle === "load_more" ||
+              widget.paginationStyle === "infinite")
+          )
+        ) {
+          return;
+        }
+      }
+    } catch (err) {
+      /* ignore */
+    }
     if (clusterScore(el) >= 2) return;
     el.setAttribute("data-findly-native-chrome", "1");
     el.setAttribute("data-findly-theme-hidden", "1");
@@ -218,7 +237,15 @@
       if (looksLikeFilterChrome(candidates[i])) hideIfChrome(candidates[i]);
     }
 
-    if (document.documentElement.classList.contains("sf-og")) {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    var customPager =
+      widget &&
+      (widget.paginationStyle === "load_more" ||
+        widget.paginationStyle === "infinite");
+    if (
+      customPager &&
+      document.documentElement.classList.contains("sf-og")
+    ) {
       var pagers = document.querySelectorAll(PAGER_HINT);
       for (i = 0; i < pagers.length; i++) {
         if (isFindlyUi(pagers[i])) continue;
@@ -232,6 +259,8 @@
       "findly-theme-compat-v1",
       "findly-theme-compat-v2",
       "findly-theme-compat-v3",
+      "findly-theme-compat-v4",
+      "findly-theme-compat-v5",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -260,10 +289,11 @@
       ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout,.container>.sf-collection-layout{width:100%!important;max-width:100%!important}" +
       ".sf-collection-layout,[data-findly-theme-hidden='1'],[data-findly-native-chrome='1']{--findly-theme-compat:1}" +
       "[data-findly-native-chrome='1'],[data-findly-theme-hidden='1']{display:none!important}" +
-      "html.sf-og nav.pagination:not(.sf-pager),html.sf-og .pagination:not(.sf-pager),html.sf-og .pagination-wrapper:not(.sf-pager)," +
-      "html.sf-og [data-pagination]:not(.sf-pager),html.sf-og load-more-button,html.sf-og .load-more-button," +
-      "html.sf-og .ajaxinate-pagination,html.sf-og #AjaxinatePagination,html.sf-og .Pagination," +
-      "html.sf-og [data-load-more]:not(.sf-pager){display:none!important}" +
+      "html.sf-custom-pager nav.pagination:not(.sf-pager),html.sf-custom-pager .pagination:not(.sf-pager),html.sf-custom-pager .pagination-wrapper:not(.sf-pager)," +
+      "html.sf-custom-pager [data-pagination]:not(.sf-pager),html.sf-custom-pager load-more-button,html.sf-custom-pager .load-more-button," +
+      "html.sf-custom-pager .ajaxinate-pagination,html.sf-custom-pager #AjaxinatePagination,html.sf-custom-pager .Pagination," +
+      "html.sf-custom-pager [data-load-more]:not(.sf-pager){display:none!important}" +
+      "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']{display:none!important}" +
       ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
       "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
       "@media(min-width:750px){" +

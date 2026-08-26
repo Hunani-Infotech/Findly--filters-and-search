@@ -190,13 +190,17 @@
 }
 
 .preview .collectionSearch {
+  display: flex;
+  align-items: center;
   margin: 0;
-  padding: 6px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 6px 10px 6px 28px;
+  border: 1px solid #111;
+  border-radius: 8px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='7' cy='7' r='4.25' stroke='%23111' stroke-width='1.4'/%3E%3Cpath d='M10.15 10.15L13.4 13.4' stroke='%23111' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 8px center;
   color: #8c9196;
   font-size: 12px;
+  min-height: 28px;
+  box-sizing: border-box;
 }
 
 .preview .miniGridCol .collectionSearch {
