@@ -30,6 +30,8 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  @@index([shop])
 }
 
 enum SyncStatus {
@@ -301,6 +303,8 @@ model ProductFacet {
   @@index([shopId, vendor])
   @@index([shopId, productType])
   @@index([shopId, available])
+  @@index([shopId, status])
+  @@index([shopId, handle])
 }
 
 model CollectionMembership {
@@ -314,6 +318,7 @@ model CollectionMembership {
 
   @@unique([shopId, collectionGid, productGid])
   @@index([shopId, collectionGid])
+  @@index([shopId, productGid])
 }
 
 /// Synced collection list for admin UI / filter config.

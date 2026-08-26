@@ -56,6 +56,25 @@ const JOBS = [
     ),
     banner: "/* generated from smart-filter-boot.js — do not edit */\n",
   },
+  {
+    src: path.join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/instant-search.min.js",
+    ),
+    banner: "/* generated from instant-search.js — do not edit */\n",
+  },
+  {
+    src: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-search.js",
+    ),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-search.min.js",
+    ),
+    banner: "/* generated from smart-filter-search.js — do not edit */\n",
+  },
 ];
 
 export async function minifyThemeExtension() {

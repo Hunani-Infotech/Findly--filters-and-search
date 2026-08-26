@@ -225,6 +225,19 @@
   padding-bottom: 4rem;
 }
 
+.findly-admin-pending-root {
+  position: relative;
+}
+
+.findly-admin-pending-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 100%;
+  background: var(--p-color-bg, #f6f6f7);
+}
+
 .findly-admin-shell .Polaris-Page,
 .findly-admin-shell .Polaris-Page--fullWidth {
   margin-left: auto;

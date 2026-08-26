@@ -1,11 +1,12 @@
 import { Worker } from "bullmq";
 import { log } from "../log.server";
 import { SYNC_QUEUE } from "../queues.server";
-import { getRedis } from "../redis.server";
+import { createRedisConnection } from "../redis.server";
 import { getWorkerCount } from "./concurrency.server";
 import { processSyncJob } from "./processors";
 
-const connection = getRedis();
+// Dedicated connection — BullMQ Worker blocking commands must not share Queue/cache client.
+const connection = createRedisConnection();
 const concurrency = getWorkerCount();
 
 const syncWorker = new Worker(SYNC_QUEUE, processSyncJob, {

@@ -3,6 +3,7 @@ import type {
   LinksFunction,
   LoaderFunctionArgs,
 } from "react-router";
+import { lazy, Suspense } from "react";
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
@@ -13,9 +14,14 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "../admin.css?url";
 
 import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
-import { AdminRouteSkeleton } from "../components/admin-skeletons";
 import { authenticate } from "../shopify.server";
 import { ensureShop } from "../shop.server";
+
+const LazyAdminRouteSkeleton = lazy(() =>
+  import("../components/admin-skeletons").then((m) => ({
+    default: m.AdminRouteSkeleton,
+  })),
+);
 
 // Keep Polaris CSS on the /app layout so client navigations do not drop styles.
 export const links: LinksFunction = () => [
@@ -84,8 +90,10 @@ export default function App() {
 export function HydrateFallback() {
   return (
     <PolarisAppProvider i18n={enTranslations}>
-      <div className="findly-admin-shell">
-        <AdminRouteSkeleton />
+      <div className="findly-admin-shell" aria-busy="true">
+        <Suspense fallback={null}>
+          <LazyAdminRouteSkeleton />
+        </Suspense>
       </div>
     </PolarisAppProvider>
   );

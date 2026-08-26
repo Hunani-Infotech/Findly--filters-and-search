@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   useFetchers,
   useLocation,
   useNavigation,
 } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { AdminRouteSkeleton } from "./admin-skeletons";
 
 type NavigationState = {
   state: string;
@@ -63,18 +62,44 @@ export function ShopifyLoadingBar() {
   return null;
 }
 
+const LazyAdminRouteSkeleton = lazy(() =>
+  import("./admin-skeletons").then((m) => ({
+    default: m.AdminRouteSkeleton,
+  })),
+);
+
 /**
- * While a GET navigation to another admin path is in flight, swap the current
- * page for a destination skeleton so the iframe never goes blank.
+ * Destination skeleton for GET page switches. Sibling of `<Outlet />` so
+ * `useNavigation()` updates do not re-render the active page (mutations /
+ * revalidation). Skeletons load on demand (~131KB off the layout critical path).
  */
-export function AdminPendingScreen({ children }: { children: ReactNode }) {
+function AdminPendingSkeleton() {
   const navigation = useNavigation();
   const location = useLocation();
-  if (!isPageSwitch(navigation, location.pathname)) return children;
+  if (!isPageSwitch(navigation, location.pathname)) return null;
 
   return (
-    <div aria-busy="true" aria-live="polite">
-      <AdminRouteSkeleton pathname={navigation.location?.pathname} />
+    <div
+      className="findly-admin-pending-overlay"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <Suspense fallback={null}>
+        <LazyAdminRouteSkeleton pathname={navigation.location?.pathname} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * While a GET navigation to another admin path is in flight, cover the current
+ * page with a destination skeleton so the iframe never goes blank.
+ */
+export function AdminPendingScreen({ children }: { children: ReactNode }) {
+  return (
+    <div className="findly-admin-pending-root">
+      <AdminPendingSkeleton />
+      {children}
     </div>
   );
 }
