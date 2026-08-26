@@ -12,9 +12,9 @@ MVP scope: **collection filters + storefront search + Theme App Extension**. Ana
 flowchart LR
   Merchant[Merchant_Admin] --> Admin[Embedded_Admin_RR7_Polaris]
   Admin -->|Admin_GraphQL| Shopify[(Shopify)]
-  Shopify -->|webhooks| Web[Fly_web]
-  Web -->|enqueue| Redis[(Redis_BullMQ)]
-  Redis --> Worker[Fly_worker]
+  Shopify -->|webhooks| Web[Hostinger_Node]
+  Web -->|enqueue| Redis[(Upstash_Redis)]
+  Redis --> Worker[In_process_worker]
   Worker -->|upsert_index| PG[(Supabase_Postgres)]
   Admin --> PG
   Shopper[Shopper_Storefront] --> TEA[Theme_App_Extension]
@@ -59,7 +59,6 @@ app/
 extensions/smart-filter/    # Theme App Extension (Liquid + JS + CSS)
 prisma/                     # Schema + migrations (PostgreSQL; Supabase via DATABASE_URL + DIRECT_URL)
 docs/                       # Specs + this guide
-fly.toml                    # web + worker processes
 docker-compose.yml          # Optional Docker Postgres + Redis (`npm run dev` does not need this)
 ```
 
@@ -147,7 +146,6 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 | **npm** | Dependencies |
 | **Docker Desktop** *(optional)* | Alternative to the bundled local Postgres/Redis |
 | **Shopify CLI** (`npm i -g @shopify/cli`) | `shopify app dev` / deploy |
-| **Fly CLI** *(when deploying)* | `fly launch` / secrets / deploy |
 | **Git** | Version control |
 
 ### 6.2 Accounts / assets
@@ -158,8 +156,8 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 | Development store | Install + test (ideally **50+ products**) |
 | App API key + secret | `.env` + `shopify.app.toml` `client_id` |
 | Postgres database (Supabase) | Sessions + catalog index. Prisma: pooled `DATABASE_URL` (6543) + `DIRECT_URL` (5432) |
-| Redis | BullMQ `sync-queue` |
-| Fly.io *(production)* | Host `web` + `worker` |
+| Redis | BullMQ `sync-queue` (local in dev; Upstash in production) |
+| Hostinger Node *(production)* | Hosts the web app. The BullMQ worker starts in-process (`ensureWorkerRunning`) unless `START_WORKER=0`. |
 
 ### 6.3 Environment variables
 
@@ -217,11 +215,13 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 | 12 | Compliance | Uninstall / redact paths purge or log correctly |
 | 13 | Manual QA | Full pass on the same store |
 
-### Production (later)
+### Production
 
-1. Use the existing Supabase Postgres project (`DATABASE_URL` pooler + `DIRECT_URL` direct) and provision Redis (local for dev; Fly/Upstash/VPS for production).
-2. `fly secrets set` for secrets including `DATABASE_URL` and `DIRECT_URL`; set non-secrets in `fly.toml`.
-3. Deploy image with processes: `web` + `worker`.
+Live host is Hostinger Node (`https://deeppink-manatee-141983.hostingersite.com`). There is no `fly.toml`. Production does not use Fly.io. If Fly is needed later, add a new `fly.toml` then (`fly launch`).
+
+1. Use the existing Supabase Postgres project (`DATABASE_URL` pooler + `DIRECT_URL` direct).
+2. Set Hostinger env: Shopify keys, both Prisma URLs, `REDIS_URL` (Upstash `rediss://…`), `HOST` / `SHOPIFY_APP_URL` to the Hostinger origin. Leave `START_WORKER` unset so the in-process worker starts; set `START_WORKER=0` only to disable it.
+3. Deploy the Node app on Hostinger (Passenger starts the web process; the BullMQ worker runs in-process).
 4. `shopify app deploy` for app config + Theme App Extension.
 5. Point App URL, OAuth redirect, and App Proxy at `https://deeppink-manatee-141983.hostingersite.com`. After changing `shopify.app.toml`, run `shopify app deploy` to push URLs to Partner Dashboard.
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.

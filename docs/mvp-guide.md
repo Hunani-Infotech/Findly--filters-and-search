@@ -40,7 +40,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Database | Postgres (Supabase) | Hosted pooler + direct URLs; better fit than Mongo for relational filter-config/metafield-mapping data |
 | Queue/sync | Redis + BullMQ | Product/metafield sync jobs, no rate-limit surprises |
 | Billing | Shopify Billing API (`AppSubscriptionCreate`) | Wire early, even for the free tier |
-| Hosting | Fly.io or Railway | Known-good Shopify app deploy paths |
+| Hosting | Hostinger Node | Current production (Passenger/Node). Postgres on Supabase, Redis on Upstash. No `fly.toml`; add one later only if Fly.io is chosen again. |
 | Mandatory webhooks | `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request` | Required for App Store approval, not optional |
 
 ## 3. Path to First Submission

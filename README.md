@@ -12,8 +12,8 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 - Theme App Extension (storefront widget)
 - Admin GraphQL only
 - PostgreSQL (Supabase) + Prisma (`DATABASE_URL` pooler + `DIRECT_URL` direct)
-- Redis + BullMQ (`sync-queue` worker)
-- Fly.io (`web` + `worker`)
+- Redis + BullMQ (`sync-queue` worker; Upstash in production)
+- Hostinger Node (web + in-process worker)
 - Shopify Billing API (`appSubscriptionCreate`) — Free + Pro
 
 ## Quick start
@@ -34,18 +34,11 @@ To share **this machine's local Postgres** (not Supabase) with a teammate over C
 
 Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run dev:shopify` and `npm run worker`.
 
-## Fly.io
+## Production
 
-Current production is Hostinger: `https://deeppink-manatee-141983.hostingersite.com`
+Live app is Hostinger: `https://deeppink-manatee-141983.hostingersite.com` (Postgres on Supabase, Redis on Upstash). `shopify app deploy` pushes App URL + app proxy to the Partner Dashboard.
 
-Optional / legacy Fly.io (not the live app):
-
-```bash
-fly launch   # or use existing fly.toml
-fly secrets set SHOPIFY_API_SECRET=... DATABASE_URL=... DIRECT_URL=... REDIS_URL=... BILLING_TEST_MODE=true
-fly deploy
-shopify app deploy   # pushes App URL + app proxy to Partner Dashboard
-```
+There is no `fly.toml` in this repo. Production does not use Fly.io. If Fly is needed later, add a new `fly.toml` then (`fly launch`).
 
 ## App proxy
 
