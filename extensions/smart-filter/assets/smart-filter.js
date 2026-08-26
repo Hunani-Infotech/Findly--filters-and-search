@@ -2719,7 +2719,14 @@
     for (i = 0; i < max; i++) {
       var node = extras[i];
       if (!node || node.children.length > 1) continue;
-      if (node.closest && node.closest(".smart-filter, .sf-pager, .sf-app-card")) continue;
+      if (
+        node.closest &&
+        node.closest(
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-toolbar, .sf-sort-host, .sf-sort-control, .sf-total-count",
+        )
+      ) {
+        continue;
+      }
       if (countRe.test(String(node.textContent || "").trim())) {
         node.textContent = itemLabel;
       }
@@ -3993,6 +4000,7 @@
       this._lastProducts = [];
       this._pagingFallback = false;
       this._loadingPage = true;
+      this._importingCards = false;
     }
 
     if (!append && !this.hasFacetChrome()) {
@@ -4035,7 +4043,9 @@
         timedOut = true;
         try {
           ctrl.abort();
-        } catch (ignore) {}
+        } catch (ignore) {
+          /* ignore */
+        }
       }, FILTER_FETCH_MS);
     }
 
@@ -4473,6 +4483,7 @@
   Widget.prototype.clearFilters = function () {
     this.selected = {};
     this.price = { min: "", max: "" };
+    this._importingCards = false;
     this.fetchFilters();
   };
 
@@ -5028,6 +5039,19 @@
     var nextMin = String(min || "");
     var nextMax = String(max || "");
     if (isProductPrice) {
+      var boundMin = Number(facet && facet.min);
+      var boundMax = Number(facet && facet.max);
+      if (
+        Number.isFinite(boundMin) &&
+        Number.isFinite(boundMax) &&
+        nextMin !== "" &&
+        nextMax !== "" &&
+        Number(nextMin) === boundMin &&
+        Number(nextMax) === boundMax
+      ) {
+        nextMin = "";
+        nextMax = "";
+      }
       if (this.price.min === nextMin && this.price.max === nextMax) return;
       this.price.min = nextMin;
       this.price.max = nextMax;
