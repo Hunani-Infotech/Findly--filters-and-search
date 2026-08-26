@@ -76,28 +76,27 @@
 #smart-filter-embed .smart-filter__options--swatches {
   flex-direction: row !important;
   flex-wrap: wrap !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   align-content: flex-start !important;
-  gap: 0.5rem 0.65rem !important;
+  gap: 0.45rem 0.55rem !important;
   height: auto !important;
-  max-height: 160px !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  padding: 0.25rem 0.2rem 0.35rem !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0.2rem 0.2rem 0.1rem 0 !important;
 }
 
 #smart-filter-root .smart-filter__options--pills,
 #smart-filter-embed .smart-filter__options--pills {
   flex-direction: row !important;
   flex-wrap: wrap !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   align-content: flex-start !important;
-  gap: 0.4rem !important;
+  gap: 0.5rem !important;
   height: auto !important;
   max-height: 220px !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  padding: 0.15rem 0.05rem 0.3rem !important;
+  padding: 0.2rem !important;
 }
 
 #smart-filter-root .smart-filter__options--swatch-text,
@@ -242,14 +241,14 @@
   flex: 0 0 auto !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 1.75rem !important;
-  height: 1.75rem !important;
-  min-width: 1.75rem !important;
-  max-width: 1.75rem !important;
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  max-width: 2rem !important;
   padding: 0 !important;
   margin: 0 !important;
   gap: 0 !important;
-  border-radius: 999px !important;
+  border-radius: 6px !important;
   border: 1px solid rgb(17 17 17 / 18%) !important;
   background: var(--sf-swatch, #d6d3d1) !important;
   overflow: visible !important;
@@ -311,9 +310,7 @@
 }
 
 #smart-filter-root .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-text,
-#smart-filter-embed .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-text,
-#smart-filter-root .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-count,
-#smart-filter-embed .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-count {
+#smart-filter-embed .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-text {
   position: absolute !important;
   width: 1px !important;
   height: 1px !important;
@@ -328,6 +325,37 @@
   color: transparent !important;
   font-size: 0 !important;
   line-height: 0 !important;
+  pointer-events: none !important;
+}
+
+#smart-filter-root .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-count,
+#smart-filter-embed .smart-filter__swatch:not(.smart-filter__swatch-text) .smart-filter__option-count {
+  position: absolute !important;
+  right: -0.2rem !important;
+  top: -0.2rem !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0.9rem !important;
+  height: 0.9rem !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #111 !important;
+  color: #fff !important;
+  font-size: 0.625rem !important;
+  font-weight: 700 !important;
+  line-height: 0.9rem !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
   pointer-events: none !important;
 }
 
@@ -346,35 +374,43 @@
   align-items: center !important;
   justify-content: center !important;
   width: auto !important;
-  min-width: 2.35rem !important;
+  min-width: 2.5rem !important;
   max-width: 100% !important;
-  height: 2.35rem !important;
-  padding: 0 0.7rem !important;
+  height: auto !important;
+  min-height: 2.5rem !important;
+  padding: 0.45rem 0.85rem !important;
   margin: 0 !important;
-  gap: 0 !important;
-  border: 1px solid #d0d0d0 !important;
-  border-radius: 6px !important;
+  gap: 0.35rem !important;
+  border: 2px solid #e2e2e2 !important;
+  border-radius: 8px !important;
   background: #fff !important;
   box-shadow: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 #smart-filter-root .smart-filter__pill:hover,
 #smart-filter-embed .smart-filter__pill:hover {
-  background: #fff !important;
-  border-color: #b0b0b0 !important;
+  background: #fafafa !important;
+  border-color: #c8c8c8 !important;
 }
 
 #smart-filter-root .smart-filter__pill:has(input:checked),
 #smart-filter-embed .smart-filter__pill:has(input:checked) {
   background: #fff !important;
   border-color: #111 !important;
-  box-shadow: 0 0 0 1px #111 !important;
+  box-shadow: none !important;
+}
+
+#smart-filter-root .smart-filter__pill .smart-filter__check,
+#smart-filter-embed .smart-filter__pill .smart-filter__check,
+#smart-filter-root .smart-filter__swatch .smart-filter__check,
+#smart-filter-embed .smart-filter__swatch .smart-filter__check {
+  display: none !important;
 }
 
 #smart-filter-root .smart-filter__pill .smart-filter__option-text,
 #smart-filter-embed .smart-filter__pill .smart-filter__option-text {
-  flex: 0 0 auto !important;
+  flex: 0 1 auto !important;
   width: auto !important;
   max-width: 100% !important;
   min-width: 0 !important;
@@ -382,8 +418,8 @@
   margin: 0 !important;
   font-size: 0.8125em !important;
   font-weight: 500 !important;
-  line-height: 1.2 !important;
-  text-align: center !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -397,7 +433,21 @@
 
 #smart-filter-root .smart-filter__pill .smart-filter__option-count,
 #smart-filter-embed .smart-filter__pill .smart-filter__option-count {
-  display: none !important;
+  display: inline !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: #8a8a8a !important;
+  background: transparent !important;
+  font-size: 0.75em !important;
+  font-weight: 400 !important;
+  line-height: 1.25 !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  clip: auto !important;
+  clip-path: none !important;
 }
 
 #smart-filter-root .smart-filter__pill input,

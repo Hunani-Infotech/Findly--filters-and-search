@@ -611,6 +611,11 @@ html.sf-filter-ready .product-grid {
   align-items: start !important;
 }
 
+.smart-filter__swatch .smart-filter__check,
+.smart-filter__pill .smart-filter__check {
+  display: none !important;
+}
+
 .smart-filter__facet-tag {
   display: none !important;
 }

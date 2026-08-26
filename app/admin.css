@@ -234,7 +234,7 @@
 
 .findly-admin-shell .findly-settings-page--preview .Polaris-Page,
 .findly-admin-shell .findly-settings-page--preview .Polaris-Page--fullWidth {
-  max-width: 78rem;
+  max-width: 92rem;
 }
 
 .findly-settings-preview {
@@ -242,6 +242,7 @@
   top: 1rem;
   align-self: start;
   min-width: 0;
+  width: 100%;
 }
 
 .findly-admin-shell .findly-option-editor-page .Polaris-Page,
@@ -249,7 +250,20 @@
   max-width: 78rem;
 }
 
-.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section--oneThird,
+/* Settings form + live preview: give the preview column more room. */
+.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section:not(.Polaris-Layout__Section--oneThird) {
+  flex: 1.25 1 30rem;
+  min-width: 0;
+  max-width: none;
+}
+
+.findly-admin-shell .findly-settings-page--preview .Polaris-Layout__Section--oneThird {
+  flex: 1 1 24rem;
+  min-width: min(100%, 22rem);
+  max-width: 32rem;
+  align-self: start;
+}
+
 .findly-option-editor-page .Polaris-Layout__Section--oneThird {
   min-width: 0;
   flex-grow: 1;
@@ -259,6 +273,7 @@
 .findly-settings-preview .Polaris-ShadowBevel,
 .findly-settings-preview .Polaris-Box {
   min-width: 0;
+  max-width: 100%;
 }
 
 .findly-admin-shell > *:last-child {

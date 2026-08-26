@@ -161,6 +161,8 @@
   line-height: 1.45;
   min-width: 0;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .preview .title {
@@ -193,75 +195,94 @@
   display: flex;
   align-items: center;
   margin: 0;
-  padding: 6px 10px 6px 28px;
+  padding: 0 10px 0 28px;
   border: 1px solid #111;
   border-radius: 8px;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='7' cy='7' r='4.25' stroke='%23111' stroke-width='1.4'/%3E%3Cpath d='M10.15 10.15L13.4 13.4' stroke='%23111' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 8px center;
   color: #8c9196;
   font-size: 12px;
+  line-height: 1;
+  height: 28px;
   min-height: 28px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   box-sizing: border-box;
 }
 
 .preview .miniGridCol .collectionSearch {
-  width: auto;
-  max-width: 140px;
+  width: 100%;
+  max-width: none;
   margin: 0;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: none;
 }
 
 .toolbar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   width: 100%;
+  min-width: 0;
 }
 
 .toolbarSpacer {
-  flex: 1 1 auto;
-  min-width: 0;
+  display: none;
 }
 
 .toolbarEnd {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0;
-  flex: 0 0 auto;
+  gap: 2px;
+  flex: none;
+  width: 100%;
+  min-width: 0;
 }
 
 .sortRow {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: auto;
+  min-width: 0;
 }
 
 .sortLabel {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
   font-size: 11px;
-  line-height: 26px;
+  line-height: 1;
   color: #202223;
   white-space: nowrap;
-}
-
-.sortControl {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  flex-shrink: 0;
 }
 
 .sortBy {
+  display: inline-flex;
+  align-items: center;
   margin: 0;
-  padding: 5px 22px 5px 8px;
+  padding: 0 22px 0 8px;
   border: 1px solid #111;
   border-radius: 6px;
   color: #202223;
   font-size: 11px;
   font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
-  background: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%235c5f62' stroke-width='1.3' d='M1 1l4 4 4-4'/%3E%3C/svg%3E") no-repeat right 7px center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 28px;
+  height: 28px;
+  box-sizing: border-box;
 }
 
 .totalCount {
@@ -270,6 +291,7 @@
   font-size: 10px;
   white-space: nowrap;
   text-align: right;
+  line-height: 1.3;
 }
 
 .preview .filterBy {
@@ -506,11 +528,11 @@
 }
 
 .stageLeft {
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
 }
 
 .stageRight {
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.78fr);
 }
 
 .stageTop,
@@ -523,13 +545,17 @@
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   min-width: 0;
+  width: 100%;
 }
 
 .miniGridCol {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 8px;
+  width: 100%;
+  gap: 10px;
+  container-type: inline-size;
+  container-name: findly-preview-grid;
 }
 
 .miniCard {
@@ -537,7 +563,41 @@
   border: 1px solid #e1e3e5;
   border-radius: 6px;
   min-height: 52px;
+  min-width: 0;
   aspect-ratio: 1;
+}
+
+/* Side-by-side search + sort when the product column is wide enough
+   (horizontal / offcanvas layouts, or a roomy sticky preview). */
+@container findly-preview-grid (min-width: 260px) {
+  .toolbar {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 12px;
+  }
+
+  .toolbarSpacer {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .preview .miniGridCol .collectionSearch {
+    width: auto;
+    max-width: min(160px, 100%);
+    flex: 1 1 auto;
+  }
+
+  .toolbarEnd {
+    width: auto;
+    flex: 0 0 auto;
+    padding-top: 0;
+  }
+
+  .sortRow {
+    width: auto;
+  }
 }
 
 .preview .widgetTop {

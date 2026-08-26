@@ -167,14 +167,10 @@ function MiniProductGrid({
               {showSort ? (
                 <div className={styles.sortRow}>
                   <span className={styles.sortLabel}>Sort by</span>
-                  <div className={styles.sortControl}>
-                    <div className={styles.sortBy}>Featured</div>
-                    {showTotal ? (
-                      <div className={styles.totalCount}>163 products</div>
-                    ) : null}
-                  </div>
+                  <div className={styles.sortBy}>Featured</div>
                 </div>
-              ) : showTotal ? (
+              ) : null}
+              {showTotal ? (
                 <div className={styles.totalCount}>163 products</div>
               ) : null}
             </div>
