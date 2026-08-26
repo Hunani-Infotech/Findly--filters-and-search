@@ -2556,17 +2556,6 @@
     );
   }
 
-  function setControlBusy(el, on) {
-    if (!el || el.nodeType !== 1) return;
-    if (on) {
-      el.setAttribute("aria-busy", "true");
-      if ("disabled" in el) el.disabled = true;
-    } else {
-      el.removeAttribute("aria-busy");
-      if ("disabled" in el) el.disabled = false;
-    }
-  }
-
   function syncToolbarLoading(on) {
     if (on == null) on = isFilterLoading();
     var count = document.querySelector(".sf-total-count");

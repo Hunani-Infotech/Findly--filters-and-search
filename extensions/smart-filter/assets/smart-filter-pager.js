@@ -599,12 +599,12 @@
     }
     if (tpls.page && list) {
       list.innerHTML = "";
-      function appendClone(tpl, target, current) {
+      var appendClone = function (tpl, target, current) {
         if (!tpl) return;
         var node = tpl.cloneNode(true);
         if (target) setItemPage(node, target, Boolean(current));
         list.appendChild(node);
-      }
+      };
       if (page > 1) appendClone(tpls.prev, page - 1, false);
       pageWindow(page, pageCount).forEach(function (item) {
         if (item === "ellipsis") {

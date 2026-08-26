@@ -380,8 +380,8 @@ export function WidgetLookPreview({
   return (
     <div className={styles.preview}>
       <div className={styles.stageHint}>
-        Approximate look on the collection page. Filters, search, and sort stay
-        inside the theme content width. Theme fonts apply on the storefront.
+        Approximate look on the collection page. Theme fonts apply on the
+        storefront.
       </div>
       <div className={styles.pageFrame}>
         <div className={stageClass}>
