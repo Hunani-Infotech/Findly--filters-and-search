@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v7";
+  var STYLE_ID = "findly-theme-compat-v8";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -15,7 +15,7 @@
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
-    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], load-more-button, .load-more-button, [data-load-more], .ajaxinate-pagination, #AjaxinatePagination, .Pagination, .infinite-scroll, .js-load-more, .btn--load-more, .pagination__load-more";
+    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, load-more-button, .load-more-button, [data-load-more], .ajaxinate-pagination, #AjaxinatePagination, .Pagination, .infinite-scroll, .js-load-more, .btn--load-more, .pagination__load-more";
 
   function isFindlyUi(el) {
     if (!el || el.nodeType !== 1) return false;
@@ -263,6 +263,7 @@
       "findly-theme-compat-v5",
       "findly-theme-compat-v6",
       "findly-theme-compat-v7",
+      "findly-theme-compat-v8",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -299,14 +300,30 @@
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper," +
+      ".sf-collection-layout[data-sf-single-page='1'] .paginate," +
+      ".sf-collection-layout[data-sf-single-page='1'] #pagination," +
+      ".sf-collection-layout[data-sf-single-page='1'] .Pagination," +
+      ".sf-collection-layout[data-sf-single-page='1'] #AjaxinatePagination," +
+      ".sf-collection-layout[data-sf-single-page='1'] .ajaxinate-pagination," +
       "html.sf-few-results nav.pagination,html.sf-few-results .pagination-wrapper," +
       "html.sf-few-results .pagination,html.sf-few-results [data-pagination]," +
+      "html.sf-few-results .paginate,html.sf-few-results #pagination," +
+      "html.sf-few-results .Pagination,html.sf-few-results #AjaxinatePagination," +
+      "html.sf-few-results .ajaxinate-pagination," +
       "html.sf-pager-unneeded nav.pagination,html.sf-pager-unneeded .pagination-wrapper," +
-      "html.sf-pager-unneeded .pagination,html.sf-pager-unneeded [data-pagination]" +
+      "html.sf-pager-unneeded .pagination,html.sf-pager-unneeded [data-pagination]," +
+      "html.sf-pager-unneeded .paginate,html.sf-pager-unneeded #pagination," +
+      "html.sf-pager-unneeded .Pagination,html.sf-pager-unneeded #AjaxinatePagination," +
+      "html.sf-pager-unneeded .ajaxinate-pagination" +
       "{display:none!important}" +
-      "html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter) nav.pagination:not([hidden]):not([data-sf-pager-suppressed='1'])," +
-      "html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter) .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed='1'])" +
-      "{display:flex!important}" +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) nav.pagination:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .pagination:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) [data-pagination]:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .paginate:not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) #pagination:not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .Pagination:not([hidden]):not([data-sf-pager-suppressed='1'])" +
+      "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;visibility:visible!important}" +
       ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
       "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
       "@media(min-width:750px){" +

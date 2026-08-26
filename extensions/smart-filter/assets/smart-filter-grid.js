@@ -82,6 +82,11 @@
     "html.sf-filter-loading .pagination-wrapper," +
     "html.sf-filter-loading .pagination," +
     "html.sf-filter-loading [data-pagination]," +
+    "html.sf-filter-loading .paginate," +
+    "html.sf-filter-loading #pagination," +
+    "html.sf-filter-loading .Pagination," +
+    "html.sf-filter-loading #AjaxinatePagination," +
+    "html.sf-filter-loading .ajaxinate-pagination," +
     "html.sf-filter-loading .sf-pager" +
     "{visibility:hidden!important;pointer-events:none!important}";
   var FEW_RESULTS_PAGER_CSS =
@@ -89,10 +94,20 @@
     "html.sf-few-results .pagination-wrapper," +
     "html.sf-few-results .pagination," +
     "html.sf-few-results [data-pagination]," +
+    "html.sf-few-results .paginate," +
+    "html.sf-few-results #pagination," +
+    "html.sf-few-results .Pagination," +
+    "html.sf-few-results #AjaxinatePagination," +
+    "html.sf-few-results .ajaxinate-pagination," +
     "html.sf-pager-unneeded nav.pagination," +
     "html.sf-pager-unneeded .pagination-wrapper," +
     "html.sf-pager-unneeded .pagination," +
-    "html.sf-pager-unneeded [data-pagination]" +
+    "html.sf-pager-unneeded [data-pagination]," +
+    "html.sf-pager-unneeded .paginate," +
+    "html.sf-pager-unneeded #pagination," +
+    "html.sf-pager-unneeded .Pagination," +
+    "html.sf-pager-unneeded #AjaxinatePagination," +
+    "html.sf-pager-unneeded .ajaxinate-pagination" +
     "{display:none!important}";
   function gridLoadingHideCss(prefix) {
     var i;
@@ -372,6 +387,7 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v12") ||
       document.getElementById("findly-theme-bridge-v11") ||
       document.getElementById("findly-theme-bridge-v10") ||
       document.getElementById("findly-theme-bridge-v9") ||
@@ -383,13 +399,13 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v11") {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v12") {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v11";
+      bridge.id = "findly-theme-bridge-v12";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -445,15 +461,23 @@
         "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']," +
         ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
         ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
-        ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper" +
+        ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper," +
+        ".sf-collection-layout[data-sf-single-page='1'] [data-pagination]," +
+        ".sf-collection-layout[data-sf-single-page='1'] .paginate," +
+        ".sf-collection-layout[data-sf-single-page='1'] #pagination," +
+        ".sf-collection-layout[data-sf-single-page='1'] .Pagination" +
         "{display:none!important}" +
         FEW_RESULTS_PAGER_CSS +
-        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        "html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter) nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        "html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter) .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
-        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) nav.pagination:not(.sf-pager):not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .pagination:not(.sf-pager):not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) [data-pagination]:not(.sf-pager):not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .paginate:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) #pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .Pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) #AjaxinatePagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .ajaxinate-pagination:not([data-sf-pager-suppressed='1']):not([hidden])" +
+        "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;max-width:100%!important;visibility:visible!important}" +
         "@media(min-width:750px){" +
         ".sf-collection-layout--left{display:grid!important;grid-template-columns:320px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
         ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 320px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
@@ -4792,7 +4816,7 @@
   }
 
   var THEME_PAGER_SEL_GRID =
-    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, .Pagination";
+    "nav.pagination, .pagination-wrapper, .pagination, [data-pagination], .paginate, #pagination, .Pagination, #AjaxinatePagination, .ajaxinate-pagination";
 
   function applyPagerByDisplayedCount(widget, count) {
     if (widget && widget.applyPagerByProductCount) {
@@ -5105,6 +5129,17 @@
       if (shouldTakeOverThemeCards(this) && origCount) origCount.call(this, count);
       scrubToolbarCountDupes(this);
       if (Number.isFinite(n) && n >= 0) this._statusProductCount = n;
+      try {
+        if (typeof console !== "undefined" && console.info) {
+          console.info("[FindlyPager]", "product-count", {
+            n: n,
+            pageSize: this.pageSize,
+            hasSync: Boolean(this.syncThemePager),
+          });
+        }
+      } catch (err) {
+        /* ignore */
+      }
       if (this.syncThemePager) this.syncThemePager();
       else applyPagerByDisplayedCount(this, n);
     };

@@ -1198,6 +1198,11 @@ html.sf-filter-loading nav.pagination,
 html.sf-filter-loading .pagination-wrapper,
 html.sf-filter-loading .pagination,
 html.sf-filter-loading [data-pagination],
+html.sf-filter-loading .paginate,
+html.sf-filter-loading #pagination,
+html.sf-filter-loading .Pagination,
+html.sf-filter-loading #AjaxinatePagination,
+html.sf-filter-loading .ajaxinate-pagination,
 html.sf-filter-loading .sf-pager {
   visibility: hidden !important;
   pointer-events: none !important;
@@ -2418,33 +2423,45 @@ results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-
   max-width: 100%;
 }
 
-html:not(.sf-few-results):not(.sf-pager-unneeded)
-  .sf-collection-layout
-  nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
-html:not(.sf-few-results):not(.sf-pager-unneeded)
-  .sf-collection-layout
-  .pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
-html:not(.sf-few-results):not(.sf-pager-unneeded)
-  .sf-collection-layout
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  nav.pagination:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
   .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed="1"]),
-html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
-  nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
-html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
-  .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed="1"]) {
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  .pagination:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  [data-pagination]:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  .paginate:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  #pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  .Pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  #AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter)
+  .ajaxinate-pagination:not([hidden]):not([data-sf-pager-suppressed="1"]) {
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: wrap !important;
   justify-content: center !important;
   align-items: center;
-  width: 100%;
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  position: relative;
+  z-index: 2;
   text-align: center;
+  visibility: visible !important;
 }
 
-.sf-collection-layout nav.pagination ul,
-.sf-collection-layout nav.pagination ol,
-.sf-collection-layout .pagination__list,
-.sf-collection-layout .pagination-wrapper ul,
-.sf-collection-layout .pagination-wrapper ol {
+html:has(.smart-filter) nav.pagination ul,
+html:has(.smart-filter) nav.pagination ol,
+html:has(.smart-filter) .pagination__list,
+html:has(.smart-filter) .pagination-wrapper ul,
+html:has(.smart-filter) .pagination-wrapper ol,
+html:has(.smart-filter) .Pagination ul,
+html:has(.smart-filter) .paginate {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -2460,14 +2477,27 @@ html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
 .sf-collection-layout[data-sf-single-page="1"] .pagination,
 .sf-collection-layout[data-sf-single-page="1"] .pagination-wrapper,
 .sf-collection-layout[data-sf-single-page="1"] [data-pagination],
+.sf-collection-layout[data-sf-single-page="1"] .paginate,
+.sf-collection-layout[data-sf-single-page="1"] #pagination,
+.sf-collection-layout[data-sf-single-page="1"] .Pagination,
 html.sf-few-results nav.pagination,
 html.sf-few-results .pagination-wrapper,
 html.sf-few-results .pagination,
 html.sf-few-results [data-pagination],
+html.sf-few-results .paginate,
+html.sf-few-results #pagination,
+html.sf-few-results .Pagination,
+html.sf-few-results #AjaxinatePagination,
+html.sf-few-results .ajaxinate-pagination,
 html.sf-pager-unneeded nav.pagination,
 html.sf-pager-unneeded .pagination-wrapper,
 html.sf-pager-unneeded .pagination,
-html.sf-pager-unneeded [data-pagination] {
+html.sf-pager-unneeded [data-pagination],
+html.sf-pager-unneeded .paginate,
+html.sf-pager-unneeded #pagination,
+html.sf-pager-unneeded .Pagination,
+html.sf-pager-unneeded #AjaxinatePagination,
+html.sf-pager-unneeded .ajaxinate-pagination {
   display: none !important;
 }
 

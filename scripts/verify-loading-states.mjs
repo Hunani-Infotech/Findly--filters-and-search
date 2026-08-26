@@ -136,8 +136,34 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("else unhideThemePagers()")) {
     fail("pager must unhide theme pagination when filtered results span multiple pages");
   }
+  if (!pagerJs.includes("[FindlyPager]") || !pagerJs.includes("__FINDLY_PAGER_DUMP")) {
+    fail("pager must emit FindlyPager debug logs for live pagination diagnosis");
+  }
   if (!pagerJs.includes("forceSimplePager") || !pagerJs.includes("data-sf-pager-driven")) {
     fail("pager must rewrite theme page numbers from the filtered total");
+  }
+  if (!pagerJs.includes("PAGER_CHROME_SKIP")) {
+    fail("pager must skip header/footer pagers");
+  }
+  if (
+    !pagerJs.includes("#AjaxinatePagination") ||
+    !pagerJs.includes(".paginate") ||
+    !pagerJs.includes(".Pagination")
+  ) {
+    fail("pager must match Ajaxinate, Debut .paginate, and Impulse .Pagination");
+  }
+  if (pagerJs.includes("#ResultsList .product-grid")) {
+    fail("pager rewrite must use generic product-grid selectors, not Horizon-only");
+  }
+  if (
+    !css.includes(":has(.smart-filter)") ||
+    !css.includes(".paginate") ||
+    !css.includes(".Pagination")
+  ) {
+    fail("smart-filter.css SHOW/hide pager area must cover generic theme pagers");
+  }
+  if (css.includes("#ResultsList nav.pagination")) {
+    fail("css must not require Horizon hosts for showing pagers");
   }
   if (grid.includes('el.id = "findly-sf-pager"')) {
     fail("grid must not mount a Findly numbered pager");
@@ -148,6 +174,15 @@ function assertSourceMarkers() {
     themeJs.includes("html.sf-og nav.pagination")
   ) {
     fail("theme compat must keep theme pagination visible unless load more / infinite");
+  }
+  if (!themeJs.includes("findly-theme-compat-v8")) {
+    fail("theme compat STYLE bump must be findly-theme-compat-v8");
+  }
+  if (!grid.includes("findly-theme-bridge-v12")) {
+    fail("grid theme bridge must be findly-theme-bridge-v12");
+  }
+  if (!grid.includes("THEME_PAGER_SEL_GRID") || !grid.includes("#AjaxinatePagination")) {
+    fail("THEME_PAGER_SEL_GRID must include Ajaxinate pagination");
   }
   if (!block.includes("smart-filter-boot.min.js") || !embed.includes("smart-filter-boot.min.js")) {
     fail("both collection blocks must load the first-paint boot script");
@@ -571,6 +606,168 @@ function writePagerHarness() {
   return htmlPath;
 }
 
+function writeDawnPagerHarness() {
+  const dir = mkdtempSync(join(tmpdir(), "findly-dawn-pager-"));
+  const pagerUrl = pathToFileURL(
+    join(ROOT, "extensions/smart-filter/assets/smart-filter-pager.js"),
+  ).href;
+  const html = `<!doctype html>
+<html>
+<head>
+  <style>
+    html.sf-few-results nav.pagination,
+    html.sf-few-results .pagination-wrapper,
+    html.sf-few-results [data-pagination],
+    html.sf-pager-unneeded nav.pagination,
+    html.sf-pager-unneeded .pagination-wrapper,
+    html.sf-pager-unneeded [data-pagination],
+    [data-sf-pager-suppressed="1"] { display: none !important; }
+    html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
+      nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+    html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
+      .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed="1"]),
+    html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
+      [data-pagination]:not([hidden]):not([data-sf-pager-suppressed="1"]) {
+      display: flex !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="smart-filter"></div>
+  <main>
+    <div id="product-grid"></div>
+    <div class="pagination-wrapper">
+      <nav class="pagination">
+        <a href="?page=1">1</a>
+        <a href="?page=2">2</a>
+        <a href="?page=3">3</a>
+        <span>…</span>
+        <a href="?page=11">11</a>
+      </nav>
+    </div>
+    <div data-pagination class="pagination">
+      <a href="?page=1">1</a><a href="?page=8">8</a>
+    </div>
+  </main>
+  <footer>
+    <nav class="pagination"><a>99</a></nav>
+  </footer>
+  <script src="${pagerUrl}"></script>
+  <script>
+    function report(ok, extra) {
+      document.documentElement.setAttribute("data-load-ok", ok ? "1" : "0");
+      document.documentElement.setAttribute("data-load-json", JSON.stringify(extra || {}));
+    }
+    function pagerEl() {
+      return document.querySelector(".pagination-wrapper") || document.querySelector("main .pagination");
+    }
+    function pagerIsHidden(el) {
+      if (!el) return true;
+      if (el.hasAttribute("hidden") || el.hidden) return true;
+      if (el.getAttribute("data-sf-pager-suppressed") === "1") return true;
+      var cs = window.getComputedStyle(el);
+      if (cs && cs.display === "none") return true;
+      if (document.documentElement.classList.contains("sf-few-results")) return true;
+      return false;
+    }
+    function visiblePageNums(root) {
+      var nums = [];
+      if (!root) return nums;
+      var nodes = root.querySelectorAll("a, button, span");
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var cs = window.getComputedStyle(nodes[i]);
+        if (cs && (cs.display === "none" || cs.visibility === "hidden")) continue;
+        var t = String(nodes[i].textContent || "").replace(/\\s+/g, " ").trim();
+        if (/^\\d+$/.test(t)) nums.push(Number(t));
+      }
+      return nums;
+    }
+    window.addEventListener("load", function () {
+      try {
+        function Widget() {}
+        Widget.prototype.ensurePageSize = function () { this.pageSize = 16; return 16; };
+        Widget.prototype.hasActiveFilters = function () { return true; };
+        Widget.prototype.goToPage = function (p) { this._went = p; };
+        var widget = new Widget();
+        widget.pageSize = 16;
+        widget.page = 1;
+        widget.paginationStyle = "pagination";
+        window.__FINDLY_FILTER_WIDGET = widget;
+        if (typeof widget.syncThemePager !== "function") {
+          throw new Error("syncThemePager not patched onto Widget");
+        }
+        widget._lastFilterData = { total: 6, handles: [1, 2, 3, 4, 5, 6] };
+        widget._statusProductCount = 6;
+        widget.syncThemePager();
+        var pager = pagerEl();
+        if (!pagerIsHidden(pager)) throw new Error("Dawn pager still visible for 6 results");
+        widget._lastFilterData = { total: 31, handles: new Array(31).fill("x") };
+        widget._statusProductCount = 31;
+        widget._pageTotal = 31;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        pager = pagerEl();
+        if (pagerIsHidden(pager)) throw new Error("Dawn pager hidden for 31 results");
+        if (document.documentElement.classList.contains("sf-few-results")) {
+          throw new Error("html has sf-few-results with multi-page results");
+        }
+        var nums = visiblePageNums(pager);
+        if (nums.indexOf(1) === -1 || nums.indexOf(2) === -1) {
+          throw new Error("Dawn visible pages missing 1 or 2: " + JSON.stringify(nums));
+        }
+        if (nums.indexOf(11) !== -1) {
+          throw new Error("Dawn visible pages still include 11: " + JSON.stringify(nums));
+        }
+        var impulse = document.querySelector("[data-pagination]");
+        var impulseNums = visiblePageNums(impulse);
+        if (impulseNums.indexOf(8) !== -1) {
+          throw new Error("Impulse pager still shows unfiltered 8: " + JSON.stringify(impulseNums));
+        }
+        if (impulseNums.indexOf(1) === -1 || impulseNums.indexOf(2) === -1) {
+          throw new Error("Impulse visible pages missing 1 or 2: " + JSON.stringify(impulseNums));
+        }
+        var footerPager = document.querySelector("footer nav.pagination");
+        if (footerPager && footerPager.getAttribute("data-sf-pager-driven") === "1") {
+          throw new Error("footer pager was rewritten");
+        }
+        var footerNums = visiblePageNums(footerPager);
+        if (footerNums.indexOf(99) === -1) {
+          throw new Error("footer decoy pager lost 99: " + JSON.stringify(footerNums));
+        }
+        var page2Link = null;
+        var links = pager.querySelectorAll("a");
+        var i;
+        for (i = 0; i < links.length; i++) {
+          var label = String(links[i].textContent || "").replace(/\\s+/g, " ").trim();
+          if (label === "2") {
+            page2Link = links[i];
+            break;
+          }
+        }
+        if (!page2Link) throw new Error("Dawn page 2 link missing after rewrite");
+        page2Link.click();
+        if (widget._went !== 2) throw new Error("goToPage not called with 2: " + widget._went);
+        report(true, {
+          fewHidden: true,
+          multiVisible: true,
+          pages: nums,
+          impulsePages: impulseNums,
+          footerPages: footerNums,
+          went: widget._went
+        });
+      } catch (err) {
+        report(false, { error: String(err && err.message || err) });
+      }
+    });
+  </script>
+</body>
+</html>`;
+  const htmlPath = join(dir, "index.html");
+  writeFileSync(htmlPath, html);
+  return htmlPath;
+}
+
 function runHeadless(htmlPath, failMessage) {
   const bin = chromePath();
   if (!bin) {
@@ -646,6 +843,7 @@ try {
   const htmlPath = writeHarness();
   runHeadless(htmlPath);
   runHeadless(writePagerHarness(), "headless pager harness failed");
+  runHeadless(writeDawnPagerHarness(), "headless Dawn pager harness failed");
   await probeLiveStore();
   log.success("LOADING_STATES_OK");
 } catch (error) {

@@ -10,9 +10,132 @@
   "use strict";
 
   var THEME_PAGER_SEL =
-    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, .Pagination";
+    "nav.pagination, .pagination-wrapper, .pagination, [data-pagination], .paginate, #pagination, .Pagination, #AjaxinatePagination, .ajaxinate-pagination";
+  var PAGER_CHROME_SKIP =
+    "header, footer, .header, .footer, .announcement-bar, .predictive-search, .quick-add-modal, product-recommendations, .shopify-section-group-header-group, .shopify-section-group-footer-group";
   var ORIG_ATTR = "data-sf-theme-orig";
   var SUPPRESS_ATTR = "data-sf-pager-suppressed";
+  var PAGER_DEBUG_VER = "pager-debug-4";
+
+  function pagerVisibleNums(el) {
+    var nums = [];
+    if (!el || !el.querySelectorAll) return nums;
+    var nodes = el.querySelectorAll("a, button, span");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var cs = window.getComputedStyle
+        ? window.getComputedStyle(nodes[i])
+        : null;
+      if (cs && (cs.display === "none" || cs.visibility === "hidden")) continue;
+      var t = String(nodes[i].textContent || "").replace(/\s+/g, " ").trim();
+      if (/^\d+$/.test(t)) nums.push(Number(t));
+    }
+    return nums;
+  }
+
+  function pagerNodeInfo(el) {
+    var cs = window.getComputedStyle ? window.getComputedStyle(el) : {};
+    return {
+      tag: el.tagName,
+      id: el.id || "",
+      cls: String(el.className || "").slice(0, 80),
+      hidden: Boolean(el.hidden),
+      suppressed: el.getAttribute(SUPPRESS_ATTR),
+      driven: el.getAttribute("data-sf-pager-driven"),
+      display: cs.display,
+      vis: cs.visibility,
+      nums: pagerVisibleNums(el),
+      inLayout: Boolean(el.closest && el.closest(".sf-collection-layout")),
+      inMain: Boolean(
+        el.closest &&
+          el.closest("main, #MainContent, #main-content, .main-content, #PageContainer"),
+      ),
+    };
+  }
+
+  function pagerSnapshot() {
+    var html = document.documentElement;
+    var nodes = document.querySelectorAll(THEME_PAGER_SEL);
+    var layout = document.querySelector(".sf-collection-layout");
+    return {
+      href: String((window.location && window.location.href) || ""),
+      htmlClasses: html ? String(html.className || "") : "",
+      few: Boolean(html && html.classList && html.classList.contains("sf-few-results")),
+      unneeded: Boolean(
+        html && html.classList && html.classList.contains("sf-pager-unneeded"),
+      ),
+      loading: Boolean(
+        html && html.classList && html.classList.contains("sf-filter-loading"),
+      ),
+      singlePage: layout ? layout.getAttribute("data-sf-single-page") : null,
+      matchCount: nodes.length,
+      pagers: [].map.call(nodes, pagerNodeInfo),
+    };
+  }
+
+  function pagerLog(phase, extra) {
+    var row = { t: Date.now(), v: PAGER_DEBUG_VER, phase: phase };
+    var key;
+    if (extra) {
+      for (key in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, key)) row[key] = extra[key];
+      }
+    }
+    try {
+      var bag = window.__FINDLY_PAGER_LOG || (window.__FINDLY_PAGER_LOG = []);
+      bag.push(row);
+      if (bag.length > 100) bag.shift();
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      if (typeof console !== "undefined" && console.info) {
+        console.info("[FindlyPager]", phase, extra || {});
+      }
+    } catch (err2) {
+      /* ignore */
+    }
+    return row;
+  }
+
+  window.__FINDLY_PAGER_DUMP = function () {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    var proto = widget ? Object.getPrototypeOf(widget) : null;
+    var data = widget && widget._lastFilterData;
+    var dump = {
+      v: PAGER_DEBUG_VER,
+      patched: Boolean(proto && proto.__findlyPagerPatched),
+      hasSync: Boolean(widget && widget.syncThemePager),
+      style: widget && widget.paginationStyle,
+      pageSize: widget && widget.pageSize,
+      page: widget && widget.page,
+      total: filteredTotal(widget),
+      statusCount: widget && widget._statusProductCount,
+      pageTotal: widget && widget._pageTotal,
+      dataTotal: data && data.total,
+      handles: data && data.handles && data.handles.length,
+      allHandles: widget && widget._allFilterHandles && widget._allFilterHandles.length,
+      drive: shouldDriveThemePager(widget),
+      scripts: [].map.call(
+        document.querySelectorAll('script[src*="smart-filter"]'),
+        function (s) {
+          return s.src;
+        },
+      ),
+      snap: pagerSnapshot(),
+    };
+    pagerLog("dump", dump);
+    return dump;
+  };
+
+  pagerLog("boot", {
+    scripts: [].map.call(
+      document.querySelectorAll('script[src*="smart-filter"]'),
+      function (s) {
+        return s.src;
+      },
+    ),
+  });
 
   function pageWindow(current, count) {
     var pages = [];
@@ -72,6 +195,7 @@
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (!el || isFindlyPager(el)) continue;
+      if (el.closest && el.closest(PAGER_CHROME_SKIP)) continue;
       var skip = false;
       for (j = 0; j < roots.length; j++) {
         if (roots[j].contains(el)) {
@@ -85,6 +209,26 @@
         }
       }
       if (!skip) roots.push(el);
+    }
+    var anchor =
+      document.querySelector(".smart-filter") ||
+      document.querySelector(
+        "#product-grid, #ProductGrid, .product-grid, .sf-app-grid, main, #MainContent",
+      );
+    if (anchor && roots.length > 1) {
+      roots.sort(function (a, b) {
+        var da =
+          (anchor.contains && anchor.contains(a)) ||
+          (a.closest && a.closest("main, #MainContent"))
+            ? 0
+            : 1;
+        var db =
+          (anchor.contains && anchor.contains(b)) ||
+          (b.closest && b.closest("main, #MainContent"))
+            ? 0
+            : 1;
+        return da - db;
+      });
     }
     return roots;
   }
@@ -201,6 +345,12 @@
     setPagerUnneeded(hide);
     if (hide) suppressThemePagers();
     else unhideThemePagers();
+    pagerLog("apply-count", {
+      n: n,
+      size: size,
+      hide: hide,
+      snap: pagerSnapshot(),
+    });
   }
 
   function removeFindlyNumberedPagers(widget) {
@@ -424,6 +574,7 @@
     var page = Math.max(1, widget.page || 1);
     if (pageCount <= 1) {
       suppressThemePagers();
+      pagerLog("rewrite-hide-one-page", { total: total, size: size, pageCount: pageCount });
       return;
     }
     el.setAttribute("data-sf-pager-driven", "1");
@@ -464,6 +615,20 @@
     if (maxVisiblePageNumber(el) > pageCount) {
       forceSimplePager(el, widget, page, pageCount, tpls);
     }
+    var grid = document.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .product-grid, .sf-app-grid, [data-product-grid], .collection-grid",
+    );
+    if (grid && grid.setAttribute) {
+      grid.setAttribute("data-last-page", String(pageCount));
+    }
+    pagerLog("rewrite", {
+      total: total,
+      size: size,
+      page: page,
+      pageCount: pageCount,
+      nums: pagerVisibleNums(el),
+      node: pagerNodeInfo(el),
+    });
   }
 
   function forceSimplePager(el, widget, page, pageCount, tpls) {
@@ -593,6 +758,7 @@
     var proto = Object.getPrototypeOf(widget);
     if (!proto || proto.__findlyPagerPatched) return;
     proto.__findlyPagerPatched = true;
+    pagerLog("patched", { style: widget.paginationStyle, pageSize: widget.pageSize });
 
     proto.disconnectInfinite = function () {
       if (this._infiniteObserver) {
@@ -809,6 +975,7 @@
 
     var origGoToPage = proto.goToPage;
     proto.goToPage = function (page) {
+      pagerLog("go-to-page", { page: page, from: this.page, inflight: Boolean(this._inflight) });
       if (this._loadingPage && !this._inflight) this._loadingPage = false;
       if (origGoToPage) return origGoToPage.apply(this, arguments);
     };
@@ -821,10 +988,19 @@
       if (this.ensurePageSize) this.ensurePageSize();
       var total = filteredTotal(this);
       var size = this.pageSize || 16;
+      var drive = shouldDriveThemePager(this);
       if (total >= 0) applyPagerByProductCount(this, total);
-      if (!usesThemeNumberedPager(this)) return false;
+      if (!usesThemeNumberedPager(this)) {
+        pagerLog("sync-skip-style", {
+          style: this.paginationStyle,
+          total: total,
+          size: size,
+        });
+        return false;
+      }
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
+        pagerLog("sync-locked", { total: total, size: size, drive: drive });
         return true;
       }
       window.__findlyThemePagerSyncing = true;
@@ -833,28 +1009,49 @@
         removeFindlyNumberedPagers(this);
         observeThemePager();
         if (total < 0) {
+          if (drive) {
+            pagerLog("sync-wait-total", { drive: drive, snap: pagerSnapshot() });
+            scheduleThemePagerSync(this);
+            return true;
+          }
           setPagerUnneeded(false);
           unhideThemePagers();
+          pagerLog("sync-unhide-unknown", { snap: pagerSnapshot() });
           return true;
         }
         if (resultsFitOnePage(this) || total <= size) {
+          pagerLog("sync-hide-one-page", {
+            total: total,
+            size: size,
+            snap: pagerSnapshot(),
+          });
           return true;
         }
         unhideThemePagers();
-        var drive = shouldDriveThemePager(this);
         var roots = findThemePagers();
         if (!roots.length) {
+          pagerLog("sync-no-roots", { total: total, size: size, drive: drive });
           scheduleThemePagerSync(this);
           return true;
         }
         bindThemePagerClicks();
         this._themePagerTries = 0;
         var i;
+        var action = drive || total > size ? "rewrite" : "restore";
+        pagerLog("sync-" + action, {
+          total: total,
+          size: size,
+          page: this.page,
+          drive: drive,
+          roots: roots.length,
+          snap: pagerSnapshot(),
+        });
         for (i = 0; i < roots.length; i++) {
           snapshotPager(roots[i]);
           if (drive || total > size) rewritePager(roots[i], this);
           else restorePager(roots[i]);
         }
+        pagerLog("sync-done", { action: action, snap: pagerSnapshot() });
         return true;
       } finally {
         var self = this;
