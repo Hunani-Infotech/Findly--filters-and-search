@@ -387,16 +387,16 @@
   }
 
   function isSizeFacet(facet) {
-    if (/size|length|width/i.test(String(facet.label || facet.key || ""))) {
+    var text = String(facet.label || facet.key || "");
+    if (/\bsizes?\b/i.test(text) && !/length|width|weight/i.test(text)) {
       return true;
     }
     var values = facet.values || [];
-    if (!values.length) return false;
+    if (values.length < 2) return false;
     var sized = 0;
     values.forEach(function (item) {
-      if (sizeRank(String(item.value != null ? item.value : item.label || "")) != null) {
-        sized += 1;
-      }
+      var value = String(item.value != null ? item.value : item.label || "").trim();
+      if (/^(x{0,3}[sml]|xxl|\d+\s*xl)$/i.test(value)) sized += 1;
     });
     return sized / values.length >= 0.6;
   }
@@ -838,6 +838,11 @@
     ".pagination",
     ".pagination-wrapper",
     "[data-pagination]",
+    ".paginate",
+    "#pagination",
+    ".Pagination",
+    "#AjaxinatePagination",
+    ".ajaxinate-pagination",
     "load-more-button",
     ".load-more-button",
     ".pagination__load-more",
@@ -4050,7 +4055,8 @@
       (this.paginationStyle === "load_more" ||
         this.paginationStyle === "infinite")
     ) {
-      this.renderPager();
+      // Filtered views drive the theme numbered pager; don't mount infinite chrome first.
+      if (this.renderPager) this.renderPager();
     }
     if (!append && this.autoApplyFilters === false && this.facetsEl) {
       var applyNowBtn = this.facetsEl.querySelector(".smart-filter__apply-now");

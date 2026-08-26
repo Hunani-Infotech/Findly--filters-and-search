@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { getRedis } from "../redis.server";
+import { getWorkerCount } from "../workers/concurrency.server";
 import { isSyncWorkerRunning } from "../workers/ensure-running.server";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
@@ -39,6 +40,7 @@ export const loader = async () => {
       worker: {
         ok: workerRunning,
         mode: workerRunning ? "in-process" : "down",
+        count: getWorkerCount(),
       },
     },
   };

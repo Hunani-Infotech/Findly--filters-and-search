@@ -217,6 +217,12 @@ try {
 }
 
 log.info("[dev] Starting sync worker…");
+{
+  const raw = process.env.WORKER_COUNT?.trim();
+  const n = raw ? Number.parseInt(raw, 10) : 2;
+  const count = Number.isFinite(n) && n >= 1 ? Math.min(n, 32) : 2;
+  log.info(`[dev] WORKER_COUNT=${count} (BullMQ concurrency)`);
+}
 spawnTracked(
   process.execPath,
   [

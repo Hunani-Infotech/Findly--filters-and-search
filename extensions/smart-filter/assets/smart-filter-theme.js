@@ -322,7 +322,9 @@
       "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) [data-pagination]:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed='1'])," +
       "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .paginate:not([hidden]):not([data-sf-pager-suppressed='1'])," +
       "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) #pagination:not([hidden]):not([data-sf-pager-suppressed='1'])," +
-      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .Pagination:not([hidden]):not([data-sf-pager-suppressed='1'])" +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .Pagination:not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) #AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed='1'])," +
+      "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .ajaxinate-pagination:not([hidden]):not([data-sf-pager-suppressed='1'])" +
       "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;visibility:visible!important}" +
       ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
       "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +

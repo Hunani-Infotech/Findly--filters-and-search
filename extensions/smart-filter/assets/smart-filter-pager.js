@@ -15,7 +15,7 @@
     "header, footer, .header, .footer, .announcement-bar, .predictive-search, .quick-add-modal, product-recommendations, .shopify-section-group-header-group, .shopify-section-group-footer-group";
   var ORIG_ATTR = "data-sf-theme-orig";
   var SUPPRESS_ATTR = "data-sf-pager-suppressed";
-  var PAGER_DEBUG_VER = "pager-debug-4";
+  var PAGER_DEBUG_VER = "pager-debug-7";
 
   function pagerVisibleNums(el) {
     var nums = [];
@@ -156,7 +156,22 @@
 
   function usesThemeNumberedPager(widget) {
     var style = widget && widget.paginationStyle;
-    return style !== "load_more" && style !== "infinite";
+    if (style !== "load_more" && style !== "infinite") return true;
+    // Infinite / load-more: only reuse the theme numbered pager while the
+    // collection is filtered/searched/sorted. Unfiltered browse keeps Findly
+    // infinite/load-more chrome (and must hide the theme's unfiltered 1…N).
+    if (!widget) return false;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
+    if (widget.collectionQuery) return true;
+    if (widget.searchQuery) return true;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return true;
+    }
+    return false;
   }
 
   function setHtmlClass(name, on) {
@@ -319,21 +334,15 @@
   }
 
   function suppressThemePagers() {
-    var nodes = document.querySelectorAll(THEME_PAGER_SEL);
+    var roots = findThemePagers();
     var i;
-    for (i = 0; i < nodes.length; i++) {
-      if (!nodes[i] || isFindlyPager(nodes[i])) continue;
-      suppressPager(nodes[i]);
-    }
+    for (i = 0; i < roots.length; i++) suppressPager(roots[i]);
   }
 
   function unhideThemePagers() {
-    var nodes = document.querySelectorAll(THEME_PAGER_SEL);
+    var roots = findThemePagers();
     var i;
-    for (i = 0; i < nodes.length; i++) {
-      if (!nodes[i] || isFindlyPager(nodes[i])) continue;
-      unhidePager(nodes[i]);
-    }
+    for (i = 0; i < roots.length; i++) unhidePager(roots[i]);
   }
 
   function applyPagerByProductCount(widget, count) {
@@ -731,6 +740,7 @@
         if (target.closest(".sf-pager, .smart-filter")) return;
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
+        if (root.closest && root.closest(PAGER_CHROME_SKIP)) return;
         var driven =
           shouldDriveThemePager(widget) ||
           (root.getAttribute && root.getAttribute("data-sf-pager-driven") === "1");
@@ -989,15 +999,23 @@
       var total = filteredTotal(this);
       var size = this.pageSize || 16;
       var drive = shouldDriveThemePager(this);
-      if (total >= 0) applyPagerByProductCount(this, total);
       if (!usesThemeNumberedPager(this)) {
-        pagerLog("sync-skip-style", {
+        // Load more / infinite: Findly owns paging. Never leave the theme's
+        // unfiltered 1…N bar visible (apply-count would otherwise unhide it).
+        setCustomPagerClass(true);
+        setPagerUnneeded(false);
+        suppressThemePagers();
+        pagerLog("sync-custom-style", {
           style: this.paginationStyle,
           total: total,
           size: size,
+          suppressed: true,
+          snap: pagerSnapshot(),
         });
         return false;
       }
+      setCustomPagerClass(false);
+      if (total >= 0) applyPagerByProductCount(this, total);
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
         pagerLog("sync-locked", { total: total, size: size, drive: drive });
@@ -1005,6 +1023,7 @@
       }
       window.__findlyThemePagerSyncing = true;
       window.__findlyThemePagerDirty = false;
+      window.__findlyThemePagerIgnoreMutations = true;
       try {
         removeFindlyNumberedPagers(this);
         observeThemePager();
@@ -1056,6 +1075,7 @@
       } finally {
         var self = this;
         window.setTimeout(function () {
+          window.__findlyThemePagerIgnoreMutations = false;
           window.__findlyThemePagerSyncing = false;
           if (!window.__findlyThemePagerDirty) return;
           window.__findlyThemePagerDirty = false;
@@ -1145,6 +1165,7 @@
       return;
     }
     window.__findlyThemePagerObs = new MutationObserver(function () {
+      if (window.__findlyThemePagerIgnoreMutations) return;
       var w = window.__FINDLY_FILTER_WIDGET;
       if (!w || !usesThemeNumberedPager(w) || !w.syncThemePager) return;
       if (window.__findlyThemePagerSyncing) {
@@ -1154,6 +1175,7 @@
       if (window.__findlyThemePagerObsTimer) return;
       window.__findlyThemePagerObsTimer = window.setTimeout(function () {
         window.__findlyThemePagerObsTimer = 0;
+        if (window.__findlyThemePagerIgnoreMutations) return;
         var next = window.__FINDLY_FILTER_WIDGET;
         if (!next || !usesThemeNumberedPager(next) || !next.syncThemePager) {
           return;

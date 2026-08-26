@@ -336,6 +336,11 @@ export function displayTypeChoicesForKey(
   return ["list", "dropdown", "checkbox", "radio", "box"];
 }
 
+function isApparelSizeFacet(facet: Pick<FacetDef, "key" | "label">): boolean {
+  const text = `${facet.label || ""} ${facet.key || ""}`;
+  return /\bsizes?\b/i.test(text) && !/length|width|weight/i.test(text);
+}
+
 export function displayTypeForFacet(
   facet: Pick<FacetDef, "key" | "source" | "label" | "type">,
   map: Record<string, FacetDisplayType>,
@@ -354,16 +359,15 @@ export function displayTypeForFacet(
     (facet.source === "tag" ? map.tags || map.tag : undefined);
   if (stored === "slider") return "checkbox";
   if (stored === "swatch" && facet.source === "option") {
-    if (/size|length|width/i.test(facet.label)) return "box";
+    if (isApparelSizeFacet(facet)) return "box";
+    if (/length|width|weight/i.test(String(facet.label || ""))) return "checkbox";
     return "swatch";
   }
   if (stored) return stored;
   if (/colou?r|hue|shade/i.test(facet.label) || /colou?r|hue|shade/i.test(facet.key)) {
     return "swatch";
   }
-  if (/size|length|width/i.test(facet.label) || /size|length|width/i.test(facet.key)) {
-    return "box";
-  }
+  if (isApparelSizeFacet(facet)) return "box";
   return "checkbox";
 }
 

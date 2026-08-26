@@ -157,7 +157,7 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 | App API key + secret | `.env` + `shopify.app.toml` `client_id` |
 | Postgres database (Supabase) | Sessions + catalog index. Prisma: pooled `DATABASE_URL` (6543) + `DIRECT_URL` (5432) |
 | Redis | BullMQ `sync-queue` (local in dev; Upstash in production) |
-| Hostinger Node *(production)* | Hosts the web app. The BullMQ worker starts in-process (`ensureWorkerRunning`) unless `START_WORKER=0`. |
+| Hostinger Node *(production)* | Hosts the web app **and** the BullMQ worker in-process (`ensureWorkerRunning`). Scale parallel jobs with `WORKER_COUNT` (default 2). Leave `START_WORKER` unset. Locally: one command `npm run dev` (infra + worker + app). |
 
 ### 6.3 Environment variables
 
@@ -172,6 +172,7 @@ Copy `.env.example` → `.env` (never commit secrets):
 | `DATABASE_URL` | Yes | Supabase **pooled** URI (port 6543) with `?pgbouncer=true&sslmode=require`. Encode `@` in the password as `%40`. |
 | `DIRECT_URL` | Yes | Supabase **direct** URI (port 5432) with `?sslmode=require`. Used by `prisma migrate deploy`. |
 | `REDIS_URL` | Yes | Redis for BullMQ (local `redis://localhost:6379` in dev) |
+| `WORKER_COUNT` | Optional | Parallel BullMQ job slots (default `2`, max `32`). Same process — no extra worker host. |
 | `BILLING_TEST_MODE` | Recommended | `true` in development |
 | `PROXY_SIGNATURE_BYPASS` | Optional | Local only |
 | `PORT` | Optional | Default `3000` |
@@ -220,8 +221,8 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 Live host is Hostinger Node (`https://deeppink-manatee-141983.hostingersite.com`). There is no `fly.toml`. Production does not use Fly.io. If Fly is needed later, add a new `fly.toml` then (`fly launch`).
 
 1. Use the existing Supabase Postgres project (`DATABASE_URL` pooler + `DIRECT_URL` direct).
-2. Set Hostinger env: Shopify keys, both Prisma URLs, `REDIS_URL` (Upstash `rediss://…`), `HOST` / `SHOPIFY_APP_URL` to the Hostinger origin. Leave `START_WORKER` unset so the in-process worker starts; set `START_WORKER=0` only to disable it.
-3. Deploy the Node app on Hostinger (Passenger starts the web process; the BullMQ worker runs in-process).
+2. Set Hostinger env: Shopify keys, both Prisma URLs, `REDIS_URL` (Upstash `rediss://…`), `WORKER_COUNT` (e.g. `4` if the box has headroom), `HOST` / `SHOPIFY_APP_URL` to the Hostinger origin. Leave `START_WORKER` unset so the in-process worker starts with the web app (AS-P13). Do not add a separate worker hosting service.
+3. Deploy the Node app on Hostinger (Passenger starts the web process; the BullMQ worker runs in-process with `WORKER_COUNT` concurrency). Locally use only `npm run dev`.
 4. `shopify app deploy` for app config + Theme App Extension.
 5. Point App URL, OAuth redirect, and App Proxy at `https://deeppink-manatee-141983.hostingersite.com`. After changing `shopify.app.toml`, run `shopify app deploy` to push URLs to Partner Dashboard.
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.

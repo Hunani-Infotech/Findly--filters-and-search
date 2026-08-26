@@ -85,7 +85,6 @@
     "@react-router/express": "^7.12.0",
     "@react-router/fs-routes": "^7.12.0",
     "@react-router/node": "^7.12.0",
-    "@react-router/serve": "^7.12.0",
     "@shopify/app-bridge-react": "^4.2.4",
     "@shopify/polaris": "^13.9.5",
     "@shopify/polaris-icons": "^9.3.1",
@@ -109,7 +108,6 @@
     "@shopify/api-codegen-preset": "^2.0.0",
     "@shopify/cli": "^4.6.1",
     "@shopify/polaris-types": "1.0.1",
-    "@types/eslint": "^9.6.1",
     "@types/node": "^25.5.2",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^18.3.25",
@@ -124,7 +122,6 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "graphql-config": "^5.1.1",
-    "prettier": "^3.6.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },

@@ -11,7 +11,8 @@ declare global {
 /**
  * Hostinger Passenger starts `react-router-serve.cjs`, not `server.js`.
  * Run the BullMQ worker in-process so it shares the Node app env.
- * Always start unless START_WORKER=0 (or this process is already the worker).
+ * Parallelism is WORKER_COUNT (BullMQ concurrency). Always start unless
+ * START_WORKER=0 (or this process is already the dedicated worker child).
  */
 export function isSyncWorkerRunning() {
   return Boolean(globalThis.__findlySyncWorker);
@@ -46,13 +47,15 @@ async function startInProcessWorker() {
   const { Worker } = await import("bullmq");
   const { createRedisConnection } = await import("../redis.server");
   const { SYNC_QUEUE } = await import("../queues.server");
+  const { getWorkerCount } = await import("./concurrency.server");
   const { processSyncJob } = await import("./processors");
 
   if (globalThis.__findlySyncWorker) return;
 
+  const concurrency = getWorkerCount();
   const worker = new Worker(SYNC_QUEUE, processSyncJob, {
     connection: createRedisConnection(),
-    concurrency: 2,
+    concurrency,
     lockDuration: 30 * 60 * 1000,
     stalledInterval: 60_000,
   });
@@ -65,5 +68,7 @@ async function startInProcessWorker() {
   });
 
   globalThis.__findlySyncWorker = worker;
-  log.info(`Smart Filter worker listening on ${SYNC_QUEUE} (in-process)`);
+  log.info(
+    `Smart Filter worker listening on ${SYNC_QUEUE} (in-process, WORKER_COUNT=${concurrency})`,
+  );
 }

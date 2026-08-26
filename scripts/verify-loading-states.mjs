@@ -178,6 +178,24 @@ function assertSourceMarkers() {
   if (!themeJs.includes("findly-theme-compat-v8")) {
     fail("theme compat STYLE bump must be findly-theme-compat-v8");
   }
+  if (!themeJs.includes("#AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed='1'])")) {
+    fail("theme compat SHOW CSS must include Ajaxinate pagination");
+  }
+  if (!checkCss.includes("#AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed=\"1\"])")) {
+    fail("smart-filter-check.css SHOW CSS must include Ajaxinate pagination");
+  }
+  if (!filterJs.includes(".Pagination") || !filterJs.includes("#AjaxinatePagination")) {
+    fail("smart-filter.js THEME_PAGER_SELECTOR must cover Prestige and Ajaxinate");
+  }
+  if (!pagerJs.includes("sync-custom-style") || !pagerJs.includes("setCustomPagerClass(true)")) {
+    fail("infinite/load_more must suppress theme numbered pagination via sf-custom-pager");
+  }
+  if (!pagerJs.includes("__findlyThemePagerIgnoreMutations")) {
+    fail("pager must ignore MutationObserver while rewriting theme pagers");
+  }
+  if (!pagerJs.includes("var roots = findThemePagers()")) {
+    fail("suppress/unhide must use findThemePagers so footer decoys are left alone");
+  }
   if (!grid.includes("findly-theme-bridge-v12")) {
     fail("grid theme bridge must be findly-theme-bridge-v12");
   }
@@ -588,10 +606,27 @@ function writePagerHarness() {
         if (!page2Link) throw new Error("page 2 link missing after rewrite");
         page2Link.click();
         if (widget._went !== 2) throw new Error("goToPage not called with 2: " + widget._went);
+        widget.paginationStyle = "infinite";
+        widget.page = 1;
+        widget._went = undefined;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        pager = pagerEl();
+        if (pagerIsHidden(pager)) {
+          throw new Error("infinite+filters should still drive theme numbered pager");
+        }
+        var infiniteNums = visiblePageNums(pager);
+        if (infiniteNums.indexOf(11) !== -1) {
+          throw new Error("infinite+filters still shows unfiltered 11: " + JSON.stringify(infiniteNums));
+        }
+        if (infiniteNums.indexOf(1) === -1 || infiniteNums.indexOf(2) === -1) {
+          throw new Error("infinite+filters missing 1/2: " + JSON.stringify(infiniteNums));
+        }
         report(true, {
           fewHidden: true,
           multiVisible: true,
           pages: nums,
+          infinitePages: infiniteNums,
           went: widget._went
         });
       } catch (err) {
@@ -636,7 +671,7 @@ function writeDawnPagerHarness() {
   <div class="smart-filter"></div>
   <main>
     <div id="product-grid"></div>
-    <div class="pagination-wrapper">
+    <div class="pagination-wrapper" data-theme="dawn">
       <nav class="pagination">
         <a href="?page=1">1</a>
         <a href="?page=2">2</a>
@@ -645,12 +680,16 @@ function writeDawnPagerHarness() {
         <a href="?page=11">11</a>
       </nav>
     </div>
-    <div data-pagination class="pagination">
+    <div class="paginate" data-theme="debut"><a href="?page=1">1</a><a href="?page=9">9</a></div>
+    <div data-pagination class="pagination" data-theme="impulse">
       <a href="?page=1">1</a><a href="?page=8">8</a>
     </div>
+    <div class="Pagination" data-theme="prestige"><a href="?page=1">1</a><a href="?page=7">7</a></div>
+    <div id="AjaxinatePagination" data-theme="ajaxinate"><a href="?page=1">1</a><a href="?page=6">6</a></div>
+    <nav class="pagination" data-theme="horizon"><a href="?page=1">1</a><a href="?page=11">11</a></nav>
   </main>
   <footer>
-    <nav class="pagination"><a>99</a></nav>
+    <nav class="pagination" data-theme="footer"><a>99</a></nav>
   </footer>
   <script src="${pagerUrl}"></script>
   <script>
@@ -659,7 +698,7 @@ function writeDawnPagerHarness() {
       document.documentElement.setAttribute("data-load-json", JSON.stringify(extra || {}));
     }
     function pagerEl() {
-      return document.querySelector(".pagination-wrapper") || document.querySelector("main .pagination");
+      return document.querySelector('[data-theme="dawn"]') || document.querySelector(".pagination-wrapper");
     }
     function pagerIsHidden(el) {
       if (!el) return true;
@@ -719,21 +758,37 @@ function writeDawnPagerHarness() {
         if (nums.indexOf(11) !== -1) {
           throw new Error("Dawn visible pages still include 11: " + JSON.stringify(nums));
         }
-        var impulse = document.querySelector("[data-pagination]");
-        var impulseNums = visiblePageNums(impulse);
-        if (impulseNums.indexOf(8) !== -1) {
-          throw new Error("Impulse pager still shows unfiltered 8: " + JSON.stringify(impulseNums));
+        function assertTheme(name) {
+          var el = document.querySelector('[data-theme="' + name + '"]');
+          if (!el) throw new Error(name + " missing");
+          if (el.getAttribute("data-sf-pager-driven") !== "1") throw new Error(name + " not driven");
+          var themeNums = visiblePageNums(el);
+          if (themeNums.indexOf(1) === -1 || themeNums.indexOf(2) === -1) {
+            throw new Error(name + " missing 1/2: " + JSON.stringify(themeNums));
+          }
+          if (themeNums.some(function (n) { return n > 2; })) {
+            throw new Error(name + " still unfiltered: " + JSON.stringify(themeNums));
+          }
+          return themeNums;
         }
-        if (impulseNums.indexOf(1) === -1 || impulseNums.indexOf(2) === -1) {
-          throw new Error("Impulse visible pages missing 1 or 2: " + JSON.stringify(impulseNums));
-        }
-        var footerPager = document.querySelector("footer nav.pagination");
+        var debutNums = assertTheme("debut");
+        var impulseNums = assertTheme("impulse");
+        var prestigeNums = assertTheme("prestige");
+        var ajaxNums = assertTheme("ajaxinate");
+        var horizonNums = assertTheme("horizon");
+        var footerPager = document.querySelector('[data-theme="footer"]');
         if (footerPager && footerPager.getAttribute("data-sf-pager-driven") === "1") {
           throw new Error("footer pager was rewritten");
         }
         var footerNums = visiblePageNums(footerPager);
         if (footerNums.indexOf(99) === -1) {
           throw new Error("footer decoy pager lost 99: " + JSON.stringify(footerNums));
+        }
+        var footerWent = widget._went;
+        var footerLink = footerPager && footerPager.querySelector("a");
+        if (footerLink) footerLink.click();
+        if (widget._went !== footerWent) {
+          throw new Error("footer pager click intercepted goToPage: " + widget._went);
         }
         var page2Link = null;
         var links = pager.querySelectorAll("a");
@@ -752,7 +807,11 @@ function writeDawnPagerHarness() {
           fewHidden: true,
           multiVisible: true,
           pages: nums,
+          debutPages: debutNums,
           impulsePages: impulseNums,
+          prestigePages: prestigeNums,
+          ajaxinatePages: ajaxNums,
+          horizonPages: horizonNums,
           footerPages: footerNums,
           went: widget._went
         });
@@ -783,11 +842,11 @@ function runHeadless(htmlPath, failMessage) {
       "--no-first-run",
       "--no-default-browser-check",
       "--allow-file-access-from-files",
-      "--virtual-time-budget=5000",
+      "--virtual-time-budget=12000",
       "--dump-dom",
       fileUrl,
     ],
-    { encoding: "utf8", timeout: 20000, windowsHide: true },
+    { encoding: "utf8", timeout: 45000, windowsHide: true },
   );
   const out = String(result.stdout || "") + String(result.stderr || "");
   const match = out.match(/data-load-ok="([^"]*)"/);
@@ -843,7 +902,7 @@ try {
   const htmlPath = writeHarness();
   runHeadless(htmlPath);
   runHeadless(writePagerHarness(), "headless pager harness failed");
-  runHeadless(writeDawnPagerHarness(), "headless Dawn pager harness failed");
+  runHeadless(writeDawnPagerHarness(), "headless Dawn/all-themes pager harness failed");
   await probeLiveStore();
   log.success("LOADING_STATES_OK");
 } catch (error) {
