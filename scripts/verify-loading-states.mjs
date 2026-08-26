@@ -48,6 +48,12 @@ function assertSourceMarkers() {
   if (!grid.includes("setFilterLoading") || !grid.includes("sf-filter-ready")) {
     fail("grid missing filter ready/loading flags");
   }
+  if (!grid.includes("syncToolbarLoading") || !grid.includes("data-sf-toolbar-loading")) {
+    fail("grid missing toolbar loading sync for search/sort/count");
+  }
+  if (!css.includes("html.sf-filter-loading .smart-filter__collection-search-field") || !css.includes("html.sf-filter-loading .smart-filter__sort-select") || !css.includes("html.sf-filter-loading .sf-total-count::after")) {
+    fail("smart-filter.css must skeleton search, sort, and total count while loading");
+  }
   if (!grid.includes("findly-grid-is-busy>") || !css.includes("findly-grid-is-busy")) {
     fail("busy grid must hide product children while loading");
   }
@@ -104,8 +110,21 @@ function assertSourceMarkers() {
   ) {
     fail("theme compat must keep theme pagination visible unless load more / infinite");
   }
+  if (!block.includes("smart-filter-boot.min.js") || !embed.includes("smart-filter-boot.min.js")) {
+    fail("both collection blocks must load the first-paint boot script");
+  }
   if (!block.includes("smart-filter-grid.min.js") || !embed.includes("smart-filter-grid.min.js")) {
     fail("both collection blocks must load the grid companion");
+  }
+  const boot = read("extensions/smart-filter/assets/smart-filter-boot.js");
+  if (!boot.includes("findly-grid-skel__img") || !boot.includes("sf-filter-loading")) {
+    fail("boot script must mount the existing 8-card grid skeletons on first paint");
+  }
+  if (!checkCss.includes("findly-grid-skel__img") || !checkCss.includes("products-count-wrapper")) {
+    fail("smart-filter-check.css must paint grid skeletons and hide Horizon product counts");
+  }
+  if (!css.includes("products-count-wrapper")) {
+    fail("smart-filter.css must hide Horizon .products-count-wrapper while loading");
   }
   if (/\bcrossorigin\b/.test(block) || /\bcrossorigin\b/.test(embed)) {
     fail("filter JSON preload must not use crossorigin; it breaks same-origin fetch");
@@ -113,8 +132,12 @@ function assertSourceMarkers() {
   if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v20")) {
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v21")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
+  }
+  const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");
+  if (!minBoot.includes("data-findly-skel") || !minBoot.includes("sf-filter-loading")) {
+    fail("smart-filter-boot.min.js is stale; run npm run theme:minify");
   }
   if (!/#findly-grid-busy-overlay[\s\S]{0,220}pointer-events:\s*auto/.test(css)) {
     fail("smart-filter.css overlay must capture clicks while loading");
@@ -141,6 +164,9 @@ function chromePath() {
 
 function writeHarness() {
   const dir = mkdtempSync(join(tmpdir(), "findly-load-"));
+  const bootUrl = pathToFileURL(
+    join(ROOT, "extensions/smart-filter/assets/smart-filter-boot.js"),
+  ).href;
   const gridUrl = pathToFileURL(
     join(ROOT, "extensions/smart-filter/assets/smart-filter-grid.js"),
   ).href;
@@ -165,6 +191,27 @@ function writeHarness() {
     </div>
   </div>
   <p class="product-count">163 products</p>
+  <div class="products-count-wrapper" data-testid="products-count">163 products</div>
+  <div class="sf-toolbar">
+    <div class="sf-collection-search-host sf-toolbar__search">
+      <div class="smart-filter__collection-search" data-collection-search-wrap>
+        <div class="smart-filter__collection-search-field">
+          <input data-collection-search class="smart-filter__collection-search-input" placeholder="Search products" />
+        </div>
+      </div>
+    </div>
+    <div class="sf-toolbar__end">
+      <div class="sf-sort-host">
+        <div data-sort-wrap class="smart-filter__sort">
+          <label class="smart-filter__sort-label">Sort by</label>
+          <div class="sf-sort-control">
+            <select data-sort class="smart-filter__sort-select"><option>Featured</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="sf-total-count">163 products</div>
+    </div>
+  </div>
   <results-list>
     <div class="main-collection-grid" id="product-grid">
       <ul class="product-grid">
@@ -187,6 +234,7 @@ function writeHarness() {
     <div data-ymm-status></div>
     <ul data-ymm-results></ul>
   </div>
+  <script src="${bootUrl}"></script>
   <script src="${gridUrl}"></script>
   <script src="${searchUrl}"></script>
   <script src="${instantUrl}"></script>
@@ -199,6 +247,11 @@ function writeHarness() {
     }
     window.addEventListener("load", function () {
       try {
+        var bootSkel = document.querySelectorAll("[data-findly-skel='1']").length;
+        if (bootSkel < 4) throw new Error("boot did not mount grid skeletons: " + bootSkel);
+        if (!document.documentElement.classList.contains("sf-filter-loading")) {
+          throw new Error("boot missing sf-filter-loading");
+        }
         var grid = document.querySelector(".main-collection-grid");
         var skel = document.querySelectorAll("[data-findly-skel='1']");
         var overlay = document.getElementById("findly-grid-busy-overlay");
@@ -250,6 +303,13 @@ function writeHarness() {
         var countEl = document.querySelector(".product-count");
         var countVis = countEl && window.getComputedStyle(countEl).visibility;
         if (countVis !== "hidden") throw new Error("product count visible while loading: " + countVis);
+        var searchEl = document.querySelector("[data-collection-search]");
+        var sortEl = document.querySelector(".smart-filter__sort-select");
+        var findlyCount = document.querySelector(".sf-total-count");
+        if (!searchEl || !searchEl.disabled) throw new Error("search input not disabled while loading");
+        if (searchEl.getAttribute("aria-busy") !== "true") throw new Error("search missing aria-busy");
+        if (!sortEl || !sortEl.disabled) throw new Error("sort select not disabled while loading");
+        if (!findlyCount || findlyCount.getAttribute("aria-busy") !== "true") throw new Error("findly count missing aria-busy");
         if (!document.documentElement.classList.contains("sf-filter-loading")) {
           throw new Error("html missing sf-filter-loading");
         }
@@ -262,6 +322,11 @@ function writeHarness() {
         if (countEl && window.getComputedStyle(countEl).visibility === "hidden") {
           throw new Error("product count still hidden after load");
         }
+        if (searchEl && searchEl.disabled) throw new Error("search still disabled after load");
+        if (sortEl && sortEl.disabled) throw new Error("sort still disabled after load");
+        if (findlyCount && findlyCount.getAttribute("aria-busy") === "true") {
+          throw new Error("findly count still aria-busy after load");
+        }
         if (!document.documentElement.classList.contains("sf-filter-ready")) {
           throw new Error("html missing sf-filter-ready after load");
         }
@@ -269,6 +334,7 @@ function writeHarness() {
           throw new Error("overlay still present after load");
         }
         extra = {
+          bootSkel: bootSkel,
           earlySkel: skel.length,
           overlay: true,
           overlayH: overlayH,

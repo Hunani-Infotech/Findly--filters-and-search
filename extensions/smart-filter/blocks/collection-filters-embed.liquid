@@ -1,5 +1,7 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'instant-search.css' | asset_url }}" media="all">
+{% # Parser-blocking on purpose: mount grid skeletons before first paint. %}
+<script src="{{ 'smart-filter-boot.min.js' | asset_url }}"></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
