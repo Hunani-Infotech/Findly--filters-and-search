@@ -2,10 +2,12 @@ import type { Job } from "bullmq";
 import { purgeShopData } from "../compliance.server";
 import {
   deleteProduct,
+  finalizeFullSync,
   ingestBulkOperation,
   rebuildCollection,
   startFullSync,
   syncInventoryItem,
+  syncProductMarkets,
   syncVariant,
   upsertProduct,
 } from "../sync/sync.server";
@@ -30,8 +32,12 @@ export async function processSyncJob(job: Job) {
           ? String(job.data.bulkOperationId)
           : undefined,
       );
+    case "shop.finalizeFullSync":
+      return finalizeFullSync(shop);
     case "product.upsert":
       return upsertProduct(shop, String(job.data.productGid));
+    case "product.markets":
+      return syncProductMarkets(shop, String(job.data.productGid));
     case "product.delete":
       return deleteProduct(shop, String(job.data.productGid));
     case "collection.rebuild":

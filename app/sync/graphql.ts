@@ -124,6 +124,46 @@ export const PRODUCT_COLLECTIONS_QUERY = `#graphql
   }
 `;
 
+/** Lean inventory/availability refresh — no metafields or collections. */
+export const PRODUCT_AVAILABILITY_QUERY = `#graphql
+  query ProductAvailability($id: ID!) {
+    product(id: $id) {
+      id
+      status
+      variants(first: 100) {
+        edges {
+          node {
+            id
+            availableForSale
+            inventoryPolicy
+            inventoryQuantity
+            inventoryItem {
+              id
+              tracked
+              inventoryLevels(first: 50) {
+                edges {
+                  node {
+                    id
+                    quantities(names: ["available"]) {
+                      name
+                      quantity
+                    }
+                    location {
+                      id
+                      name
+                      isActive
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const COLLECTION_PRODUCTS_QUERY = `#graphql
   query CollectionProducts($id: ID!, $cursor: String, $sortKey: ProductCollectionSortKeys = COLLECTION_DEFAULT) {
     collection(id: $id) {

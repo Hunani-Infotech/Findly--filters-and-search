@@ -25,6 +25,15 @@ type GraphqlJson = {
 };
 
 const PRODUCT_BATCH_SIZE = 4;
+const MARKET_CONTEXT_TTL_MS = 10 * 60 * 1000;
+
+type MarketContextCacheEntry = {
+  expires: number;
+  countries: string[];
+  companyLocationIds: string[];
+};
+
+const marketContextByShop = new Map<string, MarketContextCacheEntry>();
 
 function shouldSwallowGraphqlErrors(payload: GraphqlJson): boolean {
   const errors = payload.errors;
@@ -77,6 +86,26 @@ export async function listMarketContexts(admin: GraphqlClient): Promise<{
   return { countries, companyLocationIds };
 }
 
+/** Cache markets/company lists per shop — avoids 2 GraphQL calls on every product edit. */
+export async function listMarketContextsForShop(
+  admin: GraphqlClient,
+  shopId: string,
+): Promise<{ countries: string[]; companyLocationIds: string[] }> {
+  const hit = marketContextByShop.get(shopId);
+  if (hit && hit.expires > Date.now()) {
+    return {
+      countries: hit.countries,
+      companyLocationIds: hit.companyLocationIds,
+    };
+  }
+  const ctx = await listMarketContexts(admin);
+  marketContextByShop.set(shopId, {
+    ...ctx,
+    expires: Date.now() + MARKET_CONTEXT_TTL_MS,
+  });
+  return ctx;
+}
+
 async function persistMarketPrices(
   shopId: string,
   productGid: string,
@@ -96,7 +125,10 @@ export async function syncProductMarketPrices(
   shopId: string,
   productGid: string,
 ): Promise<void> {
-  const { countries, companyLocationIds } = await listMarketContexts(admin);
+  const { countries, companyLocationIds } = await listMarketContextsForShop(
+    admin,
+    shopId,
+  );
   if (!countries.length && !companyLocationIds.length) return;
 
   const { query, aliases } = buildProductContextualPricesQuery(
@@ -116,7 +148,10 @@ export async function syncShopMarketPrices(
   shopId: string,
 ): Promise<void> {
   try {
-    const { countries, companyLocationIds } = await listMarketContexts(admin);
+    const { countries, companyLocationIds } = await listMarketContextsForShop(
+      admin,
+      shopId,
+    );
     if (!countries.length && !companyLocationIds.length) return;
 
     const facets = await prisma.productFacet.findMany({

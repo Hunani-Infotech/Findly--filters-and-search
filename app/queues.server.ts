@@ -7,7 +7,9 @@ export const SYNC_QUEUE = "sync-queue";
 export type SyncJobName =
   | "shop.fullSync"
   | "shop.ingestBulk"
+  | "shop.finalizeFullSync"
   | "product.upsert"
+  | "product.markets"
   | "product.delete"
   | "collection.rebuild"
   | "shop.cleanup"
@@ -16,16 +18,19 @@ export type SyncJobName =
 
 const FOLLOWUP_JOBS: ReadonlySet<SyncJobName> = new Set([
   "product.upsert",
+  "product.markets",
   "product.delete",
   "collection.rebuild",
   "inventory.sync",
   "variant.sync",
+  "shop.finalizeFullSync",
 ]);
 
 const DROP_IF_BUSY_JOBS: ReadonlySet<SyncJobName> = new Set([
   "shop.fullSync",
   "shop.ingestBulk",
   "shop.cleanup",
+  "shop.finalizeFullSync",
 ]);
 
 let syncQueue: Queue | null = null;

@@ -4,10 +4,13 @@ import { ServerRouter } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
+import { ensureDatabaseReady } from "./db.server";
 import { log } from "./log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { ensureWorkerRunning } from "./workers/ensure-running.server";
 
+// Warm Postgres + start BullMQ before serving shopper/admin traffic.
+void ensureDatabaseReady();
 ensureWorkerRunning();
 
 export const streamTimeout = 5000;

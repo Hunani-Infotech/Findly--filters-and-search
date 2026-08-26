@@ -177,7 +177,7 @@ export async function handleProductEvent(
   await enqueueCatalogJob(
     "product.upsert",
     { shop, productGid },
-    { jobId: `${shop}:product.upsert:${productGid}`, delay: 2500 },
+    { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
   );
 }
 
@@ -198,7 +198,7 @@ export async function handleWebhookTopic(
       await enqueueCatalogJob(
         "product.upsert",
         { shop, productGid },
-        { jobId: `${shop}:product.upsert:${productGid}`, delay: 2500 },
+        { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
       );
       break;
     }
@@ -245,7 +245,7 @@ export async function handleWebhookTopic(
         { shop, inventoryItemGid },
         {
           jobId: `${shop}:inventory.sync:${inventoryItemGid}`,
-          delay: 2000,
+          delay: 500,
         },
       );
       break;
@@ -262,7 +262,7 @@ export async function handleWebhookTopic(
         await enqueueCatalogJob(
           "product.upsert",
           { shop, productGid },
-          { jobId: `${shop}:product.upsert:${productGid}`, delay: 2500 },
+          { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
         );
         break;
       }

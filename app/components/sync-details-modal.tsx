@@ -87,10 +87,10 @@ export function SyncDetailsModal({
           {data.status === "READY" && !data.overProductLimit ? (
             <Banner tone="success">
               <p>
-                Everyday edits sync automatically in a few seconds (inventory,
-                products, collections). Use Sync now only after a large import
-                or if something looks stuck — a full re-sync usually finishes in
-                1–3 minutes for small catalogs.
+                Everyday product and inventory edits sync automatically in
+                about 1–3 seconds. Sync now indexes the catalog first so filters become
+                Ready quickly; collection order and extras finish in the
+                background.
               </p>
             </Banner>
           ) : null}
@@ -131,9 +131,9 @@ export function SyncDetailsModal({
               Automatic updates
             </Text>
             <Text as="p" tone="subdued">
-              Automatic updates are incremental and fast. Sync now runs a full
-              Shopify bulk export — that is slower, and you usually do not need
-              it for a single stock change.
+              Automatic updates are incremental and fast (about 1–3 seconds). Sync now
+              indexes products first so filters are Ready quickly; collection
+              sort order and market prices finish in the background.
             </Text>
             <List>
               <List.Item>Product or variant created, edited, or deleted</List.Item>
