@@ -1153,6 +1153,16 @@ export async function upsertProduct(
         timeoutMs: 1500,
       },
     );
+    const { ensureWorkerRunning, isSyncWorkerRunning } = await import(
+      "../workers/ensure-running.server"
+    );
+    await ensureWorkerRunning();
+    // Redis up but no in-process worker (and not a dedicated-worker setup):
+    // process markets here so the job does not sit forever.
+    if (process.env.START_WORKER !== "0" && !isSyncWorkerRunning()) {
+      log.warn("[sync] worker not running; syncing market prices inline");
+      await syncProductMarketPrices(admin, shop.id, facet.productGid);
+    }
   } catch (error) {
     log.error("Failed to enqueue market prices; running inline", error);
     try {
