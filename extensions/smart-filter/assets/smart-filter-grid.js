@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v26";
+  var STYLE_ID = "findly-grid-takeover-v29";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -105,6 +105,16 @@
     "html.sf-filter-loading [data-pagination]," +
     "html.sf-filter-loading .sf-pager" +
     "{visibility:hidden!important;pointer-events:none!important}";
+  var FEW_RESULTS_PAGER_CSS =
+    "html.sf-few-results nav.pagination," +
+    "html.sf-few-results .pagination-wrapper," +
+    "html.sf-few-results .pagination," +
+    "html.sf-few-results [data-pagination]," +
+    "html.sf-pager-unneeded nav.pagination," +
+    "html.sf-pager-unneeded .pagination-wrapper," +
+    "html.sf-pager-unneeded .pagination," +
+    "html.sf-pager-unneeded [data-pagination]" +
+    "{display:none!important}";
   function gridLoadingHideCss(prefix) {
     var i;
     var parts = [];
@@ -327,6 +337,7 @@
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=checkbox]:checked::after{transform:scale(1) rotate(45deg)}" +
       ".smart-filter .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) input[type=radio]:checked::after{transform:scale(1)}" +
       ".smart-filter .smart-filter__price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important}" +
+      ".smart-filter .smart-filter__facet.is-collapsed .smart-filter__price{display:none!important}" +
       ".smart-filter .smart-filter__slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:1.7rem!important;overflow:visible!important;background:transparent!important}" +
       ".smart-filter .smart-filter__slider-track,.smart-filter .smart-filter__slider-fill{position:absolute!important;left:0!important;top:50%!important;height:2px!important;margin-top:-1px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important}" +
       ".smart-filter .smart-filter__slider-track{right:0!important;width:auto!important;background:#dcdcdc!important;z-index:0!important}" +
@@ -339,7 +350,9 @@
       "}" +
       ".smart-filter__panel.sf-drawer-portal{" +
       "width:min(420px,92vw)!important;max-width:92vw!important;box-sizing:border-box!important}" +
-      ".smart-filter__sort--toolbar,.sf-sort-host,.sf-sort-trigger{overflow:visible!important;position:relative}" +
+      ".smart-filter__sort--toolbar,.sf-sort-host,.sf-sort-trigger,.sf-sort-row{overflow:visible!important;position:relative}" +
+      ".sf-sort-row{display:flex!important;align-items:center!important;gap:.7rem;width:auto}" +
+      ".sf-sort-row .sf-sort-trigger{flex:0 0 auto;width:auto;min-width:10.75rem}" +
       ".sf-sort-trigger{display:block;width:100%;pointer-events:auto}" +
       ".sf-sort-btn{display:inline-flex!important;position:relative;box-sizing:border-box;align-items:center;justify-content:space-between;gap:.5rem;" +
       "width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;margin:0;padding:.5rem 2.35rem .5rem .9rem;" +
@@ -380,6 +393,9 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v10") ||
+      document.getElementById("findly-theme-bridge-v9") ||
+      document.getElementById("findly-theme-bridge-v8") ||
       document.getElementById("findly-theme-bridge-v7") ||
       document.getElementById("findly-theme-bridge-v6") ||
       document.getElementById("findly-theme-bridge-v5") ||
@@ -387,13 +403,13 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v7") {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v10") {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v7";
+      bridge.id = "findly-theme-bridge-v10";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -451,9 +467,10 @@
         ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
         ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper" +
         "{display:none!important}" +
-        ".sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        ".sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
-        ".sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
+        FEW_RESULTS_PAGER_CSS +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        "html:not(.sf-few-results):not(.sf-pager-unneeded) .sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
         "@media(min-width:750px){" +
         ".sf-collection-layout--left{display:grid!important;grid-template-columns:320px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
@@ -479,9 +496,11 @@
         ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 16rem;min-width:0;width:min(22rem,100%);max-width:22rem;margin:0}" +
         ".sf-toolbar__end{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;gap:0;min-width:0}" +
         ".sf-sort-host{display:flex;justify-content:flex-end;width:auto;margin:0;overflow:visible;position:relative;z-index:6}" +
-        ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-start;gap:.7rem;width:auto;margin:0;flex-wrap:nowrap}" +
-        ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:10.75rem}" +
-        ".sf-toolbar .smart-filter__sort-label{font-weight:500;font-size:.875em;color:#6d6d6d;line-height:2.5rem;padding:0;margin:0;white-space:nowrap}" +
+        ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-end;gap:0;width:auto;margin:0;flex-wrap:nowrap}" +
+        ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:0}" +
+        ".sf-sort-row{display:flex!important;align-items:center!important;gap:.7rem;width:auto;overflow:visible}" +
+        ".sf-sort-row .sf-sort-trigger{flex:0 0 auto;width:auto;min-width:10.75rem}" +
+        ".sf-toolbar .smart-filter__sort-label,.sf-sort-row .smart-filter__sort-label{display:block!important;flex:0 0 auto;align-self:center!important;box-sizing:border-box;height:auto!important;min-height:0!important;font-weight:500;font-size:.875em;color:#6d6d6d;line-height:1.25!important;padding:0!important;margin:0!important;white-space:nowrap}" +
         ".sf-toolbar .smart-filter__sort-select{width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;padding:.5rem 2rem .5rem .85rem;border:1px solid #e2e2e2!important;border-radius:10px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c5c5c' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right .75rem center;background-size:.7rem;appearance:none!important;-webkit-appearance:none!important;outline:none}" +
         ".sf-toolbar .smart-filter__sort-select:focus,.sf-toolbar .smart-filter__sort-select:focus-visible{border-color:#111!important;box-shadow:0 0 0 3px rgb(17 17 17 / 10%)}" +
         ".sf-collection-search-host{display:block;width:auto;max-width:22rem;margin:0}" +
@@ -2961,7 +2980,7 @@
     }
   }
 
-  function buildThemeListCard(parent, product, sample) {
+  function buildThemeListCard(parent, product, sample, widget) {
     if (!product) return null;
     var handle = String(product.handle || "").toLowerCase();
     var key = String(product.cardKey || handle).toLowerCase();
@@ -3070,7 +3089,7 @@
         clone = cloneThemeProductCard(sample, product);
       }
       if (!clone || isFragileThemeCard(clone) || !cardHasVisibleMedia(clone)) {
-        clone = buildThemeListCard(parent, product, sample) || clone;
+        clone = buildThemeListCard(parent, product, sample, widget) || clone;
       }
       if (!clone) continue;
       cache[key] = clone;
@@ -3340,7 +3359,7 @@
     copyThemeVarsFrom(widget && widget.root, target);
   }
 
-  function useCustomSortMenu() {
+  function customSortMenuEnabled() {
     try {
       return window.matchMedia("(min-width: 750px)").matches;
     } catch (err) {
@@ -3397,7 +3416,7 @@
     var label = wrap && wrap.querySelector
       ? wrap.querySelector(".smart-filter__sort-label")
       : null;
-    if (useCustomSortMenu()) {
+    if (customSortMenuEnabled()) {
       select.setAttribute("tabindex", "-1");
       select.setAttribute("aria-hidden", "true");
       if (label && btn && btn.id) label.htmlFor = btn.id;
@@ -3442,7 +3461,7 @@
 
   function sortMenuAnchor(wrap) {
     var btn = sortButtonEl(wrap);
-    if (btn && useCustomSortMenu()) return btn;
+    if (btn && customSortMenuEnabled()) return btn;
     return (
       sortMenuSelect(wrap) ||
       (wrap && wrap.querySelector && wrap.querySelector(".sf-sort-trigger")) ||
@@ -3453,11 +3472,12 @@
   function ensureSortTrigger(wrap, select) {
     var trigger = wrap.querySelector(".sf-sort-trigger");
     var control = wrap.querySelector(".sf-sort-control") || wrap;
+    var row = wrap.querySelector(".sf-sort-row");
     if (!trigger) {
       trigger = document.createElement("div");
       trigger.className = "sf-sort-trigger";
     }
-    if (trigger.parentNode !== control) {
+    if (trigger.parentNode !== control && trigger.parentNode !== row) {
       if (select && select.parentNode === control) {
         control.insertBefore(trigger, select);
       } else if (control.firstChild) {
@@ -3468,6 +3488,26 @@
     }
     if (select && select.parentNode !== trigger) trigger.appendChild(select);
     return trigger;
+  }
+
+  function ensureSortRow(wrap, select) {
+    var control = wrap.querySelector(".sf-sort-control") || wrap;
+    var trigger = ensureSortTrigger(wrap, select);
+    var label = wrap.querySelector(".smart-filter__sort-label");
+    var row = wrap.querySelector(".sf-sort-row");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "sf-sort-row";
+    }
+    if (row.parentNode !== control) {
+      var count = control.querySelector(".sf-total-count");
+      if (count && count.parentNode === control) control.insertBefore(row, count);
+      else if (control.firstChild) control.insertBefore(row, control.firstChild);
+      else control.appendChild(row);
+    }
+    if (label && label.parentNode !== row) row.appendChild(label);
+    if (trigger.parentNode !== row) row.appendChild(trigger);
+    return row;
   }
 
   function resetSortMenuPosition(menu) {
@@ -3625,7 +3665,7 @@
         closeSortMenu(openWrap);
         var btn = sortButtonEl(openWrap);
         try {
-          if (btn && useCustomSortMenu()) btn.focus();
+          if (btn && customSortMenuEnabled()) btn.focus();
         } catch (err) {
           /* ignore */
         }
@@ -3685,6 +3725,7 @@
     copyDrawerThemeVars(widget, wrap);
     var trigger = ensureSortTrigger(wrap, select);
     var sortBtn = ensureSortButton(wrap, select);
+    ensureSortRow(wrap, select);
     closeSortMenu(wrap);
     var menu = sortMenuEl(wrap);
     if (!menu) {
@@ -3734,7 +3775,7 @@
     if (!wrap._sfSortMenuBound) {
       wrap._sfSortMenuBound = true;
       wrap.addEventListener("click", function (e) {
-        if (!useCustomSortMenu()) return;
+        if (!customSortMenuEnabled()) return;
         if (!e.target || !e.target.closest) return;
         if (e.target.closest(".smart-filter__sort-option")) return;
         if (e.target.closest(".sf-sort-btn")) {
@@ -3751,7 +3792,7 @@
         }
       });
       wrap.addEventListener("mousedown", function (e) {
-        if (!useCustomSortMenu()) return;
+        if (!customSortMenuEnabled()) return;
         if (!e.target || !e.target.closest) return;
         if (e.target.closest(".smart-filter__sort-option")) return;
         if (e.target.closest(".smart-filter__sort-menu")) return;
@@ -3771,7 +3812,7 @@
         toggleSortMenu(wrap);
       });
       wrap.addEventListener("keydown", function (e) {
-        if (!useCustomSortMenu()) return;
+        if (!customSortMenuEnabled()) return;
         var liveBtn = sortButtonEl(wrap);
         var liveSelect = sortMenuSelect(wrap);
         var onTrigger =
@@ -4265,21 +4306,6 @@
       }
     }
     return 0;
-  }
-
-  function uniqueClassName(raw) {
-    var seen = {};
-    var out = [];
-    String(raw || "")
-      .split(/\s+/)
-      .forEach(function (name) {
-        if (!name || seen[name]) return;
-        if (name.indexOf("sf-") === 0 && name !== "sf-app-card") return;
-        seen[name] = true;
-        out.push(name);
-      });
-    if (!seen["sf-app-card"]) out.push("sf-app-card");
-    return out.join(" ");
   }
 
   function mountFindlyPager(widget) {
@@ -4804,6 +4830,7 @@
       if (select && !select.closest(".sf-sort-trigger") && select.parentNode !== control) {
         control.insertBefore(select, control.firstChild);
       }
+      ensureSortRow(widget.sortWrap, select);
       if (countEl.parentNode !== control) control.appendChild(countEl);
     } else if (countEl.parentNode !== end) {
       end.appendChild(countEl);
@@ -4818,6 +4845,55 @@
     }
     scrubToolbarCountDupes(widget);
     syncToolbarLoading();
+  }
+
+  var THEME_PAGER_SEL_GRID =
+    "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, .Pagination";
+
+  function applyPagerByDisplayedCount(widget, count) {
+    if (widget && widget.applyPagerByProductCount) {
+      widget.applyPagerByProductCount(count);
+      return;
+    }
+    if (widget && widget.ensurePageSize) widget.ensurePageSize();
+    var size = (widget && widget.pageSize) || 16;
+    var n = Number(count);
+    if (!Number.isFinite(n) || n < 0) return;
+    var hide = n <= size;
+    var root = document.documentElement;
+    if (root && root.classList) {
+      if (hide) {
+        root.classList.add("sf-few-results");
+        root.classList.add("sf-pager-unneeded");
+      } else {
+        root.classList.remove("sf-few-results");
+        root.classList.remove("sf-pager-unneeded");
+      }
+    }
+    var layout = document.querySelector(".sf-collection-layout");
+    if (layout && layout.setAttribute) {
+      if (hide) layout.setAttribute("data-sf-single-page", "1");
+      else layout.removeAttribute("data-sf-single-page");
+    }
+    var nodes = document.querySelectorAll(THEME_PAGER_SEL_GRID);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el) continue;
+      if (el.closest && el.closest(".sf-pager, .smart-filter")) continue;
+      if (el.id === "findly-sf-pager") continue;
+      if (hide) {
+        el.setAttribute("data-sf-pager-suppressed", "1");
+        el.hidden = true;
+        el.setAttribute("hidden", "");
+        el.style.setProperty("display", "none", "important");
+      } else {
+        el.hidden = false;
+        el.removeAttribute("hidden");
+        el.removeAttribute("data-sf-pager-suppressed");
+        el.style.removeProperty("display");
+      }
+    }
   }
 
   function patchWidget(widget) {
@@ -5084,7 +5160,12 @@
       }
       if (shouldTakeOverThemeCards(this) && origCount) origCount.call(this, count);
       scrubToolbarCountDupes(this);
+      if (Number.isFinite(n) && n >= 0) {
+        this._statusProductCount = n;
+        applyPagerByDisplayedCount(this, n);
+      }
       if (this.syncThemePager) this.syncThemePager();
+      if (Number.isFinite(n) && n >= 0) applyPagerByDisplayedCount(this, n);
     };
 
     var origLegacy = proto.applyThemeGridLegacy;

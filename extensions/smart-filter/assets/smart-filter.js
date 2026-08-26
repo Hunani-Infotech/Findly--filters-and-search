@@ -312,24 +312,6 @@
     return roots;
   }
 
-  function facetTypeTag(facet) {
-    if (!facet) return "";
-    if (facet.hasMergedValues) return "Merged values";
-    if (
-      (facet.values || []).some(function (item) {
-        return item && item.merged;
-      })
-    ) {
-      return "Merged values";
-    }
-    if (facet.collectionTree || (facet.source === "collection" && valuesHaveChildren(facet.values))) {
-      return "Nested tree";
-    }
-    if (facet.source === "option" || facet.source === "variant") return "Variant filter";
-    if (facet.source === "metafield") return "Metafield";
-    return "";
-  }
-
   function applyFacetSwatch(label, item, labelText, value) {
     var spec = item && item.swatch;
     if (spec && spec.kind === "image" && spec.imageUrl) {

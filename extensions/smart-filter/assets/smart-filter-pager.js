@@ -49,6 +49,7 @@
 
   function setPagerUnneeded(on) {
     setHtmlClass("sf-pager-unneeded", on);
+    setHtmlClass("sf-few-results", on);
     var layout = document.querySelector(".sf-collection-layout");
     if (!layout || !layout.setAttribute) return;
     if (on) layout.setAttribute("data-sf-single-page", "1");
@@ -143,21 +144,15 @@
 
   function filteredTotal(widget) {
     var data = widget && widget._lastFilterData;
-    if (!data) return -1;
-    if (typeof data.total === "number" && data.total >= 0) return data.total;
-    if (typeof data.count === "number" && data.count >= 0) return data.count;
+    if (data) {
+      if (typeof data.total === "number" && data.total >= 0) return data.total;
+      if (typeof data.count === "number" && data.count >= 0) return data.count;
+    }
+    var status = Number(widget && widget._statusProductCount);
+    if (Number.isFinite(status) && status >= 0) return status;
     var total = Number(widget && widget._pageTotal);
     if (Number.isFinite(total) && total >= 0) return total;
     return -1;
-  }
-
-  function resultsFitOnePage(widget) {
-    if (!widget) return false;
-    if (widget.ensurePageSize) widget.ensurePageSize();
-    var size = widget.pageSize || 16;
-    var total = filteredTotal(widget);
-    if (total < 0) return false;
-    return total <= size;
   }
 
   function suppressThemePagers() {
@@ -176,6 +171,17 @@
       if (!nodes[i] || isFindlyPager(nodes[i])) continue;
       unhidePager(nodes[i]);
     }
+  }
+
+  function applyPagerByProductCount(widget, count) {
+    if (widget && widget.ensurePageSize) widget.ensurePageSize();
+    var size = (widget && widget.pageSize) || 16;
+    var n = Number(count);
+    if (!Number.isFinite(n) || n < 0) return;
+    var hide = n <= size;
+    setPagerUnneeded(hide);
+    if (hide) suppressThemePagers();
+    else unhideThemePagers();
   }
 
   function removeFindlyNumberedPagers(widget) {
@@ -682,15 +688,20 @@
       if (this._pagerEl === el) this._pagerEl = null;
     };
 
+    proto.applyPagerByProductCount = function (count) {
+      applyPagerByProductCount(this, count);
+    };
+
     proto.usesThemeNumberedPager = function () {
       return usesThemeNumberedPager(this);
     };
 
     proto.syncThemePager = function () {
-      if (!usesThemeNumberedPager(this)) {
-        setPagerUnneeded(false);
-        return false;
-      }
+      if (this.ensurePageSize) this.ensurePageSize();
+      var total = filteredTotal(this);
+      var size = this.pageSize || 16;
+      if (total >= 0) applyPagerByProductCount(this, total);
+      if (!usesThemeNumberedPager(this)) return false;
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
         return true;
@@ -700,19 +711,9 @@
       try {
         removeFindlyNumberedPagers(this);
         observeThemePager();
-        if (this._loadingPage && !this._appending) return true;
-        if (this.ensurePageSize) this.ensurePageSize();
         var drive = shouldDriveThemePager(this);
-        var total = filteredTotal(this);
-        var size = this.pageSize || 16;
-        if (total < 0) return true;
-        var show = total > size;
-        setPagerUnneeded(!show);
-        if (!show) {
-          suppressThemePagers();
-          return true;
-        }
-        unhideThemePagers();
+        if (total >= 0 && total <= size) return true;
+        if (this._loadingPage && !this._appending) return true;
         var roots = findThemePagers();
         if (!roots.length) {
           scheduleThemePagerSync(this);

@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v5";
+  var STYLE_ID = "findly-theme-compat-v6";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -261,6 +261,7 @@
       "findly-theme-compat-v3",
       "findly-theme-compat-v4",
       "findly-theme-compat-v5",
+      "findly-theme-compat-v6",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -296,7 +297,11 @@
       "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
-      ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper" +
+      ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper," +
+      "html.sf-few-results nav.pagination,html.sf-few-results .pagination-wrapper," +
+      "html.sf-few-results .pagination,html.sf-few-results [data-pagination]," +
+      "html.sf-pager-unneeded nav.pagination,html.sf-pager-unneeded .pagination-wrapper," +
+      "html.sf-pager-unneeded .pagination,html.sf-pager-unneeded [data-pagination]" +
       "{display:none!important}" +
       ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter){" +
       "display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +

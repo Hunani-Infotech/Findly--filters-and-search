@@ -1,6 +1,7 @@
 /**
- * First-paint collection-grid loading. Loaded without defer so skeletons
- * and the centered overlay appear in the same parse as the filter block.
+ * First-paint collection-grid loading. Loaded with defer (Theme Check
+ * ParserBlockingScript). Liquid sets html.sf-filter-loading inline so
+ * products stay hidden until this script mounts skeletons + overlay.
  * Markup matches mountGridSkeletons in smart-filter-grid.js — do not restyle.
  */
 (function () {

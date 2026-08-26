@@ -1,8 +1,12 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'smart-filter-ui.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'instant-search.css' | asset_url }}" media="all">
-{% # Parser-blocking on purpose: mount grid skeletons before first paint. %}
-<script src="{{ 'smart-filter-boot.min.js' | asset_url }}"></script>
+{% # Inline class only: hide theme products before deferred boot mounts skeletons. %}
+<script>
+  document.documentElement.classList.add("sf-filter-loading");
+  document.documentElement.classList.remove("sf-filter-ready");
+</script>
+<script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
@@ -81,10 +85,12 @@ try {
     <span class="smart-filter__toggle-count" data-drawer-count hidden></span>
   </button>
   <div class="smart-filter__sort" data-sort-wrap hidden>
-    <label class="smart-filter__sort-label" for="smart-filter-embed-sort">
-      {{ "blocks.collection_filters_embed.sort" | t }}
-    </label>
-    <select id="smart-filter-embed-sort" class="smart-filter__sort-select" data-sort></select>
+    <div class="sf-sort-row">
+      <label class="smart-filter__sort-label" for="smart-filter-embed-sort">
+        {{ "blocks.collection_filters_embed.sort" | t }}
+      </label>
+      <select id="smart-filter-embed-sort" class="smart-filter__sort-select" data-sort></select>
+    </div>
   </div>
   <div class="smart-filter__collection-search" data-collection-search-wrap hidden>
     <label class="smart-filter__collection-search-label" for="smart-filter-embed-collection-q">

@@ -305,7 +305,7 @@
 
 .smart-filter__facet.is-collapsed .smart-filter__options,
 .smart-filter__facet.is-collapsed .smart-filter__price {
-  display: none;
+  display: none !important;
 }
 
 .smart-filter__options {
@@ -1410,22 +1410,46 @@ html.sf-filter-loading .sf-total-count::after {
   position: relative;
   margin: 0;
   justify-content: flex-end;
-  align-items: flex-start;
+  align-items: flex-end;
   width: fit-content;
   max-width: 100%;
   flex-wrap: nowrap;
   overflow: visible;
-  gap: 0.7rem;
+  gap: 0;
 }
 
-.smart-filter__sort--toolbar .smart-filter__sort-label {
+.smart-filter__sort--toolbar .smart-filter__sort-label,
+.sf-sort-row .smart-filter__sort-label {
+  display: block !important;
+  box-sizing: border-box;
+  min-height: 0 !important;
+  height: auto !important;
   font-size: 0.875em;
   font-weight: 500;
   color: #6d6d6d;
-  line-height: 2.5rem;
-  padding: 0;
-  margin: 0;
+  line-height: 1.25 !important;
+  padding: 0 !important;
+  margin: 0 !important;
   white-space: nowrap;
+}
+
+.sf-sort-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.7rem;
+  width: auto;
+  overflow: visible;
+}
+
+.sf-sort-row .smart-filter__sort-label {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.sf-sort-row .sf-sort-trigger {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 10.75rem;
 }
 
 .smart-filter__sort--toolbar .smart-filter__sort-select {
@@ -1722,7 +1746,7 @@ html.sf-filter-loading .sf-total-count::after {
   flex-direction: column;
   align-items: stretch;
   gap: 0.35rem;
-  min-width: 10.75rem;
+  min-width: 0;
 }
 
 .sf-total-count {
@@ -2428,9 +2452,15 @@ results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-
   max-width: 100%;
 }
 
-.sf-collection-layout nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
-.sf-collection-layout .pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
-.sf-collection-layout .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed="1"]) {
+html:not(.sf-few-results):not(.sf-pager-unneeded)
+  .sf-collection-layout
+  nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded)
+  .sf-collection-layout
+  .pagination:not([hidden]):not([data-sf-pager-suppressed="1"]),
+html:not(.sf-few-results):not(.sf-pager-unneeded)
+  .sf-collection-layout
+  .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed="1"]) {
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: wrap !important;
@@ -2459,7 +2489,15 @@ results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-
 .sf-collection-layout[data-sf-single-page="1"] nav.pagination,
 .sf-collection-layout[data-sf-single-page="1"] .pagination,
 .sf-collection-layout[data-sf-single-page="1"] .pagination-wrapper,
-.sf-collection-layout[data-sf-single-page="1"] [data-pagination] {
+.sf-collection-layout[data-sf-single-page="1"] [data-pagination],
+html.sf-few-results nav.pagination,
+html.sf-few-results .pagination-wrapper,
+html.sf-few-results .pagination,
+html.sf-few-results [data-pagination],
+html.sf-pager-unneeded nav.pagination,
+html.sf-pager-unneeded .pagination-wrapper,
+html.sf-pager-unneeded .pagination,
+html.sf-pager-unneeded [data-pagination] {
   display: none !important;
 }
 

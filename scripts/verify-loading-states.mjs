@@ -115,6 +115,12 @@ function assertSourceMarkers() {
   if (!css.includes("data-sf-single-page")) {
     fail("smart-filter.css must hide theme pagination when results fit on one page");
   }
+  if (!css.includes("html.sf-few-results nav.pagination") || !pagerJs.includes("sf-few-results")) {
+    fail("few-results class must hide theme pagination outside the collection layout");
+  }
+  if (!grid.includes("applyPagerByDisplayedCount")) {
+    fail("grid must hide/show pagination from the displayed product count");
+  }
   if (grid.includes('el.id = "findly-sf-pager"')) {
     fail("grid must not mount a Findly numbered pager");
   }
@@ -127,6 +133,18 @@ function assertSourceMarkers() {
   }
   if (!block.includes("smart-filter-boot.min.js") || !embed.includes("smart-filter-boot.min.js")) {
     fail("both collection blocks must load the first-paint boot script");
+  }
+  if (
+    !block.includes(`src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer`) ||
+    !embed.includes(`src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer`)
+  ) {
+    fail("boot script must use defer so Theme Check ParserBlockingScript passes");
+  }
+  if (
+    !block.includes('classList.add("sf-filter-loading")') ||
+    !embed.includes('classList.add("sf-filter-loading")')
+  ) {
+    fail("collection blocks must set sf-filter-loading inline before deferred boot");
   }
   if (!block.includes("smart-filter-grid.min.js") || !embed.includes("smart-filter-grid.min.js")) {
     fail("both collection blocks must load the grid companion");
@@ -159,7 +177,7 @@ function assertSourceMarkers() {
   if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v26")) {
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v29")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");

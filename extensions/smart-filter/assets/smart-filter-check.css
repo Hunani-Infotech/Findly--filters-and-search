@@ -116,6 +116,11 @@
   overflow: visible !important;
 }
 
+#smart-filter-root .smart-filter__facet.is-collapsed .smart-filter__price,
+#smart-filter-embed .smart-filter__facet.is-collapsed .smart-filter__price {
+  display: none !important;
+}
+
 #smart-filter-root .smart-filter__slider,
 #smart-filter-embed .smart-filter__slider {
   grid-column: 1 / -1 !important;
@@ -298,7 +303,15 @@ html.sf-filter-loading .sf-pager {
 
 .sf-collection-layout[data-sf-single-page="1"] nav.pagination,
 .sf-collection-layout[data-sf-single-page="1"] .pagination,
-.sf-collection-layout[data-sf-single-page="1"] .pagination-wrapper {
+.sf-collection-layout[data-sf-single-page="1"] .pagination-wrapper,
+html.sf-few-results nav.pagination,
+html.sf-few-results .pagination-wrapper,
+html.sf-few-results .pagination,
+html.sf-few-results [data-pagination],
+html.sf-pager-unneeded nav.pagination,
+html.sf-pager-unneeded .pagination-wrapper,
+html.sf-pager-unneeded .pagination,
+html.sf-pager-unneeded [data-pagination] {
   display: none !important;
 }
 

@@ -8,7 +8,7 @@
 
 #smart-filter-root.smart-filter,
 #smart-filter-embed.smart-filter {
-  padding: 0.75rem 0.85rem 0.75rem 0.4rem !important;
+  padding: 0.75rem 0.85rem !important;
 }
 
 @media (min-width: 990px) {
@@ -16,7 +16,7 @@
   #smart-filter-root.smart-filter--right,
   #smart-filter-embed.smart-filter--left,
   #smart-filter-embed.smart-filter--right {
-    padding: 0.25rem 0.85rem 0.5rem 0.4rem !important;
+    padding: 0.25rem 0.85rem 0.5rem !important;
   }
 }
 
@@ -45,7 +45,7 @@
 
 #smart-filter-root .smart-filter__facet-label,
 #smart-filter-embed .smart-filter__facet-label {
-  padding: 0 0 0.2em !important;
+  padding: 0 0 0.35em !important;
   font-size: 0.9375em !important;
   font-weight: 700 !important;
 }
@@ -55,12 +55,9 @@
   display: none !important;
 }
 
-#smart-filter-root .smart-filter__options,
-#smart-filter-embed .smart-filter__options,
 #smart-filter-root .smart-filter__options > li,
 #smart-filter-embed .smart-filter__options > li {
   margin: 0 !important;
-  margin-inline-start: 0 !important;
   padding: 0 !important;
   padding-inline-start: 0 !important;
   list-style: none !important;
@@ -68,7 +65,21 @@
 
 #smart-filter-root .smart-filter__options,
 #smart-filter-embed .smart-filter__options {
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-inline-start: 0 !important;
   gap: 0.05em !important;
+  list-style: none !important;
+}
+
+#smart-filter-root .smart-filter__price,
+#smart-filter-embed .smart-filter__price {
+  padding-inline-start: 1.15rem !important;
+}
+
+#smart-filter-root .smart-filter__facet.is-collapsed .smart-filter__price,
+#smart-filter-embed .smart-filter__facet.is-collapsed .smart-filter__price {
+  display: none !important;
 }
 
 #smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
@@ -102,10 +113,12 @@
   display: flex !important;
   position: relative !important;
   align-items: flex-start !important;
-  gap: 0.3rem !important;
+  gap: 0.4rem !important;
   margin-left: 0 !important;
-  padding: 0.12em 0 0.12em 0 !important;
-  padding-inline-start: 0 !important;
+  padding: 0.35em 0.5em 0.35em 1.15rem !important;
+  padding-inline-start: 1.15rem !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
