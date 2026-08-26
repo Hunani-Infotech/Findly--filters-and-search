@@ -19,6 +19,11 @@ const SCHEMA_JS_LIMIT_BYTES = 100000;
 
 const JOBS = [
   {
+    src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-dom.js"),
+    out: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-dom.min.js"),
+    banner: "/* generated from smart-filter-dom.js — do not edit */\n",
+  },
+  {
     src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter.js"),
     out: path.join(ROOT, "extensions/smart-filter/assets/smart-filter.min.js"),
     banner: "/* generated from smart-filter.js — do not edit */\n",

@@ -1,3 +1,4 @@
+import { MS_PER_DAY } from "../limits";
 import { useEffect, useRef } from "react";
 import type {
   ActionFunctionArgs,
@@ -80,7 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     trialEndsAt && trialEndsAt > new Date()
       ? Math.max(
           1,
-          Math.ceil((trialEndsAt.getTime() - Date.now()) / 86_400_000),
+          Math.ceil((trialEndsAt.getTime() - Date.now()) / MS_PER_DAY),
         )
       : null;
 

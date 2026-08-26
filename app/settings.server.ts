@@ -152,181 +152,270 @@ export async function getAppSettings(shopId: string) {
   });
 }
 
-export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
-  const widgetPosition = parseWidgetPosition(input.widgetPosition); // left | right | top | offcanvas
-  const accentColor = sanitizeWidgetTitleColor(input.accentColor);
-  const widgetRadius = parseWidgetRadius(input.widgetRadius);
+/** Include `value` in the Prisma update only when the client sent the field. */
+function patchIfPresent<T>(
+  present: boolean,
+  key: string,
+  value: T,
+): Record<string, T> {
+  return present ? { [key]: value } : {};
+}
 
+function normalizeSettingsWrite(input: AppSettingsInput) {
   const widgetFontMode = parseWidgetFontMode(input.widgetFontMode);
-  const widgetFontFamily =
-    widgetFontMode === "custom" ? sanitizeFontFamily(input.widgetFontFamily) : "";
-  const widgetTitle = sanitizeWidgetTitle(input.widgetTitle);
-  const widgetTitleSize = parseWidgetTitleSize(input.widgetTitleSize);
-  const widgetTitleColor = sanitizeWidgetTitleColor(input.widgetTitleColor);
   const searchFields =
     input.searchFields !== undefined
       ? normalizeSearchFields(input.searchFields)
       : [...DEFAULT_APP_SETTINGS.searchFields];
-  const hideOutOfStock = parseHideOutOfStock(
-    input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
-  );
-  const paginationStyle = parsePaginationStyle(
-    input.paginationStyle ?? DEFAULT_APP_SETTINGS.paginationStyle,
-  );
   const sortOptionsEnabled =
     input.sortOptionsEnabled !== undefined
       ? normalizeSortOptions(input.sortOptionsEnabled)
       : [...DEFAULT_APP_SETTINGS.sortOptionsEnabled];
-  const defaultSort = parseSortOption(
-    input.defaultSort ?? DEFAULT_APP_SETTINGS.defaultSort,
-  );
-  const hideSortDropdown =
-    input.hideSortDropdown ?? DEFAULT_APP_SETTINGS.hideSortDropdown;
-  const inStockOnTop =
-    input.inStockOnTop ?? DEFAULT_APP_SETTINGS.inStockOnTop;
-  const soldOutToBottom =
-    input.soldOutToBottom ?? DEFAULT_APP_SETTINGS.soldOutToBottom;
-  const enableCollectionSearch =
-    input.enableCollectionSearch ??
-    DEFAULT_APP_SETTINGS.enableCollectionSearch;
-  const enableMarkets =
-    input.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets;
-  const enableFiltersOnSearch =
-    input.enableFiltersOnSearch ?? DEFAULT_APP_SETTINGS.enableFiltersOnSearch;
-  const hideSingleValueFacets =
-    input.hideSingleValueFacets ?? DEFAULT_APP_SETTINGS.hideSingleValueFacets;
-  const showMatchingVariantImage =
-    input.showMatchingVariantImage ??
-    DEFAULT_APP_SETTINGS.showMatchingVariantImage;
-  const showRefineBy =
-    input.showRefineBy ?? DEFAULT_APP_SETTINGS.showRefineBy;
-  const autoApplyFilters =
-    input.autoApplyFilters ?? DEFAULT_APP_SETTINGS.autoApplyFilters;
-  const showSuggestionsOnEmptyQuery =
-    input.showSuggestionsOnEmptyQuery ??
-    DEFAULT_APP_SETTINGS.showSuggestionsOnEmptyQuery;
-  const showSuggestionsOnNoResults =
-    input.showSuggestionsOnNoResults ??
-    DEFAULT_APP_SETTINGS.showSuggestionsOnNoResults;
-  const suggestionProductHandles = normalizeHandleList(
-    input.suggestionProductHandles ??
-      DEFAULT_APP_SETTINGS.suggestionProductHandles,
-  );
-  const suggestionCollectionHandles = normalizeHandleList(
-    input.suggestionCollectionHandles ??
-      DEFAULT_APP_SETTINGS.suggestionCollectionHandles,
-  );
-  const hideProductTags = normalizeHideProductTags(
-    input.hideProductTags ?? DEFAULT_APP_SETTINGS.hideProductTags,
-  );
-  const showTotalProductCount =
-    input.showTotalProductCount ?? DEFAULT_APP_SETTINGS.showTotalProductCount;
-  const searchExtras = parseSearchExtras(
-    input.searchExtras ?? DEFAULT_SEARCH_EXTRAS,
-  );
-  const customCss = sanitizeCustomCss(
-    input.customCss ?? DEFAULT_APP_SETTINGS.customCss,
-  );
-  const productListLiquid = sanitizeProductListLiquid(
-    input.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
-  );
+
+  return {
+    widgetPosition: parseWidgetPosition(input.widgetPosition),
+    accentColor: sanitizeWidgetTitleColor(input.accentColor),
+    widgetRadius: parseWidgetRadius(input.widgetRadius),
+    widgetFontMode,
+    widgetFontFamily:
+      widgetFontMode === "custom"
+        ? sanitizeFontFamily(input.widgetFontFamily)
+        : "",
+    widgetTitle: sanitizeWidgetTitle(input.widgetTitle),
+    widgetTitleSize: parseWidgetTitleSize(input.widgetTitleSize),
+    widgetTitleColor: sanitizeWidgetTitleColor(input.widgetTitleColor),
+    searchFields,
+    hideOutOfStock: parseHideOutOfStock(
+      input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
+    ),
+    paginationStyle: parsePaginationStyle(
+      input.paginationStyle ?? DEFAULT_APP_SETTINGS.paginationStyle,
+    ),
+    sortOptionsEnabled,
+    defaultSort: parseSortOption(
+      input.defaultSort ?? DEFAULT_APP_SETTINGS.defaultSort,
+    ),
+    hideSortDropdown:
+      input.hideSortDropdown ?? DEFAULT_APP_SETTINGS.hideSortDropdown,
+    inStockOnTop: input.inStockOnTop ?? DEFAULT_APP_SETTINGS.inStockOnTop,
+    soldOutToBottom:
+      input.soldOutToBottom ?? DEFAULT_APP_SETTINGS.soldOutToBottom,
+    enableCollectionSearch:
+      input.enableCollectionSearch ??
+      DEFAULT_APP_SETTINGS.enableCollectionSearch,
+    enableMarkets: input.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets,
+    enableFiltersOnSearch:
+      input.enableFiltersOnSearch ??
+      DEFAULT_APP_SETTINGS.enableFiltersOnSearch,
+    hideSingleValueFacets:
+      input.hideSingleValueFacets ??
+      DEFAULT_APP_SETTINGS.hideSingleValueFacets,
+    showMatchingVariantImage:
+      input.showMatchingVariantImage ??
+      DEFAULT_APP_SETTINGS.showMatchingVariantImage,
+    showRefineBy: input.showRefineBy ?? DEFAULT_APP_SETTINGS.showRefineBy,
+    autoApplyFilters:
+      input.autoApplyFilters ?? DEFAULT_APP_SETTINGS.autoApplyFilters,
+    showSuggestionsOnEmptyQuery:
+      input.showSuggestionsOnEmptyQuery ??
+      DEFAULT_APP_SETTINGS.showSuggestionsOnEmptyQuery,
+    showSuggestionsOnNoResults:
+      input.showSuggestionsOnNoResults ??
+      DEFAULT_APP_SETTINGS.showSuggestionsOnNoResults,
+    suggestionProductHandles: normalizeHandleList(
+      input.suggestionProductHandles ??
+        DEFAULT_APP_SETTINGS.suggestionProductHandles,
+    ),
+    suggestionCollectionHandles: normalizeHandleList(
+      input.suggestionCollectionHandles ??
+        DEFAULT_APP_SETTINGS.suggestionCollectionHandles,
+    ),
+    hideProductTags: normalizeHideProductTags(
+      input.hideProductTags ?? DEFAULT_APP_SETTINGS.hideProductTags,
+    ),
+    showTotalProductCount:
+      input.showTotalProductCount ?? DEFAULT_APP_SETTINGS.showTotalProductCount,
+    searchExtras: parseSearchExtras(
+      input.searchExtras ?? DEFAULT_SEARCH_EXTRAS,
+    ),
+    customCss: sanitizeCustomCss(
+      input.customCss ?? DEFAULT_APP_SETTINGS.customCss,
+    ),
+    productListLiquid: sanitizeProductListLiquid(
+      input.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
+    ),
+  };
+}
+
+export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
+  const n = normalizeSettingsWrite(input);
 
   const row = await prisma.appSettings.upsert({
     where: { shopId },
     create: {
       shopId,
-      widgetPosition,
-      accentColor,
+      widgetPosition: n.widgetPosition,
+      accentColor: n.accentColor,
       showProductCounts: input.showProductCounts ?? true,
-      showTotalProductCount,
-      hideProductTags,
+      showTotalProductCount: n.showTotalProductCount,
+      hideProductTags: n.hideProductTags,
       collapseByDefault: input.collapseByDefault ?? false,
-      hideOutOfStock,
-      paginationStyle,
+      hideOutOfStock: n.hideOutOfStock,
+      paginationStyle: n.paginationStyle,
       widgetShadow: input.widgetShadow ?? true,
-      widgetRadius,
-      widgetFontMode,
-      widgetFontFamily,
-      widgetTitle,
-      widgetTitleSize,
-      widgetTitleColor,
-      searchFields,
-      sortOptionsEnabled,
-      defaultSort,
-      hideSortDropdown,
-      inStockOnTop,
-      soldOutToBottom,
-      enableCollectionSearch,
-      enableMarkets,
-      enableFiltersOnSearch,
-      hideSingleValueFacets,
-      showMatchingVariantImage,
-      showRefineBy,
-      autoApplyFilters,
-      showSuggestionsOnEmptyQuery,
-      showSuggestionsOnNoResults,
-      suggestionProductHandles,
-      suggestionCollectionHandles,
-      customCss,
-      productListLiquid,
+      widgetRadius: n.widgetRadius,
+      widgetFontMode: n.widgetFontMode,
+      widgetFontFamily: n.widgetFontFamily,
+      widgetTitle: n.widgetTitle,
+      widgetTitleSize: n.widgetTitleSize,
+      widgetTitleColor: n.widgetTitleColor,
+      searchFields: n.searchFields,
+      sortOptionsEnabled: n.sortOptionsEnabled,
+      defaultSort: n.defaultSort,
+      hideSortDropdown: n.hideSortDropdown,
+      inStockOnTop: n.inStockOnTop,
+      soldOutToBottom: n.soldOutToBottom,
+      enableCollectionSearch: n.enableCollectionSearch,
+      enableMarkets: n.enableMarkets,
+      enableFiltersOnSearch: n.enableFiltersOnSearch,
+      hideSingleValueFacets: n.hideSingleValueFacets,
+      showMatchingVariantImage: n.showMatchingVariantImage,
+      showRefineBy: n.showRefineBy,
+      autoApplyFilters: n.autoApplyFilters,
+      showSuggestionsOnEmptyQuery: n.showSuggestionsOnEmptyQuery,
+      showSuggestionsOnNoResults: n.showSuggestionsOnNoResults,
+      suggestionProductHandles: n.suggestionProductHandles,
+      suggestionCollectionHandles: n.suggestionCollectionHandles,
+      customCss: n.customCss,
+      productListLiquid: n.productListLiquid,
     },
     update: {
-      widgetPosition,
-      accentColor,
+      widgetPosition: n.widgetPosition,
+      accentColor: n.accentColor,
       showProductCounts: input.showProductCounts,
-      ...(input.showTotalProductCount !== undefined
-        ? { showTotalProductCount }
-        : {}),
-      ...(input.hideProductTags !== undefined ? { hideProductTags } : {}),
+      ...patchIfPresent(
+        input.showTotalProductCount !== undefined,
+        "showTotalProductCount",
+        n.showTotalProductCount,
+      ),
+      ...patchIfPresent(
+        input.hideProductTags !== undefined,
+        "hideProductTags",
+        n.hideProductTags,
+      ),
       collapseByDefault: input.collapseByDefault,
-      ...(input.hideOutOfStock !== undefined ? { hideOutOfStock } : {}),
-      ...(input.paginationStyle !== undefined ? { paginationStyle } : {}),
+      ...patchIfPresent(
+        input.hideOutOfStock !== undefined,
+        "hideOutOfStock",
+        n.hideOutOfStock,
+      ),
+      ...patchIfPresent(
+        input.paginationStyle !== undefined,
+        "paginationStyle",
+        n.paginationStyle,
+      ),
       widgetShadow: input.widgetShadow,
-      widgetRadius,
-      widgetFontMode,
-      widgetFontFamily,
-      widgetTitle,
-      widgetTitleSize,
-      widgetTitleColor,
-      ...(input.searchFields !== undefined ? { searchFields } : {}),
-      ...(input.sortOptionsEnabled !== undefined ? { sortOptionsEnabled } : {}),
-      ...(input.defaultSort !== undefined ? { defaultSort } : {}),
-      ...(input.hideSortDropdown !== undefined ? { hideSortDropdown } : {}),
-      ...(input.inStockOnTop !== undefined ? { inStockOnTop } : {}),
-      ...(input.soldOutToBottom !== undefined ? { soldOutToBottom } : {}),
-      ...(input.enableCollectionSearch !== undefined
-        ? { enableCollectionSearch }
-        : {}),
-      ...(input.enableMarkets !== undefined ? { enableMarkets } : {}),
-      ...(input.enableFiltersOnSearch !== undefined
-        ? { enableFiltersOnSearch }
-        : {}),
-      ...(input.hideSingleValueFacets !== undefined
-        ? { hideSingleValueFacets }
-        : {}),
-      ...(input.showMatchingVariantImage !== undefined
-        ? { showMatchingVariantImage }
-        : {}),
-      ...(input.showRefineBy !== undefined ? { showRefineBy } : {}),
-      ...(input.autoApplyFilters !== undefined ? { autoApplyFilters } : {}),
-      ...(input.showSuggestionsOnEmptyQuery !== undefined
-        ? { showSuggestionsOnEmptyQuery }
-        : {}),
-      ...(input.showSuggestionsOnNoResults !== undefined
-        ? { showSuggestionsOnNoResults }
-        : {}),
-      ...(input.suggestionProductHandles !== undefined
-        ? { suggestionProductHandles }
-        : {}),
-      ...(input.suggestionCollectionHandles !== undefined
-        ? { suggestionCollectionHandles }
-        : {}),
-      ...(input.customCss !== undefined ? { customCss } : {}),
-      ...(input.productListLiquid !== undefined ? { productListLiquid } : {}),
+      widgetRadius: n.widgetRadius,
+      widgetFontMode: n.widgetFontMode,
+      widgetFontFamily: n.widgetFontFamily,
+      widgetTitle: n.widgetTitle,
+      widgetTitleSize: n.widgetTitleSize,
+      widgetTitleColor: n.widgetTitleColor,
+      ...patchIfPresent(
+        input.searchFields !== undefined,
+        "searchFields",
+        n.searchFields,
+      ),
+      ...patchIfPresent(
+        input.sortOptionsEnabled !== undefined,
+        "sortOptionsEnabled",
+        n.sortOptionsEnabled,
+      ),
+      ...patchIfPresent(
+        input.defaultSort !== undefined,
+        "defaultSort",
+        n.defaultSort,
+      ),
+      ...patchIfPresent(
+        input.hideSortDropdown !== undefined,
+        "hideSortDropdown",
+        n.hideSortDropdown,
+      ),
+      ...patchIfPresent(
+        input.inStockOnTop !== undefined,
+        "inStockOnTop",
+        n.inStockOnTop,
+      ),
+      ...patchIfPresent(
+        input.soldOutToBottom !== undefined,
+        "soldOutToBottom",
+        n.soldOutToBottom,
+      ),
+      ...patchIfPresent(
+        input.enableCollectionSearch !== undefined,
+        "enableCollectionSearch",
+        n.enableCollectionSearch,
+      ),
+      ...patchIfPresent(
+        input.enableMarkets !== undefined,
+        "enableMarkets",
+        n.enableMarkets,
+      ),
+      ...patchIfPresent(
+        input.enableFiltersOnSearch !== undefined,
+        "enableFiltersOnSearch",
+        n.enableFiltersOnSearch,
+      ),
+      ...patchIfPresent(
+        input.hideSingleValueFacets !== undefined,
+        "hideSingleValueFacets",
+        n.hideSingleValueFacets,
+      ),
+      ...patchIfPresent(
+        input.showMatchingVariantImage !== undefined,
+        "showMatchingVariantImage",
+        n.showMatchingVariantImage,
+      ),
+      ...patchIfPresent(
+        input.showRefineBy !== undefined,
+        "showRefineBy",
+        n.showRefineBy,
+      ),
+      ...patchIfPresent(
+        input.autoApplyFilters !== undefined,
+        "autoApplyFilters",
+        n.autoApplyFilters,
+      ),
+      ...patchIfPresent(
+        input.showSuggestionsOnEmptyQuery !== undefined,
+        "showSuggestionsOnEmptyQuery",
+        n.showSuggestionsOnEmptyQuery,
+      ),
+      ...patchIfPresent(
+        input.showSuggestionsOnNoResults !== undefined,
+        "showSuggestionsOnNoResults",
+        n.showSuggestionsOnNoResults,
+      ),
+      ...patchIfPresent(
+        input.suggestionProductHandles !== undefined,
+        "suggestionProductHandles",
+        n.suggestionProductHandles,
+      ),
+      ...patchIfPresent(
+        input.suggestionCollectionHandles !== undefined,
+        "suggestionCollectionHandles",
+        n.suggestionCollectionHandles,
+      ),
+      ...patchIfPresent(input.customCss !== undefined, "customCss", n.customCss),
+      ...patchIfPresent(
+        input.productListLiquid !== undefined,
+        "productListLiquid",
+        n.productListLiquid,
+      ),
     },
   });
   if (input.searchExtras !== undefined) {
-    await persistSearchExtrasColumn(shopId, searchExtras);
+    await persistSearchExtrasColumn(shopId, n.searchExtras);
   }
   appSettingsCache.del(shopId);
   return row;

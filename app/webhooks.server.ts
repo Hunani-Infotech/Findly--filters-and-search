@@ -1,4 +1,5 @@
 import { log } from "./log.server";
+import { COLLECTION_REBUILD_DELAY_MS } from "./limits";
 import {
   enqueueSyncJobWithTimeout,
   type SyncJobName,
@@ -218,7 +219,7 @@ export async function handleWebhookTopic(
       await enqueueCatalogJob(
         "collection.rebuild",
         { shop, collectionGid },
-        { jobId: `${shop}:collection.rebuild:${collectionGid}`, delay: 2000 },
+        { jobId: `${shop}:collection.rebuild:${collectionGid}`, delay: COLLECTION_REBUILD_DELAY_MS },
       );
       break;
     }
@@ -290,7 +291,7 @@ export async function handleWebhookTopic(
           { shop, collectionGid },
           {
             jobId: `${shop}:collection.rebuild:${collectionGid}`,
-            delay: 2000,
+            delay: COLLECTION_REBUILD_DELAY_MS,
           },
         );
         break;

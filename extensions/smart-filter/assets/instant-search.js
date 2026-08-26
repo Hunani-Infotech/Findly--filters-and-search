@@ -10,7 +10,16 @@
     dropdown_one: "findly-instant--dropdown-one",
   };
 
+  function domApi() {
+    return window.__FINDLY_DOM || null;
+  }
+
   function runWhenIdle(fn) {
+    var api = domApi();
+    if (api && api.runWhenIdle) {
+      api.runWhenIdle(fn);
+      return;
+    }
     if (typeof window.requestIdleCallback !== "function") {
       window.setTimeout(fn, 0);
       return;
@@ -24,6 +33,11 @@
   }
 
   function setHidden(el, hidden) {
+    var api = domApi();
+    if (api && api.setHidden) {
+      api.setHidden(el, hidden);
+      return;
+    }
     if (!el) return;
     if (hidden) el.setAttribute("hidden", "");
     else el.removeAttribute("hidden");
@@ -35,6 +49,8 @@
   }
 
   function formatPrice(value, currencyCode) {
+    var api = domApi();
+    if (api && api.formatPrice) return api.formatPrice(value, currencyCode);
     if (value == null || value === "") return "";
     var n = Number(value);
     if (!Number.isFinite(n)) return String(value);

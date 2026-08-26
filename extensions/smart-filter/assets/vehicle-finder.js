@@ -17,6 +17,11 @@
     '<ul class="smart-filter-ymm__results" data-ymm-results role="list"></ul>';
 
   function runWhenIdle(fn) {
+    var api = window.__FINDLY_DOM;
+    if (api && api.runWhenIdle) {
+      api.runWhenIdle(fn);
+      return;
+    }
     if (typeof window.requestIdleCallback !== "function") {
       window.setTimeout(fn, 0);
       return;
@@ -30,10 +35,17 @@
   }
 
   function qs(root, selector) {
+    var api = window.__FINDLY_DOM;
+    if (api && api.qs) return api.qs(root, selector);
     return root.querySelector(selector);
   }
 
   function setHidden(el, hidden) {
+    var api = window.__FINDLY_DOM;
+    if (api && api.setHidden) {
+      api.setHidden(el, hidden);
+      return;
+    }
     if (!el) return;
     if (hidden) el.setAttribute("hidden", "");
     else el.removeAttribute("hidden");
@@ -93,14 +105,16 @@
   }
 
   function formatPrice(value) {
-    if (value == null || value === "") return "";
-    var n = Number(value);
-    if (!Number.isFinite(n)) return String(value);
     var currency =
       (window.Shopify &&
         window.Shopify.currency &&
         window.Shopify.currency.active) ||
       "USD";
+    var api = window.__FINDLY_DOM;
+    if (api && api.formatPrice) return api.formatPrice(value, currency);
+    if (value == null || value === "") return "";
+    var n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
     try {
       return new Intl.NumberFormat(undefined, {
         style: "currency",

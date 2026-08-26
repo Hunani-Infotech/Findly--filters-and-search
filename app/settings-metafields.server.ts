@@ -1,6 +1,7 @@
 import type { MetafieldFilterType } from "@prisma/client";
 import prisma from "./db.server";
 import { resolvePlanCaps } from "./billing.server";
+import { SAMPLE_TEXT_MAX } from "./limits";
 import {
   DEFAULT_NEW_APPLIES,
   appliesToForMapping,
@@ -375,8 +376,8 @@ export async function syncShopifyMetafieldDefinitions(
         where: {
           shopId_namespace_key_ownerType: { shopId, namespace, key, ownerType },
         },
-        create: { shopId, namespace, key, ownerType, sampleValue: sampleValue.slice(0, 500) },
-        update: { sampleValue: sampleValue.slice(0, 500) },
+        create: { shopId, namespace, key, ownerType, sampleValue: sampleValue.slice(0, SAMPLE_TEXT_MAX) },
+        update: { sampleValue: sampleValue.slice(0, SAMPLE_TEXT_MAX) },
       });
     }
   }

@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import { enforcePlanLimits } from "../billing.server";
 import { bumpCatalogGeneration } from "../catalog-cache.server";
+import { COLLECTION_REBUILD_DELAY_MS, SAMPLE_TEXT_MAX } from "../limits";
 import { log } from "../log.server";
 import { ensureShop } from "../shop.server";
 import {
@@ -162,7 +163,7 @@ async function enqueueChangedCollectionRebuilds(
         { shop: shopDomain, collectionGid },
         {
           jobId: `${shopDomain}:collection.rebuild:${collectionGid}`,
-          delay: 2000,
+          delay: COLLECTION_REBUILD_DELAY_MS,
         },
       );
     } catch (error) {
@@ -234,7 +235,7 @@ function collectDiscoveredMetafieldEntries(
       namespace,
       key,
       ownerType,
-      sampleValue: sampleValue?.slice(0, 500) ?? null,
+      sampleValue: sampleValue?.slice(0, SAMPLE_TEXT_MAX) ?? null,
     });
   }
   return out;

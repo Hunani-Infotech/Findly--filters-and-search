@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "./admin-list-page";
 import prisma from "./db.server";
 import { getCatalogGeneration } from "./catalog-cache.server";
+import { SAMPLE_TEXT_MAX } from "./limits";
 import { createTtlCache } from "./read-cache.server";
 import { findShopByIdCached } from "./shop-cache.server";
 import {
@@ -571,7 +572,7 @@ function nextFacetSetting(
     setting.removePrefix = input.removePrefix;
     delete setting.selectedValues;
   } else if (input.valueMode === "manual") {
-    setting.selectedValues = input.selectedValues.slice(0, 500);
+    setting.selectedValues = input.selectedValues.slice(0, SAMPLE_TEXT_MAX);
     delete setting.prefix;
     delete setting.removePrefix;
   } else {

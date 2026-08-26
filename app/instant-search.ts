@@ -1,3 +1,6 @@
+import { SAMPLE_TEXT_MAX } from "./limits";
+import { DEFAULT_STOP_WORDS } from "./search-query";
+
 export const INSTANT_LAYOUTS = [
   "overlay",
   "dropdown_two",
@@ -68,24 +71,7 @@ export const MERCH_LIST_MAX = 40;
 export const STOP_WORD_MAX = 80;
 
 /** Used when `stopWords` is omitted from stored extras. Default extras keep `[]`. */
-export const DEFAULT_ENGLISH_STOP_WORDS = [
-  "a",
-  "an",
-  "the",
-  "and",
-  "or",
-  "of",
-  "to",
-  "in",
-  "on",
-  "for",
-  "with",
-  "at",
-  "by",
-  "from",
-  "is",
-  "it",
-] as const;
+export const DEFAULT_ENGLISH_STOP_WORDS = DEFAULT_STOP_WORDS;
 
 export const DEFAULT_INSTANT_SEARCH: InstantSearchWidget = {
   enabled: false,
@@ -202,11 +188,11 @@ function normalizeUrl(value: unknown): string {
   if (typeof value !== "string") return "";
   const raw = value.trim();
   if (!raw) return "";
-  if (raw.startsWith("/")) return raw.slice(0, 500);
+  if (raw.startsWith("/")) return raw.slice(0, SAMPLE_TEXT_MAX);
   try {
     const url = new URL(raw);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    return url.toString().slice(0, 500);
+    return url.toString().slice(0, SAMPLE_TEXT_MAX);
   } catch {
     return "";
   }

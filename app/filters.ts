@@ -8,6 +8,11 @@ import {
   productInSelectedCollections,
   type ShopCollection,
 } from "./collection-facet";
+import {
+  SIZE_FACET_MATCH_RATIO,
+  SIZE_NUMERIC_RANK_BASE,
+  VALUE_SORT_MANUAL_MAX,
+} from "./limits";
 
 export type FacetSource =
   | "vendor"
@@ -415,7 +420,7 @@ export function parseValueSort(raw: unknown): ValueSortMap {
     const values = Array.isArray(rec.values)
       ? rec.values
           .filter((item): item is string => typeof item === "string" && item.length > 0)
-          .slice(0, 200)
+          .slice(0, VALUE_SORT_MANUAL_MAX)
       : [];
     out[key] = {
       mode: rec.mode as ValueSortMode,
@@ -439,7 +444,7 @@ export function sizeRank(raw: string): number | null {
   const value = String(raw || "").trim().toLowerCase();
   if (!value) return null;
   const numeric = value.match(/^(\d+(\.\d+)?)/);
-  if (numeric) return 1000 + Number(numeric[1]);
+  if (numeric) return SIZE_NUMERIC_RANK_BASE + Number(numeric[1]);
   const small = value.match(/^(x*)s$/);
   if (small) return 40 - small[1].length;
   if (value === "m") return 50;
@@ -459,7 +464,7 @@ export function isSizeLikeFacet(
   }
   if (!values.length) return false;
   const sized = values.filter((value) => sizeRank(value) != null).length;
-  return sized / values.length >= 0.6;
+  return sized / values.length >= SIZE_FACET_MATCH_RATIO;
 }
 
 export function mergeManualValueOrder(saved: string[] | undefined, catalog: string[]): string[] {

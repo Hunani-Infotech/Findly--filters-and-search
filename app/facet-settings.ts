@@ -1,3 +1,5 @@
+import { SAMPLE_TEXT_MAX } from "./limits";
+
 export const FACET_VALUE_MODES = ["all", "manual", "prefix"] as const;
 export type FacetValueMode = (typeof FACET_VALUE_MODES)[number];
 
@@ -112,7 +114,7 @@ export function parseFacetSettings(raw: unknown): FacetSettingsMap {
     if (Array.isArray(rec.selectedValues)) {
       setting.selectedValues = rec.selectedValues
         .filter((item): item is string => typeof item === "string" && item.length > 0)
-        .slice(0, 500);
+        .slice(0, SAMPLE_TEXT_MAX);
     }
     if (typeof rec.urlHandle === "string" && rec.urlHandle.trim()) {
       setting.urlHandle = rec.urlHandle.trim();

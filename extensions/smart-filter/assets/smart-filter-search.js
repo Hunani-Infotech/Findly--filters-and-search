@@ -5,7 +5,16 @@
   var MSG_LOADING = "Searching…";
   var MSG_ERROR = "Search could not be loaded. Please try again.";
 
+  function domApi() {
+    return window.__FINDLY_DOM || null;
+  }
+
   function runWhenIdle(fn) {
+    var api = domApi();
+    if (api && api.runWhenIdle) {
+      api.runWhenIdle(fn);
+      return;
+    }
     if (typeof window.requestIdleCallback !== "function") {
       window.setTimeout(fn, 0);
       return;
@@ -19,10 +28,17 @@
   }
 
   function qs(root, selector) {
+    var api = domApi();
+    if (api && api.qs) return api.qs(root, selector);
     return root.querySelector(selector);
   }
 
   function setHidden(el, hidden) {
+    var api = domApi();
+    if (api && api.setHidden) {
+      api.setHidden(el, hidden);
+      return;
+    }
     if (!el) return;
     if (hidden) {
       el.setAttribute("hidden", "");
@@ -59,6 +75,8 @@
   }
 
   function shopDomain() {
+    var api = domApi();
+    if (api && api.shopDomain) return api.shopDomain();
     return (window.Shopify && window.Shopify.shop) || "";
   }
 
@@ -153,6 +171,8 @@
   }
 
   function formatPrice(value, currencyCode) {
+    var api = domApi();
+    if (api && api.formatPrice) return api.formatPrice(value, currencyCode);
     if (value == null || value === "") return "";
     var n = Number(value);
     if (!Number.isFinite(n)) return String(value);

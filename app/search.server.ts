@@ -29,6 +29,10 @@ import { getCatalogGeneration } from "./catalog-cache.server";
 import { getMetafieldMappings } from "./shop.server";
 import { findShopByIdCached } from "./shop-cache.server";
 import { createTtlCache } from "./read-cache.server";
+import {
+  SEARCH_CANDIDATE_FLOOR,
+  SEARCH_CANDIDATE_MULTIPLIER,
+} from "./limits";
 
 const DEFAULT_TAKE = 24;
 const MAX_TAKE = 48;
@@ -546,7 +550,10 @@ async function fetchRankedHitsUncached(
 
   const candidateTake =
     take <= 24
-      ? Math.min(CANDIDATE_TAKE, Math.max(take * 10, 80))
+      ? Math.min(
+          CANDIDATE_TAKE,
+          Math.max(take * SEARCH_CANDIDATE_MULTIPLIER, SEARCH_CANDIDATE_FLOOR),
+        )
       : Math.max(take, CANDIDATE_TAKE);
 
   let catalog: SearchFacetRow[] | null = null;

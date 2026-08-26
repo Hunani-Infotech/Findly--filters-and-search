@@ -15,6 +15,10 @@
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
   var FILTER_CACHE_TTL_MS = 5 * 1000;
+  /** Keep in sync with app/limits.ts SIZE_FACET_MATCH_RATIO / SIZE_NUMERIC_RANK_BASE. */
+  var SIZE_FACET_MATCH_RATIO = 0.6;
+  var SIZE_NUMERIC_RANK_BASE = 1000;
+  var COLOR_FACET_MATCH_RATIO = 0.5;
   var CARD_SELECTOR = [
     ".sf-app-card",
     "product-card",
@@ -31,10 +35,14 @@
   ].join(", ");
 
   function qs(root, selector) {
+    var api = window.__FINDLY_DOM;
+    if (api && api.qs) return api.qs(root, selector);
     return root.querySelector(selector);
   }
 
   function shopDomain() {
+    var api = window.__FINDLY_DOM;
+    if (api && api.shopDomain) return api.shopDomain();
     return (window.Shopify && window.Shopify.shop) || "";
   }
 
@@ -352,7 +360,7 @@
         colorish += 1;
       }
     });
-    return colorish / values.length >= 0.5;
+    return colorish / values.length >= COLOR_FACET_MATCH_RATIO;
   }
 
   function sizeRank(raw) {
@@ -361,7 +369,7 @@
       .toLowerCase();
     if (!value) return null;
     var numeric = value.match(/^(\d+(\.\d+)?)/);
-    if (numeric) return 1000 + Number(numeric[1]);
+    if (numeric) return SIZE_NUMERIC_RANK_BASE + Number(numeric[1]);
     var small = value.match(/^(x*)s$/);
     if (small) return 40 - small[1].length;
     if (value === "m") return 50;
@@ -398,7 +406,7 @@
       var value = String(item.value != null ? item.value : item.label || "").trim();
       if (/^(x{0,3}[sml]|xxl|\d+\s*xl)$/i.test(value)) sized += 1;
     });
-    return sized / values.length >= 0.6;
+    return sized / values.length >= SIZE_FACET_MATCH_RATIO;
   }
 
   function sortSizeValues(values) {

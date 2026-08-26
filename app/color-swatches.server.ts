@@ -2,6 +2,7 @@ import prisma from "./db.server";
 import { ADMIN_TABLE_PAGE_SIZE, slicePage } from "./admin-list-page";
 import { optionKeyFromName } from "./filter-catalog";
 import { hexFromColorName, isSwatchFilled } from "./color-autofill";
+import { SAMPLE_TEXT_MAX } from "./limits";
 import { createTtlCache } from "./read-cache.server";
 
 export type SwatchKind = "solid" | "dual" | "image";
@@ -224,13 +225,13 @@ export async function upsertSwatch(shopId: string, input: SwatchRow) {
       kind,
       color1: input.color1.trim().slice(0, 32),
       color2: input.color2.trim().slice(0, 32),
-      imageUrl: input.imageUrl.trim().slice(0, 500),
+      imageUrl: input.imageUrl.trim().slice(0, SAMPLE_TEXT_MAX),
     },
     update: {
       kind,
       color1: input.color1.trim().slice(0, 32),
       color2: input.color2.trim().slice(0, 32),
-      imageUrl: input.imageUrl.trim().slice(0, 500),
+      imageUrl: input.imageUrl.trim().slice(0, SAMPLE_TEXT_MAX),
     },
   });
   swatchMapCache.del(shopId);

@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { log } from "./log.server";
+import { QUEUE_BACKOFF_DELAY_MS } from "./limits";
 import { getRedis } from "./redis.server";
 
 export const SYNC_QUEUE = "sync-queue";
@@ -55,7 +56,7 @@ function jobAddOpts(jobId: string | undefined, delay?: number) {
     removeOnComplete: 100,
     removeOnFail: 200,
     attempts: 3,
-    backoff: { type: "exponential" as const, delay: 2000 },
+    backoff: { type: "exponential" as const, delay: QUEUE_BACKOFF_DELAY_MS },
   };
 }
 
