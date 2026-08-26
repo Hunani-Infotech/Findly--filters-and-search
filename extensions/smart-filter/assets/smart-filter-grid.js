@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v21";
+  var STYLE_ID = "findly-grid-takeover-v26";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -23,11 +23,24 @@
     ".sf-collection-layout .product-grid,.sf-og .product-grid," +
     ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid," +
     ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
-    "{justify-content:stretch!important;width:100%!important;max-width:100%!important}";
+    "{justify-content:start!important;width:100%!important;max-width:100%!important}";
+  var RESULTS_LIST_BLOCK_CSS =
+    ".sf-collection-layout results-list:not(.product-grid):not(.main-collection-grid):not([product-grid-view])," +
+    ".sf-og results-list:not(.product-grid):not(.main-collection-grid):not([product-grid-view])," +
+    ".collection-wrapper results-list:not(.product-grid):not(.main-collection-grid):not([product-grid-view])" +
+    "{display:block!important;width:100%;min-width:0}";
+  var PRODUCT_GRID_KEEP_CSS =
+    ".sf-collection-layout .product-grid,.sf-og .product-grid," +
+    ".sf-collection-layout ul.product-grid,.sf-og ul.product-grid," +
+    ".sf-collection-layout ol.product-grid,.sf-og ol.product-grid," +
+    ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
+    ".sf-collection-layout #product-grid,.sf-og #product-grid," +
+    ".sf-collection-layout #ProductGrid,.sf-og #ProductGrid" +
+    "{width:100%!important;max-width:100%!important;min-width:0!important}";
   var GRID_RESULT_HIDE =
     ":not([" +
     SKEL_ATTR +
-    "='1']):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count)" +
+    "='1']):not([data-findly-skel-host='1']):not(.sf-toolbar):not(.sf-sort-host):not(.sf-collection-search-host):not(.sf-total-count)" +
     ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)";
   var GRID_BUSY_HOSTS = [
     ".main-collection-grid",
@@ -60,7 +73,8 @@
   var TOOLBAR_LOADING_CSS =
     "html.sf-filter-loading .smart-filter__collection-search-field," +
     "html.sf-filter-loading .smart-filter__sort-select," +
-    "html.sf-filter-loading .sf-sort-trigger{" +
+    "html.sf-filter-loading .sf-sort-trigger," +
+    "html.sf-filter-loading .sf-sort-btn{" +
     "pointer-events:none!important;cursor:wait}" +
     "html.sf-filter-loading .smart-filter__collection-search-field{" +
     "position:relative;background:#f3f3f3!important;border-color:#e4e4e4!important}" +
@@ -71,15 +85,26 @@
     "html.sf-filter-loading .smart-filter__collection-search-field::after{" +
     "content:\"\";position:absolute;left:.8rem;right:.8rem;top:50%;height:.7rem;margin-top:-.35rem;" +
     "border-radius:4px;background:#e4e4e4;animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
-    "html.sf-filter-loading .smart-filter__sort-select{" +
+    "html.sf-filter-loading .smart-filter__sort-select," +
+    "html.sf-filter-loading .sf-sort-btn{" +
     "color:transparent!important;background-color:#ececec!important;background-image:none!important;" +
-    "border-color:#e4e4e4!important;animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
+    "border-color:#e4e4e4!important;box-shadow:none!important;" +
+    "animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
+    "html.sf-filter-loading .sf-sort-btn__value," +
+    "html.sf-filter-loading .sf-sort-btn__chevron{visibility:hidden!important}" +
     "html.sf-filter-loading .sf-total-count{" +
     "visibility:visible!important;color:transparent!important;position:relative;" +
     "min-width:5.75rem;min-height:.85em;pointer-events:none}" +
     "html.sf-filter-loading .sf-total-count::after{" +
     "content:\"\";position:absolute;right:0;top:50%;width:5.5rem;height:.7em;margin-top:-.35em;" +
     "border-radius:4px;background:#ececec;animation:sf-skeleton-pulse 1.1s ease-in-out infinite}";
+  var GRID_PAGER_HIDE =
+    "html.sf-filter-loading nav.pagination," +
+    "html.sf-filter-loading .pagination-wrapper," +
+    "html.sf-filter-loading .pagination," +
+    "html.sf-filter-loading [data-pagination]," +
+    "html.sf-filter-loading .sf-pager" +
+    "{visibility:hidden!important;pointer-events:none!important}";
   function gridLoadingHideCss(prefix) {
     var i;
     var parts = [];
@@ -115,6 +140,7 @@
     gridLoadingMinCss("html.sf-filter-loading") +
     GRID_COUNT_HIDE +
     TOOLBAR_LOADING_CSS +
+    GRID_PAGER_HIDE +
     "[" + SKEL_ATTR + "='1']{pointer-events:none;list-style:none;min-width:0}" +
     ".findly-grid-skel__img{display:block;width:100%;aspect-ratio:1;border-radius:8px;background:#ececec}" +
     ".findly-grid-skel__line{display:block;height:.7rem;margin-top:.55rem;border-radius:4px;background:#ececec;width:78%}" +
@@ -315,34 +341,59 @@
       "width:min(420px,92vw)!important;max-width:92vw!important;box-sizing:border-box!important}" +
       ".smart-filter__sort--toolbar,.sf-sort-host,.sf-sort-trigger{overflow:visible!important;position:relative}" +
       ".sf-sort-trigger{display:block;width:100%;pointer-events:auto}" +
-      ".smart-filter__sort-menu{position:absolute;top:calc(100% + 4px);left:auto;right:0;bottom:auto;" +
+      ".sf-sort-btn{display:inline-flex!important;position:relative;box-sizing:border-box;align-items:center;justify-content:space-between;gap:.5rem;" +
+      "width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;margin:0;padding:.5rem 2.35rem .5rem .9rem;" +
+      "border:1px solid #e2e2e2!important;border-radius:10px!important;background:#fff!important;color:inherit!important;" +
+      "font:inherit!important;font-weight:500!important;line-height:1.25;text-align:left;text-transform:none!important;" +
+      "letter-spacing:normal!important;cursor:pointer;appearance:none!important;-webkit-appearance:none!important;" +
+      "box-shadow:none!important;outline:none!important}" +
+      ".sf-sort-btn:hover{border-color:#cfcfcf!important;background:#fafafa!important}" +
+      ".sf-sort-btn:focus-visible,.smart-filter__sort.is-sort-open .sf-sort-btn{" +
+      "border-color:#111!important;box-shadow:0 0 0 3px rgb(17 17 17 / 10%)!important}" +
+      ".sf-sort-btn__value{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      ".sf-sort-btn__chevron{position:absolute;right:.9rem;top:50%;width:.42rem;height:.42rem;margin-top:-.28rem;" +
+      "border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);" +
+      "opacity:.55;pointer-events:none;transition:transform .16s ease,margin-top .16s ease}" +
+      ".smart-filter__sort.is-sort-open .sf-sort-btn__chevron{margin-top:-.08rem;transform:rotate(225deg)}" +
+      "@media(max-width:749px){.sf-sort-btn{display:none!important}}" +
+      "@media(min-width:750px){" +
+      ".sf-sort-trigger:has(.sf-sort-btn) .smart-filter__sort-select," +
+      ".smart-filter__sort:has(.sf-sort-btn) .smart-filter__sort-select{position:absolute!important;width:1px!important;height:1px!important;" +
+      "padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;" +
+      "white-space:nowrap!important;border:0!important;opacity:0!important;pointer-events:none!important;" +
+      "appearance:none!important;-webkit-appearance:none!important;background:none!important}" +
+      "}" +
+      ".smart-filter__sort-menu{position:absolute;top:calc(100% + 6px);left:auto;right:0;bottom:auto;" +
       "z-index:100060;box-sizing:border-box;min-width:0;width:max-content;max-width:min(18rem,calc(100vw - 24px));margin:0;" +
-      "background:var(--sf-surface,#fff);color:inherit;border:1px solid var(--sf-border,#ececec);" +
-      "border-radius:8px;padding:6px 0;box-shadow:0 10px 28px rgb(0 0 0 / 14%)}" +
+      "background:var(--sf-surface,#fff);color:inherit;border:1px solid #ececec;" +
+      "border-radius:12px;padding:6px;box-shadow:0 4px 16px rgb(0 0 0 / 8%),0 1px 2px rgb(0 0 0 / 4%)}" +
       ".smart-filter__sort-menu.is-ported{position:fixed;top:auto;left:auto;right:auto;min-width:0;width:max-content}" +
       ".smart-filter__sort-menu[hidden]{display:none!important}" +
-      ".smart-filter__sort-option{display:block;width:100%;appearance:none;margin:0;" +
-      "padding:8px 18px 8px 30px;border:0;background:transparent;color:inherit;font:inherit;" +
-      "text-align:left;white-space:nowrap;cursor:pointer}";
+      ".smart-filter__sort-option{position:relative;display:block;width:100%;appearance:none!important;-webkit-appearance:none!important;margin:0;" +
+      "padding:8px 12px!important;border:0!important;border-radius:8px;background:transparent!important;color:#5c5c5c!important;font:inherit!important;" +
+      "font-weight:450!important;font-size:.9375em!important;text-align:left!important;text-transform:none!important;letter-spacing:normal!important;" +
+      "white-space:nowrap;cursor:pointer;box-shadow:none!important;outline:none!important}" +
+      ".smart-filter__sort-option:hover,.smart-filter__sort-option:focus{background:#f6f6f6!important;color:#111!important;outline:none}" +
+      ".smart-filter__sort-option.is-selected{font-weight:600!important;color:#111!important;background:#f3f3f3!important}";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v7") ||
+      document.getElementById("findly-theme-bridge-v6") ||
+      document.getElementById("findly-theme-bridge-v5") ||
+      document.getElementById("findly-theme-bridge-v4") ||
+      document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (
-      existingBridge &&
-      (existingBridge.id !== "findly-theme-bridge-v2" ||
-        (existingBridge.textContent &&
-          existingBridge.textContent.indexOf("smart-filter__collection-search-field") < 0))
-    ) {
-      existingBridge.parentNode.removeChild(existingBridge);
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v7") {
+      if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v2";
+      bridge.id = "findly-theme-bridge-v7";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -356,7 +407,7 @@
         "ul.product-grid.sf-collection-layout__main,ol.product-grid.sf-collection-layout__main," +
         ".product-grid.sf-collection-layout__main,.main-collection-grid.sf-collection-layout__main," +
         "results-list.sf-collection-layout__main,product-list.sf-collection-layout__main" +
-        "{display:grid!important;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
+        "{flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
         "ul.product-grid>.sf-collection-layout,.product-grid>.sf-collection-layout,ol.product-grid>.sf-collection-layout," +
         "results-list>.sf-collection-layout,.main-collection-grid>.sf-collection-layout,.sf-app-grid>.sf-collection-layout," +
         ".collection-wrapper>.sf-collection-layout,.product-grid-container>.sf-collection-layout" +
@@ -378,13 +429,12 @@
         ".sf-collection-layout__main ol.product-grid,.sf-collection-layout__main .main-collection-grid," +
         ".sf-collection-layout__main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:stretch!important}" +
         ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter)," +
-        "results-list:has(.sf-collection-layout),.product-grid-container:has(.sf-collection-layout)" +
-        "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important;" +
-        "--grid-column--desktop:minmax(0,1fr);--grid-column--mobile:minmax(0,1fr);--centered-column-number:1}" +
+        "results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)," +
+        ".product-grid-container:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)" +
+        "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
         ".collection-wrapper.grid:has(.sf-collection-layout),.collection-wrapper.grid:has(.smart-filter)," +
         ".sf-collection-layout .collection-wrapper.grid" +
-        "{display:grid!important;grid-template-columns:minmax(0,1fr)!important;" +
-        "--grid-column--desktop:minmax(0,1fr)!important;--grid-column--mobile:minmax(0,1fr)!important}" +
+        "{display:block!important;grid-template-columns:none!important}" +
         ".collection-wrapper>.main-collection-grid,.collection-wrapper>results-list" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
         ".collection-wrapper:has(.sf-collection-layout)>.sf-collection-layout," +
@@ -396,21 +446,27 @@
         ".sf-pager--load-more,.sf-pager--infinite,.sf-pager__more{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
         ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
         "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
-        "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']{display:none!important}" +
-        ".sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden]),.sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
+        "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']," +
+        ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
+        ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
+        ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper" +
+        "{display:none!important}" +
+        ".sf-collection-layout nav.pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        ".sf-collection-layout .pagination:not([data-sf-pager-suppressed='1']):not([hidden])," +
+        ".sf-collection-layout .pagination-wrapper:not([data-sf-pager-suppressed='1']):not([hidden])" +
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%}" +
         "@media(min-width:750px){" +
-        ".sf-collection-layout--left{display:grid!important;grid-template-columns:280px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
-        ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 280px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--left{display:grid!important;grid-template-columns:320px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
+        ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 320px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
         ".sf-collection-layout--left>.sf-collection-layout__aside,.sf-collection-layout--left>.smart-filter," +
         ".sf-collection-layout--left>.shopify-block:has(.smart-filter)" +
-        "{grid-column:1!important;width:280px;max-width:280px;min-width:280px}" +
+        "{grid-column:1!important;width:320px;max-width:320px;min-width:320px}" +
         ".sf-collection-layout--left>.sf-collection-layout__main,.sf-collection-layout--left>.sf-toolbar," +
         ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--left>.sf-sort-host" +
         "{grid-column:2!important;min-width:0!important;width:auto!important;max-width:none!important}" +
         ".sf-collection-layout--right>.sf-collection-layout__aside,.sf-collection-layout--right>.smart-filter," +
         ".sf-collection-layout--right>.shopify-block:has(.smart-filter)" +
-        "{grid-column:2!important;width:280px;max-width:280px;min-width:280px}" +
+        "{grid-column:2!important;width:320px;max-width:320px;min-width:320px}" +
         ".sf-collection-layout--right>.sf-collection-layout__main,.sf-collection-layout--right>.sf-toolbar," +
         ".sf-collection-layout--right>.sf-pager" +
         "{grid-column:1!important;min-width:0!important;max-width:none!important}" +
@@ -424,9 +480,10 @@
         ".sf-toolbar__end{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;gap:0;min-width:0}" +
         ".sf-sort-host{display:flex;justify-content:flex-end;width:auto;margin:0;overflow:visible;position:relative;z-index:6}" +
         ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-start;gap:.7rem;width:auto;margin:0;flex-wrap:nowrap}" +
-        ".sf-toolbar .smart-filter__sort-label{font-weight:450;font-size:.9375em;color:inherit;line-height:2.5rem;padding:0;margin:0;white-space:nowrap}" +
         ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:10.75rem}" +
-        ".sf-toolbar .smart-filter__sort-select{width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;padding:.5rem 2rem .5rem .85rem;border:1px solid #111!important;border-radius:8px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23111111' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right .75rem center;background-size:.7rem;appearance:none!important;-webkit-appearance:none!important}" +
+        ".sf-toolbar .smart-filter__sort-label{font-weight:500;font-size:.875em;color:#6d6d6d;line-height:2.5rem;padding:0;margin:0;white-space:nowrap}" +
+        ".sf-toolbar .smart-filter__sort-select{width:100%;min-width:10.75rem;max-width:16rem;min-height:2.5rem;padding:.5rem 2rem .5rem .85rem;border:1px solid #e2e2e2!important;border-radius:10px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c5c5c' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right .75rem center;background-size:.7rem;appearance:none!important;-webkit-appearance:none!important;outline:none}" +
+        ".sf-toolbar .smart-filter__sort-select:focus,.sf-toolbar .smart-filter__sort-select:focus-visible{border-color:#111!important;box-shadow:0 0 0 3px rgb(17 17 17 / 10%)}" +
         ".sf-collection-search-host{display:block;width:auto;max-width:22rem;margin:0}" +
         ".sf-total-count{margin:0;font-size:.8125em;line-height:1.3;color:#6d6d6d;white-space:nowrap;text-align:right}" +
         ".sf-total-count[hidden],.sf-toolbar__search:not(:has(.smart-filter__collection-search:not([hidden]))){display:none!important}" +
@@ -434,18 +491,23 @@
         ".sf-sort-host:not(:has(.smart-filter__sort:not([hidden]))){display:none}" +
         ".smart-filter>.smart-filter__collection-search{display:none!important}" +
         ".smart-filter__collection-search--toolbar{display:block;width:100%;max-width:22rem;margin:0}" +
-        ".smart-filter__collection-search-field{display:flex;align-items:center;gap:.55rem;box-sizing:border-box;width:100%;min-height:2.5rem;padding:0 .55rem 0 .8rem;border:1px solid #111;border-radius:8px;background:#fff}" +
-        ".smart-filter__collection-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 16px;width:16px;height:16px;color:#111;opacity:.72;pointer-events:none}" +
-        ".sf-toolbar .smart-filter__collection-search-input,.smart-filter__collection-search--toolbar .smart-filter__collection-search-input{width:100%;max-width:none;min-width:0;min-height:2.4rem;padding:.45rem 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:none;font:inherit;color:inherit}" +
+        ".smart-filter__collection-search-field{display:flex;align-items:center;gap:.65rem;box-sizing:border-box;width:100%;min-height:2.5rem;padding:0 .4rem 0 .9rem;border:1px solid #e2e2e2;border-radius:10px;background:#fff}" +
+        ".smart-filter__collection-search-field:hover{border-color:#cfcfcf}" +
+        ".smart-filter__collection-search-field:focus-within{border-color:#111;box-shadow:0 0 0 3px rgb(17 17 17 / 10%)}" +
+        ".smart-filter__collection-search-icon{display:flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;height:18px;color:#6d6d6d;opacity:1;pointer-events:none}" +
+        ".smart-filter__collection-search-icon svg{display:block;width:18px;height:18px}" +
+        ".sf-toolbar .smart-filter__collection-search-input,.smart-filter__collection-search--toolbar .smart-filter__collection-search-input{width:100%;max-width:none;min-width:0;min-height:2.4rem;padding:.45rem 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:none;font:inherit;color:inherit;appearance:none;-webkit-appearance:none}" +
         ".sf-toolbar .smart-filter__collection-search-input::placeholder{color:#8a8a8a;opacity:1}" +
-        ".smart-filter__collection-search-clear{appearance:none;flex:0 0 1.5rem;width:1.5rem;height:1.5rem;margin:0;padding:0;border:0;background:transparent;color:inherit;font-size:1.15rem;line-height:1;cursor:pointer;opacity:.5}" +
+        ".smart-filter__collection-search-input::-webkit-search-decoration,.smart-filter__collection-search-input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}" +
+        ".smart-filter__collection-search-clear{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;flex:0 0 1.75rem;width:1.75rem;height:1.75rem;margin:0;padding:0;border:0;border-radius:999px;background:#f0f0f0;color:#5c5c5c;cursor:pointer;opacity:1}" +
+        ".smart-filter__collection-search-clear svg{display:block;width:11px;height:11px}" +
+        ".smart-filter__collection-search-clear:hover,.smart-filter__collection-search-clear:focus-visible{background:#e4e4e4;color:#111;outline:none}" +
         ".smart-filter__collection-search-clear[hidden]{display:none!important}" +
-        ".sf-toolbar input[type=search]::-webkit-search-decoration,.sf-toolbar input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}" +
         "@media(max-width:749px){.sf-toolbar{flex-wrap:wrap}.sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 100%;max-width:none;width:100%}.sf-toolbar__end{margin-left:auto}}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
-        ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
-        "{display:block!important;width:100%;min-width:0}" +
+        RESULTS_LIST_BLOCK_CSS +
+        PRODUCT_GRID_KEEP_CSS +
         PRODUCT_GRID_START_CSS +
         ".smart-filter .smart-filter__option input[type=checkbox]," +
         ".smart-filter .smart-filter__option input[type=radio]{" +
@@ -466,19 +528,31 @@
       document.getElementById("findly-catalog-grid-v4") ||
       document.getElementById("findly-catalog-grid-v5") ||
       document.getElementById("findly-catalog-grid-v6") ||
-      document.getElementById("findly-catalog-grid-v7");
+      document.getElementById("findly-catalog-grid-v7") ||
+      document.getElementById("findly-catalog-grid-v8") ||
+      document.getElementById("findly-catalog-grid-v9") ||
+      document.getElementById("findly-catalog-grid-v10") ||
+      document.getElementById("findly-catalog-grid-v11") ||
+      document.getElementById("findly-catalog-grid-v12") ||
+      document.getElementById("findly-catalog-grid-v13") ||
+      document.getElementById("findly-catalog-grid-v14") ||
+      document.getElementById("findly-catalog-grid-v15");
     if (oldCatalog && oldCatalog.parentNode) oldCatalog.parentNode.removeChild(oldCatalog);
-    if (document.getElementById("findly-catalog-grid-v8")) return;
+    if (document.getElementById("findly-catalog-grid-v16")) return;
     var catalog = document.createElement("style");
-    catalog.id = "findly-catalog-grid-v8";
+    catalog.id = "findly-catalog-grid-v16";
     catalog.textContent =
       "#" +
       CARD_TRAY_ID +
       "{display:none!important;position:absolute;left:-9999px;width:0;height:0;overflow:hidden}" +
-      ".sf-collection-layout results-list,.sf-og results-list,.collection-wrapper results-list" +
-      "{display:block!important;width:100%;min-width:0}" +
+      RESULTS_LIST_BLOCK_CSS +
+      PRODUCT_GRID_KEEP_CSS +
       PRODUCT_GRID_START_CSS +
-      GRID_BUSY_CSS;
+      GRID_BUSY_CSS +
+      ".sf-fill-card{display:flex;flex-direction:column;gap:.45rem;min-width:0;height:100%;color:inherit;text-decoration:none}" +
+      ".sf-fill-card img{display:block;width:100%;max-width:100%;aspect-ratio:1;object-fit:cover;background:#f3f3f3;border-radius:8px}" +
+      ".sf-fill-card__title{margin:0;font:inherit;font-weight:450;line-height:1.3}" +
+      ".sf-fill-card__price{margin:0;font:inherit}";
     (document.head || document.documentElement).appendChild(catalog);
   }
 
@@ -710,6 +784,180 @@
       cls.contains("product-grid-container") ||
       cls.contains("collection-wrapper")
     );
+  }
+
+  function queryInnerCardGrid(el) {
+    if (!el || !el.querySelector) return null;
+    return (
+      el.querySelector("ul#product-grid") ||
+      el.querySelector("#product-grid") ||
+      el.querySelector("#ProductGrid") ||
+      el.querySelector("ul.product-grid") ||
+      el.querySelector("ol.product-grid") ||
+      el.querySelector("[product-grid-view]") ||
+      el.querySelector(".product-grid.main-collection-grid") ||
+      el.querySelector(".main-collection-grid") ||
+      el.querySelector(".ProductList--grid") ||
+      el.querySelector(".productgrid--items") ||
+      el.querySelector(".grid--view-items") ||
+      el.querySelector(".ProductList") ||
+      el.querySelector("[data-product-grid]")
+    );
+  }
+
+  function isPageShellHost(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var id = String(el.id || "");
+    if (id === "ProductGridContainer" || id === "CollectionProductGrid") {
+      return true;
+    }
+    var cls = el.classList;
+    if (cls) {
+      if (cls.contains("collection-wrapper")) return true;
+      if (cls.contains("product-grid-container") && !cls.contains("product-grid")) {
+        return true;
+      }
+      if (cls.contains("sf-collection-layout")) return true;
+      if (
+        cls.contains("sf-collection-layout__main") &&
+        !cls.contains("product-grid") &&
+        !cls.contains("main-collection-grid") &&
+        !cls.contains("ProductList") &&
+        !cls.contains("productgrid--items")
+      ) {
+        return true;
+      }
+    }
+    return Boolean(isResultsListEl(el) && queryInnerCardGrid(el));
+  }
+
+  function isActualCardGrid(el) {
+    if (!el || el.nodeType !== 1 || isPageShellHost(el)) return false;
+    if (el.getAttribute && el.getAttribute("product-grid-view") != null) {
+      return true;
+    }
+    if (el.id === "product-grid" || el.id === "ProductGrid") return true;
+    var cls = el.classList;
+    if (cls) {
+      if (cls.contains("product-grid") || cls.contains("main-collection-grid")) {
+        return true;
+      }
+      if (cls.contains("ProductList") || cls.contains("productgrid--items")) {
+        return true;
+      }
+      if (cls.contains("grid--view-items") || cls.contains("products-grid")) {
+        return true;
+      }
+    }
+    var kids = collectDirectThemeCards(el);
+    return Boolean(kids && kids.length >= 2);
+  }
+
+  function preferProductCardGrid(el) {
+    if (!el || el.nodeType !== 1) return el;
+    if (isActualCardGrid(el)) {
+      captureThemeGridLayout(el);
+      return el;
+    }
+    var inner = queryInnerCardGrid(el);
+    if (inner && inner !== el) {
+      captureThemeGridLayout(inner);
+      return inner;
+    }
+    return el;
+  }
+
+  var themeGridSnaps = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+
+  function hostLayoutWidth(host) {
+    if (!host || typeof host.getBoundingClientRect !== "function") return 0;
+    try {
+      return host.getBoundingClientRect().width || 0;
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function tracksLookUsable(value) {
+    var text = String(value || "").trim();
+    if (!text || text === "none" || text === "normal" || text === "auto") {
+      return false;
+    }
+    if (/^0px(\s+0px)*$/.test(text)) return false;
+    return true;
+  }
+
+  function readCachedGridSnap(host) {
+    if (!host) return null;
+    if (themeGridSnaps && themeGridSnaps.has(host)) return themeGridSnaps.get(host);
+    return host._sfGridSnap || null;
+  }
+
+  function storeGridSnap(host, snap) {
+    if (!host || !snap) return;
+    if (themeGridSnaps) themeGridSnaps.set(host, snap);
+    else host._sfGridSnap = snap;
+  }
+
+  function captureThemeGridLayout(host) {
+    if (!host || host.nodeType !== 1) return null;
+    var existing = readCachedGridSnap(host);
+    if (existing && (existing.horizonCols || tracksLookUsable(existing.gridTemplateColumns))) {
+      return existing;
+    }
+    if (hostLayoutWidth(host) < 80) return existing;
+    var snap = null;
+    try {
+      if (typeof window.getComputedStyle !== "function") return existing;
+      var cs = window.getComputedStyle(host);
+      snap = {
+        display: String(cs.display || "").toLowerCase(),
+        gridTemplateColumns: String(cs.gridTemplateColumns || "").trim(),
+        flexWrap: String(cs.flexWrap || "").trim(),
+        gap: String(cs.gap || "").trim(),
+        columnGap: String(cs.columnGap || "").trim(),
+        rowGap: String(cs.rowGap || "").trim(),
+        horizonCols: String(
+          cs.getPropertyValue("--product-grid-columns-desktop") || "",
+        ).trim(),
+      };
+    } catch (err) {
+      snap = null;
+    }
+    if (!snap) return existing;
+    if (
+      !snap.horizonCols &&
+      snap.display.indexOf("grid") !== -1 &&
+      !tracksLookUsable(snap.gridTemplateColumns)
+    ) {
+      return existing;
+    }
+    storeGridSnap(host, snap);
+    return snap;
+  }
+
+  function lockThemeGridTracks(host) {
+    host = preferProductCardGrid(host) || host;
+    if (!host || !host.style || typeof host.style.setProperty !== "function") {
+      return;
+    }
+    try {
+      host.style.removeProperty("grid-template-columns");
+      host.style.removeProperty("grid-template-rows");
+    } catch (err) {
+      /* ignore */
+    }
+    var snap = captureThemeGridLayout(host);
+    if (!snap) return;
+    var display = String(snap.display || "");
+    if (display.indexOf("flex") !== -1) {
+      if (snap.flexWrap) host.style.setProperty("flex-wrap", snap.flexWrap);
+      return;
+    }
+    if (display.indexOf("grid") === -1) return;
+    if (snap.horizonCols) {
+      host.style.setProperty("--product-grid-columns-desktop", snap.horizonCols);
+    }
   }
 
   function isThemeWidthContainer(el) {
@@ -1025,17 +1273,11 @@
 
     var i;
     for (i = 0; i < hosts.length; i++) {
+      if (isActualCardGrid(hosts[i])) continue;
       applyImportantStyle(hosts[i], "display", "block");
       applyImportantStyle(hosts[i], "grid-template-columns", "none");
       applyImportantStyle(hosts[i], "width", "100%");
       applyImportantStyle(hosts[i], "max-width", "100%");
-      applyImportantStyle(hosts[i], "--grid-column--desktop", "minmax(0, 1fr)");
-      applyImportantStyle(hosts[i], "--grid-column--mobile", "minmax(0, 1fr)");
-      applyImportantStyle(hosts[i], "--centered-column-number", "1");
-      if (hosts[i].classList && hosts[i].classList.contains("grid")) {
-        applyImportantStyle(hosts[i], "display", "grid");
-        applyImportantStyle(hosts[i], "grid-template-columns", "minmax(0, 1fr)");
-      }
     }
 
     var grids = layout.querySelectorAll
@@ -1052,7 +1294,7 @@
 
     var pagers = layout.querySelectorAll
       ? layout.querySelectorAll(
-          ".sf-pager, .sf-pager__nav, .sf-pager__pages, nav.pagination, .pagination-wrapper",
+          ".sf-pager--load-more, .sf-pager--infinite, .sf-pager__nav, .sf-pager__pages",
         )
       : [];
     for (i = 0; i < pagers.length; i++) {
@@ -1063,12 +1305,6 @@
         continue;
       }
       if (pagers[i].hidden || (pagers[i].hasAttribute && pagers[i].hasAttribute("hidden"))) {
-        continue;
-      }
-      if (
-        pagers[i].classList &&
-        pagers[i].classList.contains("sf-pager--pagination")
-      ) {
         continue;
       }
       applyImportantStyle(pagers[i], "display", "flex");
@@ -1541,6 +1777,17 @@
 
   function resolveOuterThemeCard(el) {
     if (!el || el.nodeType !== 1) return null;
+    if (el.closest) {
+      var item = el.closest("li.product-grid__item, li.grid__item");
+      if (item) return item;
+    }
+    if (
+      el.parentElement &&
+      String(el.parentElement.tagName || "").toLowerCase() === "li" &&
+      isOuterThemeCard(el.parentElement)
+    ) {
+      return el.parentElement;
+    }
     if (isOuterThemeCard(el)) return el;
     if (!el.closest) return null;
     var outer = el.closest(OUTER_CARD_SEL);
@@ -1575,7 +1822,7 @@
         RESULTS_LIST_SELECTOR + ", " + PRODUCT_GRID_SELECTOR,
       );
       if (grid && gridHasProductLinks(grid) && !isSkippedCardRegion(grid)) {
-        return grid;
+        return preferProductCardGrid(grid);
       }
     }
     if (isGridHostEl(el) && gridHasProductLinks(el) && !isSkippedCardRegion(el)) {
@@ -1593,7 +1840,7 @@
     if (hint && hint.nodeType === 1) {
       var promoted = promoteToGridHost(hint);
       if (promoted && gridHasProductLinks(promoted) && !isSkippedCardRegion(promoted)) {
-        return promoted;
+        return preferProductCardGrid(promoted);
       }
     }
 
@@ -1685,17 +1932,35 @@
       "data-product-handle",
       "data-handle",
       "handle",
+      "product-handle",
       "data-sf-card-key",
     ];
     var a;
     for (a = 0; a < attrs.length; a++) {
       var raw = card.getAttribute && card.getAttribute(attrs[a]);
-      if (raw) return String(raw).split("::")[0].toLowerCase();
+      if (raw) {
+        var fromAttr = handleFromHref(raw) || String(raw).split("::")[0].toLowerCase();
+        if (fromAttr && fromAttr.indexOf("/") === -1) return fromAttr;
+      }
+    }
+    var urlAttrs = ["data-product-url", "data-url", "data-product-href"];
+    for (a = 0; a < urlAttrs.length; a++) {
+      var fromUrl = handleFromHref(card.getAttribute && card.getAttribute(urlAttrs[a]));
+      if (fromUrl) return fromUrl;
     }
     var link = firstProductLink(card);
     if (link) return handleFromHref(link.getAttribute("href"));
     if (card.tagName && String(card.tagName).toLowerCase() === "a") {
       return handleFromHref(card.getAttribute("href"));
+    }
+    if (card.querySelector) {
+      var nested = card.querySelector("product-card, product-item, [data-product-handle]");
+      if (nested && nested !== card) {
+        var nestedLink = firstProductLink(nested);
+        if (nestedLink) return handleFromHref(nestedLink.getAttribute("href"));
+        var nestedHandle = nested.getAttribute && nested.getAttribute("data-product-handle");
+        if (nestedHandle) return String(nestedHandle).split("::")[0].toLowerCase();
+      }
     }
     return "";
   }
@@ -1723,8 +1988,14 @@
     );
     var i;
     for (i = 0; i < hidden.length; i++) {
-      showEl(hidden[i]);
-      restoreThemeHidden(hidden[i]);
+      var node = hidden[i];
+      var tag = String((node && node.tagName) || "").toLowerCase();
+      if (tag === "slideshow-slide" || tag === "slideshow-component") continue;
+      if (node && node.hasAttribute && node.hasAttribute("variant-image")) {
+        continue;
+      }
+      showEl(node);
+      restoreThemeHidden(node);
     }
   }
 
@@ -1760,8 +2031,9 @@
   }
 
   function resolveCardHost(hint) {
-    var start = findThemeCardParent(hint) || hint;
+    var start = preferProductCardGrid(findThemeCardParent(hint) || hint);
     if (!start || start.nodeType !== 1) return start;
+    if (isActualCardGrid(start)) return start;
     var selfGrid =
       start.classList && start.classList.contains("main-collection-grid")
         ? start
@@ -1769,8 +2041,8 @@
     var nestedGrid =
       (start.querySelector && start.querySelector(".main-collection-grid")) ||
       null;
-    var preferred = selfGrid || nestedGrid;
-    if (preferred && collectDirectThemeCards(preferred).length) return preferred;
+    var preferred = selfGrid || nestedGrid || queryInnerCardGrid(start);
+    if (preferred) return preferProductCardGrid(preferred);
 
     var nestedProductGrid =
       start.querySelector && start.querySelector(PRODUCT_GRID_SELECTOR);
@@ -1936,6 +2208,7 @@
   }
 
   function placeCardInGrid(parent, el) {
+    parent = preferProductCardGrid(parent) || parent;
     if (!parent || !el) return;
     var outer = resolveOuterThemeCard(el);
     if (!outer) {
@@ -1946,6 +2219,38 @@
       return;
     }
     el = outer;
+    if (
+      isListHost(parent) &&
+      String(el.tagName || "").toLowerCase() !== "li"
+    ) {
+      var sampleLi = null;
+      var si;
+      for (si = 0; si < parent.children.length; si++) {
+        if (String(parent.children[si].tagName || "").toLowerCase() === "li") {
+          sampleLi = parent.children[si];
+          break;
+        }
+      }
+      if (!sampleLi) {
+        var traySample = document.getElementById(CARD_TRAY_ID);
+        if (traySample && traySample.children) {
+          for (si = 0; si < traySample.children.length; si++) {
+            if (String(traySample.children[si].tagName || "").toLowerCase() === "li") {
+              sampleLi = traySample.children[si];
+              break;
+            }
+          }
+        }
+      }
+      var holder = document.createElement("li");
+      holder.className = listItemClassForGrid(parent, sampleLi);
+      if (el.classList && el.classList.contains("sf-app-card")) {
+        holder.className = holder.className + " sf-app-card";
+      }
+      if (el.parentNode === parent) parent.insertBefore(holder, el);
+      holder.appendChild(el);
+      el = holder;
+    }
     var chrome = null;
     var kids = parent.children;
     var i;
@@ -1992,45 +2297,22 @@
   }
 
   function sweepHostOrphans(host, shownEls, allowed, tray) {
-    if (!host || !host.querySelectorAll || !tray || !allowed) return;
-    if (!shownEls || !shownEls.length) return;
-    var links = host.querySelectorAll('a[href*="/products/"]');
+    if (!host || !host.children || !tray) return;
     var i;
-    var s;
-    for (i = 0; i < links.length; i++) {
-      var link = links[i];
-      if (isSkippedCardRegion(link)) continue;
-      if (tray.contains && tray.contains(link)) continue;
-      var inside = false;
-      for (s = 0; s < shownEls.length; s++) {
-        if (!shownEls[s]) continue;
-        if (shownEls[s] === link) {
-          inside = true;
-          break;
-        }
-        if (shownEls[s].contains && shownEls[s].contains(link)) {
-          inside = true;
-          break;
-        }
-      }
-      if (inside) continue;
-      var handle = handleFromHref(link.getAttribute && link.getAttribute("href"));
+    for (i = host.children.length - 1; i >= 0; i--) {
+      var kid = host.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (kid.id === CARD_TRAY_ID || kid.id === EMPTY_ID) continue;
+      if (isGridChrome(kid)) continue;
+      if (kid.getAttribute && kid.getAttribute(SKEL_ATTR) === "1") continue;
+      if (isOuterThemeCard(kid)) continue;
+      if (resolveOuterThemeCard(kid) && resolveOuterThemeCard(kid) !== kid) continue;
+      if (!isOrphanProductNode(kid)) continue;
+      var handle = handleFromCard(kid);
       if (allowed && handle && allowed[handle]) {
-        var attached = false;
-        for (s = 0; s < shownEls.length; s++) {
-          if (!shownEls[s] || shownEls[s] === link) continue;
-          if (handleFromCard(shownEls[s]) === handle) {
-            if (shownEls[s].contains && !shownEls[s].contains(link)) {
-              shownEls[s].appendChild(link);
-            }
-            attached = true;
-            break;
-          }
-        }
-        if (!attached) tray.appendChild(link);
-      } else {
-        tray.appendChild(link);
+        if (attachOrphanToShown(kid, handle, shownEls || [])) continue;
       }
+      if (kid.parentNode !== tray) tray.appendChild(kid);
     }
   }
 
@@ -2108,7 +2390,8 @@
         host.querySelector("#ProductGrid") ||
         host.querySelector("ul.product-grid") ||
         host.querySelector("ol.product-grid") ||
-        host.querySelector(".product-grid");
+        host.querySelector(".product-grid") ||
+        queryInnerCardGrid(host);
       if (inner && !isTooWideBusyHost(inner)) host = inner;
     }
     return skeletonMountHost(host);
@@ -2121,6 +2404,7 @@
     for (i = 0; i < nodes.length; i++) {
       if (nodes[i].parentNode) nodes[i].parentNode.removeChild(nodes[i]);
     }
+    if (host && host.removeAttribute) host.removeAttribute("data-findly-skel-host");
   }
 
   function hostHasSkeletons(host) {
@@ -2139,6 +2423,7 @@
 
   function mountGridSkeletons(host, count) {
     if (!host || !host.appendChild) return;
+    if (host.setAttribute) host.setAttribute("data-findly-skel-host", "1");
     if (hostHasSkeletons(host)) return;
     clearGridSkeletons(host);
     var sample = null;
@@ -2178,12 +2463,29 @@
   }
 
   function positionBusyOverlay(host, overlay) {
-    if (!host || !overlay || !host.getBoundingClientRect) return;
-    var rect = host.getBoundingClientRect();
+    if (!overlay) return;
     var vh = window.innerHeight || 800;
+    var vw = window.innerWidth || 1200;
+    var rect = host && host.getBoundingClientRect ? host.getBoundingClientRect() : null;
+    if (!rect || rect.width < 40) {
+      var filter =
+        document.getElementById("smart-filter-root") ||
+        document.getElementById("smart-filter-embed");
+      if (filter && filter.getBoundingClientRect) {
+        var fr = filter.getBoundingClientRect();
+        if (fr.width < vw * 0.48 && fr.left < vw * 0.42) {
+          overlay.style.top = Math.max(0, fr.top) + "px";
+          overlay.style.left = Math.max(0, fr.right) + "px";
+          overlay.style.width = Math.max(160, vw - Math.max(0, fr.right)) + "px";
+          overlay.style.height = Math.max(352, vh - Math.max(0, fr.top)) + "px";
+          return;
+        }
+      }
+      if (!rect) return;
+    }
     var top = Math.max(0, rect.top);
     var chrome =
-      (host.querySelector && host.querySelector(".sf-toolbar")) ||
+      (host && host.querySelector && host.querySelector(".sf-toolbar")) ||
       document.querySelector(".sf-toolbar");
     if (chrome && chrome.getBoundingClientRect) {
       var chromeRect = chrome.getBoundingClientRect();
@@ -2255,6 +2557,7 @@
     var select = document.querySelector(
       ".sf-toolbar [data-sort], .sf-toolbar .smart-filter__sort-select, .smart-filter__sort-select",
     );
+    var sortBtn = document.querySelector(".sf-sort-btn");
     var sortWrap = document.querySelector(
       ".sf-toolbar .smart-filter__sort, [data-sort-wrap], .smart-filter__sort",
     );
@@ -2263,6 +2566,7 @@
     setControlBusy(search, on);
     setControlBusy(clear, on);
     setControlBusy(select, on);
+    setControlBusy(sortBtn, on);
     if (field) {
       if (on) field.setAttribute("aria-busy", "true");
       else field.removeAttribute("aria-busy");
@@ -2312,6 +2616,11 @@
       for (b = 0; b < busyHosts.length; b++) {
         busyHosts[b].classList.remove("findly-grid-is-busy");
         busyHosts[b].removeAttribute("aria-busy");
+        busyHosts[b].removeAttribute("data-findly-skel-host");
+      }
+      var marked = document.querySelectorAll("[data-findly-skel-host='1']");
+      for (b = 0; b < marked.length; b++) {
+        marked[b].removeAttribute("data-findly-skel-host");
       }
       setFilterLoading(false);
       removeBusyOverlay();
@@ -2328,6 +2637,7 @@
     }
     if (host.classList) host.classList.add("findly-grid-is-busy");
     host.setAttribute("aria-busy", "true");
+    host.setAttribute("data-findly-skel-host", "1");
     if (!hostHasSkeletons(host)) mountGridSkeletons(host, SKEL_COUNT);
     setFilterLoading(true);
     var overlay = document.getElementById("findly-grid-busy-overlay");
@@ -2461,6 +2771,315 @@
   // keep-theme-cards: on first unfiltered load, leave native Liquid cards
   // alone. After the shopper filters/searches/sorts, keep rendering API
   // results — including Clear All — so the grid and pagination stay in sync.
+  function shopifyImageKey(url) {
+    if (!url) return "";
+    var path = String(url).split("?")[0];
+    try {
+      path = new URL(url, window.location.origin).pathname;
+    } catch (err) {
+      /* keep path */
+    }
+    return path.replace(
+      /_(?:pico|icon|thumb|small|compact|medium|large|grande|original|master|\d+x\d+)(?:@\d+x)?(?=\.[a-z]+$)/i,
+      "",
+    );
+  }
+
+  function shopifyImageWithWidth(url, width) {
+    if (!url) return url;
+    try {
+      var parsed = new URL(url, window.location.origin);
+      if (width) parsed.searchParams.set("width", String(width));
+      return parsed.toString();
+    } catch (err) {
+      return url;
+    }
+  }
+
+  function paintThemeCardImage(img, nextUrl) {
+    if (!img || !nextUrl) return;
+    var cur = img.getAttribute("src") || "";
+    var orig = img.getAttribute("data-sf-orig-src") || cur;
+    var origSet =
+      img.getAttribute("data-sf-orig-srcset") || img.getAttribute("srcset") || "";
+    if (!img.getAttribute("data-sf-orig-src")) {
+      img.setAttribute("data-sf-orig-src", orig);
+      img.setAttribute("data-sf-orig-srcset", origSet);
+    }
+    var nextKey = shopifyImageKey(nextUrl);
+    if (
+      nextKey &&
+      (nextKey === shopifyImageKey(cur) || nextKey === shopifyImageKey(orig))
+    ) {
+      if (origSet && !img.getAttribute("srcset")) img.setAttribute("srcset", origSet);
+      return;
+    }
+    img.setAttribute("src", shopifyImageWithWidth(nextUrl, img.getAttribute("width")));
+    if (!origSet) return;
+    img.setAttribute(
+      "srcset",
+      origSet
+        .split(",")
+        .map(function (part) {
+          var bits = part.trim().split(/\s+/);
+          var desc = bits.slice(1).join(" ");
+          var wide = desc.match(/(\d+)w/);
+          return (
+            shopifyImageWithWidth(nextUrl, wide ? wide[1] : "") +
+            (desc ? " " + desc : "")
+          );
+        })
+        .join(", "),
+    );
+  }
+
+  function firstThemeCardSample(widget, parent) {
+    function pick(el) {
+      var outer = resolveOuterThemeCard(el) || el;
+      if (!outer || outer.nodeType !== 1) return null;
+      if (outer.classList && outer.classList.contains("sf-app-card")) return null;
+      if (!isOuterThemeCard(outer)) return null;
+      return outer;
+    }
+    var cache = widget && widget._cardCache;
+    var key;
+    if (cache) {
+      for (key in cache) {
+        if (!Object.prototype.hasOwnProperty.call(cache, key)) continue;
+        var fromCache = pick(cache[key]);
+        if (fromCache) return fromCache;
+      }
+    }
+    var i;
+    if (parent && parent.children) {
+      for (i = 0; i < parent.children.length; i++) {
+        var fromParent = pick(parent.children[i]);
+        if (fromParent) return fromParent;
+      }
+    }
+    var tray = document.getElementById(CARD_TRAY_ID);
+    if (tray && tray.children) {
+      for (i = 0; i < tray.children.length; i++) {
+        var fromTray = pick(tray.children[i]);
+        if (fromTray) return fromTray;
+      }
+    }
+    return null;
+  }
+
+  function cloneThemeProductCard(sample, product) {
+    if (!sample || !product) return null;
+    var clone;
+    try {
+      clone = sample.cloneNode(true);
+    } catch (err) {
+      return null;
+    }
+    var handle = String(product.handle || "").toLowerCase();
+    var key = String(product.cardKey || handle).toLowerCase();
+    if (key) clone.setAttribute("data-sf-card-key", key);
+    if (handle) clone.setAttribute("data-product-handle", handle);
+    clone.removeAttribute("data-smart-filter-hidden");
+    clone.hidden = false;
+    if (clone.style) clone.style.removeProperty("display");
+    var url =
+      product.url ||
+      (handle
+        ? "/products/" +
+          handle +
+          (product.variantId ? "?variant=" + product.variantId : "")
+        : "");
+    var i;
+    if (url) {
+      var links = clone.querySelectorAll('a[href*="/products/"]');
+      for (i = 0; i < links.length; i++) links[i].setAttribute("href", url);
+    }
+    paintThemeCardImage(
+      clone.querySelector("img"),
+      product.variantImageUrl || product.imageUrl || "",
+    );
+    var heading = clone.querySelector(
+      ".card__heading, .card__title, .product-card-title, h3, h2, h4",
+    );
+    if (heading && product.title) {
+      var titleLink = heading.querySelector && heading.querySelector("a");
+      if (titleLink) titleLink.textContent = product.title;
+      else heading.textContent = product.title;
+    }
+    var slides = clone.querySelectorAll("slideshow-slide");
+    for (i = 1; i < slides.length; i++) {
+      slides[i].setAttribute("hidden", "");
+      slides[i].setAttribute("aria-hidden", "true");
+    }
+    var badges = clone.querySelectorAll(
+      ".badge, .product-badge, .card__badge, .product-badges",
+    );
+    for (i = 0; i < badges.length; i++) badges[i].setAttribute("hidden", "");
+    return clone;
+  }
+
+  function isFragileThemeCard(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "product-card" || tag === "product-item" || tag === "grid-item") {
+      return true;
+    }
+    return Boolean(
+      el.querySelector && el.querySelector("product-card, product-item, grid-item"),
+    );
+  }
+
+  function cardIsInHost(el, parent) {
+    if (!el || !parent) return false;
+    if (el.parentNode === parent) return true;
+    return Boolean(parent.contains && parent.contains(el));
+  }
+
+  function cardHasVisibleMedia(el) {
+    if (!el || !el.querySelector) return false;
+    return Boolean(el.querySelector("img, svg, [style*='background']"));
+  }
+
+  function formatFillPrice(product, widget) {
+    if (!product) return "";
+    var raw = product.priceMin != null ? product.priceMin : product.price;
+    if (raw == null || raw === "") return "";
+    if (typeof raw === "string" && /[^\d.]/.test(raw)) return raw;
+    var n = Number(raw);
+    if (!Number.isFinite(n)) return "";
+    var code =
+      (widget && widget.currency) ||
+      (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) ||
+      "USD";
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: String(code),
+      }).format(n);
+    } catch (err) {
+      return "$" + n.toFixed(2);
+    }
+  }
+
+  function buildThemeListCard(parent, product, sample) {
+    if (!product) return null;
+    var handle = String(product.handle || "").toLowerCase();
+    var key = String(product.cardKey || handle).toLowerCase();
+    var li = document.createElement("li");
+    li.className = listItemClassForGrid(parent, sample);
+    li.setAttribute("data-sf-fill-card", "1");
+    if (key) li.setAttribute("data-sf-card-key", key);
+    if (handle) li.setAttribute("data-product-handle", handle);
+    var url =
+      product.url ||
+      (handle
+        ? "/products/" + handle + (product.variantId ? "?variant=" + product.variantId : "")
+        : "#");
+    var a = document.createElement("a");
+    a.setAttribute("href", url);
+    a.className = "sf-fill-card";
+    var imgUrl = product.variantImageUrl || product.imageUrl || "";
+    if (imgUrl) {
+      var img = document.createElement("img");
+      img.src = imgUrl;
+      img.alt = product.title || "";
+      img.setAttribute("loading", "lazy");
+      a.appendChild(img);
+    }
+    var title = document.createElement("p");
+    title.className = "sf-fill-card__title";
+    title.textContent = product.title || handle;
+    a.appendChild(title);
+    var priceText = formatFillPrice(product, widget);
+    if (priceText) {
+      var price = document.createElement("p");
+      price.className = "sf-fill-card__price";
+      price.textContent = priceText;
+      a.appendChild(price);
+    }
+    li.appendChild(a);
+    return li;
+  }
+
+  function pageHandlesForGrid(widget, handles, append) {
+    var source = handles;
+    if (
+      widget &&
+      widget._allFilterHandles &&
+      widget._allFilterHandles.length >
+        (handles && handles.length ? handles.length : 0)
+    ) {
+      source = widget._allFilterHandles;
+    }
+    return pageSlice(widget, source, append);
+  }
+
+  function fillGapsWithThemeClones(widget, handles, parent) {
+    if (!widget || !handles || !handles.length || !parent) return;
+    if (widget.isAppGridMode && widget.isAppGridMode()) return;
+    handles = pageHandlesForGrid(widget, handles, false);
+    var cache = widget._cardCache || {};
+    widget._cardCache = cache;
+    var products = widget._lastProducts || [];
+    if (
+      widget._lastFilterData &&
+      widget._lastFilterData.products &&
+      widget._lastFilterData.products.length > products.length
+    ) {
+      products = widget._lastFilterData.products;
+    }
+    var byKey = {};
+    var p;
+    for (p = 0; p < products.length; p++) {
+      var item = products[p];
+      if (!item) continue;
+      if (item.cardKey) byKey[String(item.cardKey).toLowerCase()] = item;
+      if (item.handle) byKey[String(item.handle).toLowerCase()] = item;
+    }
+    var sample = firstThemeCardSample(widget, parent);
+    var i;
+    for (i = 0; i < handles.length; i++) {
+      var key = String(handles[i] || "").toLowerCase();
+      if (!key) continue;
+      var base = key.split("::")[0];
+      var cached = cache[key] || (base && cache[base]);
+      var existing = cached ? resolveOuterThemeCard(cached) || cached : null;
+      if (existing && cardIsInHost(existing, parent) && !isFragileThemeCard(existing)) {
+        showCardTree(existing);
+        continue;
+      }
+      if (
+        existing &&
+        cardIsInHost(existing, parent) &&
+        existing.getAttribute &&
+        existing.getAttribute("data-sf-fill-card") === "1"
+      ) {
+        showCardTree(existing);
+        continue;
+      }
+      if (existing && cardIsInHost(existing, parent) && existing.offsetHeight > 40) {
+        showCardTree(existing);
+        continue;
+      }
+      if (existing && cardIsInHost(existing, parent) && isFragileThemeCard(existing)) {
+        hideEl(existing);
+      }
+      var product = byKey[key] || byKey[base] || { handle: base, cardKey: key };
+      var clone = null;
+      if (sample && !isFragileThemeCard(sample)) {
+        clone = cloneThemeProductCard(sample, product);
+      }
+      if (!clone || isFragileThemeCard(clone) || !cardHasVisibleMedia(clone)) {
+        clone = buildThemeListCard(parent, product, sample) || clone;
+      }
+      if (!clone) continue;
+      cache[key] = clone;
+      if (base && !cache[base]) cache[base] = clone;
+      placeCardInGrid(parent, clone);
+      showCardTree(clone);
+    }
+  }
+
   function markGridTakeover(widget) {
     if (widget) widget._keepThemeCards = false;
   }
@@ -2495,46 +3114,56 @@
     if (!widget || widget._importingCards || !handles || !handles.length) return;
     if (!shouldTakeOverThemeCards(widget)) return;
     var reqId = widget._reqId;
-    parent = resolveCardHost(parent) || parent;
-    if (parent) widget._gridParent = parent;
+    parent = preferProductCardGrid(resolveCardHost(parent) || parent);
+    if (parent && !isPageShellHost(parent)) widget._gridParent = parent;
+    lockThemeGridTracks(parent);
     if (widget.setGridBusy) widget.setGridBusy(true);
     function stale() {
       return widget._reqId !== reqId;
     }
     function finish() {
       if (stale()) return;
-      mountCachedCards(widget, handles, parent);
-      applyNativeFilterGrid(handles, parent);
-      var shown = countAllowedInHost(parent, handles);
-      var needed = uniqueAllowedCount(handles);
-      if (
-        needed > shown &&
-        widget.applyAppGrid &&
-        !(widget.isAppGridMode && widget.isAppGridMode())
-      ) {
-        widget._skipPageSlice = true;
-        try {
-          widget.applyAppGrid(
-            { products: widget._lastProducts || [] },
-            handles,
-            false,
-          );
-        } finally {
-          widget._skipPageSlice = false;
+      try {
+        mountCachedCards(widget, handles, parent);
+        applyNativeFilterGrid(handles, parent);
+        fillGapsWithThemeClones(widget, handles, parent);
+        var shown = countAllowedInHost(parent, handles);
+        var needed = uniqueAllowedCount(handles);
+        if (needed > shown) {
+          fillGapsWithThemeClones(widget, handles, parent);
+          shown = countAllowedInHost(parent, handles);
         }
-        shown = countAllowedInHost(parent, handles);
-        if (widget._shownHandles && widget._shownHandles.length) {
-          shown = Math.max(shown, uniqueAllowedCount(widget._shownHandles));
+        if (
+          needed > shown &&
+          shown === 0 &&
+          widget.applyAppGrid &&
+          !(widget.isAppGridMode && widget.isAppGridMode())
+        ) {
+          widget._skipPageSlice = true;
+          try {
+            widget.applyAppGrid(
+              { products: widget._lastProducts || [] },
+              handles,
+              false,
+            );
+          } finally {
+            widget._skipPageSlice = false;
+          }
+          shown = countAllowedInHost(parent, handles);
+          if (widget._shownHandles && widget._shownHandles.length) {
+            shown = Math.max(shown, uniqueAllowedCount(widget._shownHandles));
+          }
+        }
+        syncGridEmptyState(widget, parent, handles, shown);
+      } finally {
+        if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
+        if (widget._reqId === reqId) {
+          widget._loadingPage = false;
+          widget._appending = false;
+          if (widget.renderPager) widget.renderPager();
+          mountFindlyPager(widget);
         }
       }
-      if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
-      if (widget._reqId === reqId) {
-        widget._loadingPage = false;
-        widget._appending = false;
-        if (widget.renderPager) widget.renderPager();
-        mountFindlyPager(widget);
-      }
-      syncGridEmptyState(widget, parent, handles, shown);
     }
     widget._importingCards = true;
     widget._reapplyingGrid = true;
@@ -2554,9 +3183,10 @@
   }
 
   function applyNativeFilterGrid(handles, hint) {
-    if (!Array.isArray(handles)) stripAppCards(document);
-    var parent = resolveCardHost(hint);
+    stripAppCards(document);
+    var parent = preferProductCardGrid(resolveCardHost(hint) || hint);
     if (!parent) return false;
+    lockThemeGridTracks(parent);
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
     var cards = collectTrayAndGridCards(parent);
     var tray = cardTray();
@@ -2586,58 +3216,37 @@
       });
     }
     var shownHosts = [];
-    var expected = [];
     for (i = 0; i < shown.length; i++) {
-      if (shown[i].orphan) continue;
-      expected.push(shown[i].el);
-      shownHosts.push(shown[i].el);
-    }
-    var existing = [];
-    for (i = 0; i < parent.children.length; i++) {
-      var kid = parent.children[i];
-      if (!kid || kid.nodeType !== 1) continue;
-      if (kid.id === CARD_TRAY_ID || isGridChrome(kid)) continue;
-      if (!isOuterThemeCard(kid) && !isOrphanProductNode(kid)) continue;
-      existing.push(kid);
-    }
-    var needMove = expected.length !== existing.length;
-    if (!needMove) {
-      for (i = 0; i < expected.length; i++) {
-        if (expected[i] !== existing[i]) {
-          needMove = true;
-          break;
-        }
-      }
-    }
-    for (i = 0; i < expected.length; i++) {
-      if (needMove) placeCardInGrid(parent, expected[i]);
-      showCardTree(expected[i]);
-    }
-    if (needMove) {
-      for (i = 0; i < shown.length; i++) {
-        if (!shown[i].orphan) continue;
+      if (shown[i].orphan) {
         if (
           !attachOrphanToShown(shown[i].el, shown[i].handle, shown) &&
           !attachOrphanToShown(shown[i].el, shown[i].handle, hidden)
         ) {
           if (shown[i].el.parentNode !== tray) tray.appendChild(shown[i].el);
         }
+        continue;
       }
-      for (i = 0; i < hidden.length; i++) {
-        if (hidden[i].orphan) {
-          if (
-            !attachOrphanToShown(hidden[i].el, hidden[i].handle, hidden) &&
-            !attachOrphanToShown(hidden[i].el, hidden[i].handle, shown)
-          ) {
-            if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
-          }
-          continue;
-        }
-        showCardTree(hidden[i].el);
-        if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
-      }
-      sweepHostOrphans(parent, shownHosts, allowed, tray);
+      if (shown[i].el.parentNode === tray) placeCardInGrid(parent, shown[i].el);
+      showCardTree(shown[i].el);
+      shownHosts.push(shown[i].el);
     }
+    for (i = 0; i < hidden.length; i++) {
+      if (hidden[i].orphan) {
+        if (
+          !attachOrphanToShown(hidden[i].el, hidden[i].handle, hidden) &&
+          !attachOrphanToShown(hidden[i].el, hidden[i].handle, shown)
+        ) {
+          if (hidden[i].el.parentNode !== tray) tray.appendChild(hidden[i].el);
+        }
+        continue;
+      }
+      if (hidden[i].el.parentNode === tray) placeCardInGrid(parent, hidden[i].el);
+      hideEl(hidden[i].el);
+    }
+    for (i = 0; i < shownHosts.length; i++) {
+      placeCardInGrid(parent, shownHosts[i]);
+    }
+    sweepHostOrphans(parent, shownHosts, allowed, tray);
     return cards.length > 0;
   }
 
@@ -2753,6 +3362,94 @@
     return wrap.querySelector(".smart-filter__sort-menu");
   }
 
+  function sortButtonEl(wrap) {
+    return wrap && wrap.querySelector ? wrap.querySelector(".sf-sort-btn") : null;
+  }
+
+  function selectedSortLabel(select) {
+    if (!select || !select.options) return "";
+    var opt = select.options[select.selectedIndex];
+    return opt ? String(opt.textContent || "").trim() : "";
+  }
+
+  function syncSortButton(wrap, select) {
+    var btn = sortButtonEl(wrap);
+    if (!btn) return;
+    var valueEl = btn.querySelector(".sf-sort-btn__value");
+    var labelText = selectedSortLabel(select);
+    if (valueEl) valueEl.textContent = labelText;
+    btn.disabled = Boolean(select && select.disabled);
+    btn.setAttribute(
+      "aria-expanded",
+      wrap && wrap.classList && wrap.classList.contains("is-sort-open")
+        ? "true"
+        : "false",
+    );
+    var label = wrap && wrap.querySelector
+      ? wrap.querySelector(".smart-filter__sort-label")
+      : null;
+    var prefix = label ? String(label.textContent || "").trim() : "Sort by";
+    btn.setAttribute("aria-label", prefix + (labelText ? ": " + labelText : ""));
+  }
+
+  function syncSortA11y(wrap, select, btn) {
+    if (!select) return;
+    var label = wrap && wrap.querySelector
+      ? wrap.querySelector(".smart-filter__sort-label")
+      : null;
+    if (useCustomSortMenu()) {
+      select.setAttribute("tabindex", "-1");
+      select.setAttribute("aria-hidden", "true");
+      if (label && btn && btn.id) label.htmlFor = btn.id;
+    } else {
+      select.removeAttribute("tabindex");
+      select.removeAttribute("aria-hidden");
+      if (label && select.id) label.htmlFor = select.id;
+    }
+  }
+
+  function ensureSortButton(wrap, select) {
+    var trigger = ensureSortTrigger(wrap, select);
+    var btn = sortButtonEl(wrap);
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sf-sort-btn";
+      btn.setAttribute("aria-haspopup", "listbox");
+      btn.setAttribute("aria-expanded", "false");
+      var value = document.createElement("span");
+      value.className = "sf-sort-btn__value";
+      btn.appendChild(value);
+      var chevron = document.createElement("span");
+      chevron.className = "sf-sort-btn__chevron";
+      chevron.setAttribute("aria-hidden", "true");
+      btn.appendChild(chevron);
+      if (select && select.parentNode === trigger) {
+        trigger.insertBefore(btn, select);
+      } else {
+        trigger.insertBefore(btn, trigger.firstChild);
+      }
+    } else if (btn.parentNode !== trigger) {
+      if (select && select.parentNode === trigger) trigger.insertBefore(btn, select);
+      else trigger.insertBefore(btn, trigger.firstChild);
+    }
+    var baseId = (select && select.id) || "smart-filter-sort";
+    if (!btn.id) btn.id = baseId + "-btn";
+    syncSortButton(wrap, select);
+    syncSortA11y(wrap, select, btn);
+    return btn;
+  }
+
+  function sortMenuAnchor(wrap) {
+    var btn = sortButtonEl(wrap);
+    if (btn && useCustomSortMenu()) return btn;
+    return (
+      sortMenuSelect(wrap) ||
+      (wrap && wrap.querySelector && wrap.querySelector(".sf-sort-trigger")) ||
+      wrap
+    );
+  }
+
   function ensureSortTrigger(wrap, select) {
     var trigger = wrap.querySelector(".sf-sort-trigger");
     var control = wrap.querySelector(".sf-sort-control") || wrap;
@@ -2817,6 +3514,7 @@
         hideSortMenuEl(wrap, ported[i]);
       }
     }
+    syncSortButton(wrap, sortMenuSelect(wrap));
   }
 
   function toggleSortMenu(wrap) {
@@ -2826,9 +3524,7 @@
   }
 
   function positionSortMenu(wrap, menu) {
-    var select = sortMenuSelect(wrap);
-    var trigger = wrap.querySelector(".sf-sort-trigger");
-    var anchor = select || trigger || wrap;
+    var anchor = sortMenuAnchor(wrap);
     var rect = anchor.getBoundingClientRect();
     var viewportW = Math.max(
       document.documentElement.clientWidth || 0,
@@ -2856,7 +3552,7 @@
     if (left + width > viewportW - 12) {
       left = Math.max(12, viewportW - 12 - width);
     }
-    var gap = 4;
+    var gap = 6;
     var top = rect.bottom + gap;
     var height = menu.offsetHeight || 0;
     if (height && top + height > viewportH - 12) {
@@ -2888,12 +3584,19 @@
     menu.style.visibility = "hidden";
     menu.hidden = false;
     wrap.classList.add("is-sort-open");
+    syncSortButton(wrap, sortMenuSelect(wrap));
     positionSortMenu(wrap, menu);
     menu.style.visibility = "";
     sortMenuIgnoreClick = true;
     window.setTimeout(function () {
       sortMenuIgnoreClick = false;
     }, 0);
+    var selected = menu.querySelector(".smart-filter__sort-option.is-selected");
+    try {
+      if (selected) selected.focus();
+    } catch (err) {
+      /* ignore */
+    }
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(function () {
         if (wrap.classList.contains("is-sort-open")) positionSortMenu(wrap, menu);
@@ -2915,9 +3618,50 @@
       closeSortMenu(openWrap);
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key !== "Escape") return;
       var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
-      if (openWrap) closeSortMenu(openWrap);
+      if (!openWrap) return;
+      var menu = sortMenuEl(openWrap);
+      if (e.key === "Escape") {
+        closeSortMenu(openWrap);
+        var btn = sortButtonEl(openWrap);
+        try {
+          if (btn && useCustomSortMenu()) btn.focus();
+        } catch (err) {
+          /* ignore */
+        }
+        return;
+      }
+      if (!menu) return;
+      if (
+        e.key !== "ArrowDown" &&
+        e.key !== "ArrowUp" &&
+        e.key !== "Home" &&
+        e.key !== "End"
+      ) {
+        return;
+      }
+      var options = menu.querySelectorAll(".smart-filter__sort-option");
+      if (!options.length) return;
+      e.preventDefault();
+      var i;
+      var idx = -1;
+      for (i = 0; i < options.length; i++) {
+        if (options[i] === document.activeElement) idx = i;
+      }
+      if (idx < 0) {
+        for (i = 0; i < options.length; i++) {
+          if (options[i].classList.contains("is-selected")) idx = i;
+        }
+      }
+      if (e.key === "Home") idx = 0;
+      else if (e.key === "End") idx = options.length - 1;
+      else if (e.key === "ArrowDown") idx = Math.min(options.length - 1, idx + 1);
+      else idx = Math.max(0, idx - 1);
+      try {
+        options[idx].focus();
+      } catch (err) {
+        /* ignore */
+      }
     });
     window.addEventListener(
       "scroll",
@@ -2940,6 +3684,7 @@
     }
     copyDrawerThemeVars(widget, wrap);
     var trigger = ensureSortTrigger(wrap, select);
+    var sortBtn = ensureSortButton(wrap, select);
     closeSortMenu(wrap);
     var menu = sortMenuEl(wrap);
     if (!menu) {
@@ -2948,38 +3693,56 @@
       menu.setAttribute("role", "listbox");
       menu.hidden = true;
     }
+    if (!menu.id) menu.id = ((select && select.id) || "smart-filter-sort") + "-menu";
     wrap._sfSortMenu = menu;
+    if (sortBtn) sortBtn.setAttribute("aria-controls", menu.id);
     if (menu.parentNode !== trigger) trigger.appendChild(menu);
     menu.innerHTML = "";
     Array.prototype.forEach.call(select.options, function (opt) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "smart-filter__sort-option";
-      if (opt.selected) btn.className += " is-selected";
-      btn.setAttribute("role", "option");
-      btn.setAttribute("aria-selected", opt.selected ? "true" : "false");
-      btn.textContent = opt.textContent;
-      btn.addEventListener("click", function (e) {
+      var optionBtn = document.createElement("button");
+      optionBtn.type = "button";
+      optionBtn.className = "smart-filter__sort-option";
+      if (opt.selected) optionBtn.className += " is-selected";
+      optionBtn.setAttribute("role", "option");
+      optionBtn.setAttribute("aria-selected", opt.selected ? "true" : "false");
+      optionBtn.textContent = opt.textContent;
+      optionBtn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
         var next = opt.value;
         closeSortMenu(wrap);
         if (select.value !== next) {
           select.value = next;
+          syncSortButton(wrap, select);
           if (typeof select.dispatchEvent === "function") {
             select.dispatchEvent(new Event("change", { bubbles: true }));
           }
+        } else {
+          syncSortButton(wrap, select);
         }
       });
-      menu.appendChild(btn);
+      menu.appendChild(optionBtn);
     });
     wrap.classList.add("smart-filter__sort--has-menu");
+    syncSortButton(wrap, select);
+    if (!select._sfSortBtnSync) {
+      select._sfSortBtnSync = true;
+      select.addEventListener("change", function () {
+        syncSortButton(wrap, select);
+      });
+    }
     if (!wrap._sfSortMenuBound) {
       wrap._sfSortMenuBound = true;
       wrap.addEventListener("click", function (e) {
         if (!useCustomSortMenu()) return;
         if (!e.target || !e.target.closest) return;
         if (e.target.closest(".smart-filter__sort-option")) return;
+        if (e.target.closest(".sf-sort-btn")) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSortMenu(wrap);
+          return;
+        }
         if (
           e.target.closest(".sf-sort-trigger") ||
           e.target === sortMenuSelect(wrap)
@@ -2992,6 +3755,11 @@
         if (!e.target || !e.target.closest) return;
         if (e.target.closest(".smart-filter__sort-option")) return;
         if (e.target.closest(".smart-filter__sort-menu")) return;
+        if (e.target.closest(".sf-sort-btn")) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (
           !e.target.closest(".sf-sort-trigger") &&
           e.target !== sortMenuSelect(wrap)
@@ -3001,17 +3769,16 @@
         e.preventDefault();
         e.stopPropagation();
         toggleSortMenu(wrap);
-        var liveSelect = sortMenuSelect(wrap);
-        try {
-          if (liveSelect) liveSelect.focus();
-        } catch (err) {
-          /* ignore */
-        }
       });
       wrap.addEventListener("keydown", function (e) {
         if (!useCustomSortMenu()) return;
+        var liveBtn = sortButtonEl(wrap);
         var liveSelect = sortMenuSelect(wrap);
-        if (e.target !== liveSelect) return;
+        var onTrigger =
+          e.target === liveBtn ||
+          (liveBtn && liveBtn.contains && liveBtn.contains(e.target)) ||
+          e.target === liveSelect;
+        if (!onTrigger) return;
         if (e.key === "Escape") {
           closeSortMenu(wrap);
           return;
@@ -3163,6 +3930,22 @@
       if (node.closest && node.closest(".sf-app-card")) continue;
       hideEl(node);
     }
+  }
+
+  function listItemClassForGrid(parent, sample) {
+    if (sample && sample.classList) {
+      if (sample.classList.contains("grid__item")) return "grid__item";
+      if (sample.classList.contains("product-grid__item")) return "product-grid__item";
+      if (sample.classList.contains("grid-view-item")) return "grid-view-item";
+    }
+    if (parent) {
+      if (parent.id === "product-grid" || parent.id === "ProductGrid") return "grid__item";
+      if (parent.classList && parent.classList.contains("main-collection-grid")) {
+        return "product-grid__item";
+      }
+      if (parent.classList && parent.classList.contains("grid")) return "grid__item";
+    }
+    return "product-grid__item";
   }
 
   function isListHost(el) {
@@ -3520,14 +4303,39 @@
         break;
       }
     }
-    var sampleClass = sample ? String(sample.className || "") : "";
+    if (!sample) {
+      var tray = document.getElementById(CARD_TRAY_ID);
+      if (tray && tray.children) {
+        for (i = 0; i < tray.children.length; i++) {
+          if (String(tray.children[i].tagName || "").toLowerCase() === "li") {
+            sample = tray.children[i];
+            break;
+          }
+        }
+      }
+    }
     var cards = parent.querySelectorAll(".sf-app-card");
     for (i = 0; i < cards.length; i++) {
       var card = cards[i];
-      if (sampleClass) card.className = uniqueClassName(sampleClass);
       card.style.removeProperty("display");
       card.hidden = false;
       card.removeAttribute("data-smart-filter-hidden");
+      if (
+        isListHost(parent) &&
+        String(card.tagName || "").toLowerCase() !== "li"
+      ) {
+        var holder = document.createElement("li");
+        holder.className = listItemClassForGrid(parent, sample) + " sf-app-card";
+        var names = ["data-sf-card-key", "data-product-handle", "data-product-id"];
+        var n;
+        for (n = 0; n < names.length; n++) {
+          var val = card.getAttribute(names[n]);
+          if (val) holder.setAttribute(names[n], val);
+        }
+        if (card.parentNode === parent) parent.insertBefore(holder, card);
+        while (card.firstChild) holder.appendChild(card.firstChild);
+        if (card.parentNode) card.parentNode.removeChild(card);
+      }
     }
   }
 
@@ -3736,7 +4544,9 @@
   }
 
   var COLLECTION_SEARCH_ICON =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.4"/><path d="M10.15 10.15L13.4 13.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.1" stroke="currentColor" stroke-width="1.5"/><path d="M11.8 11.8L15.4 15.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  var COLLECTION_SEARCH_CLEAR_ICON =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
   function decorateCollectionSearchField(wrap) {
     if (!wrap) return;
@@ -3768,8 +4578,11 @@
       clear.setAttribute("data-collection-search-clear", "");
       clear.setAttribute("aria-label", "Clear search");
       clear.hidden = true;
-      clear.textContent = "×";
       field.appendChild(clear);
+    }
+    if (!clear.querySelector("svg")) {
+      clear.textContent = "";
+      clear.innerHTML = COLLECTION_SEARCH_CLEAR_ICON;
     }
     if (clear.getAttribute("data-sf-bound") === "1") {
       clear.hidden = !(input.value || "").length;
@@ -4058,23 +4871,36 @@
       // filter mount / .sf-collection-layout already lives inside it.
       if (parent && isResultsListEl(parent)) {
         var inner =
+          queryInnerCardGrid(parent) ||
           (parent.querySelector && parent.querySelector(PRODUCT_GRID_SELECTOR)) ||
           null;
         parent = inner && inner !== parent ? inner : parent.parentElement || parent;
       }
 
+      parent = preferProductCardGrid(parent);
+
       if (parent && inAppMode) {
-        parent = pickBetterGridHost(parent);
+        parent = preferProductCardGrid(pickBetterGridHost(parent));
         if (parent && isResultsListEl(parent)) {
-          parent = parent.parentElement || parent;
+          parent = preferProductCardGrid(parent.parentElement || parent);
         }
       }
 
+      if (parent && isPageShellHost(parent)) {
+        var fromShell = queryInnerCardGrid(parent);
+        if (fromShell) parent = fromShell;
+      }
+
       if (parent) {
-        if (this._gridParent && this._gridParent !== parent) {
+        if (
+          this._gridParent &&
+          this._gridParent !== parent &&
+          !isPageShellHost(parent)
+        ) {
           moveCardsToHost(this._gridParent, parent);
         }
         this._gridParent = parent;
+        lockThemeGridTracks(parent);
         placeCollectionSearchOnGrid(this);
         return parent;
       }
@@ -4083,12 +4909,15 @@
         placeCollectionSearchOnGrid(this);
         return null;
       }
-      if (results && results.parentElement) {
-        this._gridParent = results.parentElement;
+      if (results) {
+        this._gridParent =
+          preferProductCardGrid(results) || results.parentElement;
+        lockThemeGridTracks(this._gridParent);
         placeCollectionSearchOnGrid(this);
         return this._gridParent;
       }
       this._gridParent = fallbackHost();
+      lockThemeGridTracks(this._gridParent);
       placeCollectionSearchOnGrid(this);
       return this._gridParent;
     };
@@ -4255,6 +5084,7 @@
       }
       if (shouldTakeOverThemeCards(this) && origCount) origCount.call(this, count);
       scrubToolbarCountDupes(this);
+      if (this.syncThemePager) this.syncThemePager();
     };
 
     var origLegacy = proto.applyThemeGridLegacy;
@@ -4269,14 +5099,22 @@
     var origApply = proto.applyAppGrid;
     proto.applyAppGrid = function (data, handles, append) {
       var sliced = this._skipPageSlice
-        ? { data: data, handles: handles }
+        ? { data: data, handles: pageHandlesForGrid(this, handles, append) }
         : pageSlicePayload(this, data, handles, append);
-      var parent =
+      if (
+        this._allFilterHandles &&
+        this._allFilterHandles.length >
+          (sliced.handles && sliced.handles.length ? sliced.handles.length : 0)
+      ) {
+        sliced.handles = pageHandlesForGrid(this, sliced.handles, append);
+      }
+      var parent = preferProductCardGrid(
         resolveCardHost(
           this._gridParent ||
             (this.ensureGridParent && this.ensureGridParent()),
-        ) || this._gridParent;
-      if (parent) this._gridParent = parent;
+        ) || this._gridParent,
+      );
+      if (parent && !isPageShellHost(parent)) this._gridParent = parent;
       if (!(this.isAppGridMode && this.isAppGridMode())) {
         mountCachedCards(this, sliced.handles, parent);
         if (shouldTakeOverThemeCards(this)) {
@@ -4284,10 +5122,16 @@
         } else {
           applyNativeFilterGrid(null, parent);
         }
+        fillGapsWithThemeClones(this, sliced.handles, parent);
         var shownNative = countAllowedInHost(parent, sliced.handles);
         var neededNative = uniqueAllowedCount(sliced.handles);
         if (neededNative > 0 && shownNative >= neededNative) return true;
         if (!shouldTakeOverThemeCards(this)) return shownNative > 0;
+        if (shownNative > 0) return true;
+        fillGapsWithThemeClones(this, sliced.handles, parent);
+        shownNative = countAllowedInHost(parent, sliced.handles);
+        if (shownNative > 0) return true;
+        return uniqueAllowedCount(sliced.handles) === 0;
       }
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
@@ -4336,38 +5180,73 @@
       });
     };
 
+    var origImport = proto.importCardsFromDocument;
+    proto.importCardsFromDocument = function (doc) {
+      var added = origImport ? origImport.call(this, doc) : 0;
+      if (!doc || !doc.querySelectorAll) return added;
+      var cache = this._cardCache || (this._cardCache = {});
+      var nodes = doc.querySelectorAll(
+        "li.product-grid__item, li.grid__item, product-card, .product-grid__item, .grid__item",
+      );
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        var handle = handleFromCard(node);
+        if (!handle || cache[handle]) continue;
+        try {
+          var imported = document.importNode(node, true);
+          cache[handle] = imported;
+          this._importedHandles = this._importedHandles || {};
+          this._importedHandles[handle] = true;
+          added += 1;
+        } catch (err) {
+          /* skip */
+        }
+      }
+      return added;
+    };
+
     var origCache = proto.cacheNativeCards;
     proto.cacheNativeCards = function () {
       if (origCache) origCache.call(this);
       var cache = this._cardCache || {};
-      var keys = Object.keys(cache);
+      var parent =
+        this._gridParent ||
+        (this.ensureGridParent && this.ensureGridParent());
+      var collected = collectTrayAndGridCards(parent);
       var i;
+      for (i = 0; i < collected.length; i++) {
+        var handle = collected[i].handle;
+        if (!handle) continue;
+        var outerCard = resolveOuterThemeCard(collected[i].el) || collected[i].el;
+        if (!cache[handle]) cache[handle] = outerCard;
+      }
+      var keys = Object.keys(cache);
       for (i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        var outer = resolveOuterThemeCard(cache[key]);
-        if (outer) cache[key] = outer;
-        else delete cache[key];
+        var outer = resolveOuterThemeCard(cache[keys[i]]);
+        if (outer) cache[keys[i]] = outer;
       }
     };
 
     proto.applyInterceptGrid = function (handles, append) {
       var next = pageSlice(this, handles, append);
-      var host =
+      var host = preferProductCardGrid(
         resolveCardHost(
           this._gridParent ||
             (this.ensureGridParent && this.ensureGridParent()),
-        ) || this._gridParent;
-      if (host) this._gridParent = host;
+        ) || this._gridParent,
+      );
+      if (host && !isPageShellHost(host)) this._gridParent = host;
       if (!shouldTakeOverThemeCards(this)) {
         applyNativeFilterGrid(null, host);
         return true;
       }
       mountCachedCards(this, next, host);
       applyNativeFilterGrid(next, host);
-      return (
-        uniqueAllowedCount(next) > 0 &&
-        countAllowedInHost(host, next) >= uniqueAllowedCount(next)
-      );
+      fillGapsWithThemeClones(this, next, host);
+      var shown = countAllowedInHost(host, next);
+      this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
+      return uniqueAllowedCount(next) === 0 || shown > 0;
     };
 
     var origFetch = proto.fetchFilters;
@@ -4378,7 +5257,7 @@
       var self = this;
       if (result && typeof result.then === "function") {
         return result.then(function (value) {
-          var host = resolveCardHost(self._gridParent);
+          var host = preferProductCardGrid(resolveCardHost(self._gridParent));
           var handles = self._visibleHandles || self._shownHandles;
           if (
             shouldTakeOverThemeCards(self) &&
@@ -4608,15 +5487,29 @@
   }
 
   function installSetter(held) {
+    var desc = Object.getOwnPropertyDescriptor(
+      window,
+      "__FINDLY_FILTER_WIDGET",
+    );
+    var prevSet = desc && desc.set;
+    var prevGet = desc && desc.get;
+    if (prevGet && held == null) {
+      try {
+        held = prevGet();
+      } catch (err) {
+        /* ignore */
+      }
+    }
     try {
       Object.defineProperty(window, "__FINDLY_FILTER_WIDGET", {
         configurable: true,
         enumerable: true,
         get: function () {
-          return held;
+          return prevGet ? prevGet() : held;
         },
         set: function (next) {
-          held = next;
+          if (prevSet) prevSet.call(window, next);
+          else held = next;
           patchWidget(next);
           applyLooseHash(next);
           if (next && next.root) enhancePriceSliders(next.root);
@@ -4646,6 +5539,13 @@
         if (widget) portalMobileDrawer(widget);
         var openWrap = document.querySelector(".smart-filter__sort.is-sort-open");
         if (openWrap) closeSortMenu(openWrap);
+        if (widget && widget.sortWrap) {
+          syncSortA11y(
+            widget.sortWrap,
+            widget.sortEl,
+            sortButtonEl(widget.sortWrap),
+          );
+        }
       });
     }
     var held = window.__FINDLY_FILTER_WIDGET;

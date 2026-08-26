@@ -14,7 +14,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Collection filters and storefront search for Shopify. Theme App Extension widget, metafield mapping, and GDPR-ready shop-scoped data.",
+      "Collection filters, storefront search, instant suggestions, metafield mapping, and GDPR-ready shop-scoped data for Shopify.",
   },
 ];
 
@@ -207,8 +207,9 @@ export default function App() {
             What merchants get
           </h2>
           <p className={styles.sectionLede}>
-            Launch scope is solid collection filters, storefront search, and
-            the Theme App Extension — configured per shop in Admin.
+            Collection filters, storefront search, and the Theme App Extension
+            — plus search extras, translation, integrations, and usage
+            analytics — configured per shop in Admin.
           </p>
         </div>
         <div className={styles.features}>
@@ -223,15 +224,16 @@ export default function App() {
             <h3 className={styles.featureTitle}>Storefront search</h3>
             <p className={styles.featureCopy}>
               Keyword product search through the Theme App Extension — instant
-              suggestions from your indexed catalog, not a separate search
-              engine UI.
+              suggestions, pinnings, synonyms, and redirects from your indexed
+              catalog, not a separate search-engine UI.
             </p>
           </article>
           <article className={styles.feature}>
             <h3 className={styles.featureTitle}>Theme App Extension</h3>
             <p className={styles.featureCopy}>
-              Async-loaded widget, scoped CSS, and basic styling: position
-              (left, right, or top), accent color, product counts, and
+              Collection filters app embed, Product search block, and Instant
+              search embed. Async-loaded widget, scoped CSS, and basic styling:
+              position (left, right, or top), accent color, product counts, and
               collapse-by-default.
             </p>
           </article>
@@ -249,6 +251,21 @@ export default function App() {
               Free, Standard, and Pro through the Shopify Billing API. Product
               index and metafield-mapping caps differ by plan; you approve
               charges in Admin.
+            </p>
+          </article>
+          <article className={styles.feature}>
+            <h3 className={styles.featureTitle}>Translation &amp; integrations</h3>
+            <p className={styles.featureCopy}>
+              Edit widget labels per locale. After Ajax filtering, review and
+              wishlist widgets (and Weglot) can re-init so they stay in sync
+              with the filtered grid.
+            </p>
+          </article>
+          <article className={styles.feature}>
+            <h3 className={styles.featureTitle}>Filter &amp; search analytics</h3>
+            <p className={styles.featureCopy}>
+              See top queries, no-results, and popular filters in Admin. Counts
+              stay at zero until the theme widgets are live on the storefront.
             </p>
           </article>
           <article className={styles.feature}>

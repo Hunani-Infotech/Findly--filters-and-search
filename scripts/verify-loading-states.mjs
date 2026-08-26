@@ -54,6 +54,9 @@ function assertSourceMarkers() {
   if (!css.includes("html.sf-filter-loading .smart-filter__collection-search-field") || !css.includes("html.sf-filter-loading .smart-filter__sort-select") || !css.includes("html.sf-filter-loading .sf-total-count::after")) {
     fail("smart-filter.css must skeleton search, sort, and total count while loading");
   }
+  if (!grid.includes("sf-sort-btn") || !css.includes(".sf-sort-btn") || !grid.includes("ensureSortButton(wrap, select)")) {
+    fail("sort dropdown must mount a custom desktop trigger instead of hiding the native select");
+  }
   if (!grid.includes("findly-grid-is-busy>") || !css.includes("findly-grid-is-busy")) {
     fail("busy grid must hide product children while loading");
   }
@@ -100,6 +103,18 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("data-sf-pager-suppressed")) {
     fail("pager must suppress the theme pager when filtered results fit on one page");
   }
+  if (!pagerJs.includes("sf-pager-unneeded") || !pagerJs.includes("resultsFitOnePage")) {
+    fail("pager must hide theme pagination when filtered results fit on one page");
+  }
+  if (!pagerJs.includes("__findlyThemePagerDirty")) {
+    fail("pager must replay theme pager sync after the loading lock");
+  }
+  if (!grid.includes("prevSet.call(window, next)")) {
+    fail("grid must chain __FINDLY_FILTER_WIDGET setter so the pager can patch");
+  }
+  if (!css.includes("data-sf-single-page")) {
+    fail("smart-filter.css must hide theme pagination when results fit on one page");
+  }
   if (grid.includes('el.id = "findly-sf-pager"')) {
     fail("grid must not mount a Findly numbered pager");
   }
@@ -120,8 +135,20 @@ function assertSourceMarkers() {
   if (!boot.includes("findly-grid-skel__img") || !boot.includes("sf-filter-loading")) {
     fail("boot script must mount the existing 8-card grid skeletons on first paint");
   }
+  if (!boot.includes("findly-grid-busy-overlay")) {
+    fail("boot script must mount the centered busy overlay on first paint");
+  }
   if (!checkCss.includes("findly-grid-skel__img") || !checkCss.includes("products-count-wrapper")) {
     fail("smart-filter-check.css must paint grid skeletons and hide Horizon product counts");
+  }
+  if (!checkCss.includes("findly-grid-busy-overlay") || !checkCss.includes("sf-grid-spin")) {
+    fail("smart-filter-check.css must style the centered first-paint overlay");
+  }
+  if (!checkCss.includes("html.sf-filter-loading nav.pagination")) {
+    fail("smart-filter-check.css must hide theme pagination while loading");
+  }
+  if (!css.includes("html.sf-filter-loading nav.pagination")) {
+    fail("smart-filter.css must hide theme pagination while loading");
   }
   if (!css.includes("products-count-wrapper")) {
     fail("smart-filter.css must hide Horizon .products-count-wrapper while loading");
@@ -132,11 +159,11 @@ function assertSourceMarkers() {
   if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v21")) {
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v26")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");
-  if (!minBoot.includes("data-findly-skel") || !minBoot.includes("sf-filter-loading")) {
+  if (!minBoot.includes("data-findly-skel") || !minBoot.includes("findly-grid-busy-overlay")) {
     fail("smart-filter-boot.min.js is stale; run npm run theme:minify");
   }
   if (!/#findly-grid-busy-overlay[\s\S]{0,220}pointer-events:\s*auto/.test(css)) {
@@ -221,6 +248,7 @@ function writeHarness() {
       </ul>
     </div>
   </results-list>
+  <nav class="pagination" aria-label="Pagination"><a href="#">1</a><a href="#">2</a></nav>
   <div class="smart-filter-search">
     <div data-status></div>
     <ul data-results></ul>
@@ -251,6 +279,9 @@ function writeHarness() {
         if (bootSkel < 4) throw new Error("boot did not mount grid skeletons: " + bootSkel);
         if (!document.documentElement.classList.contains("sf-filter-loading")) {
           throw new Error("boot missing sf-filter-loading");
+        }
+        if (!document.getElementById("findly-grid-busy-overlay")) {
+          throw new Error("boot missing busy overlay");
         }
         var grid = document.querySelector(".main-collection-grid");
         var skel = document.querySelectorAll("[data-findly-skel='1']");
@@ -313,6 +344,9 @@ function writeHarness() {
         if (!document.documentElement.classList.contains("sf-filter-loading")) {
           throw new Error("html missing sf-filter-loading");
         }
+        var pager = document.querySelector("nav.pagination");
+        var pagerVis = pager && window.getComputedStyle(pager).visibility;
+        if (pagerVis !== "hidden") throw new Error("theme pagination visible while loading: " + pagerVis);
         var busyDuring = grid && grid.classList.contains("findly-grid-is-busy");
         var overlayH = overlay.style.height;
         var overlayPx = parseFloat(overlay.style.height) || 0;
@@ -332,6 +366,9 @@ function writeHarness() {
         }
         if (document.getElementById("findly-grid-busy-overlay")) {
           throw new Error("overlay still present after load");
+        }
+        if (pager && window.getComputedStyle(pager).visibility === "hidden") {
+          throw new Error("theme pagination still hidden after load");
         }
         extra = {
           bootSkel: bootSkel,

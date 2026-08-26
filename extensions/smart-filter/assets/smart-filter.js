@@ -586,6 +586,77 @@
     });
   }
 
+  function shopifyImageKey(url) {
+    if (!url) return "";
+    var path = String(url).split("?")[0];
+    try {
+      path = new URL(url, window.location.origin).pathname;
+    } catch (err) {
+      /* keep path */
+    }
+    return path.replace(
+      /_(?:pico|icon|thumb|small|compact|medium|large|grande|original|master|\d+x\d+)(?:@\d+x)?(?=\.[a-z]+$)/i,
+      "",
+    );
+  }
+
+  function shopifyImageWithWidth(url, width) {
+    if (!url) return url;
+    try {
+      var parsed = new URL(url, window.location.origin);
+      if (width) parsed.searchParams.set("width", String(width));
+      return parsed.toString();
+    } catch (err) {
+      return url;
+    }
+  }
+
+  function setThemeCardImage(img, nextUrl) {
+    if (!img) return;
+    var cur = img.getAttribute("src") || "";
+    var orig = img.getAttribute("data-sf-orig-src") || cur;
+    var origSet =
+      img.getAttribute("data-sf-orig-srcset") || img.getAttribute("srcset") || "";
+    if (!img.getAttribute("data-sf-orig-src")) {
+      img.setAttribute("data-sf-orig-src", orig);
+      img.setAttribute("data-sf-orig-srcset", origSet);
+    }
+    if (!nextUrl) {
+      if (orig) img.setAttribute("src", orig);
+      if (origSet) img.setAttribute("srcset", origSet);
+      else img.removeAttribute("srcset");
+      return;
+    }
+    var nextKey = shopifyImageKey(nextUrl);
+    if (
+      nextKey &&
+      (nextKey === shopifyImageKey(cur) || nextKey === shopifyImageKey(orig))
+    ) {
+      if (origSet && !img.getAttribute("srcset")) img.setAttribute("srcset", origSet);
+      return;
+    }
+    img.setAttribute("src", shopifyImageWithWidth(nextUrl, img.getAttribute("width")));
+    if (!origSet) {
+      img.removeAttribute("srcset");
+      return;
+    }
+    img.setAttribute(
+      "srcset",
+      origSet
+        .split(",")
+        .map(function (part) {
+          var bits = part.trim().split(/\s+/);
+          var desc = bits.slice(1).join(" ");
+          var wide = desc.match(/(\d+)w/);
+          return (
+            shopifyImageWithWidth(nextUrl, wide ? wide[1] : "") +
+            (desc ? " " + desc : "")
+          );
+        })
+        .join(", "),
+    );
+  }
+
   function applyVariantImages(products) {
     var byKey = {};
     (products || []).forEach(function (item) {
@@ -621,24 +692,10 @@
 
       var img = card.querySelector("img");
       if (!img) return;
-      if (!img.getAttribute("data-sf-orig-src")) {
-        img.setAttribute("data-sf-orig-src", img.getAttribute("src") || "");
-        img.setAttribute("data-sf-orig-srcset", img.getAttribute("srcset") || "");
-      }
       var key =
         (card.getAttribute && card.getAttribute("data-sf-card-key")) ||
         handle.toLowerCase();
-      var next = byKey[String(key).toLowerCase()] || "";
-      if (next) {
-        img.setAttribute("src", next);
-        img.removeAttribute("srcset");
-      } else {
-        var orig = img.getAttribute("data-sf-orig-src") || "";
-        var origSet = img.getAttribute("data-sf-orig-srcset") || "";
-        if (orig) img.setAttribute("src", orig);
-        if (origSet) img.setAttribute("srcset", origSet);
-        else img.removeAttribute("srcset");
-      }
+      setThemeCardImage(img, byKey[String(key).toLowerCase()] || "");
     });
   }
 
@@ -3678,11 +3735,7 @@
     var img = clone.querySelector("img");
     var imageUrl = product.variantImageUrl || product.imageUrl || "";
     if (img && imageUrl) {
-      if (!img.getAttribute("data-sf-orig-src")) {
-        img.setAttribute("data-sf-orig-src", img.getAttribute("src") || "");
-      }
-      img.setAttribute("src", imageUrl);
-      if (img.getAttribute("srcset")) img.removeAttribute("srcset");
+      setThemeCardImage(img, imageUrl);
     }
     var heading = clone.querySelector(
       ".card__heading, .card__title, .product-card-title, h3, h2",
@@ -3851,7 +3904,8 @@
     this._pagingFallback = true;
     this._appending = false;
     this._loadingPage = false;
-    this.restoreThemePaging();
+    if (this.renderPager) this.renderPager();
+    else this.restoreThemePaging();
     if (handles) {
       this._visibleHandles = handles;
       this.syncProductGrid(handles);
@@ -3939,7 +3993,7 @@
     if (handles.length > this._pageTotal) this._pageTotal = handles.length;
     this._hasNext =
       data.hasNext === true ||
-      this.page * size < this._pageTotal;
+      (data.hasNext !== false && this.page * size < this._pageTotal);
   };
 
   Widget.prototype.loadNextPage = function () {
@@ -4009,7 +4063,13 @@
     this.hideThemeDuplicateChrome();
     this.ensurePageSize();
     if (!append) this.setGridBusy(true);
-    if (!append) this.renderPager();
+    if (
+      !append &&
+      (this.paginationStyle === "load_more" ||
+        this.paginationStyle === "infinite")
+    ) {
+      this.renderPager();
+    }
     if (!append && this.autoApplyFilters === false && this.facetsEl) {
       var applyNowBtn = this.facetsEl.querySelector(".smart-filter__apply-now");
       if (applyNowBtn) {
@@ -4637,13 +4697,6 @@
         var labelText = document.createElement("span");
         labelText.className = "smart-filter__facet-label-text";
         labelText.appendChild(document.createTextNode(facet.label));
-        var typeTag = facetTypeTag(facet);
-        if (typeTag) {
-          var tag = document.createElement("span");
-          tag.className = "smart-filter__facet-tag";
-          tag.textContent = typeTag;
-          labelText.appendChild(tag);
-        }
         var chevron = document.createElement("span");
         chevron.className = "smart-filter__chevron";
         chevron.setAttribute("aria-hidden", "true");

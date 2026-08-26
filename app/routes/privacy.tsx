@@ -24,7 +24,7 @@ export default function PrivacyPolicy() {
       <LegalDoc
         eyebrow="Legal"
         title="Privacy Policy"
-        updated="Effective 21 August 2026"
+        updated="Effective 26 August 2026"
         toc={[
           { id: "responsible", label: "Who is responsible" },
           { id: "permissions", label: "Shopify permissions" },
@@ -189,14 +189,18 @@ export default function PrivacyPolicy() {
         <h2 id="storage">6. Where data is stored</h2>
         <ul>
           <li>
-            <strong>PostgreSQL</strong> — primary store for sessions, catalog
-            index, configuration, analytics events, and compliance audit rows.
-            Hosted with the production app (currently Hostinger).
+            <strong>PostgreSQL (Supabase)</strong> — primary store for
+            sessions, catalog index, configuration, analytics events, and
+            compliance audit rows. This is not Hostinger MySQL. The database
+            is a separate Supabase Postgres project (pooled connections on
+            port 6543 plus a direct connection on port 5432 for migrations).
           </li>
           <li>
-            <strong>Redis + BullMQ</strong> — short-lived job payloads (shop
-            domain, product/collection ids, sync commands) for background
-            workers. Jobs are not a second catalog copy.
+            <strong>Redis + BullMQ (Upstash)</strong> — short-lived job
+            payloads (shop domain, product/collection ids, sync commands) for
+            background workers, over TLS (<code>rediss://</code>). Jobs are
+            not a second catalog copy. The worker usually runs in-process on
+            the Hostinger Node app.
           </li>
           <li>
             <strong>Shopify</strong> — OAuth, Billing, Files (swatch uploads),
@@ -316,7 +320,9 @@ export default function PrivacyPolicy() {
 
         <h2 id="transfers">10. International transfers</h2>
         <p>
-          Production hosting is currently on Hostinger.
+          The app process is hosted on Hostinger (Node.js). PostgreSQL is
+          hosted on Supabase. Redis is hosted on Upstash. Shopify remains
+          the merchant’s store, Admin, Billing, and Files host.
           If a merchant or shopper is in the EEA, UK, or another region, data
           described above may be processed in the US to provide the app.
           Shopify also processes data under the merchant’s Shopify agreement.

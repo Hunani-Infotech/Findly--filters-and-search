@@ -1,13 +1,15 @@
 /**
  * First-paint collection-grid loading. Loaded without defer so skeletons
- * appear in the same parse as the filter block. Markup matches
- * mountGridSkeletons in smart-filter-grid.js — do not restyle.
+ * and the centered overlay appear in the same parse as the filter block.
+ * Markup matches mountGridSkeletons in smart-filter-grid.js — do not restyle.
  */
 (function () {
   "use strict";
   if (window.__findlyGridBoot) return;
   window.__findlyGridBoot = true;
   var SKEL = "data-findly-skel";
+  var SKEL_HOST = "data-findly-skel-host";
+  var OVERLAY_ID = "findly-grid-busy-overlay";
   var HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -95,13 +97,72 @@
     }
     return false;
   }
-  function mount() {
-    if (document.querySelector("[" + SKEL + "='1']")) return true;
-    var host = pickHost();
+  function positionOverlay(host, overlay) {
+    if (!overlay) return;
+    var vh = window.innerHeight || 800;
+    var vw = window.innerWidth || 1200;
+    var top = 0;
+    var left = 0;
+    var width = vw;
+    var height = Math.max(352, vh);
+    var rect;
+    var el = host;
+    if (el && el.getBoundingClientRect) {
+      rect = el.getBoundingClientRect();
+      if (rect.width > 40 && rect.height > 20) {
+        top = Math.max(0, rect.top);
+        left = Math.max(0, rect.left);
+        width = Math.max(160, rect.width);
+        height = Math.max(
+          352,
+          Math.min(Math.max(rect.bottom - top, 0), Math.max(120, vh - top)),
+        );
+        overlay.style.top = top + "px";
+        overlay.style.left = left + "px";
+        overlay.style.width = width + "px";
+        overlay.style.height = height + "px";
+        return;
+      }
+    }
+    el =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    if (el && el.getBoundingClientRect) {
+      rect = el.getBoundingClientRect();
+      if (rect.width < vw * 0.48 && rect.left < vw * 0.42) {
+        left = Math.max(0, rect.right);
+        top = Math.max(0, rect.top);
+        width = Math.max(160, vw - left);
+        height = Math.max(352, vh - top);
+      } else {
+        top = Math.max(0, rect.bottom);
+        left = 0;
+        width = vw;
+        height = Math.max(352, vh - top);
+      }
+    }
+    overlay.style.top = top + "px";
+    overlay.style.left = left + "px";
+    overlay.style.width = width + "px";
+    overlay.style.height = height + "px";
+  }
+  function ensureOverlay(host) {
+    var overlay = document.getElementById(OVERLAY_ID);
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = OVERLAY_ID;
+      overlay.setAttribute("aria-hidden", "true");
+      (document.body || root).appendChild(overlay);
+    }
+    positionOverlay(host, overlay);
+  }
+  function mountSkeletons(host) {
     if (!host || !host.appendChild) return false;
+    if (document.querySelector("[" + SKEL + "='1']")) return true;
     if (hostHasSkel(host)) return true;
     if (host.classList) host.classList.add("findly-grid-is-busy");
     host.setAttribute("aria-busy", "true");
+    host.setAttribute(SKEL_HOST, "1");
     var tag = host.tagName === "UL" || host.tagName === "OL" ? "LI" : "DIV";
     var i;
     var el;
@@ -117,10 +178,27 @@
     }
     return true;
   }
-  if (mount()) return;
+  function paint() {
+    var host = pickHost();
+    if (host) mountSkeletons(host);
+    ensureOverlay(host);
+    return Boolean(host);
+  }
+  paint();
+  if (!window.__findlyBootOverlayBound) {
+    window.__findlyBootOverlayBound = true;
+    var relayout = function () {
+      var overlay = document.getElementById(OVERLAY_ID);
+      if (!overlay) return;
+      positionOverlay(pickHost(), overlay);
+    };
+    window.addEventListener("scroll", relayout, true);
+    window.addEventListener("resize", relayout);
+  }
+  if (pickHost()) return;
   if (typeof MutationObserver !== "function") return;
   var obs = new MutationObserver(function () {
-    if (mount()) obs.disconnect();
+    if (paint()) obs.disconnect();
   });
   obs.observe(root || document, { childList: true, subtree: true });
 })();

@@ -1,0 +1,180 @@
+/* Standard filter rows. Companion so Horizon cannot break checkbox alignment. */
+
+#smart-filter-root,
+#smart-filter-embed {
+  --sf-gutter: 0.85rem;
+  --sf-row-pad: 0.12em;
+}
+
+#smart-filter-root.smart-filter,
+#smart-filter-embed.smart-filter {
+  padding: 0.75rem 0.85rem 0.75rem 0.4rem !important;
+}
+
+@media (min-width: 990px) {
+  #smart-filter-root.smart-filter--left,
+  #smart-filter-root.smart-filter--right,
+  #smart-filter-embed.smart-filter--left,
+  #smart-filter-embed.smart-filter--right {
+    padding: 0.25rem 0.85rem 0.5rem 0.4rem !important;
+  }
+}
+
+#smart-filter-root .smart-filter__chips,
+#smart-filter-embed .smart-filter__chips {
+  margin: 0.75rem 0 0 !important;
+  padding: 0 0 0.85rem !important;
+}
+
+#smart-filter-root .smart-filter__chip,
+#smart-filter-embed .smart-filter__chip {
+  padding: 0.28rem 0.55rem !important;
+  gap: 0.35rem !important;
+  line-height: 1.3 !important;
+}
+
+#smart-filter-root .smart-filter__facet,
+#smart-filter-embed .smart-filter__facet {
+  padding: 0.85rem 0 0.55rem !important;
+}
+
+#smart-filter-root .smart-filter__facet:first-child,
+#smart-filter-embed .smart-filter__facet:first-child {
+  padding-top: 0.45rem !important;
+}
+
+#smart-filter-root .smart-filter__facet-label,
+#smart-filter-embed .smart-filter__facet-label {
+  padding: 0 0 0.2em !important;
+  font-size: 0.9375em !important;
+  font-weight: 700 !important;
+}
+
+#smart-filter-root .smart-filter__facet-tag,
+#smart-filter-embed .smart-filter__facet-tag {
+  display: none !important;
+}
+
+#smart-filter-root .smart-filter__options,
+#smart-filter-embed .smart-filter__options,
+#smart-filter-root .smart-filter__options > li,
+#smart-filter-embed .smart-filter__options > li {
+  margin: 0 !important;
+  margin-inline-start: 0 !important;
+  padding: 0 !important;
+  padding-inline-start: 0 !important;
+  list-style: none !important;
+}
+
+#smart-filter-root .smart-filter__options,
+#smart-filter-embed .smart-filter__options {
+  gap: 0.05em !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  > input[type="checkbox"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  > input[type="checkbox"],
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  > input[type="radio"],
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill)
+  > input[type="radio"] {
+  position: absolute !important;
+  left: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#smart-filter-root .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6)),
+#smart-filter-embed .smart-filter__facet > .smart-filter__options:has(> li:nth-child(6)),
+#smart-filter-root .smart-filter__options--collection-tree .smart-filter__tree-children:has(> li:nth-child(6)),
+#smart-filter-embed .smart-filter__options--collection-tree .smart-filter__tree-children:has(> li:nth-child(6)) {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill),
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill) {
+  display: flex !important;
+  position: relative !important;
+  align-items: flex-start !important;
+  gap: 0.3rem !important;
+  margin-left: 0 !important;
+  padding: 0.12em 0 0.12em 0 !important;
+  padding-inline-start: 0 !important;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+}
+
+#smart-filter-root .smart-filter__tree-node > .smart-filter__option,
+#smart-filter-embed .smart-filter__tree-node > .smart-filter__option {
+  padding-right: 1.1rem !important;
+}
+
+#smart-filter-root .smart-filter__check,
+#smart-filter-embed .smart-filter__check {
+  flex: 0 0 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 2px 0 0 !important;
+}
+
+#smart-filter-root .smart-filter__option-text,
+#smart-filter-embed .smart-filter__option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9375em !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  text-decoration: none !important;
+  overflow-wrap: break-word;
+}
+
+#smart-filter-root .smart-filter__option-count,
+#smart-filter-embed .smart-filter__option-count {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 0 0 0 0.45em !important;
+  margin-left: auto !important;
+  font-size: 0.8125em !important;
+  line-height: 1.35 !important;
+  white-space: nowrap;
+}
+
+#smart-filter-root .smart-filter__option:has(input:checked) .smart-filter__option-text,
+#smart-filter-embed .smart-filter__option:has(input:checked) .smart-filter__option-text {
+  font-weight: 600 !important;
+}
+
+#smart-filter-root .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill):hover,
+#smart-filter-embed .smart-filter__option:not(.smart-filter__swatch):not(.smart-filter__pill):hover,
+#smart-filter-root .smart-filter__tree-node:has(> .smart-filter__tree-toggle:hover)
+  > .smart-filter__option,
+#smart-filter-embed .smart-filter__tree-node:has(> .smart-filter__tree-toggle:hover)
+  > .smart-filter__option {
+  background: #f5f5f5 !important;
+  box-shadow: none;
+}
+
+#smart-filter-root .smart-filter__option:hover .smart-filter__option-text,
+#smart-filter-embed .smart-filter__option:hover .smart-filter__option-text,
+#smart-filter-root .smart-filter__collection-link:hover .smart-filter__option-text,
+#smart-filter-embed .smart-filter__collection-link:hover .smart-filter__option-text {
+  text-decoration: none !important;
+}
+
+#smart-filter-root .smart-filter__price,
+#smart-filter-embed .smart-filter__price {
+  gap: 0.75rem 0.65rem !important;
+}
+
+#smart-filter-root .smart-filter__price-field input[type="number"],
+#smart-filter-embed .smart-filter__price-field input[type="number"] {
+  padding: 0.5rem 0.65rem !important;
+  border-radius: 6px !important;
+}

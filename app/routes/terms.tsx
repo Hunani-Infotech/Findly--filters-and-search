@@ -24,7 +24,7 @@ export default function TermsOfService() {
       <LegalDoc
         eyebrow="Legal"
         title="Terms of Service"
-        updated="Effective 21 August 2026"
+        updated="Effective 26 August 2026"
         toc={[
           { id: "service", label: "The service" },
           { id: "eligibility", label: "Eligibility" },
@@ -218,7 +218,9 @@ export default function TermsOfService() {
           We aim to keep Findly available but do not promise uninterrupted
           uptime. Catalog sync depends on Shopify Admin GraphQL, webhooks,
           and background workers. Theme widgets depend on your theme and on
-          you adding the app blocks.
+          you adding the app blocks. The app process runs on Hostinger;
+          catalog and settings live in Supabase Postgres; job queues use
+          Upstash Redis.
         </p>
         <p>
           Support is offered through <strong>Findly → Contact</strong> and

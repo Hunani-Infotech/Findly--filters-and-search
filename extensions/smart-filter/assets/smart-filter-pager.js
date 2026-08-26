@@ -36,11 +36,23 @@
     return style !== "load_more" && style !== "infinite";
   }
 
-  function setCustomPagerClass(on) {
+  function setHtmlClass(name, on) {
     var root = document.documentElement;
     if (!root || !root.classList) return;
-    if (on) root.classList.add("sf-custom-pager");
-    else root.classList.remove("sf-custom-pager");
+    if (on) root.classList.add(name);
+    else root.classList.remove(name);
+  }
+
+  function setCustomPagerClass(on) {
+    setHtmlClass("sf-custom-pager", on);
+  }
+
+  function setPagerUnneeded(on) {
+    setHtmlClass("sf-pager-unneeded", on);
+    var layout = document.querySelector(".sf-collection-layout");
+    if (!layout || !layout.setAttribute) return;
+    if (on) layout.setAttribute("data-sf-single-page", "1");
+    else layout.removeAttribute("data-sf-single-page");
   }
 
   function isFindlyPager(el) {
@@ -78,7 +90,6 @@
 
   function shouldDriveThemePager(widget) {
     if (!widget) return false;
-    if (widget.shouldInterceptPaging) return Boolean(widget.shouldInterceptPaging());
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
     if (widget.collectionQuery) return true;
     if (widget.searchQuery) return true;
@@ -89,6 +100,8 @@
     ) {
       return true;
     }
+    if (widget._keepThemeCards === false) return true;
+    if (widget.shouldInterceptPaging) return Boolean(widget.shouldInterceptPaging());
     return false;
   }
 
@@ -130,15 +143,39 @@
 
   function filteredTotal(widget) {
     var data = widget && widget._lastFilterData;
-    if (data && typeof data.total === "number" && data.total >= 0) return data.total;
-    if (data && typeof data.count === "number" && data.count >= 0) return data.count;
+    if (!data) return -1;
+    if (typeof data.total === "number" && data.total >= 0) return data.total;
+    if (typeof data.count === "number" && data.count >= 0) return data.count;
     var total = Number(widget && widget._pageTotal);
     if (Number.isFinite(total) && total >= 0) return total;
-    if (widget && Array.isArray(widget._allFilterHandles)) {
-      return widget._allFilterHandles.length;
+    return -1;
+  }
+
+  function resultsFitOnePage(widget) {
+    if (!widget) return false;
+    if (widget.ensurePageSize) widget.ensurePageSize();
+    var size = widget.pageSize || 16;
+    var total = filteredTotal(widget);
+    if (total < 0) return false;
+    return total <= size;
+  }
+
+  function suppressThemePagers() {
+    var nodes = document.querySelectorAll(THEME_PAGER_SEL);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (!nodes[i] || isFindlyPager(nodes[i])) continue;
+      suppressPager(nodes[i]);
     }
-    if (data && Array.isArray(data.handles)) return data.handles.length;
-    return 0;
+  }
+
+  function unhideThemePagers() {
+    var nodes = document.querySelectorAll(THEME_PAGER_SEL);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (!nodes[i] || isFindlyPager(nodes[i])) continue;
+      unhidePager(nodes[i]);
+    }
   }
 
   function removeFindlyNumberedPagers(widget) {
@@ -332,7 +369,7 @@
     var pageCount = Math.max(1, Math.ceil(total / size) || 1);
     var page = Math.max(1, widget.page || 1);
     if (pageCount <= 1) {
-      suppressPager(el);
+      suppressThemePagers();
       return;
     }
     unhidePager(el);
@@ -650,12 +687,32 @@
     };
 
     proto.syncThemePager = function () {
-      if (!usesThemeNumberedPager(this)) return false;
-      if (window.__findlyThemePagerSyncing) return true;
+      if (!usesThemeNumberedPager(this)) {
+        setPagerUnneeded(false);
+        return false;
+      }
+      if (window.__findlyThemePagerSyncing) {
+        window.__findlyThemePagerDirty = true;
+        return true;
+      }
       window.__findlyThemePagerSyncing = true;
+      window.__findlyThemePagerDirty = false;
       try {
         removeFindlyNumberedPagers(this);
         observeThemePager();
+        if (this._loadingPage && !this._appending) return true;
+        if (this.ensurePageSize) this.ensurePageSize();
+        var drive = shouldDriveThemePager(this);
+        var total = filteredTotal(this);
+        var size = this.pageSize || 16;
+        if (total < 0) return true;
+        var show = total > size;
+        setPagerUnneeded(!show);
+        if (!show) {
+          suppressThemePagers();
+          return true;
+        }
+        unhideThemePagers();
         var roots = findThemePagers();
         if (!roots.length) {
           scheduleThemePagerSync(this);
@@ -663,7 +720,6 @@
         }
         bindThemePagerClicks();
         this._themePagerTries = 0;
-        var drive = shouldDriveThemePager(this);
         var i;
         for (i = 0; i < roots.length; i++) {
           snapshotPager(roots[i]);
@@ -672,21 +728,20 @@
         }
         return true;
       } finally {
+        var self = this;
         window.setTimeout(function () {
           window.__findlyThemePagerSyncing = false;
-        }, 80);
+          if (!window.__findlyThemePagerDirty) return;
+          window.__findlyThemePagerDirty = false;
+          if (self.syncThemePager) self.syncThemePager();
+        }, 40);
       }
     };
 
     var origSetHidden = proto.setThemePagerHidden;
     proto.setThemePagerHidden = function (hide) {
       if (usesThemeNumberedPager(this)) {
-        if (hide) this.syncThemePager();
-        else {
-          var roots = findThemePagers();
-          var i;
-          for (i = 0; i < roots.length; i++) restorePager(roots[i]);
-        }
+        this.syncThemePager();
         removeFindlyNumberedPagers(this);
         return;
       }
@@ -697,9 +752,7 @@
     proto.restoreThemePaging = function () {
       if (origRestore) origRestore.call(this);
       if (!usesThemeNumberedPager(this)) return;
-      var roots = findThemePagers();
-      var i;
-      for (i = 0; i < roots.length; i++) restorePager(roots[i]);
+      this.syncThemePager();
       removeFindlyNumberedPagers(this);
     };
 
@@ -766,14 +819,20 @@
       return;
     }
     window.__findlyThemePagerObs = new MutationObserver(function () {
-      if (window.__findlyThemePagerSyncing) return;
+      var w = window.__FINDLY_FILTER_WIDGET;
+      if (!w || !usesThemeNumberedPager(w) || !w.syncThemePager) return;
+      if (window.__findlyThemePagerSyncing) {
+        window.__findlyThemePagerDirty = true;
+        return;
+      }
       if (window.__findlyThemePagerObsTimer) return;
       window.__findlyThemePagerObsTimer = window.setTimeout(function () {
         window.__findlyThemePagerObsTimer = 0;
-        if (window.__findlyThemePagerSyncing) return;
-        var w = window.__FINDLY_FILTER_WIDGET;
-        if (!w || !usesThemeNumberedPager(w) || !w.syncThemePager) return;
-        w.syncThemePager();
+        var next = window.__FINDLY_FILTER_WIDGET;
+        if (!next || !usesThemeNumberedPager(next) || !next.syncThemePager) {
+          return;
+        }
+        next.syncThemePager();
       }, 40);
     });
     window.__findlyThemePagerObs.observe(document.documentElement, {

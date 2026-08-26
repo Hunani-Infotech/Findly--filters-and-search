@@ -194,7 +194,7 @@ function assertThemeSeoAndUi() {
   if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant__skel-card")) {
     fail("instant search must show a loading panel while fetching");
   }
-  if (!filterCss.includes("max-width: 280px")) {
+  if (!filterCss.includes("max-width: 320px") && !filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
   }
   if (!filterJs.includes("renderChips") || !filterJs.includes("clearFilters")) {
