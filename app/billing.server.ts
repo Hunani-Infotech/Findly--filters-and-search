@@ -64,7 +64,25 @@ export function planKeyFromName(name: string | null | undefined): PlanKey {
 }
 
 export function isBillingTestMode() {
-  return (process.env.BILLING_TEST_MODE ?? "true").toLowerCase() === "true";
+  // Production-safe default: real charges unless explicitly enabled.
+  return (process.env.BILLING_TEST_MODE ?? "false").toLowerCase() === "true";
+}
+
+/** Defense in depth: only follow Shopify-hosted billing confirmation URLs. */
+export function isAllowedShopifyConfirmationUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "admin.shopify.com" ||
+      host === "shopify.com" ||
+      host.endsWith(".shopify.com") ||
+      host.endsWith(".myshopify.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Local/dev only: Free plan uses Pro product/filter caps without a paid subscription. */

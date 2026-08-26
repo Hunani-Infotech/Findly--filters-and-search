@@ -30,6 +30,7 @@ import {
   createAppSubscription,
   enforcePlanLimits,
   ensureShopAccess,
+  isAllowedShopifyConfirmationUrl,
   isBillingTestMode,
   isDevUnlockLimits,
   isPaidPlanKey,
@@ -97,6 +98,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         errors.map((e: { message: string }) => e.message).join("; ") ||
         "Could not create subscription",
     };
+  }
+
+  if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) {
+    return { error: "Unexpected billing confirmation URL from Shopify." };
   }
 
   if (result.appSubscription?.id) {

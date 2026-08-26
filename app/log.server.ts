@@ -9,12 +9,37 @@ const chalk = new Chalk({
   level: process.env.FORCE_COLOR === "0" ? 0 : 1,
 });
 
+const SENSITIVE_KEY =
+  /pass(word)?|secret|token|authorization|cookie|api[_-]?key|access[_-]?token|private[_-]?key|credential/i;
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (/postgres(ql)?:\/\//i.test(value) || /rediss?:\/\//i.test(value)) {
+      return "[redacted-url]";
+    }
+    return value;
+  }
+  if (value instanceof Error) return value;
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      out[key] = SENSITIVE_KEY.test(key) ? "[redacted]" : redactValue(child);
+    }
+    return out;
+  }
+  return value;
+}
+
 function stringify(args: unknown[]): string {
   return args
     .map((arg) => {
-      if (typeof arg === "string") return arg;
-      if (arg instanceof Error) return arg.stack ?? arg.message;
-      return inspect(arg, { colors: false, depth: 4, breakLength: 80 });
+      const safe = redactValue(arg);
+      if (typeof safe === "string") return safe;
+      if (safe instanceof Error) return safe.stack ?? safe.message;
+      return inspect(safe, { colors: false, depth: 4, breakLength: 80 });
     })
     .join(" ");
 }

@@ -142,12 +142,22 @@ function signaturesMatch(digest: string, signature: string): boolean {
   }
 }
 
+/** App Proxy signatures include `timestamp` (unix seconds). Reject stale/replayed URLs. */
+const APP_PROXY_TIMESTAMP_MAX_SKEW_SEC = 90;
+
 export function verifyAppProxySignature(url: URL): boolean {
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret) return false;
 
   const signature = url.searchParams.get("signature");
   if (!signature) return false;
+
+  const timestampRaw = url.searchParams.get("timestamp");
+  if (!timestampRaw) return false;
+  const timestamp = Number(timestampRaw);
+  if (!Number.isFinite(timestamp)) return false;
+  const skewSec = Math.abs(Date.now() / 1000 - timestamp);
+  if (skewSec > APP_PROXY_TIMESTAMP_MAX_SKEW_SEC) return false;
 
   const messages = [
     hmacMessageFromSearchParams(url.searchParams),

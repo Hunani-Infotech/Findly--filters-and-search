@@ -29,6 +29,7 @@ import { authenticate } from "../shopify.server";
 import { PLANS, ensureShopAccess, resolvePlanCaps } from "../billing.server";
 import prisma from "../db.server";
 import { queueFullSync } from "../sync/queue-full-sync";
+import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 import { SetupGuide } from "../components/setup-guide";
 import { HomePerformance } from "../components/home-performance";
 import { SyncDetailsModal } from "../components/sync-details-modal";
@@ -38,7 +39,7 @@ import {
   isSetupMarkId,
   setSetupMark,
 } from "../setup-progress.server";
-import { useEmbeddedHref } from "../admin-path";
+import { useEmbeddedHref, withEmbeddedParams } from "../admin-path";
 
 export { HomePageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -57,6 +58,8 @@ function syncStatusLabel(status: string) {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop, plan } = await ensureShopAccess(session.shop);
+  // Unstick admin "Syncing…" if the bulk finish webhook was missed.
+  await recoverStuckSyncIfNeeded(session.shop);
   const [setup, syncJob, dashboard, caps] = await Promise.all([
     getSetupProgress(shop.id, session.shop),
     prisma.syncJob.findUnique({
@@ -138,8 +141,26 @@ export default function Home() {
   const revalidator = useRevalidator();
   const revalidatorRef = useRef(revalidator);
   const syncFetcher = useFetcher<typeof action>();
+  const statusFetcher = useFetcher<{
+    status: string;
+    lastFullSyncAt: string | null;
+    lastIncrementalSyncAt: string | null;
+    errorLog: string | null;
+  }>();
   const lastSyncResult = useRef<unknown>(null);
-  const { setup, sync } = data;
+  const { setup } = data;
+  const polled = statusFetcher.data;
+  const sync = {
+    ...data.sync,
+    ...(polled
+      ? {
+          status: polled.status,
+          lastFullSyncAt: polled.lastFullSyncAt,
+          lastIncrementalSyncAt: polled.lastIncrementalSyncAt,
+          errorLog: polled.errorLog,
+        }
+      : {}),
+  };
   const syncOpen = searchParams.get("sync") === "1";
   const embedReady = setup.themeSteps.some(
     (step) => step.id === "collection-filters" && step.status === "complete",
@@ -158,6 +179,9 @@ export default function Home() {
     syncFetcher.state !== "idle" ||
     (queuedOk && sync.status !== "READY" && sync.status !== "ERROR");
   const syncBusy = shouldPoll;
+  const prevPolledStatus = useRef(sync.status);
+  const statusFetcherRef = useRef(statusFetcher);
+  statusFetcherRef.current = statusFetcher;
 
   useEffect(() => {
     revalidatorRef.current = revalidator;
@@ -217,14 +241,27 @@ export default function Home() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, syncFetcher]);
 
+  // Light status poll only — avoid reloading analytics on the home loader.
   useEffect(() => {
     if (!shouldPoll) return;
-    const intervalId = window.setInterval(() => {
-      if (revalidatorRef.current.state === "loading") return;
-      void revalidatorRef.current.revalidate();
-    }, 4000);
+    const statusUrl = withEmbeddedParams("/app/sync/status", searchParams);
+    const tick = () => {
+      if (statusFetcherRef.current.state !== "idle") return;
+      statusFetcherRef.current.load(statusUrl);
+    };
+    tick();
+    const intervalId = window.setInterval(tick, 8000);
     return () => window.clearInterval(intervalId);
-  }, [shouldPoll]);
+  }, [shouldPoll, searchParams]);
+
+  // One full refresh when sync leaves SYNCING so product counts update.
+  useEffect(() => {
+    const prev = prevPolledStatus.current;
+    prevPolledStatus.current = sync.status;
+    if (prev === "SYNCING" && sync.status !== "SYNCING") {
+      void revalidatorRef.current.revalidate();
+    }
+  }, [sync.status]);
 
   return (
     <Page>

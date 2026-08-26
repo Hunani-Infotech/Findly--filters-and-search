@@ -87,9 +87,10 @@ export function SyncDetailsModal({
           {data.status === "READY" && !data.overProductLimit ? (
             <Banner tone="success">
               <p>
-                Catalog updates by itself when products, collections, or
-                inventory change in Shopify. Use Sync now only if something
-                looks stuck or after a large import.
+                Everyday edits sync automatically in a few seconds (inventory,
+                products, collections). Use Sync now only after a large import
+                or if something looks stuck — a full re-sync usually finishes in
+                1–3 minutes for small catalogs.
               </p>
             </Banner>
           ) : null}
@@ -130,8 +131,9 @@ export function SyncDetailsModal({
               Automatic updates
             </Text>
             <Text as="p" tone="subdued">
-              Findly stays in sync from Shopify. You do not need to re-sync
-              after everyday product edits.
+              Automatic updates are incremental and fast. Sync now runs a full
+              Shopify bulk export — that is slower, and you usually do not need
+              it for a single stock change.
             </Text>
             <List>
               <List.Item>Product or variant created, edited, or deleted</List.Item>

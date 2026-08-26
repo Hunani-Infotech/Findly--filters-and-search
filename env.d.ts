@@ -13,6 +13,7 @@ declare namespace NodeJS {
     DIRECT_URL?: string;
     REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
+    HEALTH_CHECK_TOKEN?: string;
     GMAIL_USER?: string;
     GMAIL_APP_PASSWORD?: string;
     SUPPORT_EMAIL?: string;

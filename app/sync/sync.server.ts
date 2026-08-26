@@ -419,6 +419,97 @@ async function readCurrentBulkOperation(
   return json.data?.currentBulkOperation ?? null;
 }
 
+/** Wait this long in SYNCING before checking Shopify for a missed finish webhook. */
+export const STUCK_SYNCING_CHECK_MS = 90_000;
+/** Give up waiting for a bulk op after this long (small catalogs finish far sooner). */
+export const STUCK_SYNCING_TIMEOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Clear stuck "Syncing" UI when the bulk finish webhook was missed or the job
+ * hung. Safe to call from admin loaders / light status polls.
+ */
+export async function recoverStuckSyncIfNeeded(shopDomain: string) {
+  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  if (!shop) return null;
+
+  const job = await prisma.syncJob.findUnique({ where: { shopId: shop.id } });
+  if (!job || job.status !== "SYNCING") return job;
+
+  const ageMs = Date.now() - job.updatedAt.getTime();
+  if (ageMs < STUCK_SYNCING_CHECK_MS) return job;
+
+  let op: BulkOperationSnapshot | null = null;
+  try {
+    const admin = await getAdminForShop(shopDomain);
+    op = await readCurrentBulkOperation(admin);
+  } catch (error) {
+    log.warn("[sync] stuck-sync bulk lookup failed", error);
+    if (ageMs < STUCK_SYNCING_TIMEOUT_MS) return job;
+    return setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog:
+        "Catalog sync timed out while checking Shopify. Click Sync now to retry.",
+    });
+  }
+
+  const opStatus = (op?.status || "").toUpperCase();
+  const opId = op?.id ?? null;
+
+  if (opStatus === "CREATED" || opStatus === "RUNNING") {
+    if (ageMs < STUCK_SYNCING_TIMEOUT_MS) {
+      if (opId && opId !== job.bulkOperationId) {
+        return setSyncStatus(shop.id, {
+          status: "SYNCING",
+          bulkOperationId: opId,
+        });
+      }
+      return job;
+    }
+    return setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog:
+        "Catalog sync timed out waiting for Shopify bulk export. Click Sync now to retry.",
+      bulkOperationId: opId,
+    });
+  }
+
+  if (opStatus === "COMPLETED" && op?.url && completedBulkIsFresh(op)) {
+    try {
+      await enqueueSyncJob(
+        "shop.ingestBulk",
+        { shop: shopDomain, bulkOperationId: opId },
+        { jobId: `${shopDomain}:shop.ingestBulk:${opId || "current"}` },
+      );
+      log.info(
+        `[sync] recovered stuck SYNCING; queued ingest for ${opId}`,
+      );
+      return setSyncStatus(shop.id, {
+        status: "SYNCING",
+        bulkOperationId: opId,
+        errorLog: null,
+      });
+    } catch (error) {
+      log.warn("[sync] stuck-sync ingest enqueue failed", error);
+    }
+  }
+
+  // Failed / canceled / stale completed / missing — stop spinning the admin UI.
+  const detail =
+    opStatus && opStatus !== "COMPLETED"
+      ? `Shopify bulk status: ${opStatus}.`
+      : "The finish webhook was missed or the snapshot expired.";
+  log.warn(
+    `[sync] clearing stuck SYNCING for ${shopDomain} (${detail} age=${ageMs}ms)`,
+  );
+  return setSyncStatus(shop.id, {
+    status: job.lastFullSyncAt ? "READY" : "ERROR",
+    errorLog: job.lastFullSyncAt
+      ? null
+      : `${detail} Click Sync now to run a fresh catalog sync.`,
+    bulkOperationId: opId,
+  });
+}
+
 async function reuseCurrentBulkOperation(
   shopId: string,
   shopDomain: string,

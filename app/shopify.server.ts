@@ -29,9 +29,21 @@ function resolveAppUrl() {
 const appUrl = resolveAppUrl();
 log.info(`[shopify] appUrl=${appUrl || "(empty)"}`);
 
+const apiSecretKey = process.env.SHOPIFY_API_SECRET?.trim() || "";
+if (!apiSecretKey) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "SHOPIFY_API_SECRET is required in production (OAuth, webhooks, App Proxy HMAC).",
+    );
+  }
+  log.warn(
+    "[shopify] SHOPIFY_API_SECRET is empty — OAuth, webhooks, and App Proxy HMAC will fail",
+  );
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  apiSecretKey,
   apiVersion: ApiVersion.July26,
   scopes: process.env.SCOPES?.split(","),
   appUrl,
@@ -39,7 +51,10 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   logger: {
-    level: LogSeverity.Debug,
+    level:
+      process.env.NODE_ENV === "production"
+        ? LogSeverity.Info
+        : LogSeverity.Debug,
     log: (severity, message) => {
       switch (severity) {
         case LogSeverity.Error:
