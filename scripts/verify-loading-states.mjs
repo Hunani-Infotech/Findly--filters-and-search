@@ -51,8 +51,17 @@ function assertSourceMarkers() {
   if (!grid.includes("syncToolbarLoading") || !grid.includes("data-sf-toolbar-loading")) {
     fail("grid missing toolbar loading sync for search/sort/count");
   }
-  if (!css.includes("html.sf-filter-loading .smart-filter__collection-search-field") || !css.includes("html.sf-filter-loading .smart-filter__sort-select") || !css.includes("html.sf-filter-loading .sf-total-count::after")) {
-    fail("smart-filter.css must skeleton search, sort, and total count while loading");
+  if (grid.includes("setControlBusy(search, on)") || grid.includes("setControlBusy(select, on)")) {
+    fail("search and sort must stay enabled while the product grid loads");
+  }
+  if (/html\.sf-filter-loading\s+\.smart-filter__collection-search-input[\s\S]{0,120}visibility:\s*hidden/.test(css)) {
+    fail("search input must stay visible while the product grid loads");
+  }
+  if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(css)) {
+    fail("sort value must stay visible while the product grid loads");
+  }
+  if (!css.includes("html.sf-filter-loading .sf-total-count::after")) {
+    fail("smart-filter.css must skeleton total count while loading");
   }
   if (!grid.includes("sf-sort-btn") || !css.includes(".sf-sort-btn") || !grid.includes("ensureSortButton(wrap, select)")) {
     fail("sort dropdown must mount a custom desktop trigger instead of hiding the native select");
@@ -69,6 +78,12 @@ function assertSourceMarkers() {
   const checkCss = read("extensions/smart-filter/assets/smart-filter-check.css");
   if (!checkCss.includes("sf-filter-ready") || !checkCss.includes("sf-filter-loading")) {
     fail("smart-filter-check.css must hide the product grid until the filter is ready");
+  }
+  if (/html\.sf-filter-loading\s+\.smart-filter__collection-search-input[\s\S]{0,120}visibility:\s*hidden/.test(checkCss)) {
+    fail("smart-filter-check.css must not hide search while the product grid loads");
+  }
+  if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(checkCss)) {
+    fail("smart-filter-check.css must not hide sort while the product grid loads");
   }
   if (!grid.includes("data-findly-skel") || !grid.includes("findly-grid-skel__img")) {
     fail("grid missing skeleton markup");
@@ -118,8 +133,11 @@ function assertSourceMarkers() {
   if (!css.includes("html.sf-few-results nav.pagination") || !pagerJs.includes("sf-few-results")) {
     fail("few-results class must hide theme pagination outside the collection layout");
   }
-  if (!grid.includes("applyPagerByDisplayedCount")) {
-    fail("grid must hide/show pagination from the displayed product count");
+  if (!pagerJs.includes("else unhideThemePagers()")) {
+    fail("pager must unhide theme pagination when filtered results span multiple pages");
+  }
+  if (!pagerJs.includes("forceSimplePager") || !pagerJs.includes("data-sf-pager-driven")) {
+    fail("pager must rewrite theme page numbers from the filtered total");
   }
   if (grid.includes('el.id = "findly-sf-pager"')) {
     fail("grid must not mount a Findly numbered pager");
@@ -355,9 +373,15 @@ function writeHarness() {
         var searchEl = document.querySelector("[data-collection-search]");
         var sortEl = document.querySelector(".smart-filter__sort-select");
         var findlyCount = document.querySelector(".sf-total-count");
-        if (!searchEl || !searchEl.disabled) throw new Error("search input not disabled while loading");
-        if (searchEl.getAttribute("aria-busy") !== "true") throw new Error("search missing aria-busy");
-        if (!sortEl || !sortEl.disabled) throw new Error("sort select not disabled while loading");
+        if (searchEl) searchEl.value = "blue shirt";
+        if (!searchEl) throw new Error("search input missing");
+        if (searchEl.disabled) throw new Error("search input disabled while loading");
+        if (searchEl.getAttribute("aria-busy") === "true") throw new Error("search should not be aria-busy while grid loads");
+        if (window.getComputedStyle(searchEl).visibility === "hidden") throw new Error("search input hidden while loading");
+        if (searchEl.value !== "blue shirt") throw new Error("search value lost while loading");
+        if (!sortEl) throw new Error("sort select missing");
+        if (sortEl.disabled) throw new Error("sort select disabled while loading");
+        if (window.getComputedStyle(sortEl).visibility === "hidden") throw new Error("sort hidden while loading");
         if (!findlyCount || findlyCount.getAttribute("aria-busy") !== "true") throw new Error("findly count missing aria-busy");
         if (!document.documentElement.classList.contains("sf-filter-loading")) {
           throw new Error("html missing sf-filter-loading");
@@ -374,6 +398,7 @@ function writeHarness() {
         if (countEl && window.getComputedStyle(countEl).visibility === "hidden") {
           throw new Error("product count still hidden after load");
         }
+        if (searchEl && searchEl.value !== "blue shirt") throw new Error("search value lost after load");
         if (searchEl && searchEl.disabled) throw new Error("search still disabled after load");
         if (sortEl && sortEl.disabled) throw new Error("sort still disabled after load");
         if (findlyCount && findlyCount.getAttribute("aria-busy") === "true") {
@@ -418,7 +443,135 @@ function writeHarness() {
   return htmlPath;
 }
 
-function runHeadless(htmlPath) {
+function writePagerHarness() {
+  const dir = mkdtempSync(join(tmpdir(), "findly-pager-"));
+  const pagerUrl = pathToFileURL(
+    join(ROOT, "extensions/smart-filter/assets/smart-filter-pager.js"),
+  ).href;
+  const html = `<!doctype html>
+<html>
+<head>
+  <style>
+    html.sf-few-results nav.pagination,
+    html.sf-pager-unneeded nav.pagination,
+    [data-sf-pager-suppressed="1"] { display: none !important; }
+    html:not(.sf-few-results):not(.sf-pager-unneeded):has(.smart-filter)
+      nav.pagination:not([hidden]):not([data-sf-pager-suppressed="1"]) {
+      display: flex !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="smart-filter"></div>
+  <nav class="pagination" aria-label="Pagination">
+    <ul class="pagination__list">
+      <li><a href="?page=1">1</a></li>
+      <li><a href="?page=2">2</a></li>
+      <li><a href="?page=3">3</a></li>
+      <li><span>…</span></li>
+      <li><a href="?page=11">11</a></li>
+      <li><a rel="next" href="?page=2">&gt;</a></li>
+    </ul>
+  </nav>
+  <script src="${pagerUrl}"></script>
+  <script>
+    function report(ok, extra) {
+      document.documentElement.setAttribute("data-load-ok", ok ? "1" : "0");
+      document.documentElement.setAttribute("data-load-json", JSON.stringify(extra || {}));
+    }
+    function pagerEl() {
+      return document.querySelector("nav.pagination");
+    }
+    function pagerIsHidden(el) {
+      if (!el) return true;
+      if (el.hasAttribute("hidden") || el.hidden) return true;
+      if (el.getAttribute("data-sf-pager-suppressed") === "1") return true;
+      var cs = window.getComputedStyle(el);
+      if (cs && cs.display === "none") return true;
+      if (document.documentElement.classList.contains("sf-few-results")) return true;
+      return false;
+    }
+    function visiblePageNums(root) {
+      var nums = [];
+      if (!root) return nums;
+      var nodes = root.querySelectorAll("a, button, span");
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var cs = window.getComputedStyle(nodes[i]);
+        if (cs && (cs.display === "none" || cs.visibility === "hidden")) continue;
+        var t = String(nodes[i].textContent || "").replace(/\\s+/g, " ").trim();
+        if (/^\\d+$/.test(t)) nums.push(Number(t));
+      }
+      return nums;
+    }
+    window.addEventListener("load", function () {
+      try {
+        function Widget() {}
+        Widget.prototype.ensurePageSize = function () { this.pageSize = 16; return 16; };
+        Widget.prototype.hasActiveFilters = function () { return true; };
+        Widget.prototype.goToPage = function (p) { this._went = p; };
+        var widget = new Widget();
+        widget.pageSize = 16;
+        widget.page = 1;
+        widget.paginationStyle = "pagination";
+        window.__FINDLY_FILTER_WIDGET = widget;
+        if (typeof widget.syncThemePager !== "function") {
+          throw new Error("syncThemePager not patched onto Widget");
+        }
+        widget._lastFilterData = { total: 6, handles: [1, 2, 3, 4, 5, 6] };
+        widget._statusProductCount = 6;
+        widget.syncThemePager();
+        var pager = pagerEl();
+        if (!pagerIsHidden(pager)) throw new Error("pager still visible for 6 results");
+        widget._lastFilterData = { total: 31, handles: new Array(31).fill("x") };
+        widget._statusProductCount = 31;
+        widget._pageTotal = 31;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        pager = pagerEl();
+        if (pagerIsHidden(pager)) throw new Error("pager hidden for 31 results");
+        if (document.documentElement.classList.contains("sf-few-results")) {
+          throw new Error("html has sf-few-results with multi-page results");
+        }
+        var nums = visiblePageNums(pager);
+        if (nums.indexOf(1) === -1 || nums.indexOf(2) === -1) {
+          throw new Error("visible pages missing 1 or 2: " + JSON.stringify(nums));
+        }
+        if (nums.indexOf(11) !== -1) {
+          throw new Error("visible pages still include 11: " + JSON.stringify(nums));
+        }
+        var page2Link = null;
+        var links = pager.querySelectorAll("a");
+        var i;
+        for (i = 0; i < links.length; i++) {
+          var label = String(links[i].textContent || "").replace(/\\s+/g, " ").trim();
+          if (label === "2") {
+            page2Link = links[i];
+            break;
+          }
+        }
+        if (!page2Link) throw new Error("page 2 link missing after rewrite");
+        page2Link.click();
+        if (widget._went !== 2) throw new Error("goToPage not called with 2: " + widget._went);
+        report(true, {
+          fewHidden: true,
+          multiVisible: true,
+          pages: nums,
+          went: widget._went
+        });
+      } catch (err) {
+        report(false, { error: String(err && err.message || err) });
+      }
+    });
+  </script>
+</body>
+</html>`;
+  const htmlPath = join(dir, "index.html");
+  writeFileSync(htmlPath, html);
+  return htmlPath;
+}
+
+function runHeadless(htmlPath, failMessage) {
   const bin = chromePath();
   if (!bin) {
     log.info("no Chrome/Edge found; skipped headless DOM run");
@@ -454,7 +607,7 @@ function runHeadless(htmlPath) {
     fail("headless dump missing data-load-ok. " + out.slice(-400));
   }
   if (match[1] !== "1") {
-    fail("headless loading harness failed: " + JSON.stringify(json));
+    fail((failMessage || "headless loading harness failed") + ": " + JSON.stringify(json));
   }
   log.info("headless DOM: " + JSON.stringify(json));
   return json;
@@ -492,6 +645,7 @@ try {
   assertSourceMarkers();
   const htmlPath = writeHarness();
   runHeadless(htmlPath);
+  runHeadless(writePagerHarness(), "headless pager harness failed");
   await probeLiveStore();
   log.success("LOADING_STATES_OK");
 } catch (error) {

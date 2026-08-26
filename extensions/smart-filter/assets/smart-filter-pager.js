@@ -137,22 +137,41 @@
 
   function restorePager(el) {
     if (!el) return;
+    el.removeAttribute("data-sf-pager-driven");
     var orig = el.getAttribute(ORIG_ATTR);
     if (orig != null) el.innerHTML = orig;
     unhidePager(el);
   }
 
   function filteredTotal(widget) {
+    var candidates = [];
     var data = widget && widget._lastFilterData;
     if (data) {
-      if (typeof data.total === "number" && data.total >= 0) return data.total;
-      if (typeof data.count === "number" && data.count >= 0) return data.count;
+      var fromTotal = Number(data.total);
+      if (Number.isFinite(fromTotal) && fromTotal >= 0) candidates.push(fromTotal);
+      var fromCount = Number(data.count);
+      if (Number.isFinite(fromCount) && fromCount >= 0) candidates.push(fromCount);
+      if (Array.isArray(data.handles) && data.handles.length) {
+        candidates.push(data.handles.length);
+      }
     }
+    var all = widget && widget._allFilterHandles;
+    if (Array.isArray(all) && all.length) candidates.push(all.length);
     var status = Number(widget && widget._statusProductCount);
-    if (Number.isFinite(status) && status >= 0) return status;
-    var total = Number(widget && widget._pageTotal);
-    if (Number.isFinite(total) && total >= 0) return total;
-    return -1;
+    if (Number.isFinite(status) && status >= 0) candidates.push(status);
+    var pageTotal = Number(widget && widget._pageTotal);
+    if (Number.isFinite(pageTotal) && pageTotal >= 0) candidates.push(pageTotal);
+    if (!candidates.length) return -1;
+    return Math.max.apply(null, candidates);
+  }
+
+  function resultsFitOnePage(widget) {
+    if (!widget) return false;
+    if (widget.ensurePageSize) widget.ensurePageSize();
+    var size = widget.pageSize || 16;
+    var total = filteredTotal(widget);
+    if (total < 0) return false;
+    return total <= size;
   }
 
   function suppressThemePagers() {
@@ -365,12 +384,41 @@
     }
   }
 
+  function pagerListEl(el) {
+    if (!el || !el.querySelector) return el;
+    return (
+      el.querySelector(
+        "ul, ol, .pagination__list, .pagination-list, [role='list']",
+      ) ||
+      el.querySelector(".pagination__inner") ||
+      el
+    );
+  }
+
+  function maxVisiblePageNumber(el) {
+    if (!el || !el.querySelectorAll) return 0;
+    var max = 0;
+    var nodes = el.querySelectorAll("a, button, span");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var cs = window.getComputedStyle
+        ? window.getComputedStyle(nodes[i])
+        : null;
+      if (cs && (cs.display === "none" || cs.visibility === "hidden")) continue;
+      var n = pageFromControl(nodes[i]);
+      if (n > max) max = n;
+    }
+    return max;
+  }
+
   function rewritePager(el, widget) {
     snapshotPager(el);
     var orig = el.getAttribute(ORIG_ATTR) || "";
     if (widget.ensurePageSize) widget.ensurePageSize();
     var size = widget.pageSize || 16;
     var total = filteredTotal(widget);
+    if (total < 0) return;
+    if (Number(widget._pageTotal) > total) total = Number(widget._pageTotal);
     widget._pageTotal = total;
     var pageCount = Math.max(1, Math.ceil(total / size) || 1);
     var page = Math.max(1, widget.page || 1);
@@ -378,33 +426,97 @@
       suppressThemePagers();
       return;
     }
+    el.setAttribute("data-sf-pager-driven", "1");
     unhidePager(el);
     var tpls = parseTemplates(orig);
-    var list = el.querySelector("ul, ol, .pagination__list, [role='list']");
-    if (!tpls.page || !list) {
-      clipThemePager(el, page, pageCount);
-      return;
+    var list = pagerListEl(el);
+    if (list && list === el && String(el.tagName || "").toLowerCase() === "nav") {
+      var made = document.createElement("ul");
+      made.className = "pagination__list";
+      el.innerHTML = "";
+      el.appendChild(made);
+      list = made;
     }
+    if (tpls.page && list) {
+      list.innerHTML = "";
+      function appendClone(tpl, target, current) {
+        if (!tpl) return;
+        var node = tpl.cloneNode(true);
+        if (target) setItemPage(node, target, Boolean(current));
+        list.appendChild(node);
+      }
+      if (page > 1) appendClone(tpls.prev, page - 1, false);
+      pageWindow(page, pageCount).forEach(function (item) {
+        if (item === "ellipsis") {
+          if (tpls.ellipsis) list.appendChild(tpls.ellipsis.cloneNode(true));
+          return;
+        }
+        appendClone(
+          item === page ? tpls.current : tpls.page,
+          item,
+          item === page,
+        );
+      });
+      if (page < pageCount) appendClone(tpls.next, page + 1, false);
+    } else {
+      clipThemePager(el, page, pageCount);
+    }
+    if (maxVisiblePageNumber(el) > pageCount) {
+      forceSimplePager(el, widget, page, pageCount, tpls);
+    }
+  }
+
+  function forceSimplePager(el, widget, page, pageCount, tpls) {
+    if (!el) return;
+    unhidePager(el);
+    el.setAttribute("data-sf-pager-driven", "1");
+    var list = pagerListEl(el);
+    if (!list) list = el;
     list.innerHTML = "";
-    function appendClone(tpl, target, current) {
-      if (!tpl) return;
+    function appendTpl(tpl, target, current) {
+      if (!tpl) return false;
       var node = tpl.cloneNode(true);
       if (target) setItemPage(node, target, Boolean(current));
       list.appendChild(node);
+      return true;
     }
-    if (page > 1) appendClone(tpls.prev, page - 1, false);
+    function appendLink(label, target, current) {
+      var item = document.createElement("li");
+      var link = document.createElement("a");
+      link.href = pageHref(target);
+      link.textContent = String(label);
+      link.setAttribute("data-sf-page", String(target));
+      if (current) link.setAttribute("aria-current", "page");
+      item.appendChild(link);
+      list.appendChild(item);
+    }
+    if (page > 1 && !appendTpl(tpls && tpls.prev, page - 1, false)) {
+      appendLink("<", page - 1, false);
+    }
     pageWindow(page, pageCount).forEach(function (item) {
       if (item === "ellipsis") {
-        if (tpls.ellipsis) list.appendChild(tpls.ellipsis.cloneNode(true));
+        if (tpls && tpls.ellipsis) {
+          list.appendChild(tpls.ellipsis.cloneNode(true));
+          return;
+        }
+        var dots = document.createElement("li");
+        dots.textContent = "…";
+        list.appendChild(dots);
         return;
       }
-      appendClone(
-        item === page ? tpls.current : tpls.page,
-        item,
-        item === page,
-      );
+      if (
+        !appendTpl(
+          tpls && (item === page ? tpls.current : tpls.page),
+          item,
+          item === page,
+        )
+      ) {
+        appendLink(item, item, item === page);
+      }
     });
-    if (page < pageCount) appendClone(tpls.next, page + 1, false);
+    if (page < pageCount && !appendTpl(tpls && tpls.next, page + 1, false)) {
+      appendLink(">", page + 1, false);
+    }
   }
 
   function clipThemePager(el, page, pageCount) {
@@ -423,7 +535,7 @@
       } else if (n) {
         if (n > pageCount) item.style.setProperty("display", "none", "important");
         else item.style.removeProperty("display");
-      } else if (role === "ellipsis" && pageCount <= 3) {
+      } else if (role === "ellipsis") {
         item.style.setProperty("display", "none", "important");
       }
     }
@@ -449,12 +561,15 @@
       function (event) {
         var widget = window.__FINDLY_FILTER_WIDGET;
         if (!widget || !usesThemeNumberedPager(widget)) return;
-        if (!shouldDriveThemePager(widget)) return;
         var target = event.target;
         if (!target || !target.closest) return;
         if (target.closest(".sf-pager, .smart-filter")) return;
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
+        var driven =
+          shouldDriveThemePager(widget) ||
+          (root.getAttribute && root.getAttribute("data-sf-pager-driven") === "1");
+        if (!driven) return;
         var ctrl = target.closest("a, button");
         if (!ctrl) return;
         var page = pageFromControl(ctrl);
@@ -692,6 +807,12 @@
       applyPagerByProductCount(this, count);
     };
 
+    var origGoToPage = proto.goToPage;
+    proto.goToPage = function (page) {
+      if (this._loadingPage && !this._inflight) this._loadingPage = false;
+      if (origGoToPage) return origGoToPage.apply(this, arguments);
+    };
+
     proto.usesThemeNumberedPager = function () {
       return usesThemeNumberedPager(this);
     };
@@ -711,9 +832,16 @@
       try {
         removeFindlyNumberedPagers(this);
         observeThemePager();
+        if (total < 0) {
+          setPagerUnneeded(false);
+          unhideThemePagers();
+          return true;
+        }
+        if (resultsFitOnePage(this) || total <= size) {
+          return true;
+        }
+        unhideThemePagers();
         var drive = shouldDriveThemePager(this);
-        if (total >= 0 && total <= size) return true;
-        if (this._loadingPage && !this._appending) return true;
         var roots = findThemePagers();
         if (!roots.length) {
           scheduleThemePagerSync(this);
@@ -724,7 +852,7 @@
         var i;
         for (i = 0; i < roots.length; i++) {
           snapshotPager(roots[i]);
-          if (drive) rewritePager(roots[i], this);
+          if (drive || total > size) rewritePager(roots[i], this);
           else restorePager(roots[i]);
         }
         return true;
