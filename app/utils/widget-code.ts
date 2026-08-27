@@ -39,6 +39,9 @@ export function sanitizeProductListLiquid(value: unknown): string {
     let liquid = value.slice(0, PRODUCT_LIST_LIQUID_MAX);
     liquid = liquid.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
     liquid = liquid.replace(/<script\b[^>]*>/gi, "");
+    // Strip inline event handlers (onerror=, onclick=, etc.) — templates are
+    // rendered via innerHTML on the storefront; scripts alone are not enough.
+    liquid = liquid.replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
     liquid = liquid.replace(
       /\{%-?\s*javascript\s*-?%\}[\s\S]*?\{%-?\s*endjavascript\s*-?%\}/gi,
       "",
