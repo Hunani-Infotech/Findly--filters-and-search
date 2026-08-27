@@ -4,6 +4,8 @@ import {
   normalizeSortOptions,
   parsePaginationStyle,
   parseSortOption,
+  pinSoldOutToEnd,
+  resolveHideOutOfStock,
 } from "../utils/app-settings";
 import type { HydratedAppSettings } from "./settings.server";
 import type { MetafieldSortOption } from "./sort.server";
@@ -21,7 +23,7 @@ export function buildStorefrontWidgetSettings(
     showTotalProductCount: appSettings.showTotalProductCount !== false,
     hideProductTags: normalizeHideProductTags(appSettings.hideProductTags),
     collapseByDefault: appSettings.collapseByDefault,
-    hideOutOfStock: appSettings.hideOutOfStock,
+    hideOutOfStock: resolveHideOutOfStock(appSettings),
     paginationStyle: parsePaginationStyle(
       (appSettings as { paginationStyle?: unknown }).paginationStyle,
     ),
@@ -37,8 +39,8 @@ export function buildStorefrontWidgetSettings(
     sortOptionsEnabled: normalizeSortOptions(appSettings.sortOptionsEnabled),
     defaultSort: parseSortOption(appSettings.defaultSort),
     hideSortDropdown: Boolean(appSettings.hideSortDropdown),
-    inStockOnTop: Boolean(appSettings.inStockOnTop),
-    soldOutToBottom: Boolean(appSettings.soldOutToBottom),
+    inStockOnTop: pinSoldOutToEnd(appSettings),
+    soldOutToBottom: pinSoldOutToEnd(appSettings),
     enableCollectionSearch: Boolean(appSettings.enableCollectionSearch),
     enableFiltersOnSearch: Boolean(appSettings.enableFiltersOnSearch ?? true),
     hideSingleValueFacets: Boolean(appSettings.hideSingleValueFacets),

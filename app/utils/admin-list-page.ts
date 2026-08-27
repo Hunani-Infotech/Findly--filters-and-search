@@ -36,6 +36,14 @@ export function slicePage<T>(
   };
 }
 
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || to >= items.length) return items;
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
 /** Reorder a visible page, then write that subset back into the full list. */
 export function reorderWithinSubset(
   full: string[],
@@ -43,10 +51,8 @@ export function reorderWithinSubset(
   from: number,
   to: number,
 ): string[] {
-  if (from === to || from < 0 || to < 0 || to >= subset.length) return full;
-  const nextVisible = [...subset];
-  const [item] = nextVisible.splice(from, 1);
-  nextVisible.splice(to, 0, item);
+  const nextVisible = moveItem(subset, from, to);
+  if (nextVisible === subset) return full;
   const visSet = new Set(subset);
   let index = 0;
   return full.map((id) => (visSet.has(id) ? nextVisible[index++] : id));

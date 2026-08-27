@@ -6,13 +6,14 @@ import {
   normalizeHideProductTags,
   normalizeSearchFields,
   normalizeSortOptions,
-  parseHideOutOfStock,
   parsePaginationStyle,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
+  pinSoldOutToEnd,
+  resolveHideOutOfStock,
   sanitizeFontFamily,
   sanitizeWidgetTitle,
   sanitizeWidgetTitleColor,
@@ -107,6 +108,9 @@ async function mapAppSettings(shopId: string, row: AppSettings) {
     hideProductTags: normalizeHideProductTags(
       (row as { hideProductTags?: unknown }).hideProductTags,
     ),
+    hideOutOfStock: resolveHideOutOfStock(row),
+    inStockOnTop: pinSoldOutToEnd(row),
+    soldOutToBottom: pinSoldOutToEnd(row),
     paginationStyle: parsePaginationStyle(
       (row as { paginationStyle?: unknown }).paginationStyle,
     ),
@@ -185,9 +189,12 @@ function normalizeSettingsWrite(input: AppSettingsInput) {
     widgetTitleSize: parseWidgetTitleSize(input.widgetTitleSize),
     widgetTitleColor: sanitizeWidgetTitleColor(input.widgetTitleColor),
     searchFields,
-    hideOutOfStock: parseHideOutOfStock(
-      input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
-    ),
+    hideOutOfStock: resolveHideOutOfStock({
+      hideOutOfStock:
+        input.hideOutOfStock ?? DEFAULT_APP_SETTINGS.hideOutOfStock,
+      inStockOnTop: input.inStockOnTop,
+      soldOutToBottom: input.soldOutToBottom,
+    }),
     paginationStyle: parsePaginationStyle(
       input.paginationStyle ?? DEFAULT_APP_SETTINGS.paginationStyle,
     ),
@@ -197,9 +204,16 @@ function normalizeSettingsWrite(input: AppSettingsInput) {
     ),
     hideSortDropdown:
       input.hideSortDropdown ?? DEFAULT_APP_SETTINGS.hideSortDropdown,
-    inStockOnTop: input.inStockOnTop ?? DEFAULT_APP_SETTINGS.inStockOnTop,
-    soldOutToBottom:
-      input.soldOutToBottom ?? DEFAULT_APP_SETTINGS.soldOutToBottom,
+    inStockOnTop: pinSoldOutToEnd({
+      hideOutOfStock: input.hideOutOfStock,
+      inStockOnTop: input.inStockOnTop,
+      soldOutToBottom: input.soldOutToBottom,
+    }),
+    soldOutToBottom: pinSoldOutToEnd({
+      hideOutOfStock: input.hideOutOfStock,
+      inStockOnTop: input.inStockOnTop,
+      soldOutToBottom: input.soldOutToBottom,
+    }),
     enableCollectionSearch:
       input.enableCollectionSearch ??
       DEFAULT_APP_SETTINGS.enableCollectionSearch,
@@ -342,12 +356,13 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
         n.hideSortDropdown,
       ),
       ...patchIfPresent(
-        input.inStockOnTop !== undefined,
+        input.inStockOnTop !== undefined || input.hideOutOfStock !== undefined,
         "inStockOnTop",
         n.inStockOnTop,
       ),
       ...patchIfPresent(
-        input.soldOutToBottom !== undefined,
+        input.soldOutToBottom !== undefined ||
+          input.hideOutOfStock !== undefined,
         "soldOutToBottom",
         n.soldOutToBottom,
       ),

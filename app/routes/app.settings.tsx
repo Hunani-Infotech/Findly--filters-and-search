@@ -62,12 +62,14 @@ import {
   parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
+  resolveHideOutOfStock,
   type HideOutOfStockMode,
   type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
 } from "../utils/app-settings";
+import { expandHexColor } from "../utils/hex-color";
 import { getAppSettings, saveAppSettings } from "../services/settings.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
@@ -149,8 +151,6 @@ type SettingsState = {
   sortOptionsEnabled: SortOptionKey[];
   defaultSort: SortOptionKey;
   hideSortDropdown: boolean;
-  inStockOnTop: boolean;
-  soldOutToBottom: boolean;
   enableCollectionSearch: boolean;
   enableMarkets: boolean;
   enableFiltersOnSearch: boolean;
@@ -211,7 +211,7 @@ function toSettingsState(settings: {
     showTotalProductCount: settings.showTotalProductCount !== false,
     hideProductTags: normalizeHideProductTags(settings.hideProductTags),
     collapseByDefault: settings.collapseByDefault,
-    hideOutOfStock: parseHideOutOfStock(settings.hideOutOfStock),
+    hideOutOfStock: resolveHideOutOfStock(settings),
     paginationStyle: parsePaginationStyle(settings.paginationStyle),
     widgetShadow: settings.widgetShadow,
     widgetRadius,
@@ -234,8 +234,6 @@ function toSettingsState(settings: {
         : normalizeSortOptions(settings.sortOptionsEnabled),
     defaultSort: parseSortOption(settings.defaultSort),
     hideSortDropdown: Boolean(settings.hideSortDropdown),
-    inStockOnTop: Boolean(settings.inStockOnTop),
-    soldOutToBottom: Boolean(settings.soldOutToBottom),
     enableCollectionSearch: Boolean(settings.enableCollectionSearch),
     enableMarkets: settings.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets,
     enableFiltersOnSearch: settings.enableFiltersOnSearch ?? true,
@@ -255,15 +253,6 @@ function toSettingsState(settings: {
     productListLiquid:
       settings.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
   };
-}
-
-function toColorInputValue(value: string) {
-  const color = value.trim();
-  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
-  if (/^#[0-9a-f]{3}$/i.test(color)) {
-    return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
-  }
-  return DEFAULT_APP_SETTINGS.accentColor;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -427,11 +416,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     hideSortDropdown:
       form.get("hideSortDropdown") === "true" ||
       form.get("hideSortDropdown") === "on",
-    inStockOnTop:
-      form.get("inStockOnTop") === "true" || form.get("inStockOnTop") === "on",
-    soldOutToBottom:
-      form.get("soldOutToBottom") === "true" ||
-      form.get("soldOutToBottom") === "on",
     enableCollectionSearch:
       form.get("enableCollectionSearch") === "true" ||
       form.get("enableCollectionSearch") === "on",
@@ -550,8 +534,6 @@ export default function SettingsPage() {
     formData.set("sortOptionsEnabled", JSON.stringify(next.sortOptionsEnabled));
     formData.set("defaultSort", next.defaultSort);
     formData.set("hideSortDropdown", String(next.hideSortDropdown));
-    formData.set("inStockOnTop", String(next.inStockOnTop));
-    formData.set("soldOutToBottom", String(next.soldOutToBottom));
     formData.set("enableCollectionSearch", String(next.enableCollectionSearch));
     formData.set("enableMarkets", String(next.enableMarkets));
     formData.set("enableFiltersOnSearch", String(next.enableFiltersOnSearch));
@@ -796,30 +778,6 @@ export default function SettingsPage() {
                           The availability filter still works with every option.
                         </Text>
                       </BlockStack>
-                      <Checkbox
-                        label="Display in-stock products on top"
-                        checked={settings.inStockOnTop}
-                        disabled={saving}
-                        helpText="Keeps available products first. Combines with the selected Sort By order among in-stock items."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            inStockOnTop: checked,
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Move sold-out products to the bottom"
-                        checked={settings.soldOutToBottom}
-                        disabled={saving}
-                        helpText="Pushes out-of-stock products last while keeping the selected sort inside each group."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            soldOutToBottom: checked,
-                          }))
-                        }
-                      />
                     </BlockStack>
                   </Card>
                   <Card>
@@ -1077,8 +1035,9 @@ export default function SettingsPage() {
                             <input
                               type="color"
                               aria-label="Pick title color"
-                              value={toColorInputValue(
+                              value={expandHexColor(
                                 settings.widgetTitleColor,
+                                DEFAULT_APP_SETTINGS.accentColor,
                               )}
                               disabled={saving}
                               onChange={(event) =>
@@ -1122,7 +1081,10 @@ export default function SettingsPage() {
                             <input
                               type="color"
                               aria-label="Pick accent color"
-                              value={toColorInputValue(settings.accentColor)}
+                              value={expandHexColor(
+                                settings.accentColor,
+                                DEFAULT_APP_SETTINGS.accentColor,
+                              )}
                               disabled={saving}
                               onChange={(event) =>
                                 setSettings((s) => ({

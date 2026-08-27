@@ -78,7 +78,7 @@ export default function Auth() {
                   type="text"
                   name="shop"
                   value={shop}
-                  onChange={(e) => setShop(e.currentTarget.value)}
+                      onChange={(event) => setShop(event.currentTarget.value)}
                   disabled={submitting}
                   autoComplete="on"
                   spellCheck={false}

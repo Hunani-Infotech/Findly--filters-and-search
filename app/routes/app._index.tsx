@@ -33,7 +33,7 @@ import { queueFullSync } from "../sync/queue-full-sync";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 import { SetupGuide } from "../components/setup-guide";
 import { HomePerformance } from "../components/home-performance";
-import { SyncDetailsModal } from "../components/sync-details-modal";
+import { SyncDetailsModal, formatSyncTime, syncStatusLabel } from "../components/sync-details-modal";
 import { loadAnalyticsDashboard } from "../services/analytics.server";
 import {
   getSetupProgress,
@@ -45,17 +45,7 @@ import { withEmbeddedParams } from "../utils/admin-path";
 
 export { HomePageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
-function formatSyncTime(value: string | null) {
-  if (!value) return "Never";
-  return new Date(value).toLocaleString();
-}
-
-function syncStatusLabel(status: string) {
-  if (status === "READY") return "Ready";
-  if (status === "SYNCING") return "Syncing";
-  if (status === "ERROR") return "Needs attention";
-  return "Waiting";
-}
+const SYNC_STATUS_POLL_MS = 8000;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -252,7 +242,7 @@ export default function Home() {
       statusFetcherRef.current.load(statusUrl);
     };
     tick();
-    const intervalId = window.setInterval(tick, 8000);
+    const intervalId = window.setInterval(tick, SYNC_STATUS_POLL_MS);
     return () => window.clearInterval(intervalId);
   }, [shouldPoll, searchParams]);
 

@@ -31,22 +31,9 @@ import {
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
+import { downloadJson } from "../utils/download-json";
 
 export { GroupsListSkeleton as HydrateFallback } from "../components/admin-skeletons";
-
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 function labelForSourceKey(key: string) {
   if (key === "vendor") return "Vendor";

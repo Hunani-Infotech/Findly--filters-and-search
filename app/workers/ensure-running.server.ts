@@ -53,11 +53,13 @@ async function startInProcessWorker() {
   if (globalThis.__findlySyncWorker) return;
 
   const concurrency = getWorkerCount();
+  const LOCK_DURATION_MS = 30 * 60 * 1000;
+  const STALLED_INTERVAL_MS = 60_000;
   const worker = new Worker(SYNC_QUEUE, processSyncJob, {
     connection: createRedisConnection(),
     concurrency,
-    lockDuration: 30 * 60 * 1000,
-    stalledInterval: 60_000,
+    lockDuration: LOCK_DURATION_MS,
+    stalledInterval: STALLED_INTERVAL_MS,
   });
 
   worker.on("completed", (job) => {

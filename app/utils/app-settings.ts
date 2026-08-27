@@ -107,6 +107,7 @@ export function normalizeHandleList(
 
 export const HIDE_OUT_OF_STOCK_MODES = [
   "show",
+  "end",
   "hide",
   "hide_after_filter",
 ] as const;
@@ -124,6 +125,11 @@ export const HIDE_OUT_OF_STOCK_OPTIONS: {
     helpText: "Sold-out products stay mixed with in-stock products.",
   },
   {
+    label: "Show at the end",
+    value: "end",
+    helpText: "Sold-out products appear after in-stock products.",
+  },
+  {
     label: "Hide",
     value: "hide",
     helpText: "Sold-out products never appear in collection or search results.",
@@ -139,6 +145,28 @@ export function parseHideOutOfStock(value: unknown): HideOutOfStockMode {
   return HIDE_OUT_OF_STOCK_MODES.includes(value as HideOutOfStockMode)
     ? (value as HideOutOfStockMode)
     : "show";
+}
+
+/** Map legacy in-stock-on-top / sold-out-to-bottom checkboxes onto "end". */
+export function resolveHideOutOfStock(settings: {
+  hideOutOfStock?: unknown;
+  inStockOnTop?: boolean | null;
+  soldOutToBottom?: boolean | null;
+}): HideOutOfStockMode {
+  const mode = parseHideOutOfStock(settings.hideOutOfStock);
+  if (mode === "show" && (settings.inStockOnTop || settings.soldOutToBottom)) {
+    return "end";
+  }
+  return mode;
+}
+
+/** Pin sold-out products after in-stock ones (new "end" mode or legacy flags). */
+export function pinSoldOutToEnd(settings: {
+  hideOutOfStock?: unknown;
+  inStockOnTop?: boolean | null;
+  soldOutToBottom?: boolean | null;
+}): boolean {
+  return resolveHideOutOfStock(settings) === "end";
 }
 
 export const PAGING_STYLE_KEYS = [

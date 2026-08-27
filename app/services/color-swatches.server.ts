@@ -16,7 +16,7 @@ export type SwatchRow = {
   imageUrl: string;
 };
 
-function parseKind(value: unknown): SwatchKind {
+export function parseSwatchKind(value: unknown): SwatchKind {
   return value === "dual" || value === "image" ? value : "solid";
 }
 
@@ -96,7 +96,7 @@ function rowsForOption(
     return {
       optionKey,
       value,
-      kind: parseKind(row?.kind),
+      kind: parseSwatchKind(row?.kind),
       color1: row?.color1 ?? "",
       color2: row?.color2 ?? "",
       imageUrl: row?.imageUrl ?? "",
@@ -209,7 +209,7 @@ export async function loadSwatchesAdmin(
 }
 
 export async function upsertSwatch(shopId: string, input: SwatchRow) {
-  const kind = parseKind(input.kind);
+  const kind = parseSwatchKind(input.kind);
   const row = await prisma.colorSwatch.upsert({
     where: {
       shopId_optionKey_value: {
@@ -271,7 +271,7 @@ export async function swatchMapForShop(shopId: string) {
       map[row.optionKey][row.value] = {
         optionKey: row.optionKey,
         value: row.value,
-        kind: parseKind(row.kind),
+        kind: parseSwatchKind(row.kind),
         color1: row.color1,
         color2: row.color2,
         imageUrl: row.imageUrl,
@@ -304,7 +304,7 @@ export async function importSwatches(
     await upsertSwatch(shopId, {
       optionKey: key,
       value,
-      kind: parseKind(row.kind),
+      kind: parseSwatchKind(row.kind),
       color1: String(row.color1 || ""),
       color2: String(row.color2 || ""),
       imageUrl: String(row.imageUrl || ""),

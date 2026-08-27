@@ -41,6 +41,7 @@ import {
   listSwatchesForOption,
   loadSwatchesAdmin,
   upsertSwatch,
+  parseSwatchKind,
   type SwatchKind,
   type SwatchListStatus,
   type SwatchRow,
@@ -48,6 +49,8 @@ import {
 import { listShopImages, uploadShopImage } from "../services/shopify-files.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { withEmbeddedParams } from "../utils/admin-path";
+import { downloadJson } from "../utils/download-json";
+import { expandHexColor } from "../utils/hex-color";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
@@ -55,22 +58,6 @@ export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-ske
 const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;
-
-function parseKind(value: unknown): SwatchKind {
-  return value === "dual" || value === "image" ? value : "solid";
-}
-
-function toColorInput(hex: string) {
-  const raw = hex.trim();
-  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw;
-  if (/^#[0-9a-f]{3}$/i.test(raw)) {
-    const r = raw[1];
-    const g = raw[2];
-    const b = raw[3];
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return "#ffffff";
-}
 
 function parseSwatchRows(raw: unknown, optionKey: string): SwatchRow[] {
   if (!Array.isArray(raw)) return [];
@@ -83,27 +70,13 @@ function parseSwatchRows(raw: unknown, optionKey: string): SwatchRow[] {
     rows.push({
       optionKey: String(row.optionKey || optionKey).trim() || optionKey,
       value,
-      kind: parseKind(row.kind),
+      kind: parseSwatchKind(row.kind),
       color1: String(row.color1 || ""),
       color2: String(row.color2 || ""),
       imageUrl: String(row.imageUrl || ""),
     });
   }
   return rows;
-}
-
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function parseStatus(value: string | null): SwatchListStatus {
@@ -306,7 +279,7 @@ function ColorHexField({
         <input
           type="color"
           aria-label={label}
-          value={toColorInput(hex || value)}
+          value={expandHexColor(hex || value, "#ffffff")}
           onChange={(event) => {
             const next = event.target.value;
             setHex(next);

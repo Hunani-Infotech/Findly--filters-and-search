@@ -23,6 +23,7 @@ import {
 import {
   normalizeHideProductTags,
   normalizeSearchFields,
+  pinSoldOutToEnd,
 } from "../utils/app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
 import { mappingAppliesToFilter } from "../utils/metafield-applies";
@@ -637,8 +638,8 @@ async function buildFacetPayload(input: {
     resolved.sort,
     {
       preserveOrder: resolved.preserveOrder,
-      inStockOnTop: appSettings.inStockOnTop,
-      soldOutToBottom: appSettings.soldOutToBottom,
+      inStockOnTop: pinSoldOutToEnd(appSettings),
+      soldOutToBottom: pinSoldOutToEnd(appSettings),
       metafieldSort: metafieldSortOptions.find(
         (option) => option.key === resolved.sort,
       ),

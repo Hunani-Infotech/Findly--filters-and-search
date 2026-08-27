@@ -22,12 +22,12 @@ export type SyncModalData = {
   overProductLimit: boolean;
 };
 
-function formatSyncTime(value: string | null) {
+export function formatSyncTime(value: string | null) {
   if (!value) return "Never";
   return new Date(value).toLocaleString();
 }
 
-function statusLabel(status: string) {
+export function syncStatusLabel(status: string) {
   if (status === "READY") return "Ready";
   if (status === "SYNCING") return "Syncing";
   if (status === "ERROR") return "Needs attention";
@@ -113,7 +113,7 @@ export function SyncDetailsModal({
               Status
             </Text>
             <Text as="p">Plan: {data.planName}</Text>
-            <Text as="p">Status: {statusLabel(data.status)}</Text>
+            <Text as="p">Status: {syncStatusLabel(data.status)}</Text>
             <Text as="p">
               Last full sync: {formatSyncTime(data.lastFullSyncAt)}
             </Text>

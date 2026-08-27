@@ -14,6 +14,12 @@ declare global {
  * - sslmode=require for hosted Postgres
  * - connect_timeout high enough for Hostinger → distant regions (e.g. Tokyo)
  */
+const CONNECT_TIMEOUT_SEC = "30";
+const POOLER_CONNECTION_LIMIT = "5";
+const DIRECT_CONNECTION_LIMIT = "3";
+const ERROR_MESSAGE_MAX = 180;
+const DB_READY_ATTEMPTS = 4;
+
 function withPrismaDbParams(
   raw: string | undefined,
   { pgbouncer }: { pgbouncer: boolean },
@@ -29,11 +35,14 @@ function withPrismaDbParams(
       url.searchParams.set("sslmode", "require");
     }
     if (!url.searchParams.get("connect_timeout")) {
-      url.searchParams.set("connect_timeout", "30");
+      url.searchParams.set("connect_timeout", CONNECT_TIMEOUT_SEC);
     }
     // Keep Hostinger pool small; Passenger may spawn multiple processes.
     if (!url.searchParams.get("connection_limit")) {
-      url.searchParams.set("connection_limit", pgbouncer ? "5" : "3");
+      url.searchParams.set(
+        "connection_limit",
+        pgbouncer ? POOLER_CONNECTION_LIMIT : DIRECT_CONNECTION_LIMIT,
+      );
     }
     return url.toString().replace(/^http:/i, "postgresql:");
   } catch {
@@ -56,10 +65,7 @@ applyDatabaseEnv();
 
 function createPrismaClient() {
   return new PrismaClient({
-    log:
-      process.env.NODE_ENV === "production"
-        ? ["error", "warn"]
-        : ["error", "warn"],
+    log: ["error", "warn"],
   });
 }
 
@@ -85,11 +91,11 @@ export function summarizeDatabaseError(error: unknown): string {
     /postgresql:\/\/[^\s'"]+/gi,
     "[redacted-url]",
   );
-  if (code) return `${code}: ${message.slice(0, 180)}`;
+  if (code) return `${code}: ${message.slice(0, ERROR_MESSAGE_MAX)}`;
   if (/timeout|timed out|ECONNREFUSED|ENOTFOUND|P1001|P1017/i.test(message)) {
-    return message.slice(0, 180);
+    return message.slice(0, ERROR_MESSAGE_MAX);
   }
-  return message.slice(0, 180);
+  return message.slice(0, ERROR_MESSAGE_MAX);
 }
 
 /**
@@ -100,7 +106,7 @@ export function ensureDatabaseReady(): Promise<void> {
   if (global.__findlyDbReady) return global.__findlyDbReady;
 
   global.__findlyDbReady = (async () => {
-    const attempts = 4;
+    const attempts = DB_READY_ATTEMPTS;
     let lastError: unknown;
     for (let i = 1; i <= attempts; i++) {
       const started = Date.now();
@@ -117,7 +123,7 @@ export function ensureDatabaseReady(): Promise<void> {
           `[db] connect attempt ${i}/${attempts} failed: ${summarizeDatabaseError(error)}`,
         );
         if (i < attempts) {
-          await new Promise((r) => setTimeout(r, 750 * i));
+          await new Promise((resolve) => setTimeout(resolve, 750 * i));
         }
       }
     }

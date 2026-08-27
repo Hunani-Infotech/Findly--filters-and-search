@@ -17,6 +17,7 @@ import {
 import { withEmbeddedParams } from "../utils/admin-path";
 import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "./admin-list-pagination";
+import { DragHandle } from "./drag-handle";
 import {
   displayChoicesForRow,
   type FilterOptionRow,
@@ -35,28 +36,6 @@ type FilterOptionsTableProps = {
   allowEdit?: boolean;
   showAddButton?: boolean;
 };
-
-function DragHandle() {
-  return (
-    <svg
-      width="12"
-      height="16"
-      viewBox="0 0 12 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {[0, 1, 2, 3, 4, 5].map((dot) => (
-        <circle
-          key={dot}
-          cx={dot % 2 === 0 ? 3 : 9}
-          cy={2 + Math.floor(dot / 2) * 6}
-          r="1.4"
-          fill="#8c9196"
-        />
-      ))}
-    </svg>
-  );
-}
 
 function SourceCell({ row }: { row: FilterOptionRow }) {
   if (row.sourceKind === "option") {
@@ -141,6 +120,12 @@ export function FilterOptionsTable({
     ghostRef.current = null;
   };
 
+  const resetDrag = () => {
+    clearGhost();
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+
   const handleDragStart = (index: number, event: DragEvent<HTMLButtonElement>) => {
     if (disabled) return;
     const source = event.currentTarget;
@@ -180,17 +165,13 @@ export function FilterOptionsTable({
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     if (disabled || dragIndex == null || overIndex == null) {
-      clearGhost();
-      setDragIndex(null);
-      setOverIndex(null);
+      resetDrag();
       return;
     }
     let target = overIndex;
     if (target > dragIndex) target -= 1;
     onReorder(reorderWithinSubset(keys, pagedKeys, dragIndex, target));
-    clearGhost();
-    setDragIndex(null);
-    setOverIndex(null);
+    resetDrag();
   };
 
   const handleKeyDown = (index: number, event: KeyboardEvent<HTMLButtonElement>) => {
@@ -286,11 +267,7 @@ export function FilterOptionsTable({
                     disabled={disabled}
                     aria-label={`${row.label}. Position ${slice.start + index + 1} of ${rows.length}`}
                     onDragStart={(event) => handleDragStart(index, event)}
-                    onDragEnd={() => {
-                      clearGhost();
-                      setDragIndex(null);
-                      setOverIndex(null);
-                    }}
+                    onDragEnd={resetDrag}
                     onKeyDown={(event) => handleKeyDown(index, event)}
                     className="findly-filter-option-table__handle"
                   >

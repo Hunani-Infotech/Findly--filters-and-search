@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { BlockStack, Card, InlineGrid, InlineStack, Text } from "@shopify/polaris";
 
@@ -44,6 +45,44 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PerformanceCard({
+  title,
+  range,
+  viewHref,
+  insight,
+  children,
+}: {
+  title: string;
+  range: string;
+  viewHref: string;
+  insight: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" wrap gap="200">
+          <BlockStack gap="050">
+            <Text as="h2" variant="headingMd">
+              {title}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {range}
+            </Text>
+          </BlockStack>
+          <Link to={viewHref} className="findly-plain-btn">
+            View
+          </Link>
+        </InlineStack>
+        <InlineGrid columns={{ xs: 2, md: 4 }} gap="300">
+          {children}
+        </InlineGrid>
+        <div className="findly-perf__insight">{insight}</div>
+      </BlockStack>
+    </Card>
+  );
+}
+
 export function HomePerformance({
   metrics,
   viewHref,
@@ -52,66 +91,31 @@ export function HomePerformance({
   viewHref: string;
 }) {
   const range = rangeLabel(metrics.from);
+  const device = deviceLabel(metrics.uniqueDesktop, metrics.uniqueMobile);
   return (
     <BlockStack gap="400">
-      <Card>
-        <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center" wrap gap="200">
-            <BlockStack gap="050">
-              <Text as="h2" variant="headingMd">
-                Search performance
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {range}
-              </Text>
-            </BlockStack>
-            <Link to={viewHref} className="findly-plain-btn">
-              View
-            </Link>
-          </InlineStack>
-          <InlineGrid columns={{ xs: 2, md: 4 }} gap="300">
-            <Metric label="Total searches" value={String(metrics.searchCount)} />
-            <Metric label="No-result rate" value={`${metrics.noResultRate}%`} />
-            <Metric label="Click-through rate" value={`${metrics.ctr}%`} />
-            <Metric
-              label="Device"
-              value={deviceLabel(metrics.uniqueDesktop, metrics.uniqueMobile)}
-            />
-          </InlineGrid>
-          <div className="findly-perf__insight">
-            New insights appear here as shoppers search your store.
-          </div>
-        </BlockStack>
-      </Card>
-      <Card>
-        <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center" wrap gap="200">
-            <BlockStack gap="050">
-              <Text as="h2" variant="headingMd">
-                Filter performance
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {range}
-              </Text>
-            </BlockStack>
-            <Link to={viewHref} className="findly-plain-btn">
-              View
-            </Link>
-          </InlineStack>
-          <InlineGrid columns={{ xs: 2, md: 4 }} gap="300">
-            <Metric label="Filter sessions" value={String(metrics.filterCount)} />
-            <Metric label="Unique visitors" value={String(metrics.uniqueVisitors)} />
-            <Metric label="Click-through rate" value={`${metrics.ctr}%`} />
-            <Metric
-              label="Device"
-              value={deviceLabel(metrics.uniqueDesktop, metrics.uniqueMobile)}
-            />
-          </InlineGrid>
-          <div className="findly-perf__insight">
-            New insights appear here as shoppers use collection filters.
-          </div>
-        </BlockStack>
-      </Card>
+      <PerformanceCard
+        title="Search performance"
+        range={range}
+        viewHref={viewHref}
+        insight="New insights appear here as shoppers search your store."
+      >
+        <Metric label="Total searches" value={String(metrics.searchCount)} />
+        <Metric label="No-result rate" value={`${metrics.noResultRate}%`} />
+        <Metric label="Click-through rate" value={`${metrics.ctr}%`} />
+        <Metric label="Device" value={device} />
+      </PerformanceCard>
+      <PerformanceCard
+        title="Filter performance"
+        range={range}
+        viewHref={viewHref}
+        insight="New insights appear here as shoppers use collection filters."
+      >
+        <Metric label="Filter sessions" value={String(metrics.filterCount)} />
+        <Metric label="Unique visitors" value={String(metrics.uniqueVisitors)} />
+        <Metric label="Click-through rate" value={`${metrics.ctr}%`} />
+        <Metric label="Device" value={device} />
+      </PerformanceCard>
     </BlockStack>
   );
 }

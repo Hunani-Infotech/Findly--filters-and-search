@@ -1,35 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { BlockStack, Checkbox, Text } from "@shopify/polaris";
-
-function reorder(keys: string[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || to >= keys.length) return keys;
-  const next = [...keys];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
-function DragHandle() {
-  return (
-    <svg
-      width="12"
-      height="16"
-      viewBox="0 0 12 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {[0, 1, 2, 3, 4, 5].map((dot) => (
-        <circle
-          key={dot}
-          cx={dot % 2 === 0 ? 3 : 9}
-          cy={2 + Math.floor(dot / 2) * 6}
-          r="1.4"
-          fill="#8c9196"
-        />
-      ))}
-    </svg>
-  );
-}
+import { moveItem } from "../utils/admin-list-page";
+import { DragHandle } from "./drag-handle";
 
 type CheckboxOrderListProps = {
   keys: string[];
@@ -102,26 +74,26 @@ export function CheckboxOrderList({
     if (overIndex !== nextOver) setOverIndex(nextOver);
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (disabled || dragIndex == null || overIndex == null) {
-      clearGhost();
-      setDragIndex(null);
-      setOverIndex(null);
-      return;
-    }
-    let target = overIndex;
-    if (target > dragIndex) target -= 1;
-    onReorder(reorder(keys, dragIndex, target));
+  const resetDrag = () => {
     clearGhost();
     setDragIndex(null);
     setOverIndex(null);
   };
 
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (disabled || dragIndex == null || overIndex == null) {
+      resetDrag();
+      return;
+    }
+    let target = overIndex;
+    if (target > dragIndex) target -= 1;
+    onReorder(moveItem(keys, dragIndex, target));
+    resetDrag();
+  };
+
   const handleDragEnd = () => {
-    clearGhost();
-    setDragIndex(null);
-    setOverIndex(null);
+    resetDrag();
   };
 
   const handleKeyDown = (
@@ -131,11 +103,11 @@ export function CheckboxOrderList({
     if (disabled) return;
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      onReorder(reorder(keys, index, index - 1));
+      onReorder(moveItem(keys, index, index - 1));
     }
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      onReorder(reorder(keys, index, index + 1));
+      onReorder(moveItem(keys, index, index + 1));
     }
   };
 

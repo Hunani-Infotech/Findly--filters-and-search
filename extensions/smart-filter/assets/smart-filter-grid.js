@@ -536,18 +536,25 @@
         ".smart-filter__collection-search-clear:hover,.smart-filter__collection-search-clear:focus-visible{background:#e4e4e4;color:#111;outline:none}" +
         ".smart-filter__collection-search-clear[hidden]{display:none!important}" +
         "@media(max-width:989px){" +
-        ".sf-toolbar{flex-wrap:wrap;align-items:stretch;gap:.65rem}" +
-        ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 100%;order:1;max-width:none;width:100%}" +
-        ".sf-toolbar>.smart-filter__toggle,.sf-toolbar>.smart-filter__toggle--toolbar{order:2;flex:1 1 calc(50% - .4rem);width:auto;margin:0}" +
-        ".sf-toolbar__end{order:3;flex:1 1 calc(50% - .4rem);margin:0;align-items:stretch;min-width:0}" +
-        ".sf-toolbar__end:has(.sf-toolbar__actions .smart-filter__toggle){flex:1 1 100%;order:2}" +
-        ".sf-toolbar__actions{width:100%}" +
-        ".sf-toolbar__actions:has(.smart-filter__toggle){display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:.65rem}" +
+        ".sf-toolbar{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:.5rem .55rem}" +
+        ".sf-toolbar:has(>.smart-filter__toggle){display:grid;grid-template-columns:minmax(0,1fr) minmax(7.75rem,10rem);grid-template-areas:\"filter filter\" \"search end\";align-items:start;column-gap:.5rem;row-gap:.5rem}" +
+        ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 0;order:1;min-width:0;max-width:none;width:auto}" +
+        ".sf-toolbar:has(>.smart-filter__toggle) .sf-toolbar__search,.sf-toolbar:has(>.smart-filter__toggle) .sf-collection-search-host.sf-toolbar__search{grid-area:search;flex:none;width:auto;max-width:none}" +
+        ".smart-filter__collection-search--toolbar{max-width:none;width:100%}" +
+        ".smart-filter:not(:has([data-drawer-toggle])):not(.is-drawer-open){display:none}" +
+        ".sf-toolbar>.smart-filter__toggle,.sf-toolbar>.smart-filter__toggle--toolbar{grid-area:filter;justify-self:start;width:auto;max-width:100%;margin:0}" +
+        ".sf-toolbar__end{order:2;flex:0 1 auto;margin:0;align-items:flex-end;min-width:0}" +
+        ".sf-toolbar:has(>.smart-filter__toggle) .sf-toolbar__end{grid-area:end;flex:none;width:100%;min-width:0;align-items:stretch}" +
+        ".sf-toolbar:has(>.smart-filter__toggle) .sf-sort-host,.sf-toolbar:has(>.smart-filter__toggle) .smart-filter__sort--toolbar,.sf-toolbar:has(>.smart-filter__toggle) .sf-sort-row,.sf-toolbar:has(>.smart-filter__toggle) .sf-sort-control,.sf-toolbar:has(>.smart-filter__toggle) .sf-sort-trigger{width:100%;max-width:none;min-width:0}" +
+        ".sf-toolbar__actions{width:auto}" +
         ".sf-toolbar .smart-filter__sort-label{display:none!important}" +
-        ".sf-toolbar .sf-sort-host,.sf-toolbar .smart-filter__sort--toolbar,.sf-toolbar .sf-sort-row,.sf-toolbar .sf-sort-control,.sf-toolbar .sf-sort-trigger{width:100%;max-width:none;min-width:0}" +
-        ".sf-toolbar .smart-filter__sort-select,.sf-toolbar .sf-sort-btn{width:100%;max-width:none;min-width:0;min-height:2.75rem;border-radius:999px}" +
-        ".sf-toolbar .smart-filter__toggle,.smart-filter__toggle--toolbar{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.75rem;margin:0;padding:.55rem 1rem;border:0;border-radius:999px;background:#111;color:#fff;font-weight:600;box-shadow:none}" +
-        ".sf-toolbar .smart-filter__toggle-count,.smart-filter__toggle--toolbar .smart-filter__toggle-count{background:#fff;color:#111}" +
+        ".sf-toolbar .sf-sort-host,.sf-toolbar .smart-filter__sort--toolbar,.sf-toolbar .sf-sort-row,.sf-toolbar .sf-sort-control,.sf-toolbar .sf-sort-trigger{width:auto;max-width:none;min-width:0}" +
+        ".sf-toolbar .smart-filter__sort-select,.sf-toolbar .sf-sort-btn{width:100%;min-width:0;max-width:none;min-height:2.5rem;border-radius:10px}" +
+        ".sf-toolbar .smart-filter__collection-search-field,.sf-toolbar .smart-filter__collection-search-input{min-width:0;width:100%;max-width:none}" +
+        ".smart-filter__toggle,.sf-toolbar .smart-filter__toggle,.smart-filter__toggle--toolbar{display:inline-flex!important;align-items:center;justify-content:center;gap:.4rem;min-height:2.5rem;margin:0;padding:.45rem .9rem;border:1px solid #d4d4d4!important;border-radius:10px!important;background:#fff!important;color:#111!important;font:inherit!important;font-weight:650;box-shadow:0 1px 2px rgb(17 17 17 / 6%)!important;white-space:nowrap}" +
+        ".smart-filter__toggle-icon{display:block!important;width:1.05rem;height:1.05rem}" +
+        ".sf-toolbar .smart-filter__toggle[aria-expanded=true],.smart-filter__toggle--toolbar[aria-expanded=true]{background:#111!important;border-color:#111!important;color:#fff!important;box-shadow:none!important}" +
+        ".sf-toolbar .smart-filter__toggle-count,.smart-filter__toggle--toolbar .smart-filter__toggle-count{background:#111;color:#fff}" +
         "}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
@@ -3847,21 +3854,43 @@
     return toolbar;
   }
 
-  function toolbarActionsHost() {
-    var host = toolbarHost();
-    if (!host) return null;
-    var actions = host.querySelector(".sf-toolbar__actions");
-    if (actions) return actions;
-    var end = host.querySelector(".sf-toolbar__end");
-    if (!end) {
-      end = document.createElement("div");
-      end.className = "sf-toolbar__end";
-      host.appendChild(end);
+  function findDrawerToggle(widget) {
+    return (
+      (widget && widget.toggleEl) ||
+      (widget &&
+        widget.root &&
+        widget.root.querySelector("[data-drawer-toggle]")) ||
+      document.querySelector(".sf-toolbar [data-drawer-toggle]") ||
+      document.querySelector("[data-drawer-toggle]")
+    );
+  }
+
+  function placeMobileToolbarToggle(widget) {
+    var toggle = findDrawerToggle(widget);
+    if (!toggle) return null;
+    if (!isMobileDrawer()) {
+      if (
+        toggle.classList.contains("smart-filter__toggle--toolbar") &&
+        widget &&
+        widget.root
+      ) {
+        toggle.classList.remove("smart-filter__toggle--toolbar");
+        widget.root.insertBefore(toggle, widget.root.firstChild);
+      }
+      if (widget) widget.toggleEl = toggle;
+      return toggle;
     }
-    actions = document.createElement("div");
-    actions.className = "sf-toolbar__actions";
-    end.insertBefore(actions, end.firstChild);
-    return actions;
+    var host = document.querySelector(".sf-toolbar") || toolbarHost();
+    if (!host || host.className.indexOf("sf-toolbar") === -1) {
+      if (widget) widget.toggleEl = toggle;
+      return toggle;
+    }
+    toggle.classList.add("smart-filter__toggle--toolbar");
+    if (toggle.parentNode !== host) {
+      host.insertBefore(toggle, host.firstChild);
+    }
+    if (widget) widget.toggleEl = toggle;
+    return toggle;
   }
 
   function placeDrawerChips(widget) {
@@ -3928,20 +3957,8 @@
       panel.style.setProperty("max-width", "88vw", "important");
       panel.style.setProperty("box-sizing", "border-box", "important");
       decorateCheckMarks(panel);
-      if (isMobileDrawer()) {
-        var actions = toolbarActionsHost();
-        if (toggle && actions && toggle.parentNode !== actions) {
-          toggle.classList.add("smart-filter__toggle--toolbar");
-          actions.insertBefore(toggle, actions.firstChild);
-        }
-      } else if (
-        toggle &&
-        toggle.classList.contains("smart-filter__toggle--toolbar") &&
-        widget.root
-      ) {
-        toggle.classList.remove("smart-filter__toggle--toolbar");
-        widget.root.insertBefore(toggle, widget.root.firstChild);
-      }
+      placeMobileToolbarToggle(widget);
+      if (widget && widget.toggleEl) toggle = widget.toggleEl;
       if (widget.root && widget.root.classList.contains("is-drawer-open")) {
         panel.classList.add("is-open");
         if (backdrop) {
@@ -4823,15 +4840,7 @@
     }
     if (sortHost.parentNode !== actions) actions.appendChild(sortHost);
 
-    var toggle =
-      actions.querySelector("[data-drawer-toggle]") ||
-      host.querySelector("[data-drawer-toggle]");
-    if (toggle && isMobileDrawer()) {
-      toggle.classList.add("smart-filter__toggle--toolbar");
-      if (toggle.parentNode !== actions) {
-        actions.insertBefore(toggle, actions.firstChild);
-      }
-    }
+    placeMobileToolbarToggle(widget);
 
     var countEl =
       end.querySelector(".sf-total-count") ||

@@ -674,51 +674,77 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
 @media (max-width: 989px) {
   .sf-toolbar {
     display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: stretch !important;
-    gap: 0.65rem !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    gap: 0.5rem 0.55rem !important;
+  }
+
+  .sf-toolbar:has(> .smart-filter__toggle) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(7.75rem, 10rem) !important;
+    grid-template-areas:
+      "filter filter"
+      "search end" !important;
+    align-items: start !important;
+    column-gap: 0.5rem !important;
+    row-gap: 0.5rem !important;
   }
 
   .sf-toolbar__search,
   .sf-collection-search-host.sf-toolbar__search {
-    flex: 1 1 100% !important;
+    flex: 1 1 0 !important;
     order: 1 !important;
-    width: 100% !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-toolbar__search,
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-collection-search-host.sf-toolbar__search {
+    grid-area: search !important;
+    flex: none !important;
+    width: auto !important;
     max-width: none !important;
   }
 
   .sf-toolbar > .smart-filter__toggle,
   .sf-toolbar > .smart-filter__toggle--toolbar {
-    order: 2 !important;
-    flex: 1 1 calc(50% - 0.4rem) !important;
+    grid-area: filter !important;
+    justify-self: start !important;
     width: auto !important;
-    max-width: none !important;
+    max-width: 100% !important;
     margin: 0 !important;
   }
 
   .sf-toolbar__end {
-    order: 3 !important;
-    flex: 1 1 calc(50% - 0.4rem) !important;
+    order: 2 !important;
+    flex: 0 1 auto !important;
     width: auto !important;
     min-width: 0 !important;
     margin: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-toolbar__end {
+    grid-area: end !important;
+    flex: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
     align-items: stretch !important;
   }
 
-  .sf-toolbar__end:has(.sf-toolbar__actions .smart-filter__toggle) {
-    flex: 1 1 100% !important;
-    order: 2 !important;
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-host,
+  .sf-toolbar:has(> .smart-filter__toggle) .smart-filter__sort--toolbar,
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-row,
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-control,
+  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-trigger {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
   }
 
   .sf-toolbar__actions {
-    width: 100% !important;
-  }
-
-  .sf-toolbar__actions:has(.smart-filter__toggle) {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    align-items: stretch !important;
-    gap: 0.65rem !important;
+    width: auto !important;
   }
 
   .sf-toolbar .smart-filter__sort-label {
@@ -730,7 +756,7 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
   .sf-toolbar .sf-sort-row,
   .sf-toolbar .sf-sort-control,
   .sf-toolbar .sf-sort-trigger {
-    width: 100% !important;
+    width: auto !important;
     max-width: none !important;
     min-width: 0 !important;
   }
@@ -738,33 +764,88 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
   .sf-toolbar .smart-filter__sort-select,
   .sf-toolbar .sf-sort-btn {
     width: 100% !important;
-    max-width: none !important;
     min-width: 0 !important;
-    min-height: 2.75rem !important;
-    border-radius: 999px !important;
+    max-width: none !important;
+    min-height: 2.5rem !important;
+    border-radius: 10px !important;
   }
 
+  .sf-toolbar .smart-filter__collection-search-field,
+  .sf-toolbar .smart-filter__collection-search-input {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .smart-filter__toggle,
   .sf-toolbar .smart-filter__toggle,
   .smart-filter__toggle--toolbar {
     display: inline-flex !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 0.45rem !important;
-    min-height: 2.75rem !important;
-    padding: 0.55rem 1rem !important;
-    border: 0 !important;
-    border-radius: 999px !important;
-    background: #111 !important;
-    color: #fff !important;
-    font-weight: 600 !important;
-    box-shadow: none !important;
+    gap: 0.4rem !important;
+    box-sizing: border-box !important;
+    min-height: 2.5rem !important;
+    padding: 0.45rem 0.9rem !important;
+    border: 1px solid #d4d4d4 !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    color: #111 !important;
+    font: inherit !important;
+    font-size: 0.9375rem !important;
+    font-weight: 650 !important;
+    line-height: 1.2 !important;
+    box-shadow: 0 1px 2px rgb(17 17 17 / 6%) !important;
     white-space: nowrap !important;
+  }
+
+  .smart-filter__toggle-icon {
+    display: block !important;
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+  }
+
+  .sf-toolbar .smart-filter__toggle:hover,
+  .sf-toolbar .smart-filter__toggle:focus-visible,
+  .smart-filter__toggle--toolbar:hover,
+  .smart-filter__toggle--toolbar:focus-visible,
+  .smart-filter__toggle:hover,
+  .smart-filter__toggle:focus-visible {
+    border-color: #111 !important;
+    box-shadow: 0 0 0 3px rgb(17 17 17 / 10%) !important;
+    outline: none !important;
+  }
+
+  .sf-toolbar .smart-filter__toggle[aria-expanded="true"],
+  .smart-filter__toggle--toolbar[aria-expanded="true"],
+  .smart-filter__toggle[aria-expanded="true"] {
+    background: #111 !important;
+    border-color: #111 !important;
+    color: #fff !important;
+    box-shadow: none !important;
   }
 
   .sf-toolbar .smart-filter__toggle-count,
   .smart-filter__toggle--toolbar .smart-filter__toggle-count {
+    background: #111 !important;
+    color: #fff !important;
+  }
+
+  .sf-toolbar .smart-filter__toggle[aria-expanded="true"] .smart-filter__toggle-count,
+  .smart-filter__toggle--toolbar[aria-expanded="true"] .smart-filter__toggle-count {
     background: #fff !important;
     color: #111 !important;
+  }
+
+  .smart-filter__collection-search--toolbar {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .smart-filter:not(:has([data-drawer-toggle])):not(.is-drawer-open) {
+    display: none !important;
   }
 
   .smart-filter__panel-head {

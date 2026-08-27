@@ -48,7 +48,9 @@ import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { AdminListPagination } from "../components/admin-list-pagination";
-import { slicePage } from "../utils/admin-list-page";
+import { DragHandle } from "../components/drag-handle";
+import { slicePage, reorderWithinSubset } from "../utils/admin-list-page";
+import { downloadJson } from "../utils/download-json";
 import {
   deleteFilterTrees,
   duplicateFilterTrees,
@@ -88,20 +90,6 @@ const PREFERENCES = [
   },
 ] as const;
 
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
 function parseIdList(raw: unknown): string[] {
   try {
     const parsed = JSON.parse(String(raw || "[]"));
@@ -110,44 +98,6 @@ function parseIdList(raw: unknown): string[] {
   } catch {
     return [];
   }
-}
-
-function moveItem<T>(items: T[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || to >= items.length) return items;
-  const next = [...items];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
-function applyVisibleReorder(full: string[], visible: string[], from: number, to: number) {
-  const nextVisible = moveItem(visible, from, to);
-  if (nextVisible === visible) return full;
-  const visSet = new Set(visible);
-  let i = 0;
-  return full.map((id) => (visSet.has(id) ? nextVisible[i++] : id));
-}
-
-function DragHandle() {
-  return (
-    <svg
-      width="12"
-      height="16"
-      viewBox="0 0 12 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {[0, 1, 2, 3, 4, 5].map((dot) => (
-        <circle
-          key={dot}
-          cx={dot % 2 === 0 ? 3 : 9}
-          cy={2 + Math.floor(dot / 2) * 6}
-          r="1.4"
-          fill="#8c9196"
-        />
-      ))}
-    </svg>
-  );
 }
 
 type FilterListTree = {
@@ -393,7 +343,7 @@ export default function FiltersIndex() {
   };
 
   const handleDrop = (from: number, to: number) => {
-    const next = applyVisibleReorder(order, visibleIds, from, to);
+    const next = reorderWithinSubset(order, visibleIds, from, to);
     if (next.join() === order.join()) return;
     persistOrder(next);
   };
