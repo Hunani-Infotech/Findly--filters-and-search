@@ -352,7 +352,7 @@
       <a href="https://shopify.dev/docs/apps/launch/shopify-app-store/app-store-requirements">App Store requirements</a> ·
       <a href="https://shopify.dev/docs/apps/launch/app-store-review/pass-app-review">Pass app review</a> ·
       <a href="https://shopify.dev/docs/apps/launch/app-store-review/submit-app-for-review">Submit for review</a>.
-      Listing copy source: <code>docs/partner-listing-copy.md</code> (matches NavMenu).
+      Listing copy source: <code>docs/partner-listing.md</code> (matches NavMenu).
       In Cursor, ask to work a job by ID: <code>go for AS-P1 until it's fully completed</code>.
     </div>
     <div class="split">
@@ -483,7 +483,7 @@
       <li>Ignore Hostinger’s npm CVE banner for App Store submit (Prisma-pinned <code>deepmerge-ts</code> + ESLint <code>minimatch</code>). Do not force Prisma 8.</li>
       <li>Live theme QA: enable Collection filters + Instant search app embeds, add Product search on the search template. SetupGuide covers sync, a filter tree, Collection filters embed, Product search, then Analytics — Instant search is still a separate live step. Skip Vehicle finder and Product recommendations blocks.</li>
       <li>Live billing Free → Standard → Pro on a development store.</li>
-      <li>Partner listing: icon, screenshots of shipped admin + storefront, paste <code>docs/partner-listing-copy.md</code>, privacy/terms URLs.</li>
+      <li>Partner listing: icon, screenshots of shipped admin + storefront, paste <code>docs/partner-listing.md</code>, privacy/terms URLs.</li>
       <li>Automated checks, then submit.</li>
     </ol>
   </div>
@@ -592,8 +592,8 @@
       ["AS-H3", "product", "blocker", "Wire SetupGuide into Home", "Repo-complete: SetupGuide on /app with five steps — Sync your catalog, Turn on a filter (/app/filters), Enable Collection filters (app embed), Add Product search, Check performance (/app/analytics). Instant search exists as a theme-step id / editor URL in setup-progress but is not a visible SetupGuide row — live theme work is AS-Q4 / AS-Q10.", "app._index.tsx, setup-progress.server.ts"],
       ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: GMAIL_USER + GMAIL_APP_PASSWORD send via smtp.gmail.com (port 465 unless SMTP_HOST is local). Fails closed if missing. Generic SMTP_* remains a fallback. SUPPORT_EMAIL overrides the To address when Gmail is set.", "app/services/contact.server.ts"],
       ["AS-H5", "product", "blocker", "Drop unused write_products", "Repo-complete: scopes are read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets. optional_scopes = read_companies (B2B location prices). Seed script uses a separate custom-app token.", "shopify.app.toml"],
-      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete: docs/partner-listing-copy.md lists Home as dashboard/sync and Filters /app/filters for trees, swatches, and groups. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing-copy.md"],
-      ["AS-H7", "product", "later", "Refresh stale launch docs", "Repo-complete 26 Aug 2026: docs/build-order.md marks step 10 CODE COMPLETE; docs/mvp-guide.md and docs/LAUNCH-SCOPE.md match shipped search extras, analytics, translation, integrations, and Free / Standard / Pro. Privacy hosting copy already names Supabase + Upstash + Hostinger.", "docs/build-order.md, docs/mvp-guide.md, docs/LAUNCH-SCOPE.md"],
+      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete: docs/partner-listing.md lists Home as dashboard/sync and Filters /app/filters for trees, swatches, and groups. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing.md"],
+      ["AS-H7", "product", "later", "Refresh stale launch docs", "Repo-complete 26 Aug 2026: docs/build-order.md marks step 10 CODE COMPLETE; docs/mvp-guide.md and docs/launch-scope.md match shipped search extras, analytics, translation, integrations, and Free / Standard / Pro. Privacy hosting copy already names Supabase + Upstash + Hostinger.", "docs/build-order.md, docs/mvp-guide.md, docs/launch-scope.md"],
       ["AS-H8", "product", "blocker", "Do not let reviewers treat Vehicle finder / Recs as finished", "Theme editor lists Vehicle finder and Product recommendations (storefront JS + proxy routes exist). Admin is Under construction. Reviewer notes (AS-L7) must say: add only Collection filters, Product search, and Instant search. Do not screenshot those two blocks.", "extensions/smart-filter/blocks, app.vehicle-finder.tsx, app.recommendations.tsx"],
 
       ["AS-C1", "compliance", "blocker", "Public privacy policy page", "Repo-complete: /privacy covers scopes, analytics visitor ids, GDPR webhooks, and names Supabase Postgres + Upstash Redis + Hostinger Node. After AS-P9, paste https://deeppink-manatee-141983.hostingersite.com/privacy into the Partner listing.", "app/routes/privacy.tsx"],
@@ -623,7 +623,7 @@
       ["AS-L1", "listing", "blocker", "App icon 1200×1200 JPEG or PNG", "No listing images in the repo. Upload in Partner Dashboard.", "Partner Dashboard"],
       ["AS-L2", "listing", "blocker", "3–6 screenshots (1600×900) of real admin + storefront", "Use Home (filter trees + sync), Filters, Search, Settings, and storefront filters + search. Do not screenshot Vehicle finder or Product recommendations.", "Partner listing"],
       ["AS-L3", "listing", "blocker", "Feature media (image or short video)", "Listing card media. Promotional, not a long tutorial.", "Partner listing"],
-      ["AS-L4", "listing", "blocker", "Paste listing copy into Partner Dashboard", "Copy is written in docs/partner-listing-copy.md (includes search extras + one analytics line). Still needs a human paste. Do not add YMM/recs.", "docs/partner-listing-copy.md"],
+      ["AS-L4", "listing", "blocker", "Paste listing copy into Partner Dashboard", "Copy is written in docs/partner-listing.md (includes search extras + one analytics line). Still needs a human paste. Do not add YMM/recs.", "docs/partner-listing.md"],
       ["AS-L5", "listing", "blocker", "Listing pricing lists Free $0 / Standard $9.99 / Pro $19.99", "Must match billing.server.ts. Do not list yearly.", "Partner pricing"],
       ["AS-L6", "listing", "blocker", "Demo store URL with the widget enabled", "Link to the collection that best shows filters + search. Instant search should be on.", "Development store"],
       ["AS-L7", "listing", "blocker", "Reviewer notes: store password, collaborator invite, theme steps, screencast", "Spell out: enable Collection filters + Instant search app embeds; add Product search on the search template. Explicitly say ignore Vehicle finder and Product recommendations. Missing testing instructions = resubmit.", "App submission form"],

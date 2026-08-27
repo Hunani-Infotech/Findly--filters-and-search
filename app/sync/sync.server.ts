@@ -21,7 +21,7 @@ import {
   VARIANT_PRODUCT_QUERY,
   completedBulkIsFresh,
   countBulkQueryConnections,
-} from "./graphql";
+} from "./admin-graphql";
 import {
   syncProductMarketPrices,
   syncShopMarketPrices,

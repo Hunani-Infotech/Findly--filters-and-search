@@ -31,7 +31,7 @@ import { deliverContactMessage } from "../services/contact.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
-} from "../services/admin-nav-extras.server";
+} from "../services/admin-extras.server";
 
 export { ContactPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

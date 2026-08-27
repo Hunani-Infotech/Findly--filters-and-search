@@ -158,7 +158,7 @@ Findly launch is **filters + solid search** via Theme App Extension — not an A
 
 | Doc | Use |
 |-----|-----|
-| [APP-FLOW-AND-SETUP.md](./APP-FLOW-AND-SETUP.md) | Architecture + setup |
+| [app-flow-and-setup.md](./app-flow-and-setup.md) | Architecture + setup |
 | [mvp-guide.md](./mvp-guide.md) | Broader market notes |
 | [build-order.md](./build-order.md) | Verification sequence |
 | [Globo App Store listing](https://apps.shopify.com/product-filter-and-search) | Competitor source of truth for features/pricing |

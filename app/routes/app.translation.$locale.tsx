@@ -14,7 +14,7 @@ import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../services/admin-nav-extras.server";
+} from "../services/admin-extras.server";
 import { listColorOptionKeys } from "../services/color-swatches.server";
 import { mergeWidgetChrome } from "../utils/widget-i18n";
 import {

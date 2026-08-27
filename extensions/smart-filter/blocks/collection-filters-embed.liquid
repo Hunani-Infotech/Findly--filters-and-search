@@ -82,13 +82,13 @@ try {
     aria-expanded="false"
     aria-controls="smart-filter-embed-panel"
   >
-    <svg class="smart-filter__toggle-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg class="smart-filter__icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M2.5 5h11M2.5 11h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       <circle cx="6.25" cy="5" r="1.75" fill="currentColor"/>
       <circle cx="9.75" cy="11" r="1.75" fill="currentColor"/>
     </svg>
-    <span class="smart-filter__toggle-text">{{ "blocks.collection_filters_embed.filter" | t }}</span>
-    <span class="smart-filter__toggle-count" data-drawer-count hidden></span>
+    <span class="smart-filter__btn-text">{{ "blocks.collection_filters_embed.filter" | t }}</span>
+    <span class="smart-filter__badge" data-drawer-count hidden></span>
   </button>
   <div class="smart-filter__sort" data-sort-wrap hidden>
     <div class="sf-sort-row">
@@ -98,12 +98,12 @@ try {
       <select id="smart-filter-embed-sort" class="smart-filter__sort-select" data-sort></select>
     </div>
   </div>
-  <div class="smart-filter__collection-search" data-collection-search-wrap hidden>
-    <label class="smart-filter__collection-search-label" for="smart-filter-embed-collection-q">
+  <div class="smart-filter__search" data-collection-search-wrap hidden>
+    <label class="smart-filter__search-label" for="smart-filter-embed-collection-q">
       {{ "blocks.collection_filters_embed.search" | t }}
     </label>
-    <div class="smart-filter__collection-search-field">
-      <span class="smart-filter__collection-search-icon" aria-hidden="true">
+    <div class="smart-filter__search-field">
+      <span class="smart-filter__search-icon" aria-hidden="true">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="8" cy="8" r="5.1" stroke="currentColor" stroke-width="1.5"/>
           <path d="M11.8 11.8L15.4 15.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -111,7 +111,7 @@ try {
       </span>
       <input
         id="smart-filter-embed-collection-q"
-        class="smart-filter__collection-search-input"
+        class="smart-filter__search-input"
         type="search"
         data-collection-search
         placeholder="{{ "blocks.collection_filters_embed.search_placeholder" | t }}"
@@ -120,7 +120,7 @@ try {
       >
       <button
         type="button"
-        class="smart-filter__collection-search-clear"
+        class="smart-filter__search-clear"
         data-collection-search-clear
         hidden
         aria-label="Clear search"
@@ -140,7 +140,7 @@ try {
     aria-modal="true"
     aria-labelledby="smart-filter-embed-title"
   >
-    <div class="smart-filter__panel-head">
+    <div class="smart-filter__header">
       <div class="smart-filter__title" id="smart-filter-embed-title" data-title>Filter</div>
       <button type="button" class="smart-filter__clear-all" data-clear-all hidden disabled>
         Clear All

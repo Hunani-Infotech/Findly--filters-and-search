@@ -33,7 +33,7 @@ function assertStaticMarkers() {
   if (!schema.includes("enableLocation") || !schema.includes("inventoryLocations")) {
     fail("schema missing enableLocation / inventoryLocations");
   }
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (
     !graphql.includes("inventoryLevels") ||
     !graphql.includes('quantities(names: ["available"])') ||

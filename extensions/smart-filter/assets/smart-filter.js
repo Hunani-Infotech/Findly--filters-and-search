@@ -1267,7 +1267,7 @@
       if (!target || !target.closest) return false;
       if (
         target.closest(
-          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
         )
       ) {
         return false;
@@ -1294,7 +1294,7 @@
       if (!target || !target.closest) return;
       if (
         target.closest(
-          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
+          ".smart-filter, .sf-pager, .sf-app-card, .sf-sort-host, .sf-search-host, .sf-toolbar, .sf-total-count, [data-collection-search-wrap]",
         )
       ) {
         return;
@@ -2562,7 +2562,7 @@
       if (
         el.closest &&
         el.closest(
-          ".smart-filter, .sf-sort-host, .sf-collection-search-host, .sf-toolbar, .sf-total-count, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
+          ".smart-filter, .sf-sort-host, .sf-search-host, .sf-toolbar, .sf-total-count, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
         )
       ) {
         return true;
@@ -2930,7 +2930,7 @@
         (child.classList.contains("sf-app-card") ||
           child.classList.contains("sf-pager") ||
           child.classList.contains("sf-sort-host") ||
-          child.classList.contains("sf-collection-search-host") ||
+          child.classList.contains("sf-search-host") ||
           child.classList.contains("sf-toolbar") ||
           child.classList.contains("sf-total-count") ||
           child.classList.contains("sf-grid-empty"))
@@ -4618,7 +4618,7 @@
           (vals[0] || "Min") +
           " – " +
           (vals[1] || "Max") +
-          '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
+          '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
         rangeChip.addEventListener("click", function () {
           delete self.selected[key];
           self.commitFilters();
@@ -4635,7 +4635,7 @@
         chip.innerHTML =
           "<span>" +
           String(chipLabel).replace(/</g, "&lt;") +
-          '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
+          '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
         chip.addEventListener("click", function () {
           self.toggleValue(key, value, false);
         });
@@ -4656,7 +4656,7 @@
         (this.price.max !== ""
           ? formatMoney(this.price.max, this.currency)
           : "Max") +
-        '</span><span class="smart-filter__chip-x" aria-hidden="true">×</span>';
+        '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
       priceChip.addEventListener("click", function () {
         self.price = { min: "", max: "" };
         self.commitFilters();
@@ -4701,7 +4701,7 @@
         label.setAttribute("aria-expanded", String(!wrap.classList.contains("is-collapsed")));
 
         var labelText = document.createElement("span");
-        labelText.className = "smart-filter__facet-label-text";
+        labelText.className = "smart-filter__facet-text";
         labelText.appendChild(document.createTextNode(facet.label));
         var chevron = document.createElement("span");
         chevron.className = "smart-filter__chevron";

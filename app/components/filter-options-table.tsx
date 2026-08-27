@@ -188,8 +188,8 @@ export function FilterOptionsTable({
 
   return (
     <BlockStack gap="300">
-      <div className="findly-filter-option-table">
-        <div className="findly-filter-option-table__head">
+      <div className="findly-option-table">
+        <div className="findly-option-table__head">
           <span />
           <Text as="span" variant="bodySm" fontWeight="semibold">
             Label
@@ -250,10 +250,10 @@ export function FilterOptionsTable({
             return (
               <div key={row.key}>
                 {showLine ? (
-                  <div className="findly-filter-option-table__line" aria-hidden="true" />
+                  <div className="findly-option-table__line" aria-hidden="true" />
                 ) : null}
                 <div
-                  className="findly-filter-option-table__row"
+                  className="findly-option-table__row"
                   onDragOver={(event) => handleDragOver(index, event)}
                   onDrop={handleDrop}
                   style={{
@@ -269,7 +269,7 @@ export function FilterOptionsTable({
                     onDragStart={(event) => handleDragStart(index, event)}
                     onDragEnd={resetDrag}
                     onKeyDown={(event) => handleKeyDown(index, event)}
-                    className="findly-filter-option-table__handle"
+                    className="findly-option-table__handle"
                   >
                     <DragHandle />
                   </button>
@@ -294,7 +294,7 @@ export function FilterOptionsTable({
                     </Text>
                   ) : (
                     <select
-                      className="findly-filter-option-table__type"
+                      className="findly-option-table__type"
                       aria-label={`${row.label} display type`}
                       disabled={disabled}
                       value={selectedType}
@@ -343,7 +343,7 @@ export function FilterOptionsTable({
         {dragIndex != null &&
         overIndex === paged.length &&
         overIndex !== dragIndex + 1 ? (
-          <div className="findly-filter-option-table__line" aria-hidden="true" />
+          <div className="findly-option-table__line" aria-hidden="true" />
         ) : null}
       </div>
       <AdminListPagination

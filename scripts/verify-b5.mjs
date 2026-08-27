@@ -528,7 +528,7 @@ try {
   if (!queueFullSync.includes("startFullSync")) {
     fail("queueFullSync must fall back to inline startFullSync so manual sync is not blocked");
   }
-  const graphqlSync = read("app/sync/graphql.ts");
+  const graphqlSync = read("app/sync/admin-graphql.ts");
   if (
     !graphqlSync.includes("inventoryQuantity") ||
     !graphqlSync.includes("inventoryItem") ||
@@ -541,7 +541,7 @@ try {
     countBulkQueryConnections,
     BULK_PRODUCTS_QUERY,
     SHOPIFY_BULK_MAX_CONNECTIONS,
-  } = await import("../app/sync/graphql.ts");
+  } = await import("../app/sync/admin-graphql.ts");
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000 - 1000).toISOString();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   if (completedBulkIsFresh({ completedAt: twoHoursAgo })) {

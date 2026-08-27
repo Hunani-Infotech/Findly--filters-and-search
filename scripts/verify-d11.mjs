@@ -30,7 +30,7 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("COLLECTION_DEFAULT")) {
     fail("COLLECTION_PRODUCTS_QUERY missing sortKey: COLLECTION_DEFAULT");
   }

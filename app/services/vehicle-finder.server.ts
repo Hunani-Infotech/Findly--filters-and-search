@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { getAdminNavExtras } from "./admin-nav-extras.server";
+import { getAdminNavExtras } from "./admin-extras.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 import {

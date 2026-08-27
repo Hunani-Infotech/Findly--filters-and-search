@@ -33,7 +33,7 @@ function readRepo(...relParts) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   const compareAtHits = (graphql.match(/compareAtPrice/g) || []).length;
   if (compareAtHits < 2) {
     fail("PRODUCT_NODE_QUERY and bulk products query must both select compareAtPrice");

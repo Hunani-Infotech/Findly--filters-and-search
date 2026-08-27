@@ -43,17 +43,17 @@ function findC6Product(result) {
 }
 
 function assertGraphqlVariantImages() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("selectedOptions")) {
-    fail("app/sync/graphql.ts must include selectedOptions on variants");
+    fail("app/sync/admin-graphql.ts must include selectedOptions on variants");
   }
   if (!graphql.includes("image")) {
-    fail("app/sync/graphql.ts must include image on variants");
+    fail("app/sync/admin-graphql.ts must include image on variants");
   }
   if (!graphql.includes("url")) {
-    fail("app/sync/graphql.ts must include image { url } on variants");
+    fail("app/sync/admin-graphql.ts must include image { url } on variants");
   }
-  log.info("graphql.ts includes selectedOptions and image { url } on variants");
+  log.info("admin-graphql.ts includes selectedOptions and image { url } on variants");
 }
 
 function assertThemeApplyVariantImages() {

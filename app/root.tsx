@@ -10,7 +10,7 @@ import {
   useRouteError,
 } from "react-router";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import adminStyles from "./admin.css?url";
+import adminStyles from "./styles/admin.css?url";
 import { PublicMessage, PublicPending } from "./components/public-shell";
 
 export const links: LinksFunction = () => [

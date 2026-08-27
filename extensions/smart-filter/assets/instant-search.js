@@ -80,8 +80,8 @@
       el &&
         (el.closest(".smart-filter-search") ||
           el.closest(".findly-instant") ||
-          el.closest(".sf-collection-search-host") ||
-          el.closest(".smart-filter__collection-search")),
+          el.closest(".sf-search-host") ||
+          el.closest(".smart-filter__search")),
     );
   }
 

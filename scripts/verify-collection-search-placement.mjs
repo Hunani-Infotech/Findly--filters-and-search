@@ -32,10 +32,10 @@ function assertStatic() {
   if (!embed.includes("data-collection-search-wrap")) {
     fail("collection-filters-embed.liquid missing search wrap");
   }
-  if (!css.includes(".smart-filter > .smart-filter__collection-search")) {
+  if (!css.includes(".smart-filter > .smart-filter__search")) {
     fail("search must be CSS-hidden while it still lives in the filter block");
   }
-  if (!css.includes("sf-collection-search-host")) {
+  if (!css.includes("sf-search-host")) {
     fail("missing product-grid search host styles");
   }
   if (!css.includes(":has(> li:nth-child(6))")) {
@@ -53,7 +53,7 @@ function assertStatic() {
   if (!gridJs.includes("isLayoutShell")) {
     fail("placement must ignore layout/sidebar shells as the product grid");
   }
-  if (!gridJs.includes(".smart-filter>.smart-filter__collection-search{display:none!important}")) {
+  if (!gridJs.includes(".smart-filter>.smart-filter__search{display:none!important}")) {
     fail("injected grid CSS must also hide in-sidebar search");
   }
   if (!preview.includes("MiniProductGrid showSearch")) {

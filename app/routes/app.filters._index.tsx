@@ -426,7 +426,7 @@ export default function FiltersIndex() {
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
-              <div className="findly-filters-list__search">
+              <div className="findly-list__search">
                 <TextField
                   label="Searching filters"
                   labelHidden
@@ -446,8 +446,8 @@ export default function FiltersIndex() {
                 />
               </div>
               {selectedVisible.length > 0 ? (
-                <div className="findly-filters-list__bulk">
-                  <div className="findly-filters-list__bulk-start">
+                <div className="findly-list__bulk">
+                  <div className="findly-list__bulk-start">
                     <Checkbox
                       label="Select all filters"
                       labelHidden
@@ -486,11 +486,11 @@ export default function FiltersIndex() {
                   </ButtonGroup>
                 </div>
               ) : null}
-              <table className="findly-filters-list__table">
+              <table className="findly-list__table">
                 {selectedVisible.length === 0 ? (
                   <thead>
                     <tr>
-                      <th className="findly-filters-list__check">
+                      <th className="findly-list__check">
                         <Checkbox
                           label="Select all filters"
                           labelHidden
@@ -515,7 +515,7 @@ export default function FiltersIndex() {
                   {filteredTrees.length === 0 ? (
                     <tr>
                       <td colSpan={4}>
-                        <div className="findly-filters-list__empty">
+                        <div className="findly-list__empty">
                           <Text as="p" tone="subdued">
                             {trees.length === 0
                               ? "Add a filter to configure collection and search filters."
@@ -533,12 +533,12 @@ export default function FiltersIndex() {
                         <tr
                           key={tree.id}
                           className={
-                            dragging ? "findly-filters-list__row--dragging" : undefined
+                            dragging ? "findly-list__row--dragging" : undefined
                           }
                           onDragOver={handleDragOver}
                           onDrop={(event) => handleRowDrop(index, event)}
                         >
-                          <td className="findly-filters-list__check">
+                          <td className="findly-list__check">
                             <Checkbox
                               label={`Select ${tree.name.trim() || "Untitled"}`}
                               labelHidden
@@ -547,10 +547,10 @@ export default function FiltersIndex() {
                             />
                           </td>
                           <td>
-                            <div className="findly-filters-list__name">
+                            <div className="findly-list__name">
                               <button
                                 type="button"
-                                className="findly-filters-list__handle"
+                                className="findly-list__handle"
                                 draggable
                                 aria-label={`Reorder ${tree.name}. Position ${listSlice.start + index + 1} of ${filteredTrees.length}`}
                                 onDragStart={(event) => handleDragStart(index, event)}
@@ -561,7 +561,7 @@ export default function FiltersIndex() {
                               </button>
                               <button
                                 type="button"
-                                className="findly-filters-list__name-btn"
+                                className="findly-list__name-btn"
                                 onClick={() => navigate(href)}
                               >
                                 <Text as="span" variant="bodyMd" fontWeight="semibold">

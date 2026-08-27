@@ -2,7 +2,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { scrollToId } from "../utils/public-scroll";
-import styles from "../privacy.module.css";
+import styles from "./legal-doc.module.css";
 
 export function LegalDoc({
   eyebrow,

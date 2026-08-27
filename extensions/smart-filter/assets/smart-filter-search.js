@@ -266,7 +266,7 @@
       var heading = this.emptyEl.querySelector(
         ".smart-filter-search__empty-heading, h1, h2, h3, p",
       );
-      var copy = this.emptyEl.querySelector(".smart-filter-search__empty-copy");
+      var copy = this.emptyEl.querySelector(".smart-filter-search__empty-text");
       if (heading) {
         heading.textContent = this.t(
           "search_empty",

@@ -10,7 +10,7 @@
   var DEBOUNCE_MS = 300;
   var EMPTY_MARKUP =
     '<h2 class="smart-filter-ymm__heading" data-ymm-heading></h2>' +
-    '<input class="smart-filter-ymm__q" type="search" data-ymm-q placeholder="Search" autocomplete="off" hidden>' +
+    '<input class="smart-filter-ymm__input" type="search" data-ymm-q placeholder="Search" autocomplete="off" hidden>' +
     '<div class="smart-filter-ymm__fields" data-ymm-fields></div>' +
     '<button type="button" class="smart-filter-ymm__search" data-ymm-search>SEARCH</button>' +
     '<div class="smart-filter-ymm__status" data-ymm-status aria-live="polite"></div>' +

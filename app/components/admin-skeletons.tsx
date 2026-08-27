@@ -84,7 +84,7 @@ function CheckboxRow({ width = "48%" }: { width?: string }) {
 
 function DragHandleDots() {
   return (
-    <span className="findly-filters-list__handle" aria-hidden>
+    <span className="findly-list__handle" aria-hidden>
       <svg width="12" height="16" viewBox="0 0 12 16" fill="#c9cccf">
         <circle cx="3" cy="3" r="1.25" />
         <circle cx="9" cy="3" r="1.25" />
@@ -104,13 +104,13 @@ export function FiltersListSkeleton() {
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
-              <div className="findly-filters-list__search">
+              <div className="findly-list__search">
                 <Skel kind="field" />
               </div>
-              <table className="findly-filters-list__table">
+              <table className="findly-list__table">
                 <thead>
                   <tr>
-                    <th className="findly-filters-list__check">
+                    <th className="findly-list__check">
                       <Skel kind="check" />
                     </th>
                     <th>Name</th>
@@ -121,11 +121,11 @@ export function FiltersListSkeleton() {
                 <tbody>
                   {Array.from({ length: 6 }, (_, index) => (
                     <tr key={index}>
-                      <td className="findly-filters-list__check">
+                      <td className="findly-list__check">
                         <Skel kind="check" />
                       </td>
                       <td>
-                        <div className="findly-filters-list__name">
+                        <div className="findly-list__name">
                           <DragHandleDots />
                           <Skel kind="text" width={index % 2 ? "58%" : "72%"} />
                         </div>
@@ -483,7 +483,7 @@ export function TranslationListSkeleton() {
           <BlockStack gap="400">
             <SkelBanner />
             <Card padding="0">
-              <table className="findly-filters-list__table">
+              <table className="findly-list__table">
                 <thead>
                   <tr>
                     <th>Language</th>
@@ -780,8 +780,8 @@ export function FilterEditorSkeleton() {
                   </Text>
                   <Skel kind="btn" />
                 </InlineStack>
-                <div className="findly-filter-option-table">
-                  <div className="findly-filter-option-table__head">
+                <div className="findly-option-table">
+                  <div className="findly-option-table__head">
                     <span />
                     <span>Label</span>
                     <span>Source</span>
@@ -789,7 +789,7 @@ export function FilterEditorSkeleton() {
                     <span>Actions</span>
                   </div>
                   {Array.from({ length: 6 }, (_, index) => (
-                    <div className="findly-filter-option-table__row" key={index}>
+                    <div className="findly-option-table__row" key={index}>
                       <DragHandleDots />
                       <Skel kind="text" width="70%" />
                       <Skel kind="chip" />
@@ -971,7 +971,7 @@ export function GroupsListSkeleton() {
       <Layout>
         <Layout.Section>
           <Card padding="0">
-            <table className="findly-filters-list__table">
+            <table className="findly-list__table">
               <thead>
                 <tr>
                   <th>Name</th>

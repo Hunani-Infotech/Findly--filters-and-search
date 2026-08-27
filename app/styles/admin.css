@@ -256,11 +256,11 @@
   padding-bottom: 4rem;
 }
 
-.findly-admin-pending-root {
+.findly-pending-root {
   position: relative;
 }
 
-.findly-admin-pending-overlay {
+.findly-pending-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -335,26 +335,26 @@
   min-width: 0;
 }
 
-.findly-filter-option-table {
+.findly-option-table {
   border-top: 1px solid #e3e3e3;
 }
 
-.findly-filter-option-table__head,
-.findly-filter-option-table__row {
+.findly-option-table__head,
+.findly-option-table__row {
   display: grid;
   grid-template-columns: 28px minmax(110px, 1.2fr) minmax(140px, 1.1fr) 150px minmax(70px, 140px);
   gap: 12px;
   align-items: center;
 }
 
-.findly-filter-option-table__head {
+.findly-option-table__head {
   padding: 10px 8px;
   background: #f6f6f7;
   border-bottom: 1px solid #e3e3e3;
   color: #616161;
 }
 
-.findly-filter-option-table__row {
+.findly-option-table__row {
   padding: 10px 8px;
   margin-bottom: 0;
   border: none;
@@ -363,7 +363,7 @@
   background: #fff;
 }
 
-.findly-filter-option-table__type {
+.findly-option-table__type {
   appearance: none;
   width: 100%;
   margin: 0;
@@ -376,17 +376,17 @@
   cursor: pointer;
 }
 
-.findly-filter-option-table__type:disabled {
+.findly-option-table__type:disabled {
   cursor: default;
   opacity: 0.7;
 }
 
-.findly-filter-option-table__type:focus {
+.findly-option-table__type:focus {
   outline: 2px solid var(--findly-green-strong);
   outline-offset: 2px;
 }
 
-.findly-filter-option-table__handle {
+.findly-option-table__handle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -398,11 +398,11 @@
   cursor: grab;
 }
 
-.findly-filter-option-table__handle:disabled {
+.findly-option-table__handle:disabled {
   cursor: default;
 }
 
-.findly-filter-option-table__line {
+.findly-option-table__line {
   height: 3px;
   margin: 0 4px 6px;
   border-radius: 99px;
@@ -422,13 +422,13 @@
 }
 
 @media (max-width: 47.99em) {
-  .findly-filter-option-table__head,
-  .findly-filter-option-table__row {
+  .findly-option-table__head,
+  .findly-option-table__row {
     grid-template-columns: 28px 1fr;
   }
 
-  .findly-filter-option-table__head > :nth-child(n + 3),
-  .findly-filter-option-table__row > :nth-child(n + 3) {
+  .findly-option-table__head > :nth-child(n + 3),
+  .findly-option-table__row > :nth-child(n + 3) {
     grid-column: 2;
   }
 }
@@ -1216,11 +1216,11 @@
   }
 }
 
-.findly-filters-list__search {
+.findly-list__search {
   padding: 16px;
 }
 
-.findly-filters-list__bulk {
+.findly-list__bulk {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1231,7 +1231,7 @@
   background: #f6f6f7;
 }
 
-.findly-filters-list__bulk-start {
+.findly-list__bulk-start {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1241,20 +1241,20 @@
   padding: 12px 16px;
 }
 
-.findly-filters-list__table {
+.findly-list__table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.findly-filters-list__table th,
-.findly-filters-list__table td {
+.findly-list__table th,
+.findly-list__table td {
   padding: 12px;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid #e3e3e3;
 }
 
-.findly-filters-list__table th {
+.findly-list__table th {
   padding-top: 10px;
   padding-bottom: 10px;
   background: #f6f6f7;
@@ -1265,24 +1265,24 @@
   line-height: 16px;
 }
 
-.findly-filters-list__table tr.findly-filters-list__row--dragging td {
+.findly-list__table tr.findly-list__row--dragging td {
   background: #f6f6f7;
 }
 
-.findly-filters-list__check {
+.findly-list__check {
   width: 1%;
   white-space: nowrap;
   padding-right: 4px;
 }
 
-.findly-filters-list__name {
+.findly-list__name {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 12rem;
 }
 
-.findly-filters-list__name-btn {
+.findly-list__name-btn {
   border: none;
   background: transparent;
   padding: 0;
@@ -1292,7 +1292,7 @@
   color: inherit;
 }
 
-.findly-filters-list__handle {
+.findly-list__handle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1305,11 +1305,11 @@
   flex: 0 0 auto;
 }
 
-.findly-filters-list__handle:active {
+.findly-list__handle:active {
   cursor: grabbing;
 }
 
-.findly-filters-list__empty {
+.findly-list__empty {
   padding: 16px;
 }
 

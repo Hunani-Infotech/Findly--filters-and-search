@@ -11,7 +11,7 @@
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
-    ".smart-filter, .smart-filter-search, .findly-instant, .sf-toolbar, .sf-sort-host, .sf-collection-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
+    ".smart-filter, .smart-filter-search, .findly-instant, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
@@ -382,13 +382,13 @@
       document.querySelector(".sf-collection-layout__main") ||
       (widget._gridParent && widget._gridParent.parentElement);
     if (!main) return;
-    wrap.classList.add("smart-filter__collection-search--toolbar");
+    wrap.classList.add("smart-filter__search--toolbar");
     var host = main.querySelector
-      ? main.querySelector(".sf-collection-search-host")
+      ? main.querySelector(".sf-search-host")
       : null;
     if (!host) {
       host = document.createElement("div");
-      host.className = "sf-collection-search-host";
+      host.className = "sf-search-host";
       var grid = widget._gridParent;
       if (grid && grid.parentNode === main) main.insertBefore(host, grid);
       else main.appendChild(host);

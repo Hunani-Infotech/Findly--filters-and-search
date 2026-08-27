@@ -125,7 +125,7 @@ Do not implement-as-finished or advertise during listing review:
 4. Variants-as-products, Year-Make-Model, recommendation engines
 5. Deep custom CSS / drag-drop theme editor
 
-See also: [build-order.md](./build-order.md) and [partner-listing-copy.md](./partner-listing-copy.md).
+See also: [build-order.md](./build-order.md) and [partner-listing.md](./partner-listing.md).
 
 ---
 
@@ -149,8 +149,8 @@ Findly launch is **filters + search (+ extras) + analytics** via Theme App Exten
 
 | Doc | Use |
 |-----|-----|
-| [APP-FLOW-AND-SETUP.md](./APP-FLOW-AND-SETUP.md) | Architecture + setup |
+| [app-flow-and-setup.md](./app-flow-and-setup.md) | Architecture + setup |
 | [mvp-guide.md](./mvp-guide.md) | MVP build guide |
 | [build-order.md](./build-order.md) | Verification sequence |
-| [partner-listing-copy.md](./partner-listing-copy.md) | Partner listing paste text |
+| [partner-listing.md](./partner-listing.md) | Partner listing paste text |
 | [app-store-approval-jobs.html](./app-store-approval-jobs.html) | Submit job board |

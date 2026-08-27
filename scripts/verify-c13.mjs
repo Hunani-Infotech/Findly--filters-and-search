@@ -34,7 +34,7 @@ function handles(result) {
 
 function extractExport(source, name) {
   const start = source.indexOf(`export const ${name}`);
-  if (start < 0) fail(`app/sync/graphql.ts missing ${name}`);
+  if (start < 0) fail(`app/sync/admin-graphql.ts missing ${name}`);
   const next = source.indexOf("export const", start + `export const ${name}`.length);
   return source.slice(start, next < 0 ? source.length : next);
 }
@@ -65,7 +65,7 @@ function variantsBlockIncludesMetafields(chunk, label) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   variantsBlockIncludesMetafields(
     extractExport(graphql, "PRODUCT_NODE_QUERY"),
     "PRODUCT_NODE_QUERY",
@@ -75,9 +75,9 @@ function assertStaticMarkers() {
     "BULK_PRODUCTS_MUTATION",
   );
   if (/\bfetch\s*\(/.test(graphql) || /Admin REST/.test(graphql)) {
-    fail("graphql.ts must stay Admin GraphQL only (no fetch( or Admin REST)");
+    fail("admin-graphql.ts must stay Admin GraphQL only (no fetch( or Admin REST)");
   }
-  log.info("graphql.ts: variant metafields on PRODUCT_NODE_QUERY + BULK; no REST");
+  log.info("admin-graphql.ts: variant metafields on PRODUCT_NODE_QUERY + BULK; no REST");
 
   const mapper = readRepo("app", "sync", "product-mapper.ts");
   if (!mapper.includes("variantMetafields")) {

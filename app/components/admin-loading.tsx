@@ -80,7 +80,7 @@ function AdminPendingSkeleton() {
 
   return (
     <div
-      className="findly-admin-pending-overlay"
+      className="findly-pending-overlay"
       aria-busy="true"
       aria-live="polite"
     >
@@ -97,7 +97,7 @@ function AdminPendingSkeleton() {
  */
 export function AdminPendingScreen({ children }: { children: ReactNode }) {
   return (
-    <div className="findly-admin-pending-root">
+    <div className="findly-pending-root">
       <AdminPendingSkeleton />
       {children}
     </div>

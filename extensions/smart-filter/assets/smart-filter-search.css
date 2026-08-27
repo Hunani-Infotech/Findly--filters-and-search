@@ -127,7 +127,7 @@
   color: var(--sfs-ink);
 }
 
-.smart-filter-search__empty-copy {
+.smart-filter-search__empty-text {
   margin: 0.3rem 0 0;
   font-size: 0.8125rem;
   font-weight: 500;

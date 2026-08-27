@@ -69,8 +69,8 @@
   font-weight: 600;
 }
 
-.smart-filter-ymm__q,
-#gf-form .smart-filter-ymm__q {
+.smart-filter-ymm__input,
+#gf-form .smart-filter-ymm__input {
   display: block;
   width: 100%;
   margin: 0 0 0.75rem;
@@ -83,14 +83,14 @@
   min-height: 2.5rem;
 }
 
-.smart-filter-ymm__q[hidden],
-#gf-form .smart-filter-ymm__q[hidden] {
+.smart-filter-ymm__input[hidden],
+#gf-form .smart-filter-ymm__input[hidden] {
   display: none;
 }
 
-.smart-filter-ymm__q:focus,
+.smart-filter-ymm__input:focus,
 .smart-filter-ymm__select:focus,
-#gf-form .smart-filter-ymm__q:focus,
+#gf-form .smart-filter-ymm__input:focus,
 #gf-form .smart-filter-ymm__select:focus {
   outline: 2px solid var(--ymm-btn-bg);
   outline-offset: 1px;

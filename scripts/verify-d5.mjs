@@ -29,7 +29,7 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes('namespace: "reviews"') || !graphql.includes('key: "rating"')) {
     fail("sync GraphQL must fetch reviews.rating metafield");
   }

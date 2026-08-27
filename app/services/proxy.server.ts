@@ -42,7 +42,7 @@ import {
 } from "../utils/variants-as-products";
 import { getAppSettings, settingsFromRow } from "./settings.server";
 import { resolveFilterLimit } from "./billing.server";
-import { getAdminNavExtras, type AdminNavExtras } from "./admin-nav-extras.server";
+import { getAdminNavExtras, type AdminNavExtras } from "./admin-extras.server";
 import { resolveWidgetChrome } from "../utils/widget-i18n";
 import { withWidgetChrome } from "./filters.server";
 import {

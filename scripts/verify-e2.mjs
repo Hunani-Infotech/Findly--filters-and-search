@@ -28,9 +28,9 @@ function assertStaticMarkers() {
     fail("schema missing ShopPage / ShopArticle");
   }
 
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("PAGES_LIST_QUERY") || !graphql.includes("ARTICLES_LIST_QUERY")) {
-    fail("graphql.ts missing pages/articles list queries");
+    fail("admin-graphql.ts missing pages/articles list queries");
   }
 
   const sync = readRepo("app", "sync", "sync.server.ts");

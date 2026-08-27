@@ -28,7 +28,7 @@ import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../services/admin-nav-extras.server";
+} from "../services/admin-extras.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";

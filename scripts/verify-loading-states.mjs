@@ -54,7 +54,7 @@ function assertSourceMarkers() {
   if (grid.includes("setControlBusy(search, on)") || grid.includes("setControlBusy(select, on)")) {
     fail("search and sort must stay enabled while the product grid loads");
   }
-  if (/html\.sf-filter-loading\s+\.smart-filter__collection-search-input[\s\S]{0,120}visibility:\s*hidden/.test(css)) {
+  if (/html\.sf-filter-loading\s+\.smart-filter__search-input[\s\S]{0,120}visibility:\s*hidden/.test(css)) {
     fail("search input must stay visible while the product grid loads");
   }
   if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(css)) {
@@ -79,7 +79,7 @@ function assertSourceMarkers() {
   if (!checkCss.includes("sf-filter-ready") || !checkCss.includes("sf-filter-loading")) {
     fail("smart-filter-check.css must hide the product grid until the filter is ready");
   }
-  if (/html\.sf-filter-loading\s+\.smart-filter__collection-search-input[\s\S]{0,120}visibility:\s*hidden/.test(checkCss)) {
+  if (/html\.sf-filter-loading\s+\.smart-filter__search-input[\s\S]{0,120}visibility:\s*hidden/.test(checkCss)) {
     fail("smart-filter-check.css must not hide search while the product grid loads");
   }
   if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(checkCss)) {
@@ -266,7 +266,7 @@ function assertSourceMarkers() {
   if (!filterJs.includes("this._statusProductCount = this._pageTotal")) {
     fail("readPagingMeta must align status count with the latest filtered total");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v31")) {
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v32")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");
@@ -327,10 +327,10 @@ function writeHarness() {
   <p class="product-count">163 products</p>
   <div class="products-count-wrapper" data-testid="products-count">163 products</div>
   <div class="sf-toolbar">
-    <div class="sf-collection-search-host sf-toolbar__search">
-      <div class="smart-filter__collection-search" data-collection-search-wrap>
-        <div class="smart-filter__collection-search-field">
-          <input data-collection-search class="smart-filter__collection-search-input" placeholder="Search products" />
+    <div class="sf-search-host sf-toolbar__search">
+      <div class="smart-filter__search" data-collection-search-wrap>
+        <div class="smart-filter__search-field">
+          <input data-collection-search class="smart-filter__search-input" placeholder="Search products" />
         </div>
       </div>
     </div>

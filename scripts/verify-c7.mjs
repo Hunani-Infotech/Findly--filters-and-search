@@ -74,16 +74,16 @@ function assertStaticMarkers() {
     fail("smart-filter.js missing collection search bar wiring");
   }
   if (
-    !gridJs.includes("sf-collection-search-host") ||
+    !gridJs.includes("sf-search-host") ||
     !gridJs.includes("placeCollectionSearchOnGrid") ||
     !gridJs.includes("isLayoutShell")
   ) {
     fail("collection search must mount above the product grid, not in the sidebar");
   }
-  if (!filterCss.includes("smart-filter__collection-search--toolbar")) {
+  if (!filterCss.includes("smart-filter__search--toolbar")) {
     fail("collection search toolbar styles missing");
   }
-  if (!filterCss.includes(".smart-filter > .smart-filter__collection-search")) {
+  if (!filterCss.includes(".smart-filter > .smart-filter__search")) {
     fail("collection search must stay hidden while still in the filter sidebar");
   }
   if (!filterCss.includes(":has(> li:nth-child(6))")) {
