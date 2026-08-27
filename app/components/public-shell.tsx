@@ -57,25 +57,32 @@ export function PublicMessage({
   children,
   actionLabel = "Back to Findly",
   actionTo = "/",
+  minimal = false,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
   actionLabel?: string;
   actionTo?: string;
+  /** Title + action only — no marketing header/footer. */
+  minimal?: boolean;
 }) {
-  return (
-    <PublicShell>
-      <div className={styles.narrow}>
-        <div className={styles.card}>
-          <h1 className={styles.cardTitle}>{title}</h1>
-          <p className={styles.cardCopy}>{children}</p>
-          <Link className={styles.button} to={actionTo}>
-            {actionLabel}
-          </Link>
-        </div>
+  const body = (
+    <div className={styles.narrow}>
+      <div className={styles.card}>
+        <h1 className={styles.cardTitle}>{title}</h1>
+        {children ? <p className={styles.cardCopy}>{children}</p> : null}
+        <Link className={styles.button} to={actionTo}>
+          {actionLabel}
+        </Link>
       </div>
-    </PublicShell>
+    </div>
   );
+
+  if (minimal) {
+    return <div className={`${styles.page} ${styles.messageOnly}`}>{body}</div>;
+  }
+
+  return <PublicShell>{body}</PublicShell>;
 }
 
 export function PublicPending() {

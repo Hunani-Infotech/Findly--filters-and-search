@@ -428,6 +428,21 @@
   margin: 2.5rem auto 4rem;
 }
 
+.messageOnly {
+  justify-content: center;
+}
+
+.messageOnly .narrow {
+  margin: 0 auto;
+  width: 100%;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.messageOnly .cardTitle {
+  margin-bottom: 1rem;
+}
+
 .loginLayout {
   display: grid;
   gap: 2rem;

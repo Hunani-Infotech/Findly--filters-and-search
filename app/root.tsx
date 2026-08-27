@@ -77,11 +77,14 @@ export function ErrorBoundary() {
 
   return (
     <Document>
-      <PublicMessage title={notFound ? "Page not found" : "Something went wrong"}>
-        {notFound
-          ? "That URL is not a Findly page. Use the homepage to open the app in Shopify Admin."
-          : "The public page failed to load. Try again, or open Findly from Shopify Admin."}
-      </PublicMessage>
+      {notFound ? (
+        <PublicMessage title="Page not found" actionLabel="Go back" minimal />
+      ) : (
+        <PublicMessage title="Something went wrong">
+          The public page failed to load. Try again, or open Findly from Shopify
+          Admin.
+        </PublicMessage>
+      )}
     </Document>
   );
 }
