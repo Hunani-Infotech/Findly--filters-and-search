@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { log } from "./terminal-log.mjs";
 import {
   deliverContactMessage,
+  formatContactHtml,
   formatContactPlainText,
 } from "../app/services/contact.server.ts";
 
@@ -52,7 +53,7 @@ function clearContactEnv() {
 
 function assertRouteWiresDelivery() {
   const route = readRepo("app", "routes", "app.contact.tsx");
-  if (!route.includes('from "../contact.server"')) {
+  if (!route.includes('from "../services/contact.server"')) {
     fail("app.contact.tsx must import deliverContactMessage from contact.server");
   }
   if (!route.includes("await deliverContactMessage(")) {
@@ -170,6 +171,7 @@ async function assertLocalSmtp(msg) {
     }
     const raw = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
     const text = formatContactPlainText(msg);
+    const html = formatContactHtml(msg);
     if (!raw.includes(MARKER) || !raw.includes(msg.message)) {
       fail("SMTP message missing the merchant body");
     }
@@ -179,8 +181,25 @@ async function assertLocalSmtp(msg) {
     if (!raw.includes("findly.support@gmail.com")) {
       fail("SMTP message was not addressed to GMAIL_USER");
     }
-    if (!text.includes(msg.collaboratorCode)) {
-      fail("Plain-text body missing collaborator code");
+    if (!raw.toLowerCase().includes("text/html")) {
+      fail("SMTP message missing the HTML body");
+    }
+    if (!text.includes(msg.collaboratorCode) || !text.includes("Support request")) {
+      fail("Plain-text body missing collaborator code or app heading");
+    }
+    if (
+      !html.includes("Findly Smart Filters &amp; Search") ||
+      !html.includes("Support request") ||
+      !html.includes(msg.shopDomain)
+    ) {
+      fail("HTML body missing app name, heading, or shop");
+    }
+    const injected = formatContactHtml({
+      ...msg,
+      message: `<img src=x onerror=alert(1)>`,
+    });
+    if (injected.includes("<img") || !injected.includes("&lt;img")) {
+      fail("HTML body must escape merchant message markup");
     }
     log.info("Local SMTP captured the contact email for Gmail");
   } finally {

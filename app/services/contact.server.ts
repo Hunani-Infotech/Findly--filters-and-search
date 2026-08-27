@@ -44,17 +44,107 @@ export function contactDeliveryConfigured() {
   return Boolean(smtpConfig());
 }
 
+const APP_NAME = "Findly Smart Filters & Search";
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function collaboratorLabel(code: string) {
+  return code.trim() || "(none)";
+}
+
+function shopAdminHref(shop: string) {
+  if (!/^[a-z0-9][a-z0-9.-]*\.myshopify\.com$/i.test(shop)) return "";
+  return `https://${shop}/admin`;
+}
+
+function metaRow(label: string, valueHtml: string) {
+  return `<tr>
+<td style="padding:10px 20px 10px 0;width:148px;vertical-align:top;font-size:13px;line-height:1.45;color:#6b6b6b;white-space:nowrap;">${label}</td>
+<td style="padding:10px 0;vertical-align:top;font-size:13px;line-height:1.5;color:#111111;word-break:break-word;">${valueHtml}</td>
+</tr>`;
+}
+
+function linkedValue(href: string, label: string) {
+  const safe = escapeHtml(label);
+  if (!href) return safe;
+  return `<a href="${escapeHtml(href)}" style="color:#111111;text-decoration:underline;">${safe}</a>`;
+}
+
 export function formatContactPlainText(msg: ContactMessage) {
-  const code = msg.collaboratorCode.trim() || "(none)";
   return [
-    "Findly support request",
+    APP_NAME,
+    "Support request",
+    "",
     `Shop: ${msg.shopDomain}`,
     `From: ${msg.email}`,
-    `Collaborator code: ${code}`,
+    `Collaborator code: ${collaboratorLabel(msg.collaboratorCode)}`,
     `Subject: ${msg.subject}`,
     "",
+    "Message",
     msg.message,
   ].join("\n");
+}
+
+export function formatContactHtml(msg: ContactMessage) {
+  const shopHref = shopAdminHref(msg.shopDomain);
+  const code = msg.collaboratorCode.trim();
+  const codeHtml = code
+    ? `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.02em;">${escapeHtml(code)}</span>`
+    : `<span style="color:#8a8a8a;">Not provided</span>`;
+  const messageHtml = escapeHtml(msg.message)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n/g, "<br>");
+  const preheader = `New support request from ${msg.shopDomain}`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>${escapeHtml(APP_NAME)} — Support request</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preheader)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
+<tr>
+<td align="center" style="padding:32px 16px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e4e4e7;border-radius:10px;">
+<tr>
+<td style="padding:36px 40px 32px;">
+<p style="margin:0 0 4px;font-size:11px;line-height:1.3;letter-spacing:0.16em;font-weight:600;color:#111111;">FINDLY</p>
+<p style="margin:0 0 28px;font-size:13px;line-height:1.4;color:#71717a;">${escapeHtml(APP_NAME)}</p>
+<h1 style="margin:0 0 8px;font-size:22px;line-height:1.25;font-weight:600;color:#111111;">Support request</h1>
+<p style="margin:0 0 28px;font-size:14px;line-height:1.5;color:#52525b;">A merchant submitted this from the Findly admin. Reply to this email to reach them.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ececec;border-bottom:1px solid #ececec;">
+${metaRow("Shop", linkedValue(shopHref, msg.shopDomain))}
+${metaRow("From", linkedValue(`mailto:${msg.email}`, msg.email))}
+${metaRow("Collaborator code", codeHtml)}
+${metaRow("Subject", escapeHtml(msg.subject))}
+</table>
+<p style="margin:28px 0 10px;font-size:12px;line-height:1.4;letter-spacing:0.04em;font-weight:600;color:#71717a;text-transform:uppercase;">Message</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border:1px solid #ececec;border-radius:8px;">
+<tr>
+<td style="padding:16px 18px;font-size:14px;line-height:1.6;color:#111111;">${messageHtml}</td>
+</tr>
+</table>
+<p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#8a8a8a;">Sent from Contact in ${escapeHtml(APP_NAME)}.</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>`;
 }
 
 function isLocalSmtpHost(host: string) {
@@ -76,18 +166,19 @@ function createSmtpTransport(cfg: NonNullable<ReturnType<typeof smtpConfig>>) {
   });
 }
 
-async function deliverSmtp(msg: ContactMessage, text: string) {
+async function deliverSmtp(msg: ContactMessage, text: string, html: string) {
   const cfg = smtpConfig();
   if (!cfg) return null;
 
   const transport = createSmtpTransport(cfg);
   try {
     await transport.sendMail({
-      from: `Findly Support <${cfg.from}>`,
+      from: { name: APP_NAME, address: cfg.from },
       to: cfg.to,
       replyTo: msg.email,
       subject: msg.subject,
       text,
+      html,
     });
   } finally {
     transport.close();
@@ -121,9 +212,10 @@ export async function deliverContactMessage(
     message,
   };
   const text = formatContactPlainText(payload);
+  const html = formatContactHtml(payload);
 
   try {
-    const channel = await deliverSmtp(payload, text);
+    const channel = await deliverSmtp(payload, text, html);
     if (!channel) {
       return {
         ok: false,
