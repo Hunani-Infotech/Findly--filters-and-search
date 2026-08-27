@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v29";
+  var STYLE_ID = "findly-grid-takeover-v30";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -340,10 +340,16 @@
       ".smart-filter .smart-filter__slider-thumb{position:absolute!important;top:50%!important;width:16px!important;height:16px!important;margin:0!important;padding:0!important;border:1.5px solid var(--sf-accent,#111)!important;border-radius:999px!important;background:#fff!important;transform:translate(-50%,-50%)!important;z-index:4!important;pointer-events:auto!important;cursor:grab!important;display:block!important;touch-action:none}" +
       "@media(max-width:989px){" +
       ".smart-filter__panel,.smart-filter__panel.sf-drawer-portal{" +
-      "width:min(420px,92vw)!important;max-width:92vw!important;box-sizing:border-box!important}" +
+      "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
+      "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
+      ".smart-filter__panel-head{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
+      ".smart-filter__facets{flex:1 1 auto;min-height:0;overflow:auto}" +
       "}" +
       ".smart-filter__panel.sf-drawer-portal{" +
-      "width:min(420px,92vw)!important;max-width:92vw!important;box-sizing:border-box!important}" +
+      "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
+      "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
+      ".smart-filter__panel.sf-drawer-portal .smart-filter__panel-head{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
+      ".smart-filter__panel.sf-drawer-portal .smart-filter__facets{flex:1 1 auto;min-height:0;overflow:auto}" +
       ".smart-filter__sort--toolbar,.sf-sort-host,.sf-sort-trigger,.sf-sort-row{overflow:visible!important;position:relative}" +
       ".sf-sort-row{display:flex!important;align-items:center!important;gap:.7rem;width:auto}" +
       ".sf-sort-row .sf-sort-trigger{flex:0 0 auto;width:auto;min-width:10.75rem}" +
@@ -501,6 +507,7 @@
         ".sf-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;width:100%;max-width:100%;margin:0 0 18px;box-sizing:border-box}" +
         ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 16rem;min-width:0;width:min(22rem,100%);max-width:22rem;margin:0}" +
         ".sf-toolbar__end{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;gap:0;min-width:0}" +
+        ".sf-toolbar__actions{display:flex;align-items:center;justify-content:flex-end;gap:.65rem;min-width:0}" +
         ".sf-sort-host{display:flex;justify-content:flex-end;width:auto;margin:0;overflow:visible;position:relative;z-index:6}" +
         ".sf-toolbar .smart-filter__sort--toolbar{display:flex;align-items:flex-end;gap:0;width:auto;margin:0;flex-wrap:nowrap}" +
         ".sf-sort-control{display:flex;flex-direction:column;align-items:stretch;gap:.35rem;min-width:0}" +
@@ -528,7 +535,20 @@
         ".smart-filter__collection-search-clear svg{display:block;width:11px;height:11px}" +
         ".smart-filter__collection-search-clear:hover,.smart-filter__collection-search-clear:focus-visible{background:#e4e4e4;color:#111;outline:none}" +
         ".smart-filter__collection-search-clear[hidden]{display:none!important}" +
-        "@media(max-width:749px){.sf-toolbar{flex-wrap:wrap}.sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 100%;max-width:none;width:100%}.sf-toolbar__end{margin-left:auto}}" +
+        "@media(max-width:989px){" +
+        ".sf-toolbar{flex-wrap:wrap;align-items:stretch;gap:.65rem}" +
+        ".sf-toolbar__search,.sf-collection-search-host.sf-toolbar__search{flex:1 1 100%;order:1;max-width:none;width:100%}" +
+        ".sf-toolbar>.smart-filter__toggle,.sf-toolbar>.smart-filter__toggle--toolbar{order:2;flex:1 1 calc(50% - .4rem);width:auto;margin:0}" +
+        ".sf-toolbar__end{order:3;flex:1 1 calc(50% - .4rem);margin:0;align-items:stretch;min-width:0}" +
+        ".sf-toolbar__end:has(.sf-toolbar__actions .smart-filter__toggle){flex:1 1 100%;order:2}" +
+        ".sf-toolbar__actions{width:100%}" +
+        ".sf-toolbar__actions:has(.smart-filter__toggle){display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:.65rem}" +
+        ".sf-toolbar .smart-filter__sort-label{display:none!important}" +
+        ".sf-toolbar .sf-sort-host,.sf-toolbar .smart-filter__sort--toolbar,.sf-toolbar .sf-sort-row,.sf-toolbar .sf-sort-control,.sf-toolbar .sf-sort-trigger{width:100%;max-width:none;min-width:0}" +
+        ".sf-toolbar .smart-filter__sort-select,.sf-toolbar .sf-sort-btn{width:100%;max-width:none;min-width:0;min-height:2.75rem;border-radius:999px}" +
+        ".sf-toolbar .smart-filter__toggle,.smart-filter__toggle--toolbar{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.75rem;margin:0;padding:.55rem 1rem;border:0;border-radius:999px;background:#111;color:#fff;font-weight:600;box-shadow:none}" +
+        ".sf-toolbar .smart-filter__toggle-count,.smart-filter__toggle--toolbar .smart-filter__toggle-count{background:#fff;color:#111}" +
+        "}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
         RESULTS_LIST_BLOCK_CSS +
@@ -3827,6 +3847,55 @@
     return toolbar;
   }
 
+  function toolbarActionsHost() {
+    var host = toolbarHost();
+    if (!host) return null;
+    var actions = host.querySelector(".sf-toolbar__actions");
+    if (actions) return actions;
+    var end = host.querySelector(".sf-toolbar__end");
+    if (!end) {
+      end = document.createElement("div");
+      end.className = "sf-toolbar__end";
+      host.appendChild(end);
+    }
+    actions = document.createElement("div");
+    actions.className = "sf-toolbar__actions";
+    end.insertBefore(actions, end.firstChild);
+    return actions;
+  }
+
+  function placeDrawerChips(widget) {
+    if (!widget) return;
+    var panel =
+      widget.panelEl ||
+      (widget.root && widget.root.querySelector("[data-drawer-panel]")) ||
+      document.querySelector("[data-drawer-panel]");
+    var head = panel && panel.querySelector(".smart-filter__panel-head");
+    if (!head) return;
+    var slot = head.querySelector("[data-filter-chips]");
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.className = "smart-filter__chips-slot";
+      slot.setAttribute("data-filter-chips", "");
+      head.appendChild(slot);
+    }
+    var facets = widget.facetsEl;
+    var chips = null;
+    if (facets && facets.firstElementChild) {
+      var first = facets.firstElementChild;
+      if (first.classList && first.classList.contains("smart-filter__chips")) {
+        chips = first;
+      }
+    }
+    while (slot.firstChild) slot.removeChild(slot.firstChild);
+    if (chips) {
+      slot.appendChild(chips);
+      slot.hidden = false;
+    } else {
+      slot.hidden = true;
+    }
+  }
+
   function portalMobileDrawer(widget) {
     if (!widget || !widget.root) return;
     var panel =
@@ -3860,11 +3929,10 @@
       panel.style.setProperty("box-sizing", "border-box", "important");
       decorateCheckMarks(panel);
       if (isMobileDrawer()) {
-        var host = toolbarHost();
-        if (toggle && host && toggle.parentNode !== host) {
+        var actions = toolbarActionsHost();
+        if (toggle && actions && toggle.parentNode !== actions) {
           toggle.classList.add("smart-filter__toggle--toolbar");
-          if (host.firstChild) host.insertBefore(toggle, host.firstChild);
-          else host.appendChild(toggle);
+          actions.insertBefore(toggle, actions.firstChild);
         }
       } else if (
         toggle &&
@@ -4738,14 +4806,32 @@
     }
     if (end.parentNode !== host) host.appendChild(end);
 
+    var actions = end.querySelector(".sf-toolbar__actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "sf-toolbar__actions";
+    }
+    if (actions.parentNode !== end) end.insertBefore(actions, end.firstChild);
+
     var sortHost =
+      actions.querySelector(".sf-sort-host") ||
       end.querySelector(".sf-sort-host") ||
       document.querySelector(".sf-sort-host");
     if (!sortHost) {
       sortHost = document.createElement("div");
       sortHost.className = "sf-sort-host";
     }
-    if (sortHost.parentNode !== end) end.insertBefore(sortHost, end.firstChild);
+    if (sortHost.parentNode !== actions) actions.appendChild(sortHost);
+
+    var toggle =
+      actions.querySelector("[data-drawer-toggle]") ||
+      host.querySelector("[data-drawer-toggle]");
+    if (toggle && isMobileDrawer()) {
+      toggle.classList.add("smart-filter__toggle--toolbar");
+      if (toggle.parentNode !== actions) {
+        actions.insertBefore(toggle, actions.firstChild);
+      }
+    }
 
     var countEl =
       end.querySelector(".sf-total-count") ||
@@ -4788,7 +4874,6 @@
         control.insertBefore(select, control.firstChild);
       }
       ensureSortRow(widget.sortWrap, select);
-      if (countEl.parentNode !== control) control.appendChild(countEl);
     } else if (countEl.parentNode !== end) {
       end.appendChild(countEl);
     }
@@ -5536,6 +5621,7 @@
       var result = origRenderFacets
         ? origRenderFacets.apply(this, arguments)
         : undefined;
+      placeDrawerChips(this);
       enhancePriceSliders(this.root);
       decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
       return result;

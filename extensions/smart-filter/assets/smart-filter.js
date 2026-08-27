@@ -4568,6 +4568,7 @@
     el.textContent = this.t("clear", MSG_CLEAR);
     var active = this.hasActiveFilters();
     el.disabled = !active;
+    el.hidden = !active;
     el.classList.toggle("is-disabled", !active);
     el.setAttribute("aria-disabled", String(!active));
   };
