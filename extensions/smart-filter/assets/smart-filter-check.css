@@ -331,15 +331,6 @@ html.sf-filter-loading .sf-pager {
 .sf-collection-layout[data-sf-single-page="1"] .Pagination,
 .sf-collection-layout[data-sf-single-page="1"] #AjaxinatePagination,
 .sf-collection-layout[data-sf-single-page="1"] .ajaxinate-pagination,
-html.sf-custom-pager nav.pagination:not(.sf-pager),
-html.sf-custom-pager .pagination:not(.sf-pager),
-html.sf-custom-pager .pagination-wrapper:not(.sf-pager),
-html.sf-custom-pager [data-pagination]:not(.sf-pager),
-html.sf-custom-pager .paginate,
-html.sf-custom-pager #pagination,
-html.sf-custom-pager .Pagination,
-html.sf-custom-pager #AjaxinatePagination,
-html.sf-custom-pager .ajaxinate-pagination,
 html.sf-few-results nav.pagination,
 html.sf-few-results .pagination-wrapper,
 html.sf-few-results .pagination,
@@ -648,6 +639,8 @@ html.is-sf-drawer-open .sf-panel {
   overflow: hidden !important;
   font-size: 16px !important;
   line-height: 1.45 !important;
+  color: var(--sf-ink, #111) !important;
+  background: var(--sf-surface, #fff) !important;
 }
 
 .sf-panel.sf-drawer-portal .sf-header,
@@ -664,10 +657,15 @@ html.is-sf-drawer-open .sf-panel .sf-header {
 .sf-panel.sf-drawer-portal .sf-facets,
 html.is-sf-drawer-open .sf-panel .sf-facets {
   flex: 1 1 auto !important;
-  min-height: 0 !important;
+  min-height: 50vh !important;
   overflow: auto !important;
   overscroll-behavior: contain !important;
   padding: 0.2rem 1.25rem 1.35rem !important;
+  color: #111 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .sf-chips-slot[hidden] {
@@ -892,8 +890,17 @@ html.is-sf-drawer-open .sf-panel .sf-facets {
     width: 100% !important;
   }
 
-  .smart-filter:not(:has([data-drawer-toggle])):not(.is-drawer-open) {
+  .smart-filter:not(.sf-panel):not(:has([data-drawer-toggle])):not(.is-drawer-open) {
     display: none !important;
+  }
+
+  /* Never hide the portaled drawer sheet with the root-only mobile rule above. */
+  .sf-panel.sf-drawer-portal,
+  .sf-panel.sf-drawer-portal.is-open,
+  html.is-sf-drawer-open .sf-panel.sf-drawer-portal {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
   .sf-total-count {

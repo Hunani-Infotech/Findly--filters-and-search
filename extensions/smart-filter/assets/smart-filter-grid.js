@@ -349,7 +349,9 @@
       "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
       "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
       ".sf-panel.sf-drawer-portal .sf-header{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
-      ".sf-panel.sf-drawer-portal .sf-facets{flex:1 1 auto;min-height:0;overflow:auto}" +
+      ".sf-panel.sf-drawer-portal .sf-facets{flex:1 1 auto;min-height:50vh;overflow:auto;color:#111;visibility:visible;display:flex;flex-direction:column}" +
+      ".sf-panel.sf-drawer-portal{color:#111!important;background:#fff!important}" +
+      "html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important;opacity:1!important}" +
       ".sf-sort-toolbar,.sf-sort-host,.sf-sort-trigger,.sf-sort-row{overflow:visible!important;position:relative}" +
       ".sf-sort-row{display:flex!important;align-items:center!important;gap:.7rem;width:auto}" +
       ".sf-sort-row .sf-sort-trigger{flex:0 0 auto;width:auto;min-width:10.75rem}" +
@@ -461,10 +463,9 @@
         ".collection-wrapper:has(.sf-collection-layout) .main-collection-grid," +
         ".sf-collection-layout .main-collection-grid" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
-        ".sf-pager--load-more,.sf-pager--infinite,.sf-pager-more{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;width:100%;max-width:100%}" +
         ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
         "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
-        "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']," +
+        "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
         ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
         ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
         ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper," +
@@ -541,7 +542,8 @@
         ".sf-toolbar-search,.sf-search-host.sf-toolbar-search{flex:1 1 100%;order:1;min-width:0;max-width:none;width:100%}" +
         ".sf-toolbar:has(>.sf-toggle) .sf-toolbar-search,.sf-toolbar:has(>.sf-toggle) .sf-search-host.sf-toolbar-search{grid-area:search;flex:none;width:100%;max-width:none}" +
         ".sf-search-toolbar{max-width:none;width:100%}" +
-        ".smart-filter:not(:has([data-drawer-toggle])):not(.is-drawer-open){display:none}" +
+        ".smart-filter:not(.sf-panel):not(:has([data-drawer-toggle])):not(.is-drawer-open){display:none}" +
+        ".sf-panel.sf-drawer-portal,html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important}" +
         ".sf-toolbar>.sf-toggle,.sf-toolbar>.sf-toggle-toolbar{grid-area:filter;width:100%;max-width:none;margin:0}" +
         ".sf-toolbar-end{order:2;flex:1 1 100%;margin:0;align-items:stretch;min-width:0;width:100%}" +
         ".sf-toolbar:has(>.sf-toggle) .sf-toolbar-end{grid-area:end;flex:none;width:100%;min-width:0;align-items:stretch}" +
@@ -1348,9 +1350,7 @@
     }
 
     var pagers = layout.querySelectorAll
-      ? layout.querySelectorAll(
-          ".sf-pager--load-more, .sf-pager--infinite, .sf-pager-nav, .sf-pager-pages",
-        )
+      ? layout.querySelectorAll(".sf-pager-nav, .sf-pager-pages")
       : [];
     for (i = 0; i < pagers.length; i++) {
       if (
@@ -1365,6 +1365,8 @@
       applyImportantStyle(pagers[i], "display", "flex");
       applyImportantStyle(pagers[i], "flex-direction", "row");
       applyImportantStyle(pagers[i], "flex-wrap", "wrap");
+      applyImportantStyle(pagers[i], "justify-content", "center");
+      applyImportantStyle(pagers[i], "align-items", "center");
       applyImportantStyle(pagers[i], "width", "100%");
     }
     if (layout.setAttribute) layout.setAttribute("data-sf-horizon-flat", "1");
@@ -3940,23 +3942,177 @@
     }
   }
 
+  function liveDrawerPanel(widget) {
+    if (
+      widget &&
+      widget.panelEl &&
+      widget.panelEl.isConnected !== false &&
+      widget.panelEl.matches &&
+      widget.panelEl.matches("[data-drawer-panel], .sf-panel")
+    ) {
+      return widget.panelEl;
+    }
+    if (widget && widget.root) {
+      var nested = widget.root.querySelector("[data-drawer-panel]");
+      if (nested) return nested;
+    }
+    return (
+      document.querySelector(".sf-panel.sf-drawer-portal[data-drawer-panel]") ||
+      document.querySelector(".sf-panel.sf-drawer-portal") ||
+      document.querySelector("[data-drawer-panel]")
+    );
+  }
+
+  function liveDrawerBackdrop(widget) {
+    if (
+      widget &&
+      widget.backdropEl &&
+      widget.backdropEl.isConnected !== false
+    ) {
+      return widget.backdropEl;
+    }
+    if (widget && widget.root) {
+      var nested = widget.root.querySelector("[data-drawer-backdrop]");
+      if (nested) return nested;
+    }
+    return (
+      document.querySelector(".sf-backdrop.sf-drawer-portal") ||
+      document.querySelector("[data-drawer-backdrop]")
+    );
+  }
+
+  function syncDrawerPanelRefs(widget, panel) {
+    if (!widget || !panel) return;
+    widget.panelEl = panel;
+    var facets = panel.querySelector("[data-facets]");
+    if (facets) widget.facetsEl = facets;
+    var status = panel.querySelector("[data-status]");
+    if (status) widget.statusEl = status;
+    var close = panel.querySelector("[data-drawer-close]");
+    if (close) widget.closeEl = close;
+    var clear = panel.querySelector("[data-clear-all]");
+    if (clear) widget.clearAllEl = clear;
+  }
+
+  function ensurePortaledFacetsPainted(widget, panel) {
+    if (!widget || !panel) return;
+    syncDrawerPanelRefs(widget, panel);
+    var facets = widget.facetsEl;
+    if (!facets) return;
+    var hasFacet = facets.querySelector(".sf-facet, [data-skeleton]");
+    if (hasFacet) return;
+    if (
+      Array.isArray(widget.facets) &&
+      widget.facets.length &&
+      widget.renderFacets
+    ) {
+      widget.renderFacets();
+      return;
+    }
+    // Keep a visible loading skeleton so the drawer is never a blank white sheet.
+    if (!facets.childElementCount) {
+      facets.innerHTML =
+        '<div class="sf-skeleton" data-skeleton aria-hidden="true">' +
+        '<div class="sf-skeleton-facet"><span class="sf-skeleton-label"></span>' +
+        '<span class="sf-skeleton-line"></span><span class="sf-skeleton-line"></span>' +
+        '<span class="sf-skeleton-line is-short"></span></div>' +
+        '<div class="sf-skeleton-facet"><span class="sf-skeleton-label"></span>' +
+        '<span class="sf-skeleton-line"></span>' +
+        '<span class="sf-skeleton-line is-short"></span></div>' +
+        '<div class="sf-skeleton-facet"><span class="sf-skeleton-label"></span>' +
+        '<span class="sf-skeleton-line"></span><span class="sf-skeleton-line"></span>' +
+        '<span class="sf-skeleton-line is-short"></span></div></div>';
+    }
+  }
+
+  function applyPortaledPanelLayout(panel, widget) {
+    if (!panel || !panel.style) return;
+    var right =
+      (widget &&
+        widget.root &&
+        widget.root.classList &&
+        widget.root.classList.contains("smart-filter--right")) ||
+      (widget && widget.position === "right");
+    panel.style.setProperty("position", "fixed", "important");
+    panel.style.setProperty("top", "0", "important");
+    panel.style.setProperty("bottom", "0", "important");
+    if (right) {
+      panel.style.setProperty("left", "auto", "important");
+      panel.style.setProperty("right", "0", "important");
+    } else {
+      panel.style.setProperty("left", "0", "important");
+      panel.style.setProperty("right", "auto", "important");
+    }
+    panel.style.setProperty("z-index", "100050", "important");
+    panel.style.setProperty("display", "flex", "important");
+    panel.style.setProperty("flex-direction", "column", "important");
+    panel.style.setProperty("width", "min(400px, 88vw)", "important");
+    panel.style.setProperty("max-width", "88vw", "important");
+    panel.style.setProperty("box-sizing", "border-box", "important");
+    panel.style.setProperty("padding", "0", "important");
+    panel.style.setProperty("overflow", "hidden", "important");
+    panel.style.setProperty("color", "#111", "important");
+    panel.style.setProperty("background", "#fff", "important");
+    var facets = panel.querySelector("[data-facets], .sf-facets");
+    if (facets && facets.style) {
+      facets.style.setProperty("flex", "1 1 auto", "important");
+      facets.style.setProperty("min-height", "50vh", "important");
+      facets.style.setProperty("overflow", "auto", "important");
+      facets.style.setProperty("visibility", "visible", "important");
+      facets.style.setProperty("opacity", "1", "important");
+      facets.style.setProperty("color", "#111", "important");
+      facets.style.setProperty("display", "flex", "important");
+      facets.style.setProperty("flex-direction", "column", "important");
+    }
+  }
+
+  function clearPortaledPanelLayout(panel) {
+    if (!panel || !panel.style) return;
+    [
+      "position",
+      "top",
+      "bottom",
+      "left",
+      "right",
+      "z-index",
+      "display",
+      "flex-direction",
+      "width",
+      "max-width",
+      "box-sizing",
+      "padding",
+      "overflow",
+      "color",
+      "background",
+    ].forEach(function (prop) {
+      panel.style.removeProperty(prop);
+    });
+    var facets = panel.querySelector("[data-facets], .sf-facets");
+    if (facets && facets.style) {
+      [
+        "flex",
+        "min-height",
+        "overflow",
+        "visibility",
+        "opacity",
+        "color",
+        "display",
+        "flex-direction",
+      ].forEach(function (prop) {
+        facets.style.removeProperty(prop);
+      });
+    }
+  }
+
   function portalMobileDrawer(widget) {
     if (!widget || !widget.root) return;
-    var panel =
-      widget.panelEl || widget.root.querySelector("[data-drawer-panel]");
-    var backdrop =
-      widget.backdropEl || widget.root.querySelector("[data-drawer-backdrop]");
+    var panel = liveDrawerPanel(widget);
+    var backdrop = liveDrawerBackdrop(widget);
     var toggle =
-      widget.toggleEl || widget.root.querySelector("[data-drawer-toggle]");
-    if (!panel) {
-      panel = document.querySelector(".sf-panel.sf-drawer-portal");
-    }
-    if (!backdrop) {
-      backdrop = document.querySelector(".sf-backdrop.sf-drawer-portal");
-    }
-    if (!toggle) {
-      toggle = document.querySelector(".sf-toggle-toolbar");
-    }
+      widget.toggleEl ||
+      widget.root.querySelector("[data-drawer-toggle]") ||
+      document.querySelector(".sf-toggle-toolbar") ||
+      document.querySelector("[data-drawer-toggle]");
     if (!panel) return;
     if (shouldPortalDrawer(widget)) {
       if (backdrop && backdrop.parentNode !== document.body) {
@@ -3966,12 +4122,15 @@
       if (panel.parentNode !== document.body) {
         panel.classList.add("sf-drawer-portal");
         document.body.appendChild(panel);
+      } else {
+        panel.classList.add("sf-drawer-portal");
       }
       copyDrawerThemeVars(widget, panel);
-      panel.style.setProperty("width", "min(400px, 88vw)", "important");
-      panel.style.setProperty("max-width", "88vw", "important");
-      panel.style.setProperty("box-sizing", "border-box", "important");
+      applyPortaledPanelLayout(panel, widget);
+      syncDrawerPanelRefs(widget, panel);
+      ensurePortaledFacetsPainted(widget, panel);
       decorateCheckMarks(panel);
+      enhancePriceSliders(panel);
       placeMobileToolbarToggle(widget);
       if (widget && widget.toggleEl) toggle = widget.toggleEl;
       if (widget.root && widget.root.classList.contains("is-drawer-open")) {
@@ -3985,9 +4144,7 @@
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
         panel.classList.remove("sf-drawer-portal", "is-open");
-        panel.style.removeProperty("width");
-        panel.style.removeProperty("max-width");
-        panel.style.removeProperty("box-sizing");
+        clearPortaledPanelLayout(panel);
         widget.root.appendChild(panel);
       }
       if (backdrop && backdrop.classList.contains("sf-drawer-portal")) {
@@ -4000,7 +4157,7 @@
       }
       document.documentElement.classList.remove("is-sf-drawer-open");
     }
-    widget.panelEl = panel;
+    syncDrawerPanelRefs(widget, panel);
     widget.backdropEl = backdrop;
     widget.toggleEl = toggle;
   }
@@ -4367,8 +4524,6 @@
 
   function mountFindlyPager(widget) {
     if (!widget) return;
-    var style = widget.paginationStyle;
-    if (style === "load_more" || style === "infinite") return;
     if (widget.hideFindlyPagerEl) widget.hideFindlyPagerEl();
     if (widget.syncThemePager) widget.syncThemePager();
   }
@@ -5531,8 +5686,22 @@
     var origOpen = proto.openDrawer;
     proto.openDrawer = function () {
       portalMobileDrawer(this);
+      var panel = liveDrawerPanel(this);
+      if (panel) {
+        syncDrawerPanelRefs(this, panel);
+        applyPortaledPanelLayout(panel, this);
+        ensurePortaledFacetsPainted(this, panel);
+      }
       if (origOpen) origOpen.apply(this, arguments);
-      if (this.panelEl) this.panelEl.classList.add("is-open");
+      panel = liveDrawerPanel(this) || this.panelEl;
+      if (panel) {
+        panel.classList.add("is-open");
+        syncDrawerPanelRefs(this, panel);
+        applyPortaledPanelLayout(panel, this);
+        ensurePortaledFacetsPainted(this, panel);
+        enhancePriceSliders(panel);
+        decorateCheckMarks(panel);
+      }
       if (this.backdropEl) {
         this.backdropEl.hidden = false;
         this.backdropEl.classList.add("is-open");
@@ -5543,7 +5712,8 @@
     var origClose = proto.closeDrawer;
     proto.closeDrawer = function () {
       if (origClose) origClose.apply(this, arguments);
-      if (this.panelEl) this.panelEl.classList.remove("is-open");
+      var panel = liveDrawerPanel(this) || this.panelEl;
+      if (panel) panel.classList.remove("is-open");
       if (this.backdropEl) this.backdropEl.classList.remove("is-open");
       document.documentElement.classList.remove("is-sf-drawer-open");
     };
@@ -5631,13 +5801,34 @@
 
     var origRenderFacets = proto.renderFacets;
     proto.renderFacets = function () {
+      var panel = liveDrawerPanel(this);
+      if (panel) syncDrawerPanelRefs(this, panel);
       var result = origRenderFacets
         ? origRenderFacets.apply(this, arguments)
         : undefined;
       placeDrawerChips(this);
-      enhancePriceSliders(this.root);
+      // Panel is moved to document.body on mobile — never search only this.root.
+      enhancePriceSliders(this.panelEl || this.facetsEl || this.root);
       decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
       return result;
+    };
+
+    var origFail = proto.failFilterLoad;
+    proto.failFilterLoad = function (err) {
+      var panel = liveDrawerPanel(this);
+      if (panel) syncDrawerPanelRefs(this, panel);
+      if (origFail) origFail.apply(this, arguments);
+      panel = liveDrawerPanel(this) || this.panelEl;
+      if (panel) {
+        syncDrawerPanelRefs(this, panel);
+        var status =
+          (this.statusEl && this.statusEl.isConnected !== false && this.statusEl) ||
+          panel.querySelector("[data-status]");
+        if (status && !String(status.textContent || "").trim()) {
+          status.textContent = "Filters could not be loaded. Please try again.";
+          status.setAttribute("data-error", "true");
+        }
+      }
     };
   }
 
@@ -5667,7 +5858,11 @@
           else held = next;
           patchWidget(next);
           applyLooseHash(next);
-          if (next && next.root) enhancePriceSliders(next.root);
+          if (next && next.root) {
+            enhancePriceSliders(
+              next.panelEl || next.facetsEl || next.root,
+            );
+          }
           enhanceSortMenu(next);
           decorateCheckMarks(
             (next && next.panelEl) || (next && next.facetsEl) || (next && next.root),
@@ -5708,7 +5903,9 @@
     if (held) {
       patchWidget(held);
       applyLooseHash(held);
-      if (held.root) enhancePriceSliders(held.root);
+      if (held.root) {
+        enhancePriceSliders(held.panelEl || held.facetsEl || held.root);
+      }
       enhanceSortMenu(held);
       decorateCheckMarks(held.panelEl || held.facetsEl || held.root);
     }

@@ -97,7 +97,11 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("sf-sort-host")) {
     fail("Findly sort must mount in an owned host, not theme facet chrome");
   }
-  if (!read("app/services/proxy.server.ts").includes("hmacMessageFromRawQueryEncoded")) {
+  if (
+    !read("app/services/proxy-signature.server.ts").includes(
+      "hmacMessageFromRawQueryEncoded",
+    )
+  ) {
     fail("app proxy HMAC must also accept encoded query signatures");
   }
   if (!read("app/routes/apps.smart-filter.filters.tsx").includes("private, no-store")) {
@@ -491,13 +495,20 @@ try {
   const syncModal = read("app/components/sync-details-modal.tsx");
   const proxy = read("app/services/proxy.server.ts");
   const eventsRoute = read("app/routes/events.app.products.tsx");
+  const webhookAction = read("app/services/webhook-action.server.ts");
   const workerBoot = read("app/workers/ensure-running.server.ts");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
     );
   }
-  if (!eventsRoute.includes("handleProductEvent")) {
+  if (
+    !eventsRoute.includes("handleProductEvent") &&
+    !(
+      eventsRoute.includes("productEventWebhookAction") &&
+      webhookAction.includes("handleProductEvent")
+    )
+  ) {
     fail("events.app.products must enqueue catalog sync via handleProductEvent");
   }
   if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
@@ -567,7 +578,10 @@ try {
   if (countBulkQueryConnections("edges { edges {") !== 2) {
     fail("countBulkQueryConnections should count each edges { connection");
   }
-  if (!proxy.includes("getCatalogGeneration")) {
+  if (
+    !proxy.includes("catalogGenerationForShopId") &&
+    !proxy.includes("getCatalogGeneration")
+  ) {
     fail("proxy.server.ts must key filter cache by catalog generation");
   }
   if (!syncPage.includes("/app?sync=1")) {

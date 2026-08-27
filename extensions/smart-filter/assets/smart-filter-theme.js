@@ -46,14 +46,16 @@
     if (
       tag === "results-list" ||
       tag === "product-list" ||
-      tag === "grid-list"
+      tag === "grid-list" ||
+      tag === "media-grid" ||
+      tag === "collection-list"
     ) {
       return true;
     }
     var display = hostDisplay(el);
     if (display === "contents") return true;
     var cls = " " + String(el.className || "") + " ";
-    return / collection-wrapper | main-collection-grid | collection__content /.test(
+    return / collection-wrapper | main-collection-grid | collection__content | product-grid-container /.test(
       cls,
     );
   }
@@ -71,7 +73,7 @@
   function cardFromLink(link) {
     if (!link || !link.closest) return link;
     var card = link.closest(
-      "product-card, product-item, grid-item, li.grid__item, .product-card, .product-item, .grid-product, .grid-view-item, .product-block, .productitem, .product-grid-item, .product-grid__item, .card-wrapper, [data-product-handle], [data-product-id], article, li",
+      "product-card, product-item, grid-item, li.grid__item, .product-card, .product-item, .grid-product, .grid-view-item, .product-block, .productitem, .product-grid-item, .product-grid__item, .card-wrapper, .card, .card--product, [data-product-handle], [data-product-id], article, li",
     );
     return card || link.parentElement || link;
   }
@@ -148,16 +150,8 @@
         el.matches &&
         (el.matches(PAGER_HINT) || (el.closest && el.closest(PAGER_HINT)))
       ) {
-        var widget = window.__FINDLY_FILTER_WIDGET;
-        if (
-          !(
-            widget &&
-            (widget.paginationStyle === "load_more" ||
-              widget.paginationStyle === "infinite")
-          )
-        ) {
-          return;
-        }
+        // Theme owns pagination chrome; never hide it via native-chrome heuristic.
+        return;
       }
     } catch (err) {
       /* ignore */
@@ -236,22 +230,6 @@
     for (i = 0; i < Math.min(candidates.length, 80); i++) {
       if (looksLikeFilterChrome(candidates[i])) hideIfChrome(candidates[i]);
     }
-
-    var widget = window.__FINDLY_FILTER_WIDGET;
-    var customPager =
-      widget &&
-      (widget.paginationStyle === "load_more" ||
-        widget.paginationStyle === "infinite");
-    if (
-      customPager &&
-      document.documentElement.classList.contains("sf-og")
-    ) {
-      var pagers = document.querySelectorAll(PAGER_HINT);
-      for (i = 0; i < pagers.length; i++) {
-        if (isFindlyUi(pagers[i])) continue;
-        hideLeaf(pagers[i]);
-      }
-    }
   }
 
   function injectCompatCss() {
@@ -292,11 +270,7 @@
       ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout,.container>.sf-collection-layout{width:100%!important;max-width:100%!important}" +
       ".sf-collection-layout,[data-findly-theme-hidden='1'],[data-findly-native-chrome='1']{--findly-theme-compat:1}" +
       "[data-findly-native-chrome='1'],[data-findly-theme-hidden='1']{display:none!important}" +
-      "html.sf-custom-pager nav.pagination:not(.sf-pager),html.sf-custom-pager .pagination:not(.sf-pager),html.sf-custom-pager .pagination-wrapper:not(.sf-pager)," +
-      "html.sf-custom-pager [data-pagination]:not(.sf-pager),html.sf-custom-pager load-more-button,html.sf-custom-pager .load-more-button," +
-      "html.sf-custom-pager .ajaxinate-pagination,html.sf-custom-pager #AjaxinatePagination,html.sf-custom-pager .Pagination," +
-      "html.sf-custom-pager [data-load-more]:not(.sf-pager){display:none!important}" +
-      "#findly-sf-pager,.sf-pager--pagination,[data-sf-pager-suppressed='1']," +
+      "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination-wrapper," +
@@ -503,9 +477,72 @@
     };
   }
 
+  function liveFilterRoot() {
+    return (
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed")
+    );
+  }
+
+  function scopeHasFilter(scope) {
+    if (!scope || !scope.querySelector) return false;
+    return Boolean(
+      scope.querySelector(
+        "#smart-filter-root, #smart-filter-embed, .smart-filter",
+      ),
+    );
+  }
+
+  /**
+   * Portaled drawer nodes live on document.body. Theme editor section reloads
+   * destroy the mount but leave orphans — remove any portal not owned by the
+   * current connected widget.
+   */
+  function cleanupOrphanPortals(forceAll) {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    var root = liveFilterRoot();
+    var ownedPanel = widget && widget.panelEl;
+    var ownedBackdrop = widget && widget.backdropEl;
+    var nodes = document.querySelectorAll(
+      ".sf-panel.sf-drawer-portal, .sf-backdrop.sf-drawer-portal",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || !el.parentNode) continue;
+      if (!forceAll && root && widget && widget.root && widget.root.isConnected) {
+        if (el === ownedPanel || el === ownedBackdrop) continue;
+        if (root.contains(el)) continue;
+      }
+      try {
+        el.parentNode.removeChild(el);
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    if (forceAll || !root) {
+      try {
+        document.documentElement.classList.remove("is-sf-drawer-open");
+      } catch (err) {
+        /* ignore */
+      }
+    }
+  }
+
+  function restoreFiltersFromLocation(widget) {
+    if (!widget || !widget.fetchFilters) return;
+    if (widget.restoreFromHash) widget.restoreFromHash();
+    try {
+      widget.fetchFilters();
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function rebindWidget() {
     var widget = window.__FINDLY_FILTER_WIDGET;
-    if (!widget) return;
+    cleanupOrphanPortals(false);
+    if (!widget || !widget.root || widget.root.isConnected === false) return;
     widget._gridParent = null;
     if (widget.ensureGridParent) widget.ensureGridParent();
     if (widget.syncCollectionLayout) widget.syncCollectionLayout();
@@ -521,13 +558,42 @@
     if (window.__findlyThemeLifecycle) return;
     window.__findlyThemeLifecycle = true;
     document.addEventListener("shopify:section:load", function () {
+      window.setTimeout(function () {
+        cleanupOrphanPortals(false);
+        rebindWidget();
+      }, 0);
+    });
+    document.addEventListener("shopify:section:unload", function (event) {
+      if (scopeHasFilter(event && event.target)) {
+        window.__FINDLY_FILTER_BOOTED = false;
+        cleanupOrphanPortals(true);
+        return;
+      }
       window.setTimeout(rebindWidget, 0);
     });
     document.addEventListener("shopify:section:reorder", function () {
       window.setTimeout(rebindWidget, 0);
     });
-    window.addEventListener("popstate", function () {
+    document.addEventListener("shopify:block:select", function () {
       window.setTimeout(rebindWidget, 0);
+    });
+    document.addEventListener("shopify:block:deselect", function () {
+      window.setTimeout(rebindWidget, 0);
+    });
+    window.addEventListener("popstate", function () {
+      window.setTimeout(function () {
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (widget && liveFilterRoot()) restoreFiltersFromLocation(widget);
+        rebindWidget();
+      }, 0);
+    });
+    window.addEventListener("pageshow", function (event) {
+      if (!event || !event.persisted) return;
+      window.setTimeout(function () {
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (widget && liveFilterRoot()) restoreFiltersFromLocation(widget);
+        rebindWidget();
+      }, 0);
     });
     window.addEventListener("load", function () {
       window.setTimeout(rebindWidget, 50);

@@ -1,10 +1,11 @@
 /**
- * Collection pager (pagination / load more / infinite scroll).
+ * Collection pager — theme numbered pagination only.
  * Loaded from Liquid via asset_url so it does not count against the 100 KB
  * schema "javascript" cap on smart-filter.min.js.
  *
  * Patches Widget.prototype as soon as window.__FINDLY_FILTER_WIDGET is set.
- * Infinite scroll never renders the Load more button.
+ * Findly never mounts load-more / infinite chrome; filtered views sync the
+ * theme pager via syncThemePager + bindThemePagerClicks → goToPage.
  */
 (function () {
   "use strict";
@@ -33,24 +34,9 @@
     return pages;
   }
 
-  function usesThemeNumberedPager(widget) {
-    var style = widget && widget.paginationStyle;
-    if (style !== "load_more" && style !== "infinite") return true;
-    // Infinite / load-more: only reuse the theme numbered pager while the
-    // collection is filtered/searched/sorted. Unfiltered browse keeps Findly
-    // infinite/load-more chrome (and must hide the theme's unfiltered 1…N).
-    if (!widget) return false;
-    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
-    if (widget.collectionQuery) return true;
-    if (widget.searchQuery) return true;
-    if (
-      widget.sortKey &&
-      widget.defaultSort &&
-      widget.sortKey !== widget.defaultSort
-    ) {
-      return true;
-    }
-    return false;
+  /** Always theme numbered — admin paginationStyle is ignored. */
+  function usesThemeNumberedPager() {
+    return true;
   }
 
   function setHtmlClass(name, on) {
@@ -60,8 +46,8 @@
     else root.classList.remove(name);
   }
 
-  function setCustomPagerClass(on) {
-    setHtmlClass("sf-custom-pager", on);
+  function clearCustomPagerClass() {
+    setHtmlClass("sf-custom-pager", false);
   }
 
   function setPagerUnneeded(on) {
@@ -240,18 +226,13 @@
 
   function removeFindlyNumberedPagers(widget) {
     if (widget && widget.hideFindlyPagerEl) widget.hideFindlyPagerEl();
-    var nodes = document.querySelectorAll("#findly-sf-pager, .sf-pager--pagination");
+    var nodes = document.querySelectorAll(
+      "#findly-sf-pager, .sf-pager, .sf-pager--pagination, .sf-pager--load-more, .sf-pager--infinite",
+    );
     var i;
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (!el) continue;
-      if (
-        el.classList &&
-        (el.classList.contains("sf-pager--load-more") ||
-          el.classList.contains("sf-pager--infinite"))
-      ) {
-        continue;
-      }
       el.hidden = true;
       el.setAttribute("hidden", "");
       el.innerHTML = "";
@@ -600,7 +581,7 @@
       "click",
       function (event) {
         var widget = window.__FINDLY_FILTER_WIDGET;
-        if (!widget || !usesThemeNumberedPager(widget)) return;
+        if (!widget || !usesThemeNumberedPager()) return;
         var target = event.target;
         if (!target || !target.closest) return;
         if (target.closest(".sf-pager, .smart-filter")) return;
@@ -647,37 +628,8 @@
       }
     };
 
-    proto.bindInfinite = function (sentinel) {
-      var self = this;
+    proto.bindInfinite = function () {
       this.disconnectInfinite();
-      if (!sentinel) return;
-      function maybeLoad() {
-        if (self.paginationStyle !== "infinite") return;
-        if (self._loadingPage || !self._hasNext) return;
-        var rect = sentinel.getBoundingClientRect();
-        if (rect.top > (window.innerHeight || 0) + 400) return;
-        self.disconnectInfinite();
-        self.loadNextPage();
-      }
-      if (typeof window.IntersectionObserver === "function") {
-        this._infiniteObserver = new IntersectionObserver(
-          function (entries) {
-            var hit = false;
-            for (var i = 0; i < entries.length; i++) {
-              if (entries[i].isIntersecting) hit = true;
-            }
-            if (!hit) return;
-            maybeLoad();
-          },
-          { root: null, rootMargin: "400px", threshold: 0 },
-        );
-        this._infiniteObserver.observe(sentinel);
-        return;
-      }
-      this._infiniteOnScroll = maybeLoad;
-      window.addEventListener("scroll", maybeLoad, { passive: true });
-      window.addEventListener("resize", maybeLoad);
-      maybeLoad();
     };
 
     proto.placePagerEl = function (el) {
@@ -685,6 +637,17 @@
       el.classList.add("sf-pager");
       el.removeAttribute("data-smart-filter-hidden");
       el.removeAttribute("data-findly-theme-hidden");
+      if (this.root) {
+        try {
+          var cs = window.getComputedStyle(this.root);
+          var accent = (cs.getPropertyValue("--sf-accent") || "").trim();
+          var focus = (cs.getPropertyValue("--sf-focus") || "").trim();
+          if (accent) el.style.setProperty("--sf-accent", accent);
+          if (focus) el.style.setProperty("--sf-focus", focus);
+        } catch (err) {
+          /* ignore */
+        }
+      }
       var main = document.querySelector(
         ".sf-collection-layout > .sf-layout-main",
       ) || document.querySelector(".sf-layout-main");
@@ -728,34 +691,7 @@
       return el;
     };
 
-    proto.renderLoadMore = function (el) {
-      if (this.paginationStyle === "infinite") return;
-      el.innerHTML = "";
-      if (!this._hasNext) {
-        el.hidden = true;
-        return;
-      }
-      el.hidden = false;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sf-pager-more";
-      btn.textContent = this.t("load_more", "Load more");
-      btn.disabled = Boolean(this._loadingPage || this._appending);
-      if (btn.disabled) btn.setAttribute("aria-busy", "true");
-      btn.addEventListener(
-        "click",
-        function () {
-          this.loadNextPage();
-        }.bind(this),
-      );
-      el.appendChild(btn);
-      if (this._loadingPage || this._appending) {
-        var spin = document.createElement("span");
-        spin.className = "sf-pager-spin";
-        spin.setAttribute("aria-hidden", "true");
-        btn.appendChild(spin);
-      }
-    };
+    proto.renderLoadMore = function () {};
 
     proto.renderNumberedPager = function (el) {
       var size = this.pageSize || 16;
@@ -855,7 +791,7 @@
     };
 
     proto.usesThemeNumberedPager = function () {
-      return usesThemeNumberedPager(this);
+      return usesThemeNumberedPager();
     };
 
     proto.syncThemePager = function () {
@@ -863,15 +799,7 @@
       var total = filteredTotal(this);
       var size = this.pageSize || 16;
       var drive = shouldDriveThemePager(this);
-      if (!usesThemeNumberedPager(this)) {
-        // Load more / infinite: Findly owns paging. Never leave the theme's
-        // unfiltered 1…N bar visible (apply-count would otherwise unhide it).
-        setCustomPagerClass(true);
-        setPagerUnneeded(false);
-        suppressThemePagers();
-        return false;
-      }
-      setCustomPagerClass(false);
+      clearCustomPagerClass();
       if (total >= 0) applyPagerByProductCount(this, total);
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
@@ -922,68 +850,22 @@
       }
     };
 
-    var origSetHidden = proto.setThemePagerHidden;
-    proto.setThemePagerHidden = function (hide) {
-      if (usesThemeNumberedPager(this)) {
-        this.syncThemePager();
-        removeFindlyNumberedPagers(this);
-        return;
-      }
-      if (origSetHidden) origSetHidden.call(this, hide);
+    proto.setThemePagerHidden = function () {
+      this.syncThemePager();
+      removeFindlyNumberedPagers(this);
     };
 
     var origRestore = proto.restoreThemePaging;
     proto.restoreThemePaging = function () {
       if (origRestore) origRestore.call(this);
-      if (!usesThemeNumberedPager(this)) return;
       this.syncThemePager();
       removeFindlyNumberedPagers(this);
     };
 
     proto.renderPager = function () {
-      setCustomPagerClass(!usesThemeNumberedPager(this));
-      if (usesThemeNumberedPager(this)) {
-        this.disconnectInfinite();
-        this.syncThemePager();
-        return;
-      }
-      var el = this.ensurePagerEl();
-      if (this.placePagerEl) this.placePagerEl(el);
-      var style = this.paginationStyle;
-      el.classList.remove(
-        "sf-pager--pagination",
-        "sf-pager--load-more",
-        "sf-pager--infinite",
-      );
-      el.classList.add(
-        style === "load_more"
-          ? "sf-pager--load-more"
-          : style === "infinite"
-            ? "sf-pager--infinite"
-            : "sf-pager--pagination",
-      );
-      el.style.removeProperty("display");
-      if (style === "load_more") {
-        this.disconnectInfinite();
-        this.renderLoadMore(el);
-        return;
-      }
-      if (style === "infinite") {
-        el.innerHTML = "";
-        if (!this._hasNext) {
-          el.hidden = true;
-          this.disconnectInfinite();
-          return;
-        }
-        el.hidden = false;
-        var sentinel = document.createElement("div");
-        sentinel.className =
-          "sf-pager-sentinel" +
-          (this._loadingPage || this._appending ? " is-busy" : "");
-        sentinel.setAttribute("aria-hidden", "true");
-        el.appendChild(sentinel);
-        this.bindInfinite(sentinel);
-      }
+      clearCustomPagerClass();
+      this.disconnectInfinite();
+      this.syncThemePager();
     };
   }
 
@@ -1005,7 +887,7 @@
     window.__findlyThemePagerObs = new MutationObserver(function () {
       if (window.__findlyThemePagerIgnoreMutations) return;
       var w = window.__FINDLY_FILTER_WIDGET;
-      if (!w || !usesThemeNumberedPager(w) || !w.syncThemePager) return;
+      if (!w || !usesThemeNumberedPager() || !w.syncThemePager) return;
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
         return;
@@ -1015,7 +897,7 @@
         window.__findlyThemePagerObsTimer = 0;
         if (window.__findlyThemePagerIgnoreMutations) return;
         var next = window.__FINDLY_FILTER_WIDGET;
-        if (!next || !usesThemeNumberedPager(next) || !next.syncThemePager) {
+        if (!next || !usesThemeNumberedPager() || !next.syncThemePager) {
           return;
         }
         next.syncThemePager();

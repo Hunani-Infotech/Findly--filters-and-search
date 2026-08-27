@@ -11,6 +11,7 @@
   var SKEL = "data-findly-skel";
   var SKEL_HOST = "data-findly-skel-host";
   var OVERLAY_ID = "findly-grid-busy-overlay";
+  /* Prefer concrete product grids; include Horizon / OS 2.0 hosts as fallbacks. */
   var HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -19,6 +20,13 @@
     "ol.product-grid",
     ".product-grid",
     ".sf-app-grid",
+    "[product-grid-view]",
+    "#main-collection-product-grid",
+    ".collection-product-list",
+    "product-list",
+    "#ResultsList",
+    "results-list > .main-collection-grid",
+    "results-list",
   ];
   var root = document.documentElement;
   if (root && root.classList) {

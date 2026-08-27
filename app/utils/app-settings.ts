@@ -169,27 +169,19 @@ export function pinSoldOutToEnd(settings: {
   return resolveHideOutOfStock(settings) === "end";
 }
 
-export const PAGING_STYLE_KEYS = [
-  "pagination",
-  "load_more",
-  "infinite",
-] as const;
+/** Theme owns paging; Findly always uses numbered pagination. */
+export const PAGING_STYLE_KEYS = ["pagination"] as const;
 
 export type PaginationStyle = (typeof PAGING_STYLE_KEYS)[number];
 
 export const PAGING_STYLE_OPTIONS: {
   label: string;
   value: PaginationStyle;
-}[] = [
-  { label: "Pagination", value: "pagination" },
-  { label: "Load more button", value: "load_more" },
-  { label: "Infinite scroll", value: "infinite" },
-];
+}[] = [{ label: "Pagination", value: "pagination" }];
 
-export function parsePaginationStyle(value: unknown): PaginationStyle {
-  return PAGING_STYLE_KEYS.includes(value as PaginationStyle)
-    ? (value as PaginationStyle)
-    : "pagination";
+/** Coerce legacy load_more / infinite (and any other value) to pagination. */
+export function parsePaginationStyle(_value?: unknown): PaginationStyle {
+  return "pagination";
 }
 
 export const WIDGET_POSITIONS = [

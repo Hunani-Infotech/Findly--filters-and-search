@@ -40,7 +40,6 @@ import {
 import { SortOptionsPicker } from "../components/sort-options-picker";
 import {
   HIDE_OUT_OF_STOCK_OPTIONS,
-  PAGING_STYLE_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
   SORT_OPTION_LABELS,
@@ -57,7 +56,6 @@ import {
   normalizeSearchFields,
   normalizeSortOptions,
   parseHideOutOfStock,
-  parsePaginationStyle,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
@@ -65,7 +63,6 @@ import {
   parseWidgetTitleSize,
   resolveHideOutOfStock,
   type HideOutOfStockMode,
-  type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
@@ -138,7 +135,6 @@ type SettingsState = {
   hideProductTags: string[];
   collapseByDefault: boolean;
   hideOutOfStock: HideOutOfStockMode;
-  paginationStyle: PaginationStyle;
   widgetShadow: boolean;
   widgetRadius: number;
   radiusChoice: string;
@@ -175,7 +171,6 @@ function toSettingsState(settings: {
   hideProductTags?: unknown;
   collapseByDefault: boolean;
   hideOutOfStock?: string;
-  paginationStyle?: string;
   widgetShadow: boolean;
   widgetRadius: number;
   widgetFontMode: string;
@@ -213,7 +208,6 @@ function toSettingsState(settings: {
     hideProductTags: normalizeHideProductTags(settings.hideProductTags),
     collapseByDefault: settings.collapseByDefault,
     hideOutOfStock: resolveHideOutOfStock(settings),
-    paginationStyle: parsePaginationStyle(settings.paginationStyle),
     widgetShadow: settings.widgetShadow,
     widgetRadius,
     radiusChoice: isPresetRadius(widgetRadius) ? String(widgetRadius) : "custom",
@@ -276,7 +270,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       hideProductTags: settings.hideProductTags,
       collapseByDefault: settings.collapseByDefault,
       hideOutOfStock: settings.hideOutOfStock,
-      paginationStyle: (settings as { paginationStyle?: string }).paginationStyle,
       widgetShadow: settings.widgetShadow,
       widgetRadius: settings.widgetRadius,
       widgetFontMode: settings.widgetFontMode,
@@ -401,7 +394,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("collapseByDefault") === "true" ||
       form.get("collapseByDefault") === "on",
     hideOutOfStock: parseHideOutOfStock(form.get("hideOutOfStock")),
-    paginationStyle: parsePaginationStyle(form.get("paginationStyle")),
     widgetShadow:
       form.get("widgetShadow") === "true" || form.get("widgetShadow") === "on",
     widgetRadius: parseWidgetRadius(form.get("widgetRadius")),
@@ -565,7 +557,6 @@ export default function SettingsPage() {
     formData.set("hideProductTags", next.hideProductTags.join(", "));
     formData.set("collapseByDefault", String(next.collapseByDefault));
     formData.set("hideOutOfStock", next.hideOutOfStock);
-    formData.set("paginationStyle", next.paginationStyle);
     formData.set("widgetShadow", String(next.widgetShadow));
     formData.set("widgetRadius", String(next.widgetRadius));
     formData.set("widgetFontMode", next.widgetFontMode);
@@ -820,26 +811,6 @@ export default function SettingsPage() {
                           The availability filter still works with every option.
                         </Text>
                       </BlockStack>
-                    </BlockStack>
-                  </Card>
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Pagination
-                      </Text>
-                      <Select
-                        label="Paging style"
-                        options={PAGING_STYLE_OPTIONS}
-                        value={settings.paginationStyle}
-                        disabled={saving}
-                        helpText="Applies to filtered collection and search grids. Theme pagination is left alone when intercept is not possible."
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            paginationStyle: parsePaginationStyle(value),
-                          }))
-                        }
-                      />
                     </BlockStack>
                   </Card>
                   <Card>

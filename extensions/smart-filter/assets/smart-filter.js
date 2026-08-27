@@ -882,6 +882,9 @@
     "facet-dropdown",
     "facet-status-component",
     "facets-form-component",
+    "facets-form",
+    "filter-form",
+    "facet-form",
     ".facets__form-wrapper",
     "facets-form .facets",
     ".facet-filters",
@@ -934,8 +937,11 @@
   var FRAGILE_LAYOUT_HOST_SELECTOR = [
     "results-list",
     "#ResultsList",
+    "product-list",
+    "grid-list",
     ".collection-wrapper",
     ".main-collection-grid",
+    ".product-grid-container",
   ].join(", ");
   var THEME_COUNT_SELECTOR = [
     "#ProductCount",
@@ -1061,7 +1067,6 @@
   var LAYOUT_RETRY_MS = 250;
   var LATE_GRID_OBSERVE_MS = 4000;
   var THEME_PAGE_FETCH_MAX = 40;
-  var PAGING_STYLES = { pagination: true, load_more: true, infinite: true };
 
   function matchesSel(el, selector) {
     if (!el || el.nodeType !== 1) return false;
@@ -1226,9 +1231,8 @@
     return false;
   }
 
-  function normalizePaginationStyle(value) {
-    var style = String(value || "").toLowerCase();
-    return PAGING_STYLES[style] ? style : "pagination";
+  function normalizePaginationStyle() {
+    return "pagination";
   }
 
   function currentThemePage() {
@@ -3319,12 +3323,6 @@
   Widget.prototype.shouldInterceptPaging = function () {
     if (this.isAppGridMode()) return true;
     if (this._pagingFallback) return false;
-    if (
-      this.paginationStyle === "load_more" ||
-      this.paginationStyle === "infinite"
-    ) {
-      return true;
-    }
     return this.hasNonThemeMatching();
   };
 
@@ -4067,14 +4065,6 @@
     this.hideThemeDuplicateChrome();
     this.ensurePageSize();
     if (!append) this.setGridBusy(true);
-    if (
-      !append &&
-      (this.paginationStyle === "load_more" ||
-        this.paginationStyle === "infinite")
-    ) {
-      // Filtered views drive the theme numbered pager; don't mount infinite chrome first.
-      if (this.renderPager) this.renderPager();
-    }
     if (!append && this.autoApplyFilters === false && this.facetsEl) {
       var applyNowBtn = this.facetsEl.querySelector(".sf-apply-now");
       if (applyNowBtn) {
@@ -4389,7 +4379,34 @@
   };
 
   Widget.prototype.onDrawerKey = function (event) {
-    if (event.key === "Escape") this.closeDrawer();
+    if (event.key === "Escape") {
+      this.closeDrawer();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    var panel = this.panelEl;
+    if (!panel || !panel.querySelectorAll) return;
+    var nodes = panel.querySelectorAll(
+      "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+    );
+    var list = [];
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el.hidden || el.getAttribute("hidden") != null) continue;
+      if (el.closest && el.closest("[hidden]")) continue;
+      list.push(el);
+    }
+    if (!list.length) return;
+    var first = list[0];
+    var last = list[list.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   };
 
   Widget.prototype.openDrawer = function () {
@@ -5420,6 +5437,30 @@
       }
       widget.hideThemeDuplicateChrome();
       widget.watchThemeGrid();
+    }
+  });
+
+  document.addEventListener("shopify:section:unload", function (event) {
+    var scope = event && event.target;
+    if (
+      !scope ||
+      !scope.querySelector ||
+      !scope.querySelector(
+        "#smart-filter-root, #smart-filter-embed, .smart-filter",
+      )
+    ) {
+      return;
+    }
+    window.__FINDLY_FILTER_BOOTED = false;
+    var current = window.__FINDLY_FILTER_WIDGET;
+    if (current && current.root && scope.contains(current.root)) {
+      try {
+        if (current._gridObserver) current._gridObserver.disconnect();
+        if (current._lateGridObserver) current._lateGridObserver.disconnect();
+        if (current._infiniteObserver) current._infiniteObserver.disconnect();
+      } catch (err) {
+        /* ignore */
+      }
     }
   });
 
