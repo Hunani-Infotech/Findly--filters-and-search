@@ -51,6 +51,11 @@
     aria-expanded="false"
     aria-controls="smart-filter-panel"
   >
+    <svg class="smart-filter__toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2.5 5h11M2.5 11h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="6.25" cy="5" r="1.75" fill="currentColor"/>
+      <circle cx="9.75" cy="11" r="1.75" fill="currentColor"/>
+    </svg>
     {{ "blocks.collection_filters.filter" | t }}
     <span class="smart-filter__toggle-count" data-drawer-count hidden></span>
   </button>
@@ -106,7 +111,7 @@
   >
     <div class="smart-filter__panel-head">
       <div class="smart-filter__title" id="smart-filter-title" data-title>Filter</div>
-      <button type="button" class="smart-filter__clear-all" data-clear-all disabled>
+      <button type="button" class="smart-filter__clear-all" data-clear-all hidden disabled>
         Clear All
       </button>
       <button
@@ -117,6 +122,7 @@
       >
         ×
       </button>
+      <div class="smart-filter__chips-slot" data-filter-chips hidden></div>
     </div>
     <div class="smart-filter__facets" data-facets>
       <div class="smart-filter__skeleton" data-skeleton aria-hidden="true">

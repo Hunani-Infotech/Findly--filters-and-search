@@ -26,6 +26,13 @@
   padding: 0 0 0.85rem !important;
 }
 
+#smart-filter-root .smart-filter__chips-slot .smart-filter__chips,
+#smart-filter-embed .smart-filter__chips-slot .smart-filter__chips {
+  margin: 0.35rem 0 0 !important;
+  padding: 0 !important;
+  border-bottom: 0 !important;
+}
+
 #smart-filter-root .smart-filter__chip,
 #smart-filter-embed .smart-filter__chip {
   padding: 0.28rem 0.55rem !important;
