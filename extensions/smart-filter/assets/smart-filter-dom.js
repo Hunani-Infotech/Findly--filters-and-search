@@ -1,7 +1,7 @@
 /**
  * Shared DOM / money helpers for theme extension widgets.
- * Load via Liquid asset_url before schema JS. Callers may keep local
- * fallbacks; lookup is at call time so load order does not matter.
+ * Load via Liquid asset_url before schema JS. Callers must keep local
+ * fallbacks when a helper is safety-critical (e.g. partner reinit).
  */
 (function (global) {
   "use strict";
