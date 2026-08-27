@@ -3994,6 +3994,7 @@
     this._pageTotal = total;
     var size = this.pageSize || 16;
     if (handles.length > this._pageTotal) this._pageTotal = handles.length;
+    this._statusProductCount = this._pageTotal;
     this._hasNext =
       data.hasNext === true ||
       (data.hasNext !== false && this.page * size < this._pageTotal);

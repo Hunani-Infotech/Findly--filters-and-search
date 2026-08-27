@@ -15,7 +15,7 @@
     "header, footer, .header, .footer, .announcement-bar, .predictive-search, .quick-add-modal, product-recommendations, .shopify-section-group-header-group, .shopify-section-group-footer-group";
   var ORIG_ATTR = "data-sf-theme-orig";
   var SUPPRESS_ATTR = "data-sf-pager-suppressed";
-  var PAGER_DEBUG_VER = "pager-debug-7";
+  var PAGER_DEBUG_VER = "pager-debug-8";
 
   function pagerVisibleNums(el) {
     var nums = [];
@@ -303,25 +303,28 @@
   }
 
   function filteredTotal(widget) {
-    var candidates = [];
     var data = widget && widget._lastFilterData;
+    var latest = [];
     if (data) {
       var fromTotal = Number(data.total);
-      if (Number.isFinite(fromTotal) && fromTotal >= 0) candidates.push(fromTotal);
+      if (Number.isFinite(fromTotal) && fromTotal >= 0) latest.push(fromTotal);
       var fromCount = Number(data.count);
-      if (Number.isFinite(fromCount) && fromCount >= 0) candidates.push(fromCount);
+      if (Number.isFinite(fromCount) && fromCount >= 0) latest.push(fromCount);
       if (Array.isArray(data.handles) && data.handles.length) {
-        candidates.push(data.handles.length);
+        latest.push(data.handles.length);
       }
     }
-    var all = widget && widget._allFilterHandles;
-    if (Array.isArray(all) && all.length) candidates.push(all.length);
-    var status = Number(widget && widget._statusProductCount);
-    if (Number.isFinite(status) && status >= 0) candidates.push(status);
+    // Latest filter payload wins. Mixing it with leftover
+    // _statusProductCount / _pageTotal from the previous unfiltered view
+    // kept theme pagination visible on the first filter apply.
+    if (latest.length) return Math.max.apply(null, latest);
     var pageTotal = Number(widget && widget._pageTotal);
-    if (Number.isFinite(pageTotal) && pageTotal >= 0) candidates.push(pageTotal);
-    if (!candidates.length) return -1;
-    return Math.max.apply(null, candidates);
+    if (Number.isFinite(pageTotal) && pageTotal >= 0) return pageTotal;
+    var all = widget && widget._allFilterHandles;
+    if (Array.isArray(all) && all.length) return all.length;
+    var status = Number(widget && widget._statusProductCount);
+    if (Number.isFinite(status) && status >= 0) return status;
+    return -1;
   }
 
   function resultsFitOnePage(widget) {
@@ -577,7 +580,6 @@
     var size = widget.pageSize || 16;
     var total = filteredTotal(widget);
     if (total < 0) return;
-    if (Number(widget._pageTotal) > total) total = Number(widget._pageTotal);
     widget._pageTotal = total;
     var pageCount = Math.max(1, Math.ceil(total / size) || 1);
     var page = Math.max(1, widget.page || 1);

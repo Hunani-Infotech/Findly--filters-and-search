@@ -121,6 +121,12 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("sf-pager-unneeded") || !pagerJs.includes("resultsFitOnePage")) {
     fail("pager must hide theme pagination when filtered results fit on one page");
   }
+  if (pagerJs.includes("Math.max.apply(null, candidates)")) {
+    fail("filteredTotal must not max leftover unfiltered counts with the latest payload");
+  }
+  if (!pagerJs.includes("Latest filter payload wins")) {
+    fail("filteredTotal must prefer the latest filter payload over stale status counts");
+  }
   if (!pagerJs.includes("__findlyThemePagerDirty")) {
     fail("pager must replay theme pager sync after the loading lock");
   }
@@ -247,6 +253,9 @@ function assertSourceMarkers() {
   }
   if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
+  }
+  if (!filterJs.includes("this._statusProductCount = this._pageTotal")) {
+    fail("readPagingMeta must align status count with the latest filtered total");
   }
   if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v29")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
@@ -576,6 +585,16 @@ function writePagerHarness() {
         widget.syncThemePager();
         var pager = pagerEl();
         if (!pagerIsHidden(pager)) throw new Error("pager still visible for 6 results");
+        widget._lastFilterData = { total: 2, handles: ["a", "b"] };
+        widget._allFilterHandles = ["a", "b"];
+        widget._pageTotal = 2;
+        widget._statusProductCount = 50;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        pager = pagerEl();
+        if (!pagerIsHidden(pager)) {
+          throw new Error("pager still visible on first filter apply with stale status count");
+        }
         widget._lastFilterData = { total: 31, handles: new Array(31).fill("x") };
         widget._statusProductCount = 31;
         widget._pageTotal = 31;
@@ -741,6 +760,16 @@ function writeDawnPagerHarness() {
         widget.syncThemePager();
         var pager = pagerEl();
         if (!pagerIsHidden(pager)) throw new Error("Dawn pager still visible for 6 results");
+        widget._lastFilterData = { total: 2, handles: ["a", "b"] };
+        widget._allFilterHandles = ["a", "b"];
+        widget._pageTotal = 2;
+        widget._statusProductCount = 50;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        pager = pagerEl();
+        if (!pagerIsHidden(pager)) {
+          throw new Error("Dawn pager still visible on first filter apply with stale status count");
+        }
         widget._lastFilterData = { total: 31, handles: new Array(31).fill("x") };
         widget._statusProductCount = 31;
         widget._pageTotal = 31;
