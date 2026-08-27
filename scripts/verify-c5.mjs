@@ -144,9 +144,8 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
   assertAdminToggles();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   await saveAppSettings(shop.id, {

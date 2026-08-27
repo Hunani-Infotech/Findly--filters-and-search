@@ -1,5 +1,5 @@
 import type { Worker } from "bullmq";
-import { log } from "../log.server";
+import { log } from "../lib/log.server";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -45,8 +45,8 @@ async function startInProcessWorker() {
   if (globalThis.__findlySyncWorker) return;
 
   const { Worker } = await import("bullmq");
-  const { createRedisConnection } = await import("../redis.server");
-  const { SYNC_QUEUE } = await import("../queues.server");
+  const { createRedisConnection } = await import("../lib/redis.server");
+  const { SYNC_QUEUE } = await import("../lib/queues.server");
   const { getWorkerCount } = await import("./concurrency.server");
   const { processSyncJob } = await import("./processors");
 

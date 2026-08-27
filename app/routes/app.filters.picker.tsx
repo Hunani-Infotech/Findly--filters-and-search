@@ -1,8 +1,8 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { loadFilterOptionCatalogPage } from "../filter-option-editor.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { loadFilterOptionCatalogPage } from "../services/filter-option-editor.server";
 
 /** JSON page (or full match set) of catalog values for Add/Edit filter option. */
 export const loader = async ({ request }: LoaderFunctionArgs) => {

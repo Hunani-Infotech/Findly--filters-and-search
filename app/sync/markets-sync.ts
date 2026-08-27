@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { log } from "../log.server";
+import { log } from "../lib/log.server";
 import {
   COMPANY_LOCATIONS_QUERY,
   MARKETS_LIST_QUERY,
@@ -7,7 +7,7 @@ import {
   mergeProductMarketPrices,
   parseCompanyLocationIds,
   parseMarketCountryCodes,
-} from "../markets.server";
+} from "../services/markets.server";
 
 type GraphqlClient = {
   graphql: (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
+import { SEARCH_DEBOUNCE_MS } from "../constants/limits";
 
-/** Standard delay for admin search / typeahead that hits the server. */
-export const SEARCH_DEBOUNCE_MS = 300;
+export { SEARCH_DEBOUNCE_MS };
 
 /**
  * Trailing debounce that always calls the latest callback.

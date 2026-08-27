@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
-import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
+import { FINDLY_PUBLIC_ORIGIN } from "../utils/public-origin";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy — Findly: Smart Filters & Search" },

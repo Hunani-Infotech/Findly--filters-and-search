@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
-import { log } from "../log.server";
-import { SYNC_QUEUE } from "../queues.server";
-import { createRedisConnection } from "../redis.server";
+import { log } from "../lib/log.server";
+import { SYNC_QUEUE } from "../lib/queues.server";
+import { createRedisConnection } from "../lib/redis.server";
 import { getWorkerCount } from "./concurrency.server";
 import { processSyncJob } from "./processors";
 

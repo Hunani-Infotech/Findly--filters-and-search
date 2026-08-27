@@ -22,18 +22,18 @@ import {
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { ADDABLE_LOCALES } from "../admin-locales";
+import { ADDABLE_LOCALES } from "../utils/admin-locales";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../admin-nav-extras.server";
-import { useEmbeddedNavigate } from "../admin-path";
-import { slicePage } from "../admin-list-page";
+} from "../services/admin-nav-extras.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   DEFAULT_WIDGET_I18N,
   WIDGET_I18N_KEYS,
@@ -41,7 +41,7 @@ import {
   mergeWidgetChrome,
   type WidgetI18nKey,
   type WidgetI18nMap,
-} from "../widget-i18n";
+} from "../utils/widget-i18n";
 
 export { TranslationListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

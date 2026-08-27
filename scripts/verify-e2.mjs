@@ -38,12 +38,12 @@ function assertStaticMarkers() {
     fail("sync.server.ts missing syncShopContent");
   }
 
-  const search = readRepo("app", "search.server.ts");
+  const search = readRepo("app", "services", "search.server.ts");
   if (!search.includes("searchPages") || !search.includes("searchArticles")) {
     fail("search.server.ts missing searchPages / searchArticles");
   }
 
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("searchPages") || !proxy.includes("searchArticles")) {
     fail("proxy.server.ts must search pages and articles for Instant Search");
   }
@@ -126,7 +126,7 @@ try {
     },
   });
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const pageHit = await getSearchPayload({
     shopDomain: SHOP_DOMAIN,

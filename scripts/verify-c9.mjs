@@ -33,7 +33,7 @@ function suggestionsEmpty(payload) {
 }
 
 function assertStaticMarkers() {
-  const appSettings = readFileSync(join(ROOT, "app/app-settings.ts"), "utf8");
+  const appSettings = readFileSync(join(ROOT, "app/utils/app-settings.ts"), "utf8");
   const settingsPage = readFileSync(
     join(ROOT, "app/routes/app.settings.tsx"),
     "utf8",
@@ -51,8 +51,8 @@ function assertStaticMarkers() {
     join(ROOT, "extensions/smart-filter/assets/smart-filter-search.js"),
     "utf8",
   );
-  const proxy = readFileSync(join(ROOT, "app/proxy.server.ts"), "utf8");
-  const searchServer = readFileSync(join(ROOT, "app/search.server.ts"), "utf8");
+  const proxy = readFileSync(join(ROOT, "app/services/proxy.server.ts"), "utf8");
+  const searchServer = readFileSync(join(ROOT, "app/services/search.server.ts"), "utf8");
 
   if (!appSettings.includes("SUGGESTION_LIST_MAX")) {
     fail("app-settings.ts missing SUGGESTION_LIST_MAX");
@@ -210,12 +210,10 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
-  const { normalizeHandleList, SUGGESTION_LIST_MAX } = await import(
-    "../app/app-settings.ts"
+  const { normalizeHandleList, SUGGESTION_LIST_MAX } = await import("../app/utils/app-settings.ts"
   );
 
   const empty = await getSearchPayload({ shopDomain: SHOP_DOMAIN, query: "" });

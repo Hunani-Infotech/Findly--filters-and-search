@@ -345,7 +345,7 @@ function assertCss() {
 }
 
 function assertProxyProductCard() {
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   const card = extractConstArrowOrFn(proxy, "productCard");
   assert(
     /vendor:\s*product\.vendor/.test(card),

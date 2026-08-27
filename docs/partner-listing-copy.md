@@ -97,7 +97,7 @@ Feature 8 is allowed only because Analytics is a finished page **and** it is in 
 
 ### Integrations (up to 6)
 
-Only apps Findly actually re-inits after Ajax (`app/partner-integrations.ts`). Do not list Shopify itself.
+Only apps Findly actually re-inits after Ajax (`app/utils/partner-integrations.ts`). Do not list Shopify itself.
 
 1. Judge.me
 2. Wishlist Hero

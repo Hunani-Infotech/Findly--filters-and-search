@@ -94,9 +94,9 @@ function assertStaticMarkers() {
   }
   log.info("metafields admin page includes ownerType and Variant");
 
-  const filters = readRepo("app", "filters.server.ts");
+  const filters = readRepo("app", "services", "filters.server.ts");
   if (!filters.includes("metafieldOwner") && !filters.includes("variantMetafields")) {
-    fail("app/filters.server.ts must include metafieldOwner or variantMetafields");
+    fail("app/services/filters.server.ts must include metafieldOwner or variantMetafields");
   }
   log.info("filters.server.ts includes metafieldOwner / variantMetafields");
 
@@ -334,7 +334,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const filtersMod = await import("../app/filters.server.ts");
+  const filtersMod = await import("../app/services/filters.server.ts");
   const { productKey, variantKey } = resolveFacetKeys(filtersMod);
   log.info(`Facet keys: product=${productKey} variant=${variantKey}`);
 
@@ -343,7 +343,7 @@ try {
   );
   assertJsonlVariantMetafields(parseBulkJsonlProducts, mapProductToFacet);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

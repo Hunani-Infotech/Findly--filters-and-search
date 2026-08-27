@@ -1,13 +1,13 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { BlockStack, Select, Text } from "@shopify/polaris";
-import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../admin-list-page";
+import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "./admin-list-pagination";
 import {
   displayTypeChoicesForKey,
   FACET_DISPLAY_TYPE_LABELS,
   parseDisplayTypes,
   type FacetDisplayType,
-} from "../filters";
+} from "../utils/filters";
 
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",

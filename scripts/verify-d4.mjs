@@ -48,7 +48,7 @@ function assertStaticMarkers() {
   ) {
     fail("product-mapper.ts missing availableLocationNamesFromVariants / inventoryLocations");
   }
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (!filters.includes('source: "location"') || !filters.includes("enableLocation")) {
     fail("filters.ts missing location facet / enableLocation");
   }
@@ -169,7 +169,7 @@ try {
     });
   }
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const all = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

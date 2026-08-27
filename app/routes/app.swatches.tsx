@@ -30,7 +30,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { SwatchImagePicker } from "../components/swatch-image-picker";
@@ -44,9 +44,10 @@ import {
   type SwatchKind,
   type SwatchListStatus,
   type SwatchRow,
-} from "../color-swatches.server";
-import { listShopImages, uploadShopImage } from "../shopify-files.server";
-import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
+} from "../services/color-swatches.server";
+import { listShopImages, uploadShopImage } from "../services/shopify-files.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParams } from "../utils/admin-path";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";

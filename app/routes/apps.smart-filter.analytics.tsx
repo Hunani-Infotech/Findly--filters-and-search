@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { verifyAppProxySignature } from "../proxy.server";
-import { ingestAnalyticsEvent } from "../analytics.server";
+import { verifyAppProxySignature } from "../services/proxy.server";
+import { ingestAnalyticsEvent } from "../services/analytics.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",

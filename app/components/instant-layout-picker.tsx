@@ -2,7 +2,7 @@ import {
   INSTANT_LAYOUT_LABELS,
   INSTANT_LAYOUTS,
   type InstantLayout,
-} from "../instant-search";
+} from "../utils/instant-search";
 
 export function InstantLayoutPicker({
   value,

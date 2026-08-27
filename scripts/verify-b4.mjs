@@ -104,7 +104,7 @@ try {
   assertThemeMarkers();
   log.info("theme empty-state markers present");
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const garbage = await getSearchPayload({
     shopDomain: SHOP_DOMAIN,

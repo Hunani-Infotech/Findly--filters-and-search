@@ -22,14 +22,14 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isNavigatingTo } from "../components/admin-loading";
 import {
   importValueGroups,
   listValueGroups,
-} from "../value-groups.server";
-import { useEmbeddedNavigate } from "../admin-path";
-import { slicePage } from "../admin-list-page";
+} from "../services/value-groups.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
 
 export { GroupsListSkeleton as HydrateFallback } from "../components/admin-skeletons";

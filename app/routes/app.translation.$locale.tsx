@@ -7,16 +7,16 @@ import type {
 import { redirect, useFetcher, useLoaderData, useSearchParams } from "react-router";
 import { Card, Layout, Page } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../admin-nav-extras.server";
-import { listColorOptionKeys } from "../color-swatches.server";
-import { mergeWidgetChrome } from "../widget-i18n";
+} from "../services/admin-nav-extras.server";
+import { listColorOptionKeys } from "../services/color-swatches.server";
+import { mergeWidgetChrome } from "../utils/widget-i18n";
 import {
   BUILTIN_LABEL_FIELDS,
   TRANSLATION_FIELDS,
@@ -25,7 +25,7 @@ import {
   labelKeyFromOption,
   parseTranslationTab,
   type TranslationField,
-} from "../translation-catalog";
+} from "../utils/translation-catalog";
 
 export { TranslationLocaleSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

@@ -29,14 +29,14 @@ function assertStaticMarkers() {
   if (!schema.includes("paginationStyle")) {
     fail("schema missing paginationStyle");
   }
-  const settingsLib = readRepo("app", "app-settings.ts");
+  const settingsLib = readRepo("app", "utils", "app-settings.ts");
   if (
     !settingsLib.includes("parsePaginationStyle") ||
     !settingsLib.includes("PAGING_STYLE_KEYS")
   ) {
     fail("app-settings.ts missing parsePaginationStyle / PAGING_STYLE_KEYS");
   }
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("paginationStyle") || !proxy.includes("hasNext")) {
     fail("proxy.server.ts missing paginationStyle or hasNext");
   }
@@ -119,7 +119,7 @@ try {
   await cleanup();
   assertStaticMarkers();
 
-  const { parsePaginationStyle } = await import("../app/app-settings.ts");
+  const { parsePaginationStyle } = await import("../app/utils/app-settings.ts");
   if (parsePaginationStyle("infinite") !== "infinite") {
     fail("parsePaginationStyle infinite");
   }
@@ -177,8 +177,7 @@ try {
     });
   }
 
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
   await saveAppSettings(shop.id, { paginationStyle: "infinite" });
   const persisted = await getAppSettings(shop.id);
@@ -192,8 +191,7 @@ try {
     fail("unrelated saveAppSettings wiped paginationStyle");
   }
 
-  const { getCollectionFilterPayload, getSearchFilterPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchFilterPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const all = await getCollectionFilterPayload({

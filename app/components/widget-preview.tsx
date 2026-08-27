@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { WidgetPosition } from "../app-settings";
+import type { WidgetPosition } from "../types/search";
 import styles from "./widget-preview.module.css";
 
 export type WidgetPreviewSettings = {

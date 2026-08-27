@@ -34,7 +34,7 @@ function assertStaticMarkers() {
   if (!schema.includes("model FilterTreeCollection") || !schema.includes("appliesToSearch")) {
     fail("schema missing FilterTreeCollection / appliesToSearch");
   }
-  const trees = readRepo("app", "filter-trees.server.ts");
+  const trees = readRepo("app", "services", "filter-trees.server.ts");
   if (
     !trees.includes("resolveFilterTreeForCollection") ||
     !trees.includes("resolveFilterTreeForSearch") ||
@@ -195,8 +195,7 @@ try {
     fail("empty-GID seed should mark the default tree for search fallback");
   }
 
-  const { getCollectionFilterPayload, getSearchFilterPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchFilterPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const payloadA = await getCollectionFilterPayload({
@@ -239,7 +238,7 @@ try {
   }
 
   const { duplicateFilterTree, resolveFilterTreeForCollection, resolveFilterTreeForSearch } =
-    await import("../app/filter-trees.server.ts");
+    await import("../app/services/filter-trees.server.ts");
   const copy = await duplicateFilterTree(shop.id, treeB.id);
   if (!copy || copy.name !== "Copy of Tree B") {
     fail("duplicateFilterTree should copy name and settings");

@@ -26,7 +26,7 @@ function titles(result) {
 
 function assertStaticMarkers() {
   const settingsPage = readFileSync(join(ROOT, "app/routes/app.settings.tsx"), "utf8");
-  const appSettings = readFileSync(join(ROOT, "app/app-settings.ts"), "utf8");
+  const appSettings = readFileSync(join(ROOT, "app/utils/app-settings.ts"), "utf8");
   const liquid = readFileSync(
     join(ROOT, "extensions/smart-filter/blocks/collection-filters.liquid"),
     "utf8",
@@ -163,9 +163,8 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
   assertStaticMarkers();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   async function payload(sort, selected = {}) {

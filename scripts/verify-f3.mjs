@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { log } from "./terminal-log.mjs";
-import { REC_WIDGET_IDS } from "../app/recs.ts";
+import { REC_WIDGET_IDS } from "../app/utils/recommendations.ts";
 
 const SHOP_DOMAIN = "f3-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -180,7 +180,7 @@ try {
     publishedAt: new Date("2026-07-02T00:00:00.000Z"),
   });
 
-  const { recsPayload } = await import("../app/recs.server.ts");
+  const { recsPayload } = await import("../app/services/recommendations.server.ts");
 
   const disabled = await recsPayload({
     shopDomain: SHOP_DOMAIN,

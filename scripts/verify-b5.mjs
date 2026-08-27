@@ -45,12 +45,12 @@ function assertThemeSeoAndUi() {
   );
   const toml = read("shopify.app.toml");
   const shopifyServer = read("app/shopify.server.ts");
-  const billing = read("app/billing.server.ts");
+  const billing = read("app/services/billing.server.ts");
   const uninstall = read("app/routes/webhooks.app.uninstalled.tsx");
   const dataRequest = read("app/routes/webhooks.customers.data_request.tsx");
   const customerRedact = read("app/routes/webhooks.customers.redact.tsx");
   const shopRedact = read("app/routes/webhooks.shop.redact.tsx");
-  const compliance = read("app/compliance.server.ts");
+  const compliance = read("app/services/compliance.server.ts");
 
   if (!filterJs.includes('HASH_KEY = "sf"')) {
     fail("smart-filter.js missing HASH_KEY sf");
@@ -97,7 +97,7 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("sf-sort-host")) {
     fail("Findly sort must mount in an owned host, not theme facet chrome");
   }
-  if (!read("app/proxy.server.ts").includes("hmacMessageFromRawQueryEncoded")) {
+  if (!read("app/services/proxy.server.ts").includes("hmacMessageFromRawQueryEncoded")) {
     fail("app proxy HMAC must also accept encoded query signatures");
   }
   if (!read("app/routes/apps.smart-filter.filters.tsx").includes("private, no-store")) {
@@ -475,12 +475,11 @@ try {
   log.info("theme SEO hash, empty state, billing, and compliance markers present");
 
   const { getCollectionFilterPayload, getSearchFilterPayload, getSearchPayload } =
-    await import("../app/proxy.server.ts");
-  const { PLANS } = await import("../app/billing.server.ts");
+    await import("../app/services/proxy.server.ts");
+  const { PLANS } = await import("../app/services/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
-    await import("../app/compliance.server.ts");
-  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import(
-    "../app/webhooks.server.ts"
+    await import("../app/services/compliance.server.ts");
+  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import("../app/services/webhooks.server.ts"
   );
   const { mapProductToFacet, productIsAvailable, variantsIncludeInventoryLevels } =
     await import("../app/sync/product-mapper.ts");
@@ -490,7 +489,7 @@ try {
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
   const syncModal = read("app/components/sync-details-modal.tsx");
-  const proxy = read("app/proxy.server.ts");
+  const proxy = read("app/services/proxy.server.ts");
   const eventsRoute = read("app/routes/events.app.products.tsx");
   const workerBoot = read("app/workers/ensure-running.server.ts");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {

@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { handleProductEvent } from "../webhooks.server";
+import { handleProductEvent } from "../services/webhooks.server";
 
 /** Shopify Events Product create/update/delete — same catalog path as webhooks. */
 export const action = async ({ request }: ActionFunctionArgs) => {

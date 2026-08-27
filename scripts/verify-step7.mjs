@@ -179,7 +179,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
   const result = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
     collectionGid: COLLECTION_GID,
@@ -228,8 +228,7 @@ try {
     `metafield facet (BOOLEAN/waterproof Yes/No): ${JSON.stringify(waterproofFacet)}`,
   );
 
-  const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import(
-    "../app/billing.server.ts"
+  const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import("../app/services/billing.server.ts"
   );
 
   if (PLANS.free.filterLimit !== 5) {

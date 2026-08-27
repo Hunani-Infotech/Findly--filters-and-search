@@ -3,8 +3,8 @@ import { authenticate } from "../shopify.server";
 import {
   logComplianceEvent,
   shopifyWebhookRequestId,
-} from "../compliance.server";
-import { log } from "../log.server";
+} from "../services/compliance.server";
+import { log } from "../lib/log.server";
 
 /** GDPR: app does not store customer PII — audit row only (no webhook body). */
 export const action = async ({ request }: ActionFunctionArgs) => {

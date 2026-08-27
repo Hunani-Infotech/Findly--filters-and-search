@@ -11,7 +11,7 @@ import { log } from "./terminal-log.mjs";
 import {
   deliverContactMessage,
   formatContactPlainText,
-} from "../app/contact.server.ts";
+} from "../app/services/contact.server.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = `findly-contact-e2e-${Date.now()}`;

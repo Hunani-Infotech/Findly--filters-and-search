@@ -65,8 +65,7 @@ try {
   await cleanup();
   assertStaticMarkers();
 
-  const { expandProductsAsVariants, variantCardKey } = await import(
-    "../app/variants-as-products.ts"
+  const { expandProductsAsVariants, variantCardKey } = await import("../app/utils/variants-as-products.ts"
   );
   const threeColor = expandProductsAsVariants(
     [
@@ -202,7 +201,7 @@ try {
     },
   });
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
   const on = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
     collectionGid: COLLECTION_GID,

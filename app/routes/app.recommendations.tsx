@@ -1,7 +1,7 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { UnderConstructionGate } from "../components/under-construction";
 import { UnderConstructionSkeleton } from "../components/admin-skeletons";
 

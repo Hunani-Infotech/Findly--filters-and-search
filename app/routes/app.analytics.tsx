@@ -18,10 +18,10 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   loadAnalyticsDashboard,
   type AnalyticsRange,
-} from "../analytics.server";
+} from "../services/analytics.server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { useEmbeddedNavigate } from "../admin-path";
+import { ensureShopAccess } from "../services/billing.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { AnalyticsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

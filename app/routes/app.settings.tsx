@@ -29,7 +29,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
@@ -67,9 +67,9 @@ import {
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
-} from "../app-settings";
-import { getAppSettings, saveAppSettings } from "../settings.server";
-import { useEmbeddedNavigate } from "../admin-path";
+} from "../utils/app-settings";
+import { getAppSettings, saveAppSettings } from "../services/settings.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
 import {
   loadSettingsMetafields,
@@ -77,7 +77,7 @@ import {
   parseDeclaredMetafieldRows,
   saveDeclaredMetafields,
   syncShopifyMetafieldDefinitions,
-} from "../settings-metafields.server";
+} from "../services/settings-metafields.server";
 
 export { SettingsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

@@ -94,8 +94,8 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
-  const { normalizeSearchQuery } = await import("../app/search.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
+  const { normalizeSearchQuery } = await import("../app/services/search.server.ts");
 
   const collapsed = normalizeSearchQuery("  Cotton   Tee  extra");
   if (!collapsed.startsWith("Cotton Tee")) {

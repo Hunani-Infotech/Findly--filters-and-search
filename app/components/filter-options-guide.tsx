@@ -1,5 +1,5 @@
 import { Banner, BlockStack, List, Text } from "@shopify/polaris";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export function FilterOptionsGuide({
   variant,

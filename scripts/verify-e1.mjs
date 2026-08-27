@@ -127,8 +127,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getInstantSearchWidgetPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getInstantSearchWidgetPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const disabled = await getInstantSearchWidgetPayload({ shopDomain: SHOP_DOMAIN });

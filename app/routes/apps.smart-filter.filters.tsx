@@ -6,7 +6,7 @@ import {
   parseFilterPageSize,
   parseSelectedFromSearchParams,
   verifyAppProxySignature,
-} from "../proxy.server";
+} from "../services/proxy.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);

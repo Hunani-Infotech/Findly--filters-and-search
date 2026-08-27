@@ -41,16 +41,14 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
-import {
-  useEmbeddedNavigate,
-  withEmbeddedParamsFromRequest,
-} from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { AdminListPagination } from "../components/admin-list-pagination";
-import { slicePage } from "../admin-list-page";
+import { slicePage } from "../utils/admin-list-page";
 import {
   deleteFilterTrees,
   duplicateFilterTrees,
@@ -58,7 +56,7 @@ import {
   listFilterTrees,
   reorderFilterTrees,
   setFilterTreesEnabled,
-} from "../filter-trees.server";
+} from "../services/filter-trees.server";
 
 export { FiltersListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

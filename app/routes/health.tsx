@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { timingSafeEqual } from "node:crypto";
 import prisma, { summarizeDatabaseError } from "../db.server";
-import { getRedis } from "../redis.server";
+import { getRedis } from "../lib/redis.server";
 import { getWorkerCount } from "../workers/concurrency.server";
 import { isSyncWorkerRunning } from "../workers/ensure-running.server";
 

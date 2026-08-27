@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseWidgetPosition } from "../app/app-settings.ts";
+import { parseWidgetPosition } from "../app/utils/app-settings.ts";
 import { log } from "./terminal-log.mjs";
 
 function fail(message) {
@@ -55,7 +55,7 @@ function assertParseWidgetPosition() {
 
 function assertSettingsSavePath(settingsServer) {
   if (!settingsServer.includes("offcanvas")) {
-    fail("app/settings.server.ts must mention offcanvas (save path accepts it)");
+    fail("app/services/settings.server.ts must mention offcanvas (save path accepts it)");
   }
   log.info("settings.server.ts save path mentions offcanvas");
 }
@@ -135,7 +135,7 @@ function assertWidgetPreviewLayouts(previewTsx) {
 try {
   assertParseWidgetPosition();
 
-  const settingsServer = readRepo("app", "settings.server.ts");
+  const settingsServer = readRepo("app", "services", "settings.server.ts");
   const liquid = readRepo(
     "extensions",
     "smart-filter",

@@ -24,12 +24,12 @@ import {
   METAFIELD_APPLY_KEYS,
   isValidMetafieldPart,
   type MetafieldApplyKey,
-} from "../metafield-applies";
-import type { SettingsMetafieldRow } from "../settings-metafields.server";
-import type { MetafieldOwnerTypeValue } from "../metafield-owner";
+} from "../utils/metafield-applies";
+import type { SettingsMetafieldRow } from "../services/settings-metafields.server";
+import type { MetafieldOwnerTypeValue } from "../utils/metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
 
-import { ADMIN_TABLE_PAGE_SIZE, lastPageIndex, slicePage } from "../admin-list-page";
+import { ADMIN_TABLE_PAGE_SIZE, lastPageIndex, slicePage } from "../utils/admin-list-page";
 
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },

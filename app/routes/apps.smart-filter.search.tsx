@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { getInstantSearchWidgetPayload, getSearchPayload, verifyAppProxySignature } from "../proxy.server";
+import { getInstantSearchWidgetPayload, getSearchPayload, verifyAppProxySignature } from "../services/proxy.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",

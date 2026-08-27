@@ -82,7 +82,7 @@ function assertStaticMarkers() {
     "extensions/smart-filter/assets/vehicle-finder.js",
   );
 
-  const partners = readRepo("app", "partner-integrations.ts");
+  const partners = readRepo("app", "utils", "partner-integrations.ts");
   requireAll(
     partners,
     [
@@ -90,7 +90,7 @@ function assertStaticMarkers() {
       "Judge.me",
       "Wishlist Hero",
     ],
-    "app/partner-integrations.ts",
+    "app/utils/partner-integrations.ts",
   );
 
   const admin = readRepo("app", "routes", "app.integrations.tsx");

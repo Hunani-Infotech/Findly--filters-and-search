@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { purgeShopData } from "../compliance.server";
+import { purgeShopData } from "../services/compliance.server";
 import {
   deleteProduct,
   finalizeFullSync,

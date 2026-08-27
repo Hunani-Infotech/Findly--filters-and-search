@@ -13,7 +13,7 @@ import {
   matchWidgetLocale,
   mergeWidgetChrome,
   resolveWidgetChrome,
-} from "../app/widget-i18n.ts";
+} from "../app/utils/widget-i18n.ts";
 
 const SHOP_DOMAIN = "d12-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9120012";
@@ -56,7 +56,7 @@ function assertStaticMarkers() {
   if (!admin.includes("saveStrings") || !admin.includes("WIDGET_I18N_KEYS")) {
     fail("translation admin missing saveStrings / WIDGET_I18N_KEYS");
   }
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("resolveWidgetChrome") || !proxy.includes("i18n: chrome")) {
     fail("proxy.server.ts missing i18n chrome on payload");
   }
@@ -146,8 +146,7 @@ try {
     },
   });
 
-  const { getCollectionFilterPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const french = await getCollectionFilterPayload({

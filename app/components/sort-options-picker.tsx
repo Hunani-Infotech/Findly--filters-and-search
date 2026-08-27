@@ -11,7 +11,7 @@ import {
   SORT_OPTION_KEYS,
   SORT_OPTION_LABELS,
   type SortOptionKey,
-} from "../app-settings";
+} from "../utils/app-settings";
 
 const EMPTY_VALUE = "__empty__";
 

@@ -4,8 +4,8 @@ import {
   ymmConfigPayload,
   ymmOptionsPayload,
   ymmSearchPayload,
-} from "../ymm.server";
-import { verifyAppProxySignature } from "../proxy.server";
+} from "../services/vehicle-finder.server";
+import { verifyAppProxySignature } from "../services/proxy.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",

@@ -1,9 +1,9 @@
 import prisma from "../db.server";
-import { enforcePlanLimits } from "../billing.server";
-import { bumpCatalogGeneration } from "../catalog-cache.server";
-import { COLLECTION_REBUILD_DELAY_MS, SAMPLE_TEXT_MAX } from "../limits";
-import { log } from "../log.server";
-import { ensureShop } from "../shop.server";
+import { enforcePlanLimits } from "../services/billing.server";
+import { bumpCatalogGeneration } from "../lib/catalog-cache.server";
+import { COLLECTION_REBUILD_DELAY_MS, SAMPLE_TEXT_MAX } from "../constants/limits";
+import { log } from "../lib/log.server";
+import { ensureShop } from "../services/shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
   BULK_PRODUCTS_QUERY,
@@ -35,11 +35,11 @@ import {
   variantIsInStock,
   variantsIncludeInventoryLevels,
 } from "./product-mapper";
-import { enqueueSyncJob, enqueueSyncJobWithTimeout } from "../queues.server";
+import { enqueueSyncJob, enqueueSyncJobWithTimeout } from "../lib/queues.server";
 import {
   buildStoredVariants,
   parseStoredVariants,
-} from "../variants-as-products";
+} from "../utils/variants-as-products";
 
 type GraphqlClient = {
   graphql: (

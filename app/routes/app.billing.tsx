@@ -24,7 +24,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { forgetShop } from "../shop-cache.server";
+import { forgetShop } from "../lib/shop-cache.server";
 import {
   PLANS,
   createAppSubscription,
@@ -35,7 +35,7 @@ import {
   isDevUnlockLimits,
   isPaidPlanKey,
   syncActiveSubscriptions,
-} from "../billing.server";
+} from "../services/billing.server";
 
 export { BillingPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

@@ -1,14 +1,14 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   COLLECTION_PICKER_PAGE_SIZE,
   normalizeCollectionPickerPage,
   normalizeCollectionPickerPageSize,
   normalizeCollectionPickerQuery,
-} from "../collections-picker";
-import { listCollectionsForPicker } from "../collections-picker.server";
+} from "../utils/collections-picker";
+import { listCollectionsForPicker } from "../services/collections-picker.server";
 
 /** JSON page of shop collections for the filter Applies to / Exclude pickers. */
 export const loader = async ({ request }: LoaderFunctionArgs) => {

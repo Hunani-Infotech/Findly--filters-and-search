@@ -4,7 +4,7 @@ import { redirect, Form, Link, useLoaderData, useNavigation } from "react-router
 
 import { PublicShell } from "../../components/public-shell";
 import shell from "../../components/public-shell.module.css";
-import { scrollToId } from "../../public-scroll";
+import { scrollToId } from "../../utils/public-scroll";
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";

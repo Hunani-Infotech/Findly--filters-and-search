@@ -30,16 +30,16 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../services/filters.server";
 import {
   parseAppliesToAllProducts,
   parseExcludeCollectionGids,
   parseFacetSettings,
   withFilterTreeMeta,
-} from "../facet-settings";
-import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
-import { normalizeVariantOptionNames } from "../variants-as-products";
+} from "../utils/facet-settings";
+import { getMetafieldMappings, filterConfigPriceFields } from "../services/shop.server";
+import { normalizeVariantOptionNames } from "../utils/variants-as-products";
 import {
   createFilterTree,
   defaultFilterTreeDisplayOrder,
@@ -48,12 +48,13 @@ import {
   getFilterTree,
   listFilterTrees,
   updateFilterTree,
-} from "../filter-trees.server";
+} from "../services/filter-trees.server";
 import prisma from "../db.server";
-import { COLLECTION_PICKER_PAGE_SIZE } from "../collections-picker";
-import { listCollectionsForPicker } from "../collections-picker.server";
+import { COLLECTION_PICKER_PAGE_SIZE } from "../utils/collections-picker";
+import { listCollectionsForPicker } from "../services/collections-picker.server";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
-import { useEmbeddedNavigate, withEmbeddedParamsFromRequest } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { isMutationBusy } from "../components/admin-loading";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
@@ -65,7 +66,7 @@ import {
   persistDisplayOrder,
   storedFilterDisplayOrder,
   type BuiltinEnableKey,
-} from "../filter-option-rows";
+} from "../utils/filter-option-rows";
 
 export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

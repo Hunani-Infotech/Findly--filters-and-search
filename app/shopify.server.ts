@@ -7,7 +7,7 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
-import { log } from "./log.server";
+import { log } from "./lib/log.server";
 
 function resolveAppUrl() {
   const candidates = [process.env.SHOPIFY_APP_URL, process.env.HOST];
@@ -83,7 +83,7 @@ const shopify = shopifyApp({
       log.success(
         `[afterAuth] shop=${session.shop} online=${session.isOnline}`,
       );
-      const { ensureShop } = await import("./shop.server");
+      const { ensureShop } = await import("./services/shop.server");
       await ensureShop(session.shop);
       // Redis/BullMQ is optional for admin boot — don't block OAuth if Redis is down.
       try {

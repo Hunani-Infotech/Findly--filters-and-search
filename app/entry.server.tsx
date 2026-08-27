@@ -5,7 +5,7 @@ import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { ensureDatabaseReady } from "./db.server";
-import { log } from "./log.server";
+import { log } from "./lib/log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { ensureWorkerRunning } from "./workers/ensure-running.server";
 

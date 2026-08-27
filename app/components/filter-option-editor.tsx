@@ -22,27 +22,27 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { withEmbeddedParams } from "../admin-path";
-import { hexFromColorName } from "../color-autofill";
+import { withEmbeddedParams } from "../utils/admin-path";
+import { hexFromColorName } from "../utils/color-autofill";
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
 import type {
   FilterOptionCatalogPage,
   FilterOptionEditorData,
-} from "../filter-option-editor.server";
+} from "../services/filter-option-editor.server";
 import {
   FACET_DISPLAY_TYPE_LABELS,
   type FacetDisplayType,
   type FacetMatchMode,
-} from "../filters";
+} from "../utils/filters";
 import {
   defaultUrlHandle,
   type FacetShowMoreMode,
   type FacetTextTransform,
   type FacetValueMode,
   type FacetValueSortMode,
-} from "../facet-settings";
+} from "../utils/facet-settings";
 
 const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
 

@@ -15,7 +15,7 @@ import {
   parseFitmentLine,
   parseYmmCsv,
   uniqueHandles,
-} from "../app/ymm.ts";
+} from "../app/utils/vehicle-finder.ts";
 
 const SHOP_DOMAIN = "f1-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -35,16 +35,16 @@ function optionValues(options) {
 }
 
 function assertStaticMarkers() {
-  const ymm = readRepo("app", "ymm.ts");
+  const ymm = readRepo("app", "utils", "vehicle-finder.ts");
   for (const name of ["parseFitmentLine", "cascadeOptions", "uniqueHandles"]) {
     if (!ymm.includes(`function ${name}`) && !ymm.includes(`export function ${name}`)) {
-      fail(`app/ymm.ts missing ${name}`);
+      fail(`app/utils/vehicle-finder.ts missing ${name}`);
     }
   }
 
-  const ymmServer = readRepo("app", "ymm.server.ts");
+  const ymmServer = readRepo("app", "services", "vehicle-finder.server.ts");
   if (!ymmServer.includes("ymmSearchPayload")) {
-    fail("app/ymm.server.ts missing ymmSearchPayload");
+    fail("app/services/vehicle-finder.server.ts missing ymmSearchPayload");
   }
 
   const liquid = readRepo(
@@ -212,7 +212,7 @@ try {
     metafields: {},
   });
 
-  const { ymmSearchPayload, ymmOptionsPayload } = await import("../app/ymm.server.ts");
+  const { ymmSearchPayload, ymmOptionsPayload } = await import("../app/services/vehicle-finder.server.ts");
 
   const toyotaSearch = await ymmSearchPayload(SHOP_DOMAIN, ["2020", "Toyota"]);
   if ("error" in toyotaSearch && toyotaSearch.error) fail(toyotaSearch.error);

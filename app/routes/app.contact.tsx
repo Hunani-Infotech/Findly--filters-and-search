@@ -24,14 +24,14 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
-import { useEmbeddedNavigate } from "../admin-path";
-import { deliverContactMessage } from "../contact.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { deliverContactMessage } from "../services/contact.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
-} from "../admin-nav-extras.server";
+} from "../services/admin-nav-extras.server";
 
 export { ContactPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

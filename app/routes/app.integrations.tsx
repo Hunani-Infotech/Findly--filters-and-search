@@ -12,9 +12,9 @@ import {
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   FINDLY_FILTER_RENDER_COMPLETED,
   PARTNER_INTEGRATIONS,
@@ -22,7 +22,7 @@ import {
   SMART_FILTER_UPDATE_EVENT,
   type PartnerIntegration,
   type PartnerIntegrationCategory,
-} from "../partner-integrations";
+} from "../utils/partner-integrations";
 
 export { IntegrationsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

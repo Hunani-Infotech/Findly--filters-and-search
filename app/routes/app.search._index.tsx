@@ -31,7 +31,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { CheckboxOrderList } from "../components/checkbox-order-list";
 import { InstantLayoutPicker } from "../components/instant-layout-picker";
@@ -42,7 +42,7 @@ import {
   normalizeHandleList,
   normalizeSearchFields,
   type SearchFieldKey,
-} from "../app-settings";
+} from "../utils/app-settings";
 import {
   INSTANT_MAX_PRODUCTS_MAX,
   INSTANT_MAX_PRODUCTS_MIN,
@@ -55,9 +55,9 @@ import {
   normalizeStopWordList,
   type InstantProductStyle,
   type SearchExtras,
-} from "../instant-search";
-import { getAppSettings, saveSearchSettings } from "../settings.server";
-import { useEmbeddedNavigate } from "../admin-path";
+} from "../utils/instant-search";
+import { getAppSettings, saveSearchSettings } from "../services/settings.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

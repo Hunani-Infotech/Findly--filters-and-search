@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { verifyAppProxySignature } from "../proxy.server";
-import { parseRecType, recsPayload } from "../recs.server";
-import { parseHandleList } from "../recs";
+import { verifyAppProxySignature } from "../services/proxy.server";
+import { parseRecType, recsPayload } from "../services/recommendations.server";
+import { parseHandleList } from "../utils/recommendations";
 
 const corsHeaders = {
   "Content-Type": "application/json",

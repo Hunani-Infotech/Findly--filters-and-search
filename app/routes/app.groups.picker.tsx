@@ -1,11 +1,11 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   getCatalogValuesPage,
   listMatchingCatalogValues,
-} from "../value-groups.server";
+} from "../services/value-groups.server";
 
 /** JSON page (or full match set) of catalog values for Add/Edit group. */
 export const loader = async ({ request }: LoaderFunctionArgs) => {

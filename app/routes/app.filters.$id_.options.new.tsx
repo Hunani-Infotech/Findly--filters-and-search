@@ -5,14 +5,14 @@ import type {
 } from "react-router";
 import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { withEmbeddedParamsFromRequest } from "../admin-path";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { FilterOptionEditorPage } from "../components/filter-option-editor";
 import {
   loadFilterOptionEditorPage,
   saveFilterOption,
-} from "../filter-option-editor.server";
+} from "../services/filter-option-editor.server";
 
 export { FilterOptionSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

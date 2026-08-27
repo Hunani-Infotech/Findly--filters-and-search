@@ -14,9 +14,9 @@ import {
   type SetupMarkId,
   type SetupProgress,
   type SetupStep,
-} from "../setup-progress";
+} from "../utils/setup-progress";
 import { isNavigatingTo } from "./admin-loading";
-import { useEmbeddedHref, useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedHref, useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 function markerClass(step: SetupStep, isNext: boolean) {
   if (step.status === "complete") return "findly-setup-marker findly-setup-marker--done";

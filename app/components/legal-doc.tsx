@@ -1,7 +1,7 @@
 import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { scrollToId } from "../public-scroll";
+import { scrollToId } from "../utils/public-scroll";
 import styles from "../privacy.module.css";
 
 export function LegalDoc({

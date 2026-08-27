@@ -33,7 +33,7 @@ function assertStaticMarkers() {
   if (!graphql.includes('namespace: "reviews"') || !graphql.includes('key: "rating"')) {
     fail("sync GraphQL must fetch reviews.rating metafield");
   }
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (!filters.includes("parseReviewRating") || !filters.includes('source: "rating"')) {
     fail("filters.ts missing rating facet / parseReviewRating");
   }
@@ -56,8 +56,7 @@ try {
   await cleanup();
   assertStaticMarkers();
 
-  const { parseReviewRating, productReviewRating } = await import(
-    "../app/filters.ts"
+  const { parseReviewRating, productReviewRating } = await import("../app/utils/filters.ts"
   );
   const jsonFive = parseReviewRating(
     '{"value":"5.0","scale_min":"1.0","scale_max":"5.0"}',
@@ -156,7 +155,7 @@ try {
     });
   }
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const all = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

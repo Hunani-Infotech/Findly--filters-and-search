@@ -145,9 +145,9 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveFilterConfig } = await import("../app/shop.server.ts");
-  const { parseValueSort } = await import("../app/filters.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveFilterConfig } = await import("../app/services/shop.server.ts");
+  const { parseValueSort } = await import("../app/services/filters.server.ts");
 
   const autoPayload = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

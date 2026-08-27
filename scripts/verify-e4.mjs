@@ -27,10 +27,10 @@ function productTitles(payload) {
 }
 
 function assertStaticMarkers() {
-  const queryPath = join(ROOT, "app", "search-query.ts");
+  const queryPath = join(ROOT, "app", "utils", "search-query.ts");
   const querySrc = existsSync(queryPath)
-    ? readRepo("app", "search-query.ts")
-    : readRepo("app", "search.server.ts");
+    ? readRepo("app", "utils", "search-query.ts")
+    : readRepo("app", "services", "search.server.ts");
   if (
     !querySrc.includes("maxTypoDistance") ||
     !querySrc.includes("prepareSearchTokens") ||
@@ -41,7 +41,7 @@ function assertStaticMarkers() {
     );
   }
 
-  const searchServer = readRepo("app", "search.server.ts");
+  const searchServer = readRepo("app", "services", "search.server.ts");
   if (
     !searchServer.includes("searchProductsWithMeta") &&
     !searchServer.includes("prepareSearchTokens")
@@ -49,7 +49,7 @@ function assertStaticMarkers() {
     fail("search.server.ts must include searchProductsWithMeta or prepareSearchTokens");
   }
 
-  const instant = readRepo("app", "instant-search.ts");
+  const instant = readRepo("app", "utils", "instant-search.ts");
   if (
     !instant.includes("spellCheck") ||
     !instant.includes("fallbackSearch") ||
@@ -77,10 +77,10 @@ function assertStaticMarkers() {
 }
 
 async function loadQueryHelpers() {
-  const queryPath = join(ROOT, "app", "search-query.ts");
+  const queryPath = join(ROOT, "app", "utils", "search-query.ts");
   const mod = existsSync(queryPath)
-    ? await import("../app/search-query.ts")
-    : await import("../app/search.server.ts");
+    ? await import("../app/utils/search-query.ts")
+    : await import("../app/services/search.server.ts");
   return mod;
 }
 
@@ -212,7 +212,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const shrt = await getSearchPayload({
     shopDomain: SHOP_DOMAIN,

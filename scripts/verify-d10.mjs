@@ -43,7 +43,7 @@ function assertStaticMarkers() {
   ) {
     fail("Settings General/Product visibility missing D10 fields");
   }
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (!filters.includes("excludeHiddenTaggedProducts")) {
     fail("filters.ts missing excludeHiddenTaggedProducts");
   }
@@ -65,8 +65,8 @@ try {
   await cleanup();
   assertStaticMarkers();
 
-  const { excludeHiddenTaggedProducts } = await import("../app/filters.ts");
-  const { normalizeHideProductTags } = await import("../app/app-settings.ts");
+  const { excludeHiddenTaggedProducts } = await import("../app/utils/filters.ts");
+  const { normalizeHideProductTags } = await import("../app/utils/app-settings.ts");
   const mixed = excludeHiddenTaggedProducts(
     [
       { handle: "keep", tags: ["sale"] },
@@ -149,8 +149,7 @@ try {
     });
   }
 
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
   await saveAppSettings(shop.id, {
     hideProductTags: ["hidden-product"],
@@ -164,8 +163,7 @@ try {
     fail("showTotalProductCount false did not persist");
   }
 
-  const { getCollectionFilterPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const collection = await getCollectionFilterPayload({

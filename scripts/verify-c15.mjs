@@ -57,7 +57,7 @@ function assertStaticMarkers() {
     fail("ProductFacet compare-at/salePct and FilterConfig.enableSale missing from schema");
   }
 
-  const settings = readRepo("app", "app-settings.ts");
+  const settings = readRepo("app", "utils", "app-settings.ts");
   if (!settings.includes('"sale_pct_desc"')) {
     fail("SORT_OPTION_KEYS must include sale_pct_desc");
   }
@@ -65,13 +65,13 @@ function assertStaticMarkers() {
     fail("do not add best-selling sort in C15");
   }
 
-  const sort = readRepo("app", "sort.server.ts");
+  const sort = readRepo("app", "services", "sort.server.ts");
   if (!sort.includes("sale_pct_desc") || !sort.includes("salePct")) {
     fail("sort.server.ts must order by salePct for % Sale off");
   }
 
   const webhook = readRepo("app", "routes", "webhooks.products.update.tsx");
-  const webhookServer = readRepo("app", "webhooks.server.ts");
+  const webhookServer = readRepo("app", "services", "webhooks.server.ts");
   if (!webhook.includes("handleWebhookTopic") && !webhookServer.includes("product.upsert")) {
     fail("product update webhook must enqueue product upsert");
   }
@@ -251,9 +251,8 @@ try {
   }
   log.info("mapper uses variant-level % off, not fake discount math");
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   await saveAppSettings(shop.id, {

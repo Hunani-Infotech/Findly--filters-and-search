@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
-import { buildStoredVariants } from "../variants-as-products";
-import { mergeProductMarketPrices } from "../markets.server";
+import { buildStoredVariants } from "../utils/variants-as-products";
+import { mergeProductMarketPrices } from "../services/markets.server";
 
 type JsonObject = Prisma.InputJsonValue;
 

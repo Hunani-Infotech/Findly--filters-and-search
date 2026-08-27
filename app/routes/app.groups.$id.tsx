@@ -6,15 +6,15 @@ import type {
 import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { withEmbeddedParamsFromRequest } from "../admin-path";
+import { ensureShopAccess } from "../services/billing.server";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   deleteValueGroup,
   getCatalogValuesPage,
   getValueGroup,
   updateValueGroup,
-} from "../value-groups.server";
+} from "../services/value-groups.server";
 
 export { GroupFormSkeleton as HydrateFallback } from "../components/admin-skeletons";
 

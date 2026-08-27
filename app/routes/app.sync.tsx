@@ -6,9 +6,9 @@ import type {
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { withEmbeddedParamsFromRequest } from "../admin-path";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { queueFullSync } from "../sync/queue-full-sync";
-import { log } from "../log.server";
+import { log } from "../lib/log.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);

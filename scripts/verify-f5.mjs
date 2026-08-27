@@ -17,7 +17,7 @@ import {
   parseMarketContext,
   parseMarketCountryCodes,
   resolveMarketPrice,
-} from "../app/markets.server.ts";
+} from "../app/services/markets.server.ts";
 
 const SHOP_DOMAIN = "f5-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9505001";
@@ -45,7 +45,7 @@ function assertStaticMarkers() {
     fail("schema.prisma missing marketPrices / enableMarkets");
   }
 
-  const markets = readRepo("app", "markets.server.ts");
+  const markets = readRepo("app", "services", "markets.server.ts");
   for (const name of [
     "contextualPricing",
     "parseMarketContext",
@@ -55,7 +55,7 @@ function assertStaticMarkers() {
     "COMPANY_LOCATIONS_QUERY",
     "companyLocationId",
   ]) {
-    if (!markets.includes(name)) fail(`app/markets.server.ts missing ${name}`);
+    if (!markets.includes(name)) fail(`app/services/markets.server.ts missing ${name}`);
   }
   if (markets.includes('currency: "USD"') || markets.includes("currency: 'USD'")) {
     fail("markets.server.ts must not hardcode USD");
@@ -78,7 +78,7 @@ function assertStaticMarkers() {
     fail("sync.server.ts must call market price sync after ingest and upsert");
   }
 
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (
     !proxy.includes("applyMarketPricesToRow") ||
     !proxy.includes("parseMarketContext")
@@ -308,7 +308,7 @@ try {
     },
   });
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const usCheap = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

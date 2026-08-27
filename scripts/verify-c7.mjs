@@ -28,8 +28,8 @@ function titles(result) {
 
 function assertStaticMarkers() {
   const settingsPage = readFileSync(join(ROOT, "app/routes/app.settings.tsx"), "utf8");
-  const appSettings = readFileSync(join(ROOT, "app/app-settings.ts"), "utf8");
-  const proxy = readFileSync(join(ROOT, "app/proxy.server.ts"), "utf8");
+  const appSettings = readFileSync(join(ROOT, "app/utils/app-settings.ts"), "utf8");
+  const proxy = readFileSync(join(ROOT, "app/services/proxy.server.ts"), "utf8");
   const filtersRoute = readFileSync(
     join(ROOT, "app/routes/apps.smart-filter.filters.tsx"),
     "utf8",
@@ -196,11 +196,9 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN} with ${IN_COLLECTION} collection products`);
   assertStaticMarkers();
 
-  const { getCollectionFilterPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   async function collectionPayload(query, selected = {}) {

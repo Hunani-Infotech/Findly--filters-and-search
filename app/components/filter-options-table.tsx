@@ -13,14 +13,14 @@ import {
   parseDisplayTypes,
   type FacetDisplayType,
   type FacetSource,
-} from "../filters";
-import { withEmbeddedParams } from "../admin-path";
-import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../admin-list-page";
+} from "../utils/filters";
+import { withEmbeddedParams } from "../utils/admin-path";
+import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "./admin-list-pagination";
 import {
   displayChoicesForRow,
   type FilterOptionRow,
-} from "../filter-option-rows";
+} from "../utils/filter-option-rows";
 
 type FilterOptionsTableProps = {
   rows: FilterOptionRow[];

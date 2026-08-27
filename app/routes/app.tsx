@@ -15,7 +15,7 @@ import adminStyles from "../admin.css?url";
 
 import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
 import { authenticate } from "../shopify.server";
-import { ensureShop } from "../shop.server";
+import { ensureShop } from "../services/shop.server";
 
 const LazyAdminRouteSkeleton = lazy(() =>
   import("../components/admin-skeletons").then((m) => ({

@@ -1,4 +1,4 @@
-import { MS_PER_DAY } from "../limits";
+import { MS_PER_DAY } from "../constants/limits";
 import { useEffect, useRef } from "react";
 import type {
   ActionFunctionArgs,
@@ -27,20 +27,21 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { PLANS, ensureShopAccess, resolvePlanCaps } from "../billing.server";
+import { PLANS, ensureShopAccess, resolvePlanCaps } from "../services/billing.server";
 import prisma from "../db.server";
 import { queueFullSync } from "../sync/queue-full-sync";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 import { SetupGuide } from "../components/setup-guide";
 import { HomePerformance } from "../components/home-performance";
 import { SyncDetailsModal } from "../components/sync-details-modal";
-import { loadAnalyticsDashboard } from "../analytics.server";
+import { loadAnalyticsDashboard } from "../services/analytics.server";
 import {
   getSetupProgress,
   isSetupMarkId,
   setSetupMark,
-} from "../setup-progress.server";
-import { useEmbeddedHref, withEmbeddedParams } from "../admin-path";
+} from "../services/setup-progress.server";
+import { useEmbeddedHref } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParams } from "../utils/admin-path";
 
 export { HomePageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -182,10 +183,10 @@ export default function Home() {
   const syncBusy = shouldPoll;
   const prevPolledStatus = useRef(sync.status);
   const statusFetcherRef = useRef(statusFetcher);
-  statusFetcherRef.current = statusFetcher;
 
   useEffect(() => {
     revalidatorRef.current = revalidator;
+    statusFetcherRef.current = statusFetcher;
   });
 
   const openSync = () => {
