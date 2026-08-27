@@ -1890,56 +1890,58 @@ results-list > .sf-toolbar {
 @media (max-width: 989px) {
   .sf-toolbar {
     display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    gap: 0.5rem 0.55rem;
+    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
   }
 
   .sf-toolbar:has(> .smart-filter__toggle) {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(7.75rem, 10rem);
+    grid-template-columns: 1fr 1fr;
     grid-template-areas:
-      "filter filter"
-      "search end";
-    align-items: start;
-    column-gap: 0.5rem;
-    row-gap: 0.5rem;
+      "search search"
+      "filter end";
+    align-items: stretch;
+    column-gap: 0.55rem;
+    row-gap: 0.65rem;
   }
 
   .sf-toolbar__search,
   .sf-collection-search-host.sf-toolbar__search {
-    flex: 1 1 0;
+    flex: 1 1 100%;
     order: 1;
-    min-width: 0;
+    width: 100%;
     max-width: none;
-    width: auto;
+    min-width: 0;
   }
 
   .sf-toolbar:has(> .smart-filter__toggle) .sf-toolbar__search,
   .sf-toolbar:has(> .smart-filter__toggle) .sf-collection-search-host.sf-toolbar__search {
     grid-area: search;
     flex: none;
-    width: auto;
+    width: 100%;
     max-width: none;
   }
 
   .smart-filter__collection-search--toolbar {
     max-width: none;
+    width: 100%;
   }
 
   .sf-toolbar > .smart-filter__toggle,
   .sf-toolbar > .smart-filter__toggle--toolbar {
     grid-area: filter;
-    justify-self: start;
-    width: auto;
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
     margin: 0;
   }
 
   .sf-toolbar__end {
     order: 2;
-    flex: 0 1 auto;
-    align-items: flex-end;
+    flex: 1 1 100%;
+    width: 100%;
+    align-items: stretch;
     margin: 0;
     min-width: 0;
   }
@@ -1952,18 +1954,15 @@ results-list > .sf-toolbar {
     align-items: stretch;
   }
 
-  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-host,
-  .sf-toolbar:has(> .smart-filter__toggle) .smart-filter__sort--toolbar,
-  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-row,
-  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-control,
-  .sf-toolbar:has(> .smart-filter__toggle) .sf-sort-trigger {
+  .sf-toolbar__actions {
     width: 100%;
-    max-width: none;
-    min-width: 0;
   }
 
-  .sf-toolbar__actions {
-    width: auto;
+  .sf-toolbar__actions:has(.smart-filter__toggle) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+    gap: 0.55rem;
   }
 
   .sf-toolbar .smart-filter__sort-label {
@@ -1975,7 +1974,7 @@ results-list > .sf-toolbar {
   .sf-toolbar .sf-sort-row,
   .sf-toolbar .sf-sort-control,
   .sf-toolbar .sf-sort-trigger {
-    width: auto;
+    width: 100%;
     max-width: none;
     min-width: 0;
   }
@@ -1985,8 +1984,8 @@ results-list > .sf-toolbar {
     width: 100%;
     min-width: 0;
     max-width: none;
-    min-height: 2.5rem;
-    border-radius: 10px;
+    min-height: 2.75rem;
+    border-radius: 999px;
   }
 
   .sf-toolbar .smart-filter__collection-search-field,
@@ -2001,48 +2000,38 @@ results-list > .sf-toolbar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    min-height: 2.5rem;
-    padding: 0.45rem 0.9rem;
-    border: 1px solid #d4d4d4;
-    border-radius: 10px;
-    background: #fff;
-    color: #111;
-    font-weight: 650;
-    box-shadow: 0 1px 2px rgb(17 17 17 / 6%);
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 2.75rem;
+    margin: 0;
+    padding: 0.55rem 1rem;
+    border: 0;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: none;
+    white-space: nowrap;
   }
 
   .sf-toolbar .smart-filter__toggle:hover,
   .sf-toolbar .smart-filter__toggle:focus-visible,
   .smart-filter__toggle--toolbar:hover,
   .smart-filter__toggle--toolbar:focus-visible {
-    border-color: #111;
-    box-shadow: 0 0 0 3px rgb(17 17 17 / 10%);
-    outline: none;
-  }
-
-  .sf-toolbar .smart-filter__toggle[aria-expanded="true"],
-  .smart-filter__toggle--toolbar[aria-expanded="true"] {
     background: #111;
-    border-color: #111;
     color: #fff;
-    box-shadow: none;
+    box-shadow: 0 0 0 3px rgb(17 17 17 / 16%);
+    outline: none;
   }
 
   .sf-toolbar .smart-filter__toggle-count,
   .smart-filter__toggle--toolbar .smart-filter__toggle-count {
-    background: #111;
-    color: #fff;
-  }
-
-  .sf-toolbar .smart-filter__toggle[aria-expanded="true"] .smart-filter__toggle-count,
-  .smart-filter__toggle--toolbar[aria-expanded="true"] .smart-filter__toggle-count {
     background: #fff;
     color: #111;
   }
 
   .sf-total-count {
-    text-align: right;
+    text-align: left;
   }
 }
 
