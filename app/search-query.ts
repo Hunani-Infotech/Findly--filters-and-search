@@ -19,6 +19,7 @@ export const DEFAULT_STOP_WORDS = [
 ] as const;
 
 const STOP_WORD_MAX = 80;
+export { STOP_WORD_MAX };
 const STOP_WORD_PATTERN = /^[a-z0-9']{1,24}$/;
 
 /**

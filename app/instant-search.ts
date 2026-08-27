@@ -1,5 +1,5 @@
 import { SAMPLE_TEXT_MAX } from "./limits";
-import { DEFAULT_STOP_WORDS } from "./search-query";
+import { DEFAULT_STOP_WORDS, STOP_WORD_MAX } from "./search-query";
 
 export const INSTANT_LAYOUTS = [
   "overlay",
@@ -68,7 +68,6 @@ export const INSTANT_MAX_PRODUCTS_MIN = 1;
 export const INSTANT_MAX_PRODUCTS_MAX = 24;
 export const POPULAR_TERM_MAX = 24;
 export const MERCH_LIST_MAX = 40;
-export const STOP_WORD_MAX = 80;
 
 /** Used when `stopWords` is omitted from stored extras. Default extras keep `[]`. */
 export const DEFAULT_ENGLISH_STOP_WORDS = DEFAULT_STOP_WORDS;
@@ -132,6 +131,7 @@ export function normalizeSearchQueryKey(value: unknown): string {
   return value.trim().replace(/\s+/g, " ").slice(0, 80).toLowerCase();
 }
 
+/** Admin form input — no pattern validation; search runtime uses `normalizeStopWords`. */
 export function normalizeStopWordList(value: unknown): string[] {
   const parts = Array.isArray(value)
     ? value
