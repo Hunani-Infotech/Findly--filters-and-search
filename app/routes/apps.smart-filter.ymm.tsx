@@ -5,7 +5,7 @@ import {
   ymmOptionsPayload,
   ymmSearchPayload,
 } from "../services/vehicle-finder.server";
-import { verifyAppProxySignature } from "../services/proxy.server";
+import { verifyAppProxySignature, isAppProxySignatureBypassEnabled } from "../services/proxy.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",
@@ -16,9 +16,7 @@ const YMM_FIELD_CAP = 8;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  const bypass =
-    process.env.NODE_ENV !== "production" &&
-    process.env.PROXY_SIGNATURE_BYPASS === "true";
+  const bypass = isAppProxySignatureBypassEnabled();
 
   if (!bypass && !verifyAppProxySignature(url)) {
     return new Response(JSON.stringify({ error: "Invalid signature" }), {

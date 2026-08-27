@@ -1,7 +1,30 @@
 import nodemailer from "nodemailer";
 
 const MAX_MESSAGE_CHARS = 10_000;
+const MAX_SUBJECT_CHARS = 200;
 const DELIVER_TIMEOUT_MS = 15_000;
+const CONTACT_RATE_MAX = 8;
+const CONTACT_RATE_WINDOW_MS = 10 * 60 * 1000;
+
+const contactSendTimes = new Map<string, number[]>();
+
+function sanitizeHeaderValue(value: string) {
+  return value.replace(/[\r\n\0]+/g, " ").trim();
+}
+
+function allowContactSend(shopDomain: string): boolean {
+  const now = Date.now();
+  const stamps = (contactSendTimes.get(shopDomain) ?? []).filter(
+    (stamp) => now - stamp < CONTACT_RATE_WINDOW_MS,
+  );
+  if (stamps.length >= CONTACT_RATE_MAX) {
+    contactSendTimes.set(shopDomain, stamps);
+    return false;
+  }
+  stamps.push(now);
+  contactSendTimes.set(shopDomain, stamps);
+  return true;
+}
 
 export type ContactMessage = {
   shopDomain: string;
@@ -205,12 +228,18 @@ export async function deliverContactMessage(
   }
 
   const payload: ContactMessage = {
-    shopDomain: msg.shopDomain.trim(),
-    email: msg.email.trim(),
-    collaboratorCode: msg.collaboratorCode.trim(),
-    subject: msg.subject.trim(),
+    shopDomain: sanitizeHeaderValue(msg.shopDomain).slice(0, 255),
+    email: sanitizeHeaderValue(msg.email).slice(0, 254),
+    collaboratorCode: sanitizeHeaderValue(msg.collaboratorCode).slice(0, 32),
+    subject: sanitizeHeaderValue(msg.subject).slice(0, MAX_SUBJECT_CHARS),
     message,
   };
+  if (!allowContactSend(payload.shopDomain || "unknown")) {
+    return {
+      ok: false,
+      error: "Too many messages. Please wait a few minutes and try again.",
+    };
+  }
   const text = formatContactPlainText(payload);
   const html = formatContactHtml(payload);
 

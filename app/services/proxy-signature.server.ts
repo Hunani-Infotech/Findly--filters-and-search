@@ -3,6 +3,17 @@ import crypto from "node:crypto";
 /** App Proxy signatures include `timestamp` (unix seconds). Reject stale/replayed URLs. */
 export const APP_PROXY_TIMESTAMP_MAX_SKEW_SEC = 90;
 
+/**
+ * Local HMAC skip for App Proxy routes. Production (and unset NODE_ENV) never
+ * bypasses — Hostinger `npm start` must not honor PROXY_SIGNATURE_BYPASS.
+ */
+export function isAppProxySignatureBypassEnabled(): boolean {
+  return (
+    process.env.NODE_ENV === "development" &&
+    process.env.PROXY_SIGNATURE_BYPASS === "true"
+  );
+}
+
 function hmacMessageFromSearchParams(searchParams: URLSearchParams): string {
   const params: string[] = [];
   searchParams.forEach((value, key) => {
@@ -64,7 +75,7 @@ function signaturesMatch(digest: string, signature: string): boolean {
 
 /** Verify Shopify App Proxy signature (HMAC SHA256 of sorted query params). */
 export function verifyAppProxySignature(url: URL): boolean {
-  const secret = process.env.SHOPIFY_API_SECRET;
+  const secret = process.env.SHOPIFY_API_SECRET?.trim();
   if (!secret) return false;
 
   const signature = url.searchParams.get("signature");

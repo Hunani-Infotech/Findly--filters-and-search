@@ -188,10 +188,14 @@ function normalizeUrl(value: unknown): string {
   if (typeof value !== "string") return "";
   const raw = value.trim();
   if (!raw) return "";
-  if (raw.startsWith("/")) return raw.slice(0, SAMPLE_TEXT_MAX);
+  // Same-origin path only — reject protocol-relative `//evil.com` open redirects.
+  if (raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\")) {
+    return raw.slice(0, SAMPLE_TEXT_MAX);
+  }
   try {
     const url = new URL(raw);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (url.username || url.password) return "";
     return url.toString().slice(0, SAMPLE_TEXT_MAX);
   } catch {
     return "";

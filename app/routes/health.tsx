@@ -44,12 +44,19 @@ function tokenMatches(expected: string, provided: string | null): boolean {
   }
 }
 
-/**
- * Load balancers get `{ ok }` only. Detailed postgres/redis/worker probes require
- * HEALTH_CHECK_TOKEN via `X-Health-Token` or `?token=`.
- * In non-production, details stay available without a token for local ops.
- */
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+const HEALTH_PROBE_CACHE_MS = 5_000;
+
+type ProbeResult = Awaited<ReturnType<typeof probe>>;
+let cachedProbes: {
+  expires: number;
+  postgres: ProbeResult;
+  redis: ProbeResult;
+} | null = null;
+
+async function getCachedProbes() {
+  if (cachedProbes && cachedProbes.expires > Date.now()) {
+    return cachedProbes;
+  }
   const [postgres, redis] = await Promise.all([
     // Hostinger → Supabase (esp. ap-northeast-1) needs a generous budget.
     probe(
@@ -69,6 +76,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       5_000,
     ),
   ]);
+  cachedProbes = {
+    expires: Date.now() + HEALTH_PROBE_CACHE_MS,
+    postgres,
+    redis,
+  };
+  return cachedProbes;
+}
+
+/**
+ * Load balancers get `{ ok }` only. Detailed postgres/redis/worker probes require
+ * HEALTH_CHECK_TOKEN via `X-Health-Token` or `?token=`.
+ * Unauthenticated details are development-only (unset NODE_ENV is not treated as dev).
+ */
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { postgres, redis } = await getCachedProbes();
   const workerRunning = isSyncWorkerRunning();
   const ok = postgres.ok && redis.ok;
 
@@ -77,7 +99,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     request.headers.get("x-health-token") ||
     new URL(request.url).searchParams.get("token");
   const allowDetails =
-    process.env.NODE_ENV !== "production" ||
+    process.env.NODE_ENV === "development" ||
     (Boolean(expected) && tokenMatches(expected, provided));
 
   const body = allowDetails

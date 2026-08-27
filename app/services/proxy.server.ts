@@ -83,7 +83,10 @@ import {
   productFacetSelectForRequest,
 } from "./proxy-facet-load.server";
 import { buildStorefrontWidgetSettings } from "./widget-settings.server";
-export { verifyAppProxySignature } from "./proxy-signature.server";
+export {
+  isAppProxySignatureBypassEnabled,
+  verifyAppProxySignature,
+} from "./proxy-signature.server";
 
 export const FILTER_PAGE_SIZE_MAX = 48;
 

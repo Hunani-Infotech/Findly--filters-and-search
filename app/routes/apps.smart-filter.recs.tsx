@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { verifyAppProxySignature } from "../services/proxy.server";
+import { isAppProxySignatureBypassEnabled, verifyAppProxySignature } from "../services/proxy.server";
 import { parseRecType, recsPayload } from "../services/recommendations.server";
 import { parseHandleList } from "../utils/recommendations";
 
@@ -10,9 +10,7 @@ const corsHeaders = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  const bypass =
-    process.env.NODE_ENV !== "production" &&
-    process.env.PROXY_SIGNATURE_BYPASS === "true";
+  const bypass = isAppProxySignatureBypassEnabled();
 
   if (!bypass && !verifyAppProxySignature(url)) {
     return new Response(JSON.stringify({ error: "Invalid signature" }), {

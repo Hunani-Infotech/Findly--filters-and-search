@@ -12,14 +12,26 @@ const chalk = new Chalk({
 const SENSITIVE_KEY =
   /pass(word)?|secret|token|authorization|cookie|api[_-]?key|access[_-]?token|private[_-]?key|credential/i;
 
+function redactSecretsInString(value: string): string {
+  let out = value;
+  if (/postgres(ql)?:\/\//i.test(out) || /rediss?:\/\//i.test(out)) {
+    return "[redacted-url]";
+  }
+  out = out.replace(/\b(shpat|shpss|shpca|shptk)_[A-Za-z0-9]+\b/g, "$1_[redacted]");
+  out = out.replace(/\bBearer\s+\S+/gi, "Bearer [redacted]");
+  return out;
+}
+
 function redactValue(value: unknown): unknown {
   if (typeof value === "string") {
-    if (/postgres(ql)?:\/\//i.test(value) || /rediss?:\/\//i.test(value)) {
-      return "[redacted-url]";
-    }
-    return value;
+    return redactSecretsInString(value);
   }
-  if (value instanceof Error) return value;
+  if (value instanceof Error) {
+    const copy = new Error(redactSecretsInString(value.message));
+    copy.name = value.name;
+    if (value.stack) copy.stack = redactSecretsInString(value.stack);
+    return copy;
+  }
   if (Array.isArray(value)) return value.map(redactValue);
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};

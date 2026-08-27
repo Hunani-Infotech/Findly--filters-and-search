@@ -29,6 +29,24 @@ function resolveAppUrl() {
 const appUrl = resolveAppUrl();
 log.info(`[shopify] appUrl=${appUrl || "(empty)"}`);
 
+if (process.env.NODE_ENV === "production") {
+  if ((process.env.DEV_UNLOCK_LIMITS ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] DEV_UNLOCK_LIMITS=true in production — plan limits are unlocked",
+    );
+  }
+  if ((process.env.BILLING_TEST_MODE ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] BILLING_TEST_MODE=true in production — Shopify charges are test mode",
+    );
+  }
+  if ((process.env.PROXY_SIGNATURE_BYPASS ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] PROXY_SIGNATURE_BYPASS is ignored unless NODE_ENV=development",
+    );
+  }
+}
+
 const apiSecretKey = process.env.SHOPIFY_API_SECRET?.trim() || "";
 if (!apiSecretKey) {
   if (process.env.NODE_ENV === "production") {

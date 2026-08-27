@@ -1,7 +1,20 @@
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
 
+// `npm start` is the production entry. Unset NODE_ENV must not look like dev
+// (HMAC bypass, detailed /health, debug Shopify logs).
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "production";
+}
+
 const app = express();
+app.disable("x-powered-by");
+
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  next();
+});
 
 // Hashed Vite assets never change; cache them for a year. Other files stay short-lived.
 app.use(

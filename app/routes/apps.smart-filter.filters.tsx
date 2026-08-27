@@ -5,16 +5,14 @@ import {
   parseFilterPage,
   parseFilterPageSize,
   parseSelectedFromSearchParams,
+  isAppProxySignatureBypassEnabled,
   verifyAppProxySignature,
 } from "../services/proxy.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
-  // In development, allow missing signature when explicitly enabled
-  const bypass =
-    process.env.NODE_ENV !== "production" &&
-    process.env.PROXY_SIGNATURE_BYPASS === "true";
+  const bypass = isAppProxySignatureBypassEnabled();
 
   if (!bypass && !verifyAppProxySignature(url)) {
     return new Response(JSON.stringify({ error: "Invalid signature" }), {
