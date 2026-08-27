@@ -142,8 +142,13 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("else unhideThemePagers()")) {
     fail("pager must unhide theme pagination when filtered results span multiple pages");
   }
-  if (!pagerJs.includes("[FindlyPager]") || !pagerJs.includes("__FINDLY_PAGER_DUMP")) {
-    fail("pager must emit FindlyPager debug logs for live pagination diagnosis");
+  if (
+    pagerJs.includes("[FindlyPager]") ||
+    pagerJs.includes("__FINDLY_PAGER_DUMP") ||
+    pagerJs.includes("pagerLog(") ||
+    grid.includes("[FindlyPager]")
+  ) {
+    fail("pager debug logs must not ship in storefront assets");
   }
   if (!pagerJs.includes("forceSimplePager") || !pagerJs.includes("data-sf-pager-driven")) {
     fail("pager must rewrite theme page numbers from the filtered total");
@@ -193,7 +198,11 @@ function assertSourceMarkers() {
   if (!filterJs.includes(".Pagination") || !filterJs.includes("#AjaxinatePagination")) {
     fail("smart-filter.js THEME_PAGER_SELECTOR must cover Prestige and Ajaxinate");
   }
-  if (!pagerJs.includes("sync-custom-style") || !pagerJs.includes("setCustomPagerClass(true)")) {
+  if (
+    !pagerJs.includes("setCustomPagerClass(true)") ||
+    !pagerJs.includes("usesThemeNumberedPager") ||
+    !pagerJs.includes("suppressThemePagers()")
+  ) {
     fail("infinite/load_more must suppress theme numbered pagination via sf-custom-pager");
   }
   if (!pagerJs.includes("__findlyThemePagerIgnoreMutations")) {
@@ -257,7 +266,7 @@ function assertSourceMarkers() {
   if (!filterJs.includes("this._statusProductCount = this._pageTotal")) {
     fail("readPagingMeta must align status count with the latest filtered total");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v29")) {
+  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v31")) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");

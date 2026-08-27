@@ -5224,17 +5224,6 @@
       if (shouldTakeOverThemeCards(this) && origCount) origCount.call(this, count);
       scrubToolbarCountDupes(this);
       if (Number.isFinite(n) && n >= 0) this._statusProductCount = n;
-      try {
-        if (typeof console !== "undefined" && console.info) {
-          console.info("[FindlyPager]", "product-count", {
-            n: n,
-            pageSize: this.pageSize,
-            hasSync: Boolean(this.syncThemePager),
-          });
-        }
-      } catch (err) {
-        /* ignore */
-      }
       if (this.syncThemePager) this.syncThemePager();
       else applyPagerByDisplayedCount(this, n);
     };
