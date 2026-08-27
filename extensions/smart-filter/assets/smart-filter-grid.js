@@ -633,14 +633,11 @@
   function setOwnsGrid(on) {
     var root = document.documentElement;
     if (!root || !root.classList) return;
-    if (on) {
-      root.classList.add("sf-og");
-      stripThemePageParam();
-    } else {
-      root.classList.remove("sf-og");
-    }
+    if (on) root.classList.add("sf-og");
+    else root.classList.remove("sf-og");
   }
 
+  /** Only while filters/search/sort own the grid — never on unfiltered theme browse. */
   function stripThemePageParam() {
     try {
       var url = new URL(window.location.href);
@@ -654,6 +651,11 @@
     } catch (err) {
       /* ignore */
     }
+  }
+
+  function stripThemePageParamIfFiltering(widget) {
+    if (!shouldTakeOverThemeCards(widget)) return;
+    stripThemePageParam();
   }
 
   function fallbackHost() {
@@ -4420,12 +4422,6 @@
           }
           return;
         }
-        try {
-          var url = new URL(window.location.href);
-          if (url.searchParams.has("page")) stripThemePageParam();
-        } catch (err) {
-          /* ignore */
-        }
         if (self.appGridTemplate && self.appGridTemplate()) {
           if (!self._appGridActive) return;
           var parent = self._gridParent;
@@ -5423,7 +5419,7 @@
       scrubToolbarCountDupes(this);
       if (Number.isFinite(n) && n >= 0) this._statusProductCount = n;
       if (this.syncThemePager) this.syncThemePager();
-      else applyPagerByDisplayedCount(this, n);
+      else if (shouldTakeOverThemeCards(this)) applyPagerByDisplayedCount(this, n);
     };
 
     var origLegacy = proto.applyThemeGridLegacy;
@@ -5590,8 +5586,11 @@
 
     var origFetch = proto.fetchFilters;
     proto.fetchFilters = function () {
-      var opts = arguments[0];
-      if (!opts || !opts.append) this._importingCards = false;
+      var opts = arguments[0] || {};
+      if (!opts.append) {
+        this._importingCards = false;
+        stripThemePageParamIfFiltering(this);
+      }
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       if (result && typeof result.then === "function") {

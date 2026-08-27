@@ -177,6 +177,83 @@ export function FiltersListSkeleton() {
   );
 }
 
+export function CollectionsListSkeleton() {
+  return (
+    <SkeletonPage title="Collections" primaryAction>
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="400">
+            <Card padding="0">
+              <div className="findly-list-search">
+                <Skel kind="field" />
+              </div>
+              <table className="findly-list-table">
+                <thead>
+                  <tr>
+                    <th>Collection</th>
+                    <th>Handle</th>
+                    <th>Filter setup</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <tr key={index}>
+                      <td>
+                        <div className="findly-list-name">
+                          <Skel kind="text" width={index % 2 ? "52%" : "68%"} />
+                        </div>
+                      </td>
+                      <td>
+                        <Skel kind="text" width={index % 3 ? "40%" : "48%"} />
+                      </td>
+                      <td>
+                        <div className="findly-skel-row">
+                          <Skel kind="chip" />
+                          {index % 2 === 0 ? <Skel kind="chip" /> : null}
+                        </div>
+                      </td>
+                      <td>
+                        <Skel kind="chip" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="findly-admin-pager">
+                <Skel kind="line" width="32%" />
+              </div>
+            </Card>
+            <Card padding="0">
+              <div className="findly-pref-heading">
+                <Text as="h2" variant="headingMd">
+                  Preferences
+                </Text>
+              </div>
+              <div className="findly-pref-list">
+                {["34%", "40%", "48%"].map((width) => (
+                  <div className="findly-pref-row" key={width}>
+                    <span className="findly-pref-row-icon">
+                      <Skel kind="icon" />
+                    </span>
+                    <span className="findly-pref-row-body">
+                      <Skel kind="text" width={width} />
+                      <Skel kind="line" width="72%" />
+                    </span>
+                    <span className="findly-pref-row-chevron">
+                      <Skel kind="line" width={8} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
+    </SkeletonPage>
+  );
+}
+
 export function HomePageSkeleton() {
   const steps = [
     "Sync your catalog",
@@ -1155,6 +1232,7 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
 
   if (path === "/app") return <HomePageSkeleton />;
   if (path === "/app/filters") return <FiltersListSkeleton />;
+  if (path === "/app/collections") return <CollectionsListSkeleton />;
   if (path === "/app/search") return <SearchPageSkeleton />;
   if (path === "/app/search/pinnings") return <PinningsPageSkeleton />;
   if (path === "/app/search/redirects") return <RedirectsPageSkeleton />;

@@ -1269,6 +1269,19 @@
   background: #f6f6f7;
 }
 
+.findly-list-table tr.findly-list-row.is-clickable {
+  cursor: pointer;
+}
+
+.findly-list-table tr.findly-list-row.is-clickable:hover td {
+  background: #fafafa;
+}
+
+.findly-list-table tr.findly-list-row.is-clickable:focus-visible {
+  outline: 2px solid var(--p-color-border-focus, #005bd3);
+  outline-offset: -2px;
+}
+
 .findly-list-check {
   width: 1%;
   white-space: nowrap;

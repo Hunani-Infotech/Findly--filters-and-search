@@ -69,6 +69,7 @@ export default function App() {
             Home
           </a>
           <a href="/app/filters">Filters</a>
+          <a href="/app/collections">Collections</a>
           <a href="/app/search">Search</a>
           <a href="/app/settings">Settings</a>
           <a href="/app/translation">Translation</a>

@@ -588,10 +588,8 @@
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
         if (root.closest && root.closest(PAGER_CHROME_SKIP)) return;
-        var driven =
-          shouldDriveThemePager(widget) ||
-          (root.getAttribute && root.getAttribute("data-sf-pager-driven") === "1");
-        if (!driven) return;
+        // Only hijack while filters/search/sort are active — never on unfiltered browse.
+        if (!shouldDriveThemePager(widget)) return;
         var ctrl = target.closest("a, button");
         if (!ctrl) return;
         var page = pageFromControl(ctrl);
@@ -800,6 +798,18 @@
       var size = this.pageSize || 16;
       var drive = shouldDriveThemePager(this);
       clearCustomPagerClass();
+      removeFindlyNumberedPagers(this);
+
+      // Unfiltered browse: theme owns paging URL + chrome completely.
+      if (!drive) {
+        setPagerUnneeded(false);
+        unhideThemePagers();
+        var idleRoots = findThemePagers();
+        var r;
+        for (r = 0; r < idleRoots.length; r++) restorePager(idleRoots[r]);
+        return true;
+      }
+
       if (total >= 0) applyPagerByProductCount(this, total);
       if (window.__findlyThemePagerSyncing) {
         window.__findlyThemePagerDirty = true;
@@ -809,17 +819,12 @@
       window.__findlyThemePagerDirty = false;
       window.__findlyThemePagerIgnoreMutations = true;
       try {
-        removeFindlyNumberedPagers(this);
         observeThemePager();
         if (total < 0) {
-          if (drive) {
-            scheduleThemePagerSync(this);
-            return true;
-          }
-          setPagerUnneeded(false);
-          unhideThemePagers();
+          scheduleThemePagerSync(this);
           return true;
         }
+        // Few filtered results (≤ one page): hide theme pager.
         if (resultsFitOnePage(this) || total <= size) {
           return true;
         }
@@ -834,8 +839,7 @@
         var i;
         for (i = 0; i < roots.length; i++) {
           snapshotPager(roots[i]);
-          if (drive || total > size) rewritePager(roots[i], this);
-          else restorePager(roots[i]);
+          rewritePager(roots[i], this);
         }
         return true;
       } finally {

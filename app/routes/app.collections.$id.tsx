@@ -344,7 +344,7 @@ export default function CollectionFilterConfigPage() {
         title="Collection not found"
         backAction={{
           content: "Collections",
-          onAction: () => navigate("/app/filters"),
+          onAction: () => navigate("/app/collections"),
         }}
       >
         <Layout>
@@ -378,7 +378,7 @@ export default function CollectionFilterConfigPage() {
       }
       backAction={{
         content: "Collections",
-        onAction: () => navigate("/app/filters"),
+        onAction: () => navigate("/app/collections"),
       }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",

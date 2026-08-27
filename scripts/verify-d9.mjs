@@ -1,5 +1,7 @@
 /**
- * D9 gate: pagination / load more / infinite scroll (server + admin).
+ * D9 gate: theme-owned pagination + proxy page/pageSize/hasNext (server).
+ * Findly no longer exposes load_more / infinite admin options — the theme
+ * handles paging chrome; Findly only syncs the theme pager when filtered.
  * Usage: npm run verify:d9
  */
 import "tsx/esm";
@@ -27,57 +29,71 @@ function readRepo(...parts) {
 function assertStaticMarkers() {
   const schema = readRepo("prisma", "schema.prisma");
   if (!schema.includes("paginationStyle")) {
-    fail("schema missing paginationStyle");
+    fail("schema missing paginationStyle (kept for backward compat)");
   }
   const settingsLib = readRepo("app", "utils", "app-settings.ts");
-  if (
-    !settingsLib.includes("parsePaginationStyle") ||
-    !settingsLib.includes("PAGING_STYLE_KEYS")
-  ) {
-    fail("app-settings.ts missing parsePaginationStyle / PAGING_STYLE_KEYS");
+  if (!settingsLib.includes("parsePaginationStyle")) {
+    fail("app-settings.ts missing parsePaginationStyle");
   }
-  const proxy = readRepo("app", "services", "proxy.server.ts");
-  if (!proxy.includes("paginationStyle") || !proxy.includes("hasNext")) {
-    fail("proxy.server.ts missing paginationStyle or hasNext");
+  if (!settingsLib.includes('return "pagination"')) {
+    fail("parsePaginationStyle must coerce all values to pagination");
   }
+
   const admin = readRepo("app", "routes", "app.settings.tsx");
-  if (
-    !admin.includes("Pagination") ||
-    !admin.includes("paginationStyle") ||
-    !admin.includes("Paging style")
-  ) {
-    fail("Settings General missing Pagination card");
+  if (admin.includes("Paging style") || admin.includes("PAGING_STYLE_OPTIONS")) {
+    fail("Settings must not expose Paging style UI (theme owns paging)");
   }
-  if (!settingsLib.includes("Load more button")) {
-    fail("PAGING_STYLE_OPTIONS missing Load more button");
+
+  const widgetSettings = readRepo("app", "services", "widget-settings.server.ts");
+  if (!widgetSettings.includes("paginationStyle")) {
+    fail("widget-settings.server.ts missing paginationStyle");
   }
-  const widget = [
-    readRepo("extensions", "smart-filter", "assets", "smart-filter.js"),
-    readRepo("extensions", "smart-filter", "assets", "smart-filter-pager.js"),
-  ].join("\n");
+
+  const proxy = readRepo("app", "services", "proxy.server.ts");
+  if (!proxy.includes("hasNext") || !proxy.includes("sliceFilterProducts")) {
+    fail("proxy.server.ts missing hasNext / sliceFilterProducts");
+  }
+
   const pager = readRepo(
     "extensions",
     "smart-filter",
     "assets",
     "smart-filter-pager.js",
   );
-  if (!widget.includes("load_more") || !widget.includes("infinite")) {
-    fail("smart-filter.js missing load_more / infinite paging");
+  if (!pager.includes("syncThemePager") || !pager.includes("bindThemePagerClicks")) {
+    fail("pager companion must keep theme pager sync + click bind");
   }
-  if (!widget.includes("IntersectionObserver") || !widget.includes("sf-pager")) {
-    fail("storefront missing infinite-scroll sentinel / sf-pager");
+  if (!pager.includes("Unfiltered browse")) {
+    fail("syncThemePager must leave theme alone when unfiltered");
   }
-  const bindStart = pager.indexOf("bindInfinite = function");
-  const bindEnd = pager.indexOf("renderLoadMore = function");
-  if (bindStart < 0 || bindEnd <= bindStart) {
-    fail("storefront missing bindInfinite / renderLoadMore");
+  const renderPagerStart = pager.indexOf("proto.renderPager = function");
+  const renderPagerEnd = pager.indexOf("};", renderPagerStart);
+  if (renderPagerStart < 0) fail("storefront missing renderPager");
+  const renderPagerBody = pager.slice(renderPagerStart, renderPagerEnd + 2);
+  if (
+    renderPagerBody.includes("sf-pager--load-more") ||
+    renderPagerBody.includes("sf-pager--infinite") ||
+    renderPagerBody.includes("sf-pager-sentinel")
+  ) {
+    fail("renderPager must not mount Findly load_more / infinite chrome");
   }
-  if (pager.slice(bindStart, bindEnd).includes("renderLoadMore")) {
-    fail("infinite scroll must not render the Load more button");
+
+  const grid = readRepo(
+    "extensions",
+    "smart-filter",
+    "assets",
+    "smart-filter-grid.js",
+  );
+  if (!grid.includes("stripThemePageParamIfFiltering")) {
+    fail("grid must only strip ?page= while filtering");
   }
-  if (!widget.includes("sf-pager--infinite")) {
-    fail("storefront missing sf-pager--infinite mode class");
+  if (grid.includes('if (url.searchParams.has("page")) stripThemePageParam()')) {
+    fail("MutationObserver must not strip ?page= on every mutation");
   }
+  if (grid.includes("root.classList.add(\"sf-og\");\n      stripThemePageParam()")) {
+    fail("setOwnsGrid must not strip ?page=");
+  }
+
   const filtersLiq = readRepo(
     "extensions",
     "smart-filter",
@@ -96,19 +112,8 @@ function assertStaticMarkers() {
   if (!embedLiq.includes("smart-filter-pager.min.js")) {
     fail("collection-filters-embed.liquid must load smart-filter-pager.min.js");
   }
-  const css = readRepo(
-    "extensions",
-    "smart-filter",
-    "assets",
-    "smart-filter.css",
-  );
-  if (!css.includes(".sf-pager") || !css.includes("sf-pager-sentinel")) {
-    fail("smart-filter.css missing .sf-pager styles");
-  }
-  if (!css.includes(".sf-pager--infinite .sf-pager-more")) {
-    fail("smart-filter.css must hide Load more in infinite mode");
-  }
-  log.info("D9 static markers present");
+
+  log.info("D9 static markers present (theme-owned paging)");
 }
 
 async function cleanup() {
@@ -120,11 +125,11 @@ try {
   assertStaticMarkers();
 
   const { parsePaginationStyle } = await import("../app/utils/app-settings.ts");
-  if (parsePaginationStyle("infinite") !== "infinite") {
-    fail("parsePaginationStyle infinite");
+  if (parsePaginationStyle("infinite") !== "pagination") {
+    fail("parsePaginationStyle must coerce infinite → pagination");
   }
-  if (parsePaginationStyle("load_more") !== "load_more") {
-    fail("parsePaginationStyle load_more");
+  if (parsePaginationStyle("load_more") !== "pagination") {
+    fail("parsePaginationStyle must coerce load_more → pagination");
   }
   if (parsePaginationStyle("nope") !== "pagination") {
     fail("parsePaginationStyle should default to pagination");
@@ -177,21 +182,25 @@ try {
     });
   }
 
-  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import(
+    "../app/services/settings.server.ts"
   );
   await saveAppSettings(shop.id, { paginationStyle: "infinite" });
   const persisted = await getAppSettings(shop.id);
-  if (persisted.paginationStyle !== "infinite") {
-    fail(`expected persisted infinite, got ${persisted.paginationStyle}`);
+  if (persisted.paginationStyle !== "pagination") {
+    fail(
+      `expected coerced pagination, got ${persisted.paginationStyle}`,
+    );
   }
 
   await saveAppSettings(shop.id, { hideOutOfStock: "show" });
-  const stillInfinite = await getAppSettings(shop.id);
-  if (stillInfinite.paginationStyle !== "infinite") {
+  const stillPagination = await getAppSettings(shop.id);
+  if (stillPagination.paginationStyle !== "pagination") {
     fail("unrelated saveAppSettings wiped paginationStyle");
   }
 
-  const { getCollectionFilterPayload, getSearchFilterPayload } = await import("../app/services/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchFilterPayload } = await import(
+    "../app/services/proxy.server.ts"
   );
 
   const all = await getCollectionFilterPayload({
@@ -204,9 +213,9 @@ try {
     fail(`without pageSize expected 5 products, got ${all.data?.products?.length}`);
   }
   if (all.data?.total !== 5) fail(`expected total 5, got ${all.data?.total}`);
-  if (all.data?.settings?.paginationStyle !== "infinite") {
+  if (all.data?.settings?.paginationStyle !== "pagination") {
     fail(
-      `settings.paginationStyle expected infinite, got ${all.data?.settings?.paginationStyle}`,
+      `settings.paginationStyle expected pagination, got ${all.data?.settings?.paginationStyle}`,
     );
   }
   if (all.data?.pageSize != null) {

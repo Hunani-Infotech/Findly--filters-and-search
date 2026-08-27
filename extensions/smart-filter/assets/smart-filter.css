@@ -2496,62 +2496,9 @@ results-list > .sf-toolbar {
     background: transparent;
   }
 
-  /*
-   * Sticky filter only (standard collection pattern).
-   * - Cap filter height to the viewport so sticky can actually pin it.
-   *   Without max-height, a long facet list makes the column taller than the
-   *   viewport → sticky is useless and leaves a huge empty void beside products.
-   * - Scroll only inside the filter column (wheel/trackpad; bar hidden).
-   * - Never sticky / overflow / max-height the product column — that breaks
-   *   theme product grids (overlapping / clipped cards).
-   */
-  .sf-collection-layout--left > .sf-layout-aside,
-  .sf-collection-layout--left > .smart-filter,
-  .sf-collection-layout--left > .shopify-block:has(.smart-filter),
-  .sf-collection-layout--right > .sf-layout-aside,
-  .sf-collection-layout--right > .smart-filter,
-  .sf-collection-layout--right > .shopify-block:has(.smart-filter) {
-    position: sticky;
-    top: 16px;
-    align-self: start;
-    z-index: 2;
-    max-height: calc(100vh - 32px);
-    max-height: calc(100dvh - 32px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .sf-collection-layout--left > .sf-layout-aside::-webkit-scrollbar,
-  .sf-collection-layout--left > .smart-filter::-webkit-scrollbar,
-  .sf-collection-layout--left > .shopify-block:has(.smart-filter)::-webkit-scrollbar,
-  .sf-collection-layout--right > .sf-layout-aside::-webkit-scrollbar,
-  .sf-collection-layout--right > .smart-filter::-webkit-scrollbar,
-  .sf-collection-layout--right > .shopify-block:has(.smart-filter)::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-    display: none;
-  }
-
-  .sf-collection-layout--left > .sf-layout-main,
-  .sf-collection-layout--right > .sf-layout-main {
-    position: static;
-    top: auto;
-    z-index: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
   .smart-filter--left,
   .smart-filter--right {
     max-width: 320px;
-    position: static;
-    top: auto;
-    align-self: stretch;
-    max-height: none;
-    overflow: visible;
   }
 
   .smart-filter--left {
@@ -2705,8 +2652,6 @@ results-list > .sf-toolbar {
   max-width: 100%;
   min-width: 0;
   margin-inline: 0;
-  /* Keep sticky filter column unconstrained by a local scrollport */
-  overflow: visible;
 }
 
 .page-width > .sf-collection-layout,

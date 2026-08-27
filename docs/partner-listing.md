@@ -2,7 +2,7 @@
 
 Paste-ready text for **Apps → Findly → Distribution → Manage listing**. No prior draft existed in the repo; this is the source of truth.
 
-Cross-checked on 25 Aug 2026 against `app/routes/app.tsx` NavMenu and the pages those links open. Do not invent extras in the Partner form.
+Cross-checked on 27 Aug 2026 against `app/routes/app.tsx` NavMenu and the pages those links open. Do not invent extras in the Partner form.
 
 ## NavMenu vs listing (current)
 
@@ -12,6 +12,7 @@ Enabled in `NavMenu` right now:
 |---|---|---|---|
 | Home | `/app` | Yes | Onboarding, catalog sync popup, performance |
 | Filters | `/app/filters` | Yes | Filter sets, color swatches, value groups |
+| Collections | `/app/collections` | Yes | Synced catalog list → per-collection filter config; shop defaults |
 | Search | `/app/search` | Yes | Search fields, instant widget, pinnings, synonyms, redirects |
 | Settings | `/app/settings` | Yes | Panel position, metafields — not under construction |
 | Translation | `/app/translation` | Yes | Widget label locales |

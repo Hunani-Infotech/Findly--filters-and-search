@@ -279,7 +279,7 @@ export default function ShopDefaultFilterConfigPage() {
       title="Shop-wide default filters"
       backAction={{
         content: "Collections",
-        onAction: () => navigate("/app/filters"),
+        onAction: () => navigate("/app/collections"),
       }}
       primaryAction={{
         content: saving ? "Saving…" : "Save",
