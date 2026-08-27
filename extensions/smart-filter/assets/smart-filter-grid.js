@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v31";
+  var STYLE_ID = "findly-grid-takeover-v32";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -550,11 +550,14 @@
         ".sf-toolbar__actions:has(.smart-filter__toggle){display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:.55rem}" +
         ".sf-toolbar .smart-filter__sort-label{display:none!important}" +
         ".sf-toolbar .sf-sort-host,.sf-toolbar .smart-filter__sort--toolbar,.sf-toolbar .sf-sort-row,.sf-toolbar .sf-sort-control,.sf-toolbar .sf-sort-trigger{width:100%;max-width:none;min-width:0}" +
-        ".sf-toolbar .smart-filter__sort-select,.sf-toolbar .sf-sort-btn{width:100%;min-width:0;max-width:none;min-height:2.75rem;border-radius:999px;background:#fff!important;border:1px solid #e2e2e2!important}" +
+        ".sf-toolbar .smart-filter__sort-select,.sf-toolbar .sf-sort-btn{width:100%;min-width:0;max-width:none;min-height:2.75rem;padding:.5rem 2.25rem .5rem .9rem;border-radius:999px;background-color:#fff!important;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c5c5c' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E\")!important;background-repeat:no-repeat!important;background-position:right .9rem center!important;background-size:.7rem!important;appearance:none!important;-webkit-appearance:none!important;border:1px solid #e2e2e2!important}" +
+        ".sf-toolbar .sf-sort-btn{background-image:none!important}" +
         ".sf-toolbar .smart-filter__collection-search-field,.sf-toolbar .smart-filter__collection-search-input{min-width:0;width:100%;max-width:none}" +
-        ".smart-filter__toggle,.sf-toolbar .smart-filter__toggle,.smart-filter__toggle--toolbar{display:inline-flex!important;align-items:center;justify-content:center;gap:.45rem;width:100%;min-height:2.75rem;margin:0;padding:.55rem 1rem;border:0!important;border-radius:999px!important;background:#111!important;color:#fff!important;font:inherit!important;font-weight:600;box-shadow:none!important;white-space:nowrap}" +
-        ".smart-filter__toggle-icon{display:block!important;width:1.05rem;height:1.05rem}" +
+        ".smart-filter__toggle,.sf-toolbar .smart-filter__toggle,.smart-filter__toggle--toolbar{display:inline-flex!important;align-items:center;justify-content:center;gap:.45rem;width:100%;min-height:2.75rem;margin:0;padding:.55rem 1rem;border:0!important;border-radius:999px!important;background:#111!important;color:#fff!important;font:inherit!important;font-size:15px!important;font-weight:600;box-shadow:none!important;white-space:nowrap}" +
+        ".smart-filter__toggle-icon,.smart-filter__toggle-icon svg{display:block!important;width:15px!important;height:15px!important}" +
+        ".smart-filter__toggle-text{font-size:15px!important}" +
         ".sf-toolbar .smart-filter__toggle-count,.smart-filter__toggle--toolbar .smart-filter__toggle-count{background:#fff;color:#111}" +
+        ".smart-filter__toggle-count[hidden],.smart-filter__toggle-count:empty{display:none!important}" +
         "}" +
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +

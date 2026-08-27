@@ -671,6 +671,11 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
   display: none !important;
 }
 
+.smart-filter__toggle-count[hidden],
+.smart-filter__toggle-count:empty {
+  display: none !important;
+}
+
 @media (max-width: 989px) {
   .sf-toolbar {
     display: flex !important;
@@ -774,9 +779,20 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
     min-width: 0 !important;
     max-width: none !important;
     min-height: 2.75rem !important;
+    padding: 0.5rem 2.25rem 0.5rem 0.9rem !important;
     border-radius: 999px !important;
-    background: #fff !important;
+    background-color: #fff !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c5c5c' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.9rem center !important;
+    background-size: 0.7rem !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
     border: 1px solid #e2e2e2 !important;
+  }
+
+  .sf-toolbar .sf-sort-btn {
+    background-image: none !important;
   }
 
   .sf-toolbar .smart-filter__collection-search-field,
@@ -805,7 +821,7 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
     background: #111 !important;
     color: #fff !important;
     font: inherit !important;
-    font-size: 0.9375rem !important;
+    font-size: 15px !important;
     font-weight: 600 !important;
     line-height: 1.2 !important;
     box-shadow: none !important;
@@ -814,8 +830,17 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
 
   .smart-filter__toggle-icon {
     display: block !important;
-    width: 1.05rem !important;
-    height: 1.05rem !important;
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .smart-filter__toggle-icon svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .smart-filter__toggle-text {
+    font-size: 15px !important;
   }
 
   .sf-toolbar .smart-filter__toggle:hover,
@@ -834,6 +859,15 @@ html.is-sf-drawer-open .smart-filter__panel .smart-filter__facets {
   .smart-filter__toggle--toolbar .smart-filter__toggle-count {
     background: #fff !important;
     color: #111 !important;
+  }
+
+  .smart-filter__toggle-count[hidden],
+  .smart-filter__toggle-count:empty,
+  .sf-toolbar .smart-filter__toggle-count[hidden],
+  .smart-filter__toggle--toolbar .smart-filter__toggle-count[hidden],
+  .sf-toolbar .smart-filter__toggle-count:empty,
+  .smart-filter__toggle--toolbar .smart-filter__toggle-count:empty {
+    display: none !important;
   }
 
   .smart-filter__collection-search--toolbar {

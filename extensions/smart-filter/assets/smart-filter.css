@@ -1447,6 +1447,11 @@ html.sf-filter-loading .sf-total-count::after {
   justify-content: center;
 }
 
+.smart-filter__toggle-count[hidden],
+.smart-filter__toggle-count:empty {
+  display: none !important;
+}
+
 .smart-filter__sort {
   display: flex;
   flex-wrap: wrap;
@@ -1985,7 +1990,24 @@ results-list > .sf-toolbar {
     min-width: 0;
     max-width: none;
     min-height: 2.75rem;
+    padding: 0.5rem 2.25rem 0.5rem 0.9rem;
     border-radius: 999px;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235c5c5c' stroke-width='1.4' d='M1.2 1.4L6 6.2L10.8 1.4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+    background-size: 0.7rem;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .sf-toolbar .sf-sort-btn {
+    background-image: none;
+    padding-right: 2.25rem;
+  }
+
+  .sf-toolbar .sf-sort-btn__chevron {
+    display: block;
   }
 
   .sf-toolbar .smart-filter__collection-search-field,
@@ -2009,9 +2031,26 @@ results-list > .sf-toolbar {
     border-radius: 999px;
     background: #111;
     color: #fff;
+    font-size: 15px;
     font-weight: 600;
     box-shadow: none;
     white-space: nowrap;
+  }
+
+  .sf-toolbar .smart-filter__toggle-icon,
+  .smart-filter__toggle--toolbar .smart-filter__toggle-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sf-toolbar .smart-filter__toggle-icon svg,
+  .smart-filter__toggle--toolbar .smart-filter__toggle-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sf-toolbar .smart-filter__toggle-text {
+    font-size: 15px;
   }
 
   .sf-toolbar .smart-filter__toggle:hover,
@@ -2028,6 +2067,13 @@ results-list > .sf-toolbar {
   .smart-filter__toggle--toolbar .smart-filter__toggle-count {
     background: #fff;
     color: #111;
+  }
+
+  .sf-toolbar .smart-filter__toggle-count[hidden],
+  .smart-filter__toggle--toolbar .smart-filter__toggle-count[hidden],
+  .sf-toolbar .smart-filter__toggle-count:empty,
+  .smart-filter__toggle--toolbar .smart-filter__toggle-count:empty {
+    display: none;
   }
 
   .sf-total-count {
