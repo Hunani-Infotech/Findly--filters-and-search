@@ -5855,7 +5855,7 @@
     };
 
     var origFail = proto.failFilterLoad;
-    proto.failFilterLoad = function (err) {
+    proto.failFilterLoad = function () {
       var panel = liveDrawerPanel(this);
       if (panel) syncDrawerPanelRefs(this, panel);
       if (origFail) origFail.apply(this, arguments);

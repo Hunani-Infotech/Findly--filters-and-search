@@ -180,7 +180,8 @@ export const PAGING_STYLE_OPTIONS: {
 }[] = [{ label: "Pagination", value: "pagination" }];
 
 /** Coerce legacy load_more / infinite (and any other value) to pagination. */
-export function parsePaginationStyle(_value?: unknown): PaginationStyle {
+export function parsePaginationStyle(value?: unknown): PaginationStyle {
+  void value;
   return "pagination";
 }
 
