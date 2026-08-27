@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v9";
+  var STYLE_ID = "findly-theme-compat-v10";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -266,6 +266,7 @@
       "findly-theme-compat-v7",
       "findly-theme-compat-v8",
       "findly-theme-compat-v9",
+      "findly-theme-compat-v10",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -284,8 +285,8 @@
       ".smart-filter summary,.sf-panel summary{list-style:none;cursor:pointer}" +
       ".smart-filter summary::-webkit-details-marker,.sf-panel summary::-webkit-details-marker{display:none}" +
       ".smart-filter fieldset,.sf-panel fieldset{border:0;margin:0;padding:0;min-width:0}" +
-      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]," +
-      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{" +
+      ".sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]," +
+      ".sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{" +
       "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
       "width:18px!important;height:18px!important;min-width:18px!important;margin:0!important;" +
       "border:1.5px solid #c3c3c3!important;background:#fff!important;display:inline-grid!important;" +
@@ -294,13 +295,16 @@
       ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout,.container>.sf-collection-layout{width:100%!important;max-width:100%!important}" +
       ".sf-collection-layout,[data-findly-theme-hidden='1'],[data-findly-native-chrome='1']{--findly-theme-compat:1}" +
       "[data-findly-native-chrome='1'],[data-findly-theme-hidden='1']{display:none!important}" +
-      ".sf-panel[data-findly-theme-hidden='1'],.sf-panel[data-findly-native-chrome='1']," +
-      ".sf-panel [data-findly-theme-hidden='1'],.sf-panel [data-findly-native-chrome='1']{" +
+      ".sf-panel.sf-drawer-portal[data-findly-theme-hidden='1'],.sf-panel.sf-drawer-portal[data-findly-native-chrome='1']," +
+      ".sf-panel.sf-drawer-portal [data-findly-theme-hidden='1'],.sf-panel.sf-drawer-portal [data-findly-native-chrome='1']{" +
       "display:revert!important;visibility:visible!important}" +
-      ".sf-panel .sf-facet{display:block!important;visibility:visible!important}" +
-      ".sf-panel .sf-facet-label{display:flex!important;visibility:visible!important}" +
-      ".sf-panel .sf-facet:not(.is-collapsed)>.sf-options{display:flex!important;visibility:visible!important}" +
-      ".sf-panel .sf-facet.is-collapsed>.sf-options,.sf-panel .sf-facet.is-collapsed>.sf-price{display:none!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet{display:block!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet-label{display:flex!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options{" +
+      "display:flex!important;flex-direction:column!important;align-items:stretch!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-options:not(.sf-options-swatches):not(.sf-options-pills)>li{" +
+      "flex:0 0 auto!important;width:100%!important;height:auto!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price{display:none!important}" +
       "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +

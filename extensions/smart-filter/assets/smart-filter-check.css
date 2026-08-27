@@ -1,14 +1,10 @@
 /* Unscoped form-control visuals. Loaded via Liquid asset_url (not schema
    stylesheet) so Horizon cannot flatten checkboxes or the price slider. */
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"],
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="radio"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"] {
   -webkit-appearance: none !important;
   appearance: none !important;
@@ -32,26 +28,20 @@
   color: inherit !important;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"] {
   border-radius: 4px !important;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="radio"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"] {
   border-radius: 999px !important;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"]::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]::after {
   content: "";
   width: 4px;
@@ -62,10 +52,8 @@
   margin-top: -1px;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="radio"]::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]::after {
   content: "";
   width: 8px;
@@ -76,41 +64,31 @@
   transform: scale(0);
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"]:checked,
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"]:indeterminate,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:indeterminate {
   background: currentColor !important;
   border-color: currentColor !important;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="radio"]:checked,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked {
   background: #fff !important;
   border-color: currentColor !important;
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="checkbox"]:checked::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked::after {
   transform: scale(1) rotate(45deg);
 }
 
-#smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
-  input[type="radio"]:checked::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
-.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
+:is(#smart-filter-root, #smart-filter-embed, .sf-panel.sf-drawer-portal)
+  .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked::after {
   transform: scale(1);
 }
@@ -639,8 +617,7 @@ html.sf-filter-ready .product-grid {
   display: none !important;
 }
 
-.sf-panel.sf-drawer-portal,
-html.is-sf-drawer-open .sf-panel {
+.sf-panel.sf-drawer-portal {
   display: flex !important;
   flex-direction: column !important;
   width: min(400px, 88vw) !important;
@@ -654,8 +631,7 @@ html.is-sf-drawer-open .sf-panel {
   background: var(--sf-surface, #fff) !important;
 }
 
-.sf-panel.sf-drawer-portal .sf-header,
-html.is-sf-drawer-open .sf-panel .sf-header {
+.sf-panel.sf-drawer-portal .sf-header {
   position: sticky !important;
   top: 0 !important;
   z-index: 3 !important;
@@ -665,8 +641,7 @@ html.is-sf-drawer-open .sf-panel .sf-header {
   border-bottom: 1px solid #ececec !important;
 }
 
-.sf-panel.sf-drawer-portal .sf-facets,
-html.is-sf-drawer-open .sf-panel .sf-facets {
+.sf-panel.sf-drawer-portal .sf-facets {
   flex: 1 1 auto !important;
   min-height: 50vh !important;
   overflow: auto !important;
@@ -679,30 +654,68 @@ html.is-sf-drawer-open .sf-panel .sf-facets {
   flex-direction: column !important;
 }
 
-.sf-panel.sf-drawer-portal .sf-facet,
-html.is-sf-drawer-open .sf-panel .sf-facet {
+.sf-panel.sf-drawer-portal .sf-facet {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
 
-.sf-panel.sf-drawer-portal .sf-facet-label,
-html.is-sf-drawer-open .sf-panel .sf-facet-label {
+.sf-panel.sf-drawer-portal .sf-facet-label {
   display: flex !important;
   visibility: visible !important;
 }
 
-.sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed) > .sf-options,
-html.is-sf-drawer-open .sf-panel .sf-facet:not(.is-collapsed) > .sf-options {
+.sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed) > .sf-options {
   display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
   visibility: visible !important;
+}
+
+.sf-panel.sf-drawer-portal
+  .sf-options:not(.sf-options-swatches):not(.sf-options-pills)
+  > li {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 .sf-panel.sf-drawer-portal .sf-facet.is-collapsed > .sf-options,
-.sf-panel.sf-drawer-portal .sf-facet.is-collapsed > .sf-price,
-html.is-sf-drawer-open .sf-panel .sf-facet.is-collapsed > .sf-options,
-html.is-sf-drawer-open .sf-panel .sf-facet.is-collapsed > .sf-price {
+.sf-panel.sf-drawer-portal .sf-facet.is-collapsed > .sf-price {
   display: none !important;
+}
+
+@media (min-width: 990px) {
+  .sf-panel:not(.sf-drawer-portal) {
+    width: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .sf-panel:not(.sf-drawer-portal)
+    .sf-options:not(.sf-options-swatches):not(.sf-options-pills) {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+  }
+
+  .sf-panel:not(.sf-drawer-portal)
+    .sf-options:not(.sf-options-swatches):not(.sf-options-pills)
+    > li {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .sf-panel:not(.sf-drawer-portal) .sf-option:not(.sf-swatch):not(.sf-pill) {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 1.7em !important;
+  }
 }
 
 .sf-chips-slot[hidden] {
