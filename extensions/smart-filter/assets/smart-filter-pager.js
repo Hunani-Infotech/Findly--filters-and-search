@@ -686,8 +686,8 @@
       el.removeAttribute("data-smart-filter-hidden");
       el.removeAttribute("data-findly-theme-hidden");
       var main = document.querySelector(
-        ".sf-collection-layout > .sf-collection-layout__main",
-      ) || document.querySelector(".sf-collection-layout__main");
+        ".sf-collection-layout > .sf-layout-main",
+      ) || document.querySelector(".sf-layout-main");
       if (
         main &&
         main.classList &&
@@ -738,7 +738,7 @@
       el.hidden = false;
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "sf-pager__more";
+      btn.className = "sf-pager-more";
       btn.textContent = this.t("load_more", "Load more");
       btn.disabled = Boolean(this._loadingPage || this._appending);
       if (btn.disabled) btn.setAttribute("aria-busy", "true");
@@ -751,7 +751,7 @@
       el.appendChild(btn);
       if (this._loadingPage || this._appending) {
         var spin = document.createElement("span");
-        spin.className = "sf-pager__spin";
+        spin.className = "sf-pager-spin";
         spin.setAttribute("aria-hidden", "true");
         btn.appendChild(spin);
       }
@@ -771,11 +771,11 @@
       el.removeAttribute("hidden");
       el.style.removeProperty("display");
       var list = document.createElement("div");
-      list.className = "sf-pager__nav";
+      list.className = "sf-pager-nav";
 
       var prev = document.createElement("button");
       prev.type = "button";
-      prev.className = "sf-pager__btn sf-pager__btn--prev";
+      prev.className = "sf-pager-btn sf-pager-btn-prev";
       prev.textContent = this.t("previous", "Previous");
       prev.setAttribute("aria-label", this.t("previous", "Previous"));
       prev.disabled = page <= 1 || this._loadingPage;
@@ -788,12 +788,12 @@
       list.appendChild(prev);
 
       var pages = document.createElement("div");
-      pages.className = "sf-pager__pages";
+      pages.className = "sf-pager-pages";
       pageWindow(page, pageCount).forEach(
         function (item) {
           if (item === "ellipsis") {
             var dots = document.createElement("span");
-            dots.className = "sf-pager__ellipsis";
+            dots.className = "sf-pager-ellipsis";
             dots.textContent = "…";
             pages.appendChild(dots);
             return;
@@ -801,7 +801,7 @@
           var btn = document.createElement("button");
           btn.type = "button";
           btn.className =
-            "sf-pager__page" + (item === page ? " is-current" : "");
+            "sf-pager-page" + (item === page ? " is-current" : "");
           btn.textContent = String(item);
           btn.setAttribute("aria-label", this.t("page", "Page") + " " + item);
           if (item === page) btn.setAttribute("aria-current", "page");
@@ -819,7 +819,7 @@
 
       var next = document.createElement("button");
       next.type = "button";
-      next.className = "sf-pager__btn sf-pager__btn--next";
+      next.className = "sf-pager-btn sf-pager-btn-next";
       next.textContent = this.t("next", "Next");
       next.setAttribute("aria-label", this.t("next", "Next"));
       next.disabled = page >= pageCount || this._loadingPage;
@@ -978,7 +978,7 @@
         el.hidden = false;
         var sentinel = document.createElement("div");
         sentinel.className =
-          "sf-pager__sentinel" +
+          "sf-pager-sentinel" +
           (this._loadingPage || this._appending ? " is-busy" : "");
         sentinel.setAttribute("aria-hidden", "true");
         el.appendChild(sentinel);

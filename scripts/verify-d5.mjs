@@ -38,7 +38,7 @@ function assertStaticMarkers() {
     fail("filters.ts missing rating facet / parseReviewRating");
   }
   const widget = readRepo("extensions", "smart-filter", "assets", "smart-filter.js");
-  if (!widget.includes("smart-filter__stars") || !widget.includes('source === "rating"')) {
+  if (!widget.includes("sf-stars") || !widget.includes('source === "rating"')) {
     fail("smart-filter.js missing star render path");
   }
   const editor = readRepo("app", "routes", "app.filters.$id.tsx");

@@ -426,7 +426,7 @@ export default function FiltersIndex() {
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
-              <div className="findly-list__search">
+              <div className="findly-list-search">
                 <TextField
                   label="Searching filters"
                   labelHidden
@@ -446,8 +446,8 @@ export default function FiltersIndex() {
                 />
               </div>
               {selectedVisible.length > 0 ? (
-                <div className="findly-list__bulk">
-                  <div className="findly-list__bulk-start">
+                <div className="findly-list-bulk">
+                  <div className="findly-list-bulk-start">
                     <Checkbox
                       label="Select all filters"
                       labelHidden
@@ -486,11 +486,11 @@ export default function FiltersIndex() {
                   </ButtonGroup>
                 </div>
               ) : null}
-              <table className="findly-list__table">
+              <table className="findly-list-table">
                 {selectedVisible.length === 0 ? (
                   <thead>
                     <tr>
-                      <th className="findly-list__check">
+                      <th className="findly-list-check">
                         <Checkbox
                           label="Select all filters"
                           labelHidden
@@ -515,7 +515,7 @@ export default function FiltersIndex() {
                   {filteredTrees.length === 0 ? (
                     <tr>
                       <td colSpan={4}>
-                        <div className="findly-list__empty">
+                        <div className="findly-list-empty">
                           <Text as="p" tone="subdued">
                             {trees.length === 0
                               ? "Add a filter to configure collection and search filters."
@@ -533,12 +533,12 @@ export default function FiltersIndex() {
                         <tr
                           key={tree.id}
                           className={
-                            dragging ? "findly-list__row--dragging" : undefined
+                            dragging ? "findly-list-row is-dragging" : undefined
                           }
                           onDragOver={handleDragOver}
                           onDrop={(event) => handleRowDrop(index, event)}
                         >
-                          <td className="findly-list__check">
+                          <td className="findly-list-check">
                             <Checkbox
                               label={`Select ${tree.name.trim() || "Untitled"}`}
                               labelHidden
@@ -547,10 +547,10 @@ export default function FiltersIndex() {
                             />
                           </td>
                           <td>
-                            <div className="findly-list__name">
+                            <div className="findly-list-name">
                               <button
                                 type="button"
-                                className="findly-list__handle"
+                                className="findly-list-handle"
                                 draggable
                                 aria-label={`Reorder ${tree.name}. Position ${listSlice.start + index + 1} of ${filteredTrees.length}`}
                                 onDragStart={(event) => handleDragStart(index, event)}
@@ -561,7 +561,7 @@ export default function FiltersIndex() {
                               </button>
                               <button
                                 type="button"
-                                className="findly-list__name-btn"
+                                className="findly-list-name-btn"
                                 onClick={() => navigate(href)}
                               >
                                 <Text as="span" variant="bodyMd" fontWeight="semibold">
@@ -590,19 +590,19 @@ export default function FiltersIndex() {
             </Card>
             {promoOpen ? (
               <div className="findly-swatch-promo">
-                <span className="findly-swatch-promo__icon" aria-hidden />
-                <p className="findly-swatch-promo__body">
+                <span className="findly-swatch-promo-icon" aria-hidden />
+                <p className="findly-swatch-promo-body">
                   Make separate products feel like real variants. Connect colors,
                   styles, and related products in one product experience.
                 </p>
-                <div className="findly-swatch-promo__actions">
+                <div className="findly-swatch-promo-actions">
                   <button type="button" onClick={() => navigate("/app/swatches")}>
                     Start for free
                   </button>
                 </div>
                 <button
                   type="button"
-                  className="findly-swatch-promo__close"
+                  className="findly-swatch-promo-close"
                   aria-label="Dismiss"
                   onClick={() => {
                     setPromoHidden(true);
@@ -627,10 +627,10 @@ export default function FiltersIndex() {
                     className="findly-pref-row"
                     onClick={() => navigate(item.url)}
                   >
-                    <span className="findly-pref-row__icon">
+                    <span className="findly-pref-row-icon">
                       <Icon source={item.icon} />
                     </span>
-                    <span className="findly-pref-row__body">
+                    <span className="findly-pref-row-body">
                       <Text as="span" variant="bodyMd" fontWeight="semibold">
                         {item.title}
                       </Text>
@@ -638,7 +638,7 @@ export default function FiltersIndex() {
                         {item.description}
                       </Text>
                     </span>
-                    <span className="findly-pref-row__chevron">
+                    <span className="findly-pref-row-chevron">
                       <Icon source={ChevronRightIcon} />
                     </span>
                   </button>

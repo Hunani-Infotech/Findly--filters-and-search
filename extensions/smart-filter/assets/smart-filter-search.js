@@ -63,13 +63,13 @@
     var i;
     for (i = 0; i < (count || 5); i++) {
       var li = document.createElement("li");
-      li.className = "smart-filter-search__item is-skeleton";
+      li.className = "sf-search-item is-skeleton";
       li.setAttribute("aria-hidden", "true");
       li.innerHTML =
-        '<span class="smart-filter-search__skel-img"></span>' +
-        '<span class="smart-filter-search__skel-body">' +
-        '<span class="smart-filter-search__skel-line"></span>' +
-        '<span class="smart-filter-search__skel-line is-short"></span></span>';
+        '<span class="sf-search-skel-img"></span>' +
+        '<span class="sf-search-skel-body">' +
+        '<span class="sf-search-skel-line"></span>' +
+        '<span class="sf-search-skel-line is-short"></span></span>';
       list.appendChild(li);
     }
   }
@@ -264,9 +264,9 @@
 
     if (this.emptyEl) {
       var heading = this.emptyEl.querySelector(
-        ".smart-filter-search__empty-heading, h1, h2, h3, p",
+        ".sf-search-empty-heading, h1, h2, h3, p",
       );
-      var copy = this.emptyEl.querySelector(".smart-filter-search__empty-text");
+      var copy = this.emptyEl.querySelector(".sf-search-empty-text");
       if (heading) {
         heading.textContent = this.t(
           "search_empty",
@@ -340,7 +340,7 @@
   SearchWidget.prototype.ensureSpellEl = function () {
     if (this.spellEl) return this.spellEl;
     var el = document.createElement("p");
-    el.className = "smart-filter-search__spell";
+    el.className = "sf-search-spell";
     el.hidden = true;
     var host = this.statusEl || this.emptyEl || this.resultsEl;
     if (host && host.parentNode) {
@@ -376,7 +376,7 @@
     );
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "smart-filter-search__spell-link";
+    btn.className = "sf-search-spell-link";
     btn.textContent = suggestion;
     var self = this;
     btn.addEventListener("click", function () {
@@ -404,11 +404,11 @@
       var title = String(item.title || item.handle || "Product");
       var handle = item && item.handle ? String(item.handle) : "";
       var li = document.createElement("li");
-      li.className = "smart-filter-search__item";
+      li.className = "sf-search-item";
       li.setAttribute("role", "listitem");
 
       var link = document.createElement("a");
-      link.className = "smart-filter-search__link";
+      link.className = "sf-search-link";
       link.href = href || "#";
       link.addEventListener("click", function () {
         fireAnalytics(self.proxyBase, {
@@ -422,7 +422,7 @@
         var src = productImage(item);
         if (src) {
           var img = document.createElement("img");
-          img.className = "smart-filter-search__image";
+          img.className = "sf-search-image";
           img.src = src;
           img.alt = "";
           img.loading = "lazy";
@@ -433,10 +433,10 @@
       }
 
       var meta = document.createElement("span");
-      meta.className = "smart-filter-search__meta";
+      meta.className = "sf-search-meta";
 
       var name = document.createElement("span");
-      name.className = "smart-filter-search__title";
+      name.className = "sf-search-title";
       name.textContent = title;
       meta.appendChild(name);
 
@@ -446,7 +446,7 @@
       );
       if (priceText) {
         var price = document.createElement("span");
-        price.className = "smart-filter-search__price";
+        price.className = "sf-search-price";
         price.textContent = priceText;
         meta.appendChild(price);
       }
@@ -474,18 +474,18 @@
       var href = collectionUrl(item);
       var title = String((item && (item.title || item.handle)) || "Collection");
       var li = document.createElement("li");
-      li.className = "smart-filter-search__item";
+      li.className = "sf-search-item";
       li.setAttribute("role", "listitem");
 
       var link = document.createElement("a");
-      link.className = "smart-filter-search__link";
+      link.className = "sf-search-link";
       link.href = href || "#";
 
       var meta = document.createElement("span");
-      meta.className = "smart-filter-search__meta";
+      meta.className = "sf-search-meta";
 
       var name = document.createElement("span");
-      name.className = "smart-filter-search__title";
+      name.className = "sf-search-title";
       name.textContent = title;
       meta.appendChild(name);
 

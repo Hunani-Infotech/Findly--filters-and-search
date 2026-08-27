@@ -58,10 +58,10 @@ export function HydrateFallback() {
       {isAdmin ? (
         <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
           <div className="findly-root-skeleton">
-            <div className="findly-root-skeleton__bar" />
-            <div className="findly-root-skeleton__title" />
-            <div className="findly-root-skeleton__card" />
-            <div className="findly-root-skeleton__card" />
+            <div className="findly-root-skeleton-bar" />
+            <div className="findly-root-skeleton-title" />
+            <div className="findly-root-skeleton-card" />
+            <div className="findly-root-skeleton-card" />
           </div>
         </div>
       ) : (

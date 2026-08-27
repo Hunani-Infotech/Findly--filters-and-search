@@ -279,12 +279,12 @@
     var i;
     for (i = 0; i < (count || 4); i++) {
       var li = document.createElement("li");
-      li.className = "smart-filter-recs__result is-skeleton";
+      li.className = "sf-recs-result is-skeleton";
       li.setAttribute("aria-hidden", "true");
       li.innerHTML =
-        '<span class="smart-filter-recs__skel-img"></span>' +
-        '<span class="smart-filter-recs__skel-line"></span>' +
-        '<span class="smart-filter-recs__skel-line is-short"></span>';
+        '<span class="sf-recs-skel-img"></span>' +
+        '<span class="sf-recs-skel-line"></span>' +
+        '<span class="sf-recs-skel-line is-short"></span>';
       list.appendChild(li);
     }
   };
@@ -301,37 +301,37 @@
       if (!href) return;
       var handle = item.handle ? String(item.handle) : "";
       var li = document.createElement("li");
-      li.className = "smart-filter-recs__result";
+      li.className = "sf-recs-result";
       var link = document.createElement("a");
-      link.className = "smart-filter-recs__result-link";
+      link.className = "sf-recs-result-link";
       link.href = href;
       link.addEventListener("click", function () {
         fireAnalytics(proxyBase, { kind: "visit", handle: handle });
       });
       if (item.imageUrl) {
         var img = document.createElement("img");
-        img.className = "smart-filter-recs__result-image";
+        img.className = "sf-recs-result-image";
         img.src = item.imageUrl;
         img.alt = item.title || "";
         img.loading = "lazy";
         link.appendChild(img);
       }
       var meta = document.createElement("span");
-      meta.className = "smart-filter-recs__result-meta";
+      meta.className = "sf-recs-result-meta";
       var title = document.createElement("span");
-      title.className = "smart-filter-recs__result-title";
+      title.className = "sf-recs-result-title";
       title.textContent = item.title || item.handle || "";
       meta.appendChild(title);
       var price = formatPrice(item.priceMin);
       if (price) {
         var priceEl = document.createElement("span");
-        priceEl.className = "smart-filter-recs__result-price";
+        priceEl.className = "sf-recs-result-price";
         priceEl.textContent = price;
         meta.appendChild(priceEl);
       }
       if (item.available === false) {
         var oos = document.createElement("span");
-        oos.className = "smart-filter-recs__result-oos";
+        oos.className = "sf-recs-result-oos";
         oos.textContent = "Sold out";
         meta.appendChild(oos);
       }

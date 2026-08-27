@@ -35,7 +35,7 @@ export function CheckboxOrderList({
   const handleDragStart = (index: number, event: DragEvent<HTMLButtonElement>) => {
     if (disabled) return;
     const source = event.currentTarget.closest(
-      ".findly-search-fields__row",
+      ".findly-search-fields-row",
     ) as HTMLElement | null;
     if (!source) return;
     const ghost = source.cloneNode(true) as HTMLElement;
@@ -130,18 +130,18 @@ export function CheckboxOrderList({
           return (
             <div key={key}>
               {showLine ? (
-                <div className="findly-search-fields__drop-line" aria-hidden="true" />
+                <div className="findly-search-fields-drop-line" aria-hidden="true" />
               ) : null}
               <div
-                className={`findly-search-fields__row${
-                  dragging ? " findly-search-fields__row--dragging" : ""
+                className={`findly-search-fields-row${
+                  dragging ? " findly-search-fields-row is-dragging" : ""
                 }`}
                 onDragOver={(event) => handleDragOver(index, event)}
                 onDrop={handleDrop}
               >
                 <button
                   type="button"
-                  className="findly-search-fields__handle"
+                  className="findly-search-fields-handle"
                   draggable={!disabled}
                   disabled={disabled}
                   aria-label={`${label}. Position ${index + 1} of ${keys.length}`}
@@ -164,7 +164,7 @@ export function CheckboxOrderList({
         {dragIndex != null &&
         overIndex === keys.length &&
         overIndex !== dragIndex + 1 ? (
-          <div className="findly-search-fields__drop-line" aria-hidden="true" />
+          <div className="findly-search-fields-drop-line" aria-hidden="true" />
         ) : null}
       </div>
     </BlockStack>

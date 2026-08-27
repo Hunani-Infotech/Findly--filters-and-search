@@ -249,13 +249,13 @@ export default function TranslationLocalePage() {
               ))}
             </div>
             <div className="findly-i18n-table">
-              <div className="findly-i18n-table__head">
+              <div className="findly-i18n-table-head">
                 <span>Reference</span>
                 <span />
                 <span>{lang.name}</span>
               </div>
               {fields.map((field) => (
-                <div className="findly-i18n-table__row" key={field.key}>
+                <div className="findly-i18n-table-row" key={field.key}>
                   <span>{field.reference}</span>
                   <span className="findly-i18n-arrow" aria-hidden>
                     ›
@@ -283,7 +283,7 @@ export default function TranslationLocalePage() {
                   fetcher.submit({ intent: "addCustom" }, { method: "post" })
                 }
               >
-                <span className="findly-i18n-add__plus">+</span>
+                <span className="findly-i18n-add-plus">+</span>
                 Add field
               </button>
             ) : null}

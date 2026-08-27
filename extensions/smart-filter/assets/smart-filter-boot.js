@@ -172,9 +172,9 @@
       el.setAttribute(SKEL, "1");
       el.setAttribute("aria-hidden", "true");
       el.innerHTML =
-        '<span class="findly-grid-skel__img"></span>' +
-        '<span class="findly-grid-skel__line"></span>' +
-        '<span class="findly-grid-skel__line is-short"></span>';
+        '<span class="findly-grid-skel-img"></span>' +
+        '<span class="findly-grid-skel-line"></span>' +
+        '<span class="findly-grid-skel-line is-short"></span>';
       host.appendChild(el);
     }
     return true;

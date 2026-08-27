@@ -80,10 +80,10 @@ function assertStaticMarkers() {
   ) {
     fail("collection search must mount above the product grid, not in the sidebar");
   }
-  if (!filterCss.includes("smart-filter__search--toolbar")) {
+  if (!filterCss.includes("sf-search-toolbar")) {
     fail("collection search toolbar styles missing");
   }
-  if (!filterCss.includes(".smart-filter > .smart-filter__search")) {
+  if (!filterCss.includes(".smart-filter > .sf-search")) {
     fail("collection search must stay hidden while still in the filter sidebar");
   }
   if (!filterCss.includes(":has(> li:nth-child(6))")) {

@@ -34,7 +34,7 @@ function deviceLabel(desktop: number, mobile: number) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="findly-perf__metric">
+    <div className="findly-perf-metric">
       <Text as="p" variant="bodySm" tone="subdued">
         {label}
       </Text>
@@ -77,7 +77,7 @@ function PerformanceCard({
         <InlineGrid columns={{ xs: 2, md: 4 }} gap="300">
           {children}
         </InlineGrid>
-        <div className="findly-perf__insight">{insight}</div>
+        <div className="findly-perf-insight">{insight}</div>
       </BlockStack>
     </Card>
   );

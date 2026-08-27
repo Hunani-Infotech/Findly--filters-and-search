@@ -14,7 +14,7 @@ export function UnderConstructionGate({ feature }: { feature: string }) {
         <Layout.Section>
           <Card>
             <BlockStack gap="300" inlineAlign="center">
-              <span className="findly-under-construction__icon">
+              <span className="findly-under-construction-icon">
                 <Icon source={AlertTriangleIcon} tone="warning" />
               </span>
               <Text as="h2" variant="headingLg" alignment="center">

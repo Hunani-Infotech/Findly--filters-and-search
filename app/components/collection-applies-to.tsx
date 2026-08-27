@@ -493,7 +493,7 @@ export function CollectionAppliesTo({
       {showExclude ? (
         <BlockStack gap="200">
           <div className="findly-exclude-collections">
-            <div className="findly-exclude-collections__field">
+            <div className="findly-exclude-collections-field">
               <Combobox
                 allowMultiple
                 maxHeight="320px"

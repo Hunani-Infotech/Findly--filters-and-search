@@ -9,14 +9,14 @@
   data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
   {{ block.shopify_attributes }}
 >
-  <form class="smart-filter-search__form" data-search-form role="search">
-    <label class="smart-filter-search__label vis-hidden" for="smart-filter-search-q-{{ block.id }}">
+  <form class="sf-search-form" data-search-form role="search">
+    <label class="sf-search-label vis-hidden" for="smart-filter-search-q-{{ block.id }}">
       Search products
     </label>
-    <div class="smart-filter-search__row">
+    <div class="sf-search-row">
       <input
         id="smart-filter-search-q-{{ block.id }}"
-        class="smart-filter-search__input"
+        class="sf-search-input"
         type="search"
         name="q"
         autocomplete="off"
@@ -24,28 +24,28 @@
         data-search-input
         placeholder="{{ block.settings.placeholder | escape }}"
       >
-      <button class="smart-filter-search__submit" type="submit" data-search-submit>
+      <button class="sf-search-submit" type="submit" data-search-submit>
         Search
       </button>
     </div>
   </form>
-  <div class="smart-filter-search__status" data-status aria-live="polite"></div>
+  <div class="sf-search-status" data-status aria-live="polite"></div>
   <div
-    class="smart-filter-search__empty"
+    class="sf-search-empty"
     data-empty
     role="status"
     hidden
   >
-    <p class="smart-filter-search__empty-heading">No products found</p>
-    <p class="smart-filter-search__empty-text">Your search did not match any products.</p>
-    <button type="button" class="smart-filter-search__clear" data-clear-query>
+    <p class="sf-search-empty-heading">No products found</p>
+    <p class="sf-search-empty-text">Your search did not match any products.</p>
+    <button type="button" class="sf-search-clear" data-clear-query>
       Clear query
     </button>
   </div>
-  <p class="smart-filter-search__suggest-heading" data-suggest-heading hidden>Suggested</p>
-  <ul class="smart-filter-search__results smart-filter-search__suggestions" data-suggestions role="list" hidden></ul>
-  <ul class="smart-filter-search__results smart-filter-search__collections" data-suggest-collections role="list" hidden></ul>
-  <ul class="smart-filter-search__results" data-results role="list"></ul>
+  <p class="sf-search-suggest-heading" data-suggest-heading hidden>Suggested</p>
+  <ul class="sf-search-results sf-search-suggestions" data-suggestions role="list" hidden></ul>
+  <ul class="sf-search-results sf-search-collections" data-suggest-collections role="list" hidden></ul>
+  <ul class="sf-search-results" data-results role="list"></ul>
 </div>
 
 {% schema %}

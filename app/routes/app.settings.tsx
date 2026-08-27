@@ -806,9 +806,9 @@ export default function SettingsPage() {
                                     }))
                                   }
                                 />
-                                <span className="findly-stock-radio__label">
+                                <span className="findly-stock-radio-label">
                                   {option.label}
-                                  <span className="findly-stock-radio__help">
+                                  <span className="findly-stock-radio-help">
                                     {option.helpText}
                                   </span>
                                 </span>

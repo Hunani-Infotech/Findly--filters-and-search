@@ -9,12 +9,12 @@
   var MSG_NEED_SELECTION = "Select at least one field to search.";
   var DEBOUNCE_MS = 300;
   var EMPTY_MARKUP =
-    '<h2 class="smart-filter-ymm__heading" data-ymm-heading></h2>' +
-    '<input class="smart-filter-ymm__input" type="search" data-ymm-q placeholder="Search" autocomplete="off" hidden>' +
-    '<div class="smart-filter-ymm__fields" data-ymm-fields></div>' +
-    '<button type="button" class="smart-filter-ymm__search" data-ymm-search>SEARCH</button>' +
-    '<div class="smart-filter-ymm__status" data-ymm-status aria-live="polite"></div>' +
-    '<ul class="smart-filter-ymm__results" data-ymm-results role="list"></ul>';
+    '<h2 class="sf-ymm-heading" data-ymm-heading></h2>' +
+    '<input class="sf-ymm-input" type="search" data-ymm-q placeholder="Search" autocomplete="off" hidden>' +
+    '<div class="sf-ymm-fields" data-ymm-fields></div>' +
+    '<button type="button" class="sf-ymm-search" data-ymm-search>SEARCH</button>' +
+    '<div class="sf-ymm-status" data-ymm-status aria-live="polite"></div>' +
+    '<ul class="sf-ymm-results" data-ymm-results role="list"></ul>';
 
   function runWhenIdle(fn) {
     var api = window.__FINDLY_DOM;
@@ -341,12 +341,12 @@
     this.fieldsEl.innerHTML = "";
     this.fields.forEach(function (field, index) {
       var wrap = document.createElement("label");
-      wrap.className = "smart-filter-ymm__field";
+      wrap.className = "sf-ymm-field";
       var caption = document.createElement("span");
-      caption.className = "smart-filter-ymm__label";
+      caption.className = "sf-ymm-label";
       caption.textContent = field && field.label ? field.label : "Field " + (index + 1);
       var select = document.createElement("select");
-      select.className = "smart-filter-ymm__select";
+      select.className = "sf-ymm-select";
       select.setAttribute("data-ymm-select", String(index));
       select.setAttribute("data-field-id", field && field.id ? String(field.id) : "");
       self.clearSelect(select);
@@ -405,36 +405,36 @@
       var href = productUrl(item);
       if (!href) return;
       var li = document.createElement("li");
-      li.className = "smart-filter-ymm__result";
+      li.className = "sf-ymm-result";
       li.setAttribute("data-title", String(item.title || "").toLowerCase());
       li.setAttribute("data-handle", String(item.handle || "").toLowerCase());
       var link = document.createElement("a");
-      link.className = "smart-filter-ymm__result-link";
+      link.className = "sf-ymm-result-link";
       link.href = href;
       if (item.imageUrl) {
         var img = document.createElement("img");
-        img.className = "smart-filter-ymm__result-image";
+        img.className = "sf-ymm-result-image";
         img.src = item.imageUrl;
         img.alt = item.title || "";
         img.loading = "lazy";
         link.appendChild(img);
       }
       var meta = document.createElement("span");
-      meta.className = "smart-filter-ymm__result-meta";
+      meta.className = "sf-ymm-result-meta";
       var title = document.createElement("span");
-      title.className = "smart-filter-ymm__result-title";
+      title.className = "sf-ymm-result-title";
       title.textContent = item.title || item.handle || "";
       meta.appendChild(title);
       var price = formatPrice(item.priceMin);
       if (price) {
         var priceEl = document.createElement("span");
-        priceEl.className = "smart-filter-ymm__result-price";
+        priceEl.className = "sf-ymm-result-price";
         priceEl.textContent = price;
         meta.appendChild(priceEl);
       }
       if (item.available === false) {
         var oos = document.createElement("span");
-        oos.className = "smart-filter-ymm__result-oos";
+        oos.className = "sf-ymm-result-oos";
         oos.textContent = "Sold out";
         meta.appendChild(oos);
       }
@@ -470,13 +470,13 @@
     var i;
     for (i = 0; i < (count || 4); i++) {
       var li = document.createElement("li");
-      li.className = "smart-filter-ymm__result is-skeleton";
+      li.className = "sf-ymm-result is-skeleton";
       li.setAttribute("aria-hidden", "true");
       li.innerHTML =
-        '<span class="smart-filter-ymm__skel-img"></span>' +
-        '<span class="smart-filter-ymm__skel-body">' +
-        '<span class="smart-filter-ymm__skel-line"></span>' +
-        '<span class="smart-filter-ymm__skel-line is-short"></span></span>';
+        '<span class="sf-ymm-skel-img"></span>' +
+        '<span class="sf-ymm-skel-body">' +
+        '<span class="sf-ymm-skel-line"></span>' +
+        '<span class="sf-ymm-skel-line is-short"></span></span>';
       list.appendChild(li);
     }
   };

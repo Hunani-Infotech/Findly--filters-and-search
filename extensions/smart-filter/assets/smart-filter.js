@@ -1596,7 +1596,7 @@
 
   function placeMountInLayout(layout, mount, position) {
     if (!layout || !mount) return;
-    if (mount.classList) mount.classList.add("sf-collection-layout__aside");
+    if (mount.classList) mount.classList.add("sf-layout-aside");
     var atStart = position !== "right";
     if (atStart) {
       if (layout.firstChild !== mount) {
@@ -2536,12 +2536,12 @@
   Widget.prototype.placeSortOnGrid = function () {
     var wrap = this.sortWrap;
     if (!wrap || wrap.hidden) return;
-    wrap.classList.add("smart-filter__sort--toolbar");
+    wrap.classList.add("sf-sort-toolbar");
     if (this.placeCollectionSearchOnGrid) this.placeCollectionSearchOnGrid();
     var host =
       document.querySelector(".sf-toolbar .sf-sort-host") ||
       document.querySelector(".sf-sort-host");
-    var main = document.querySelector(".sf-collection-layout__main");
+    var main = document.querySelector(".sf-layout-main");
     if (!host && main) {
       host = document.createElement("div");
       host.className = "sf-sort-host";
@@ -2695,7 +2695,7 @@
     var host = parent.parentElement || parent;
     if (parent.closest) {
       var stable = parent.closest(
-        "#ProductGridContainer, #CollectionProductGrid, #CollectionAjaxContent, .sf-collection-layout__main, results-list",
+        "#ProductGridContainer, #CollectionProductGrid, #CollectionAjaxContent, .sf-layout-main, results-list",
       );
       if (stable) {
         host =
@@ -2772,7 +2772,7 @@
     for (i = 0; i < resultHosts.length; i++) {
       resultHosts[i].setAttribute("data-results-count", String(n));
     }
-    var main = document.querySelector(".sf-collection-layout__main") || this._gridParent;
+    var main = document.querySelector(".sf-layout-main") || this._gridParent;
     if (!main || !main.querySelectorAll) return;
     var extras = main.querySelectorAll("p, span, small, div");
     var max = Math.min(extras.length, 80);
@@ -2945,13 +2945,13 @@
   };
 
   var DEFAULT_APP_CARD =
-    '<a class="sf-app-card__link" href="{{product.url}}">' +
-    '<span class="sf-app-card__media">' +
+    '<a class="sf-app-card-link" href="{{product.url}}">' +
+    '<span class="sf-app-card-media">' +
     '<img src="{{product.image}}" alt="{{product.title}}">' +
     "</span>" +
-    '<p class="sf-app-card__title">{{product.title}}</p>' +
-    '<p class="sf-app-card__price">{{product.price}}</p>' +
-    '<p class="sf-app-card__vendor">{{product.vendor}}</p>' +
+    '<p class="sf-app-card-title">{{product.title}}</p>' +
+    '<p class="sf-app-card-price">{{product.price}}</p>' +
+    '<p class="sf-app-card-vendor">{{product.vendor}}</p>' +
     "</a>";
 
   Widget.prototype.renderAppCard = function (product) {
@@ -3049,10 +3049,10 @@
     modal.className = "sf-quickview";
     modal.hidden = true;
     modal.innerHTML =
-      '<div class="sf-quickview__overlay" data-findly-quickview-overlay></div>' +
-      '<div class="sf-quickview__dialog" role="dialog" aria-modal="true">' +
-      '<button type="button" class="sf-quickview__close" data-findly-quickview-close aria-label="Close">×</button>' +
-      '<div class="sf-quickview__body" data-findly-quickview-body></div>' +
+      '<div class="sf-quickview-overlay" data-findly-quickview-overlay></div>' +
+      '<div class="sf-quickview-dialog" role="dialog" aria-modal="true">' +
+      '<button type="button" class="sf-quickview-close" data-findly-quickview-close aria-label="Close">×</button>' +
+      '<div class="sf-quickview-body" data-findly-quickview-body></div>' +
       "</div>";
     document.body.appendChild(modal);
     var self = this;
@@ -3101,12 +3101,12 @@
         ".card__heading, .card__title, .product-card-title, h3, h2, h1",
       );
       var priceEl = card.querySelector(
-        ".price, .product-card__price, [data-price], .sf-app-card__price, .sf-app-card-price",
+        ".price, .product-card__price, [data-price], .sf-app-card-price, .sf-app-card-price",
       );
       var link = card.querySelector('a[href*="/products/"]');
       if (img) {
         var media = document.createElement("div");
-        media.className = "sf-quickview__image";
+        media.className = "sf-quickview-image";
         var photo = document.createElement("img");
         photo.src = img.currentSrc || img.src || "";
         photo.alt = img.alt || "";
@@ -3114,7 +3114,7 @@
         body.appendChild(media);
       }
       var title = document.createElement("div");
-      title.className = "sf-quickview__title";
+      title.className = "sf-quickview-title";
       title.textContent =
         (heading && heading.textContent.trim()) ||
         (link && link.textContent.trim()) ||
@@ -3122,13 +3122,13 @@
       body.appendChild(title);
       if (priceEl && priceEl.textContent.trim()) {
         var price = document.createElement("div");
-        price.className = "sf-quickview__price";
+        price.className = "sf-quickview-price";
         price.textContent = priceEl.textContent.trim();
         body.appendChild(price);
       }
       if (link) {
         var view = document.createElement("a");
-        view.className = "sf-quickview__product";
+        view.className = "sf-quickview-product";
         view.href = link.getAttribute("href") || "";
         view.textContent = this.t("product.view_details", "View product");
         body.appendChild(view);
@@ -3566,7 +3566,7 @@
     if (host.parentNode !== layout) {
       layout.appendChild(host);
     }
-    if (host.classList) host.classList.add("sf-collection-layout__main");
+    if (host.classList) host.classList.add("sf-layout-main");
     placeMountInLayout(layout, mount, position);
     return layout;
   };
@@ -4076,7 +4076,7 @@
       if (this.renderPager) this.renderPager();
     }
     if (!append && this.autoApplyFilters === false && this.facetsEl) {
-      var applyNowBtn = this.facetsEl.querySelector(".smart-filter__apply-now");
+      var applyNowBtn = this.facetsEl.querySelector(".sf-apply-now");
       if (applyNowBtn) {
         applyNowBtn.disabled = true;
         applyNowBtn.setAttribute("aria-busy", "true");
@@ -4594,7 +4594,7 @@
 
   Widget.prototype.renderChips = function () {
     var wrap = document.createElement("div");
-    wrap.className = "smart-filter__chips";
+    wrap.className = "sf-chips";
     var self = this;
 
     Object.keys(this.selected).forEach(function (key) {
@@ -4606,7 +4606,7 @@
         if (!vals[0] && !vals[1]) return;
         var rangeChip = document.createElement("button");
         rangeChip.type = "button";
-        rangeChip.className = "smart-filter__chip";
+        rangeChip.className = "sf-chip";
         rangeChip.setAttribute(
           "aria-label",
           "Remove " + (facet.label || key) + " range",
@@ -4618,7 +4618,7 @@
           (vals[0] || "Min") +
           " – " +
           (vals[1] || "Max") +
-          '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
+          '</span><span class="sf-chip-remove" aria-hidden="true">×</span>';
         rangeChip.addEventListener("click", function () {
           delete self.selected[key];
           self.commitFilters();
@@ -4630,12 +4630,12 @@
         var chipLabel = chipDisplayLabel(self.facets, key, value);
         var chip = document.createElement("button");
         chip.type = "button";
-        chip.className = "smart-filter__chip";
+        chip.className = "sf-chip";
         chip.setAttribute("aria-label", "Remove " + chipLabel);
         chip.innerHTML =
           "<span>" +
           String(chipLabel).replace(/</g, "&lt;") +
-          '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
+          '</span><span class="sf-chip-remove" aria-hidden="true">×</span>';
         chip.addEventListener("click", function () {
           self.toggleValue(key, value, false);
         });
@@ -4646,7 +4646,7 @@
     if (this.price.min || this.price.max) {
       var priceChip = document.createElement("button");
       priceChip.type = "button";
-      priceChip.className = "smart-filter__chip";
+      priceChip.className = "sf-chip";
       priceChip.innerHTML =
         "<span>" +
         (this.price.min !== ""
@@ -4656,7 +4656,7 @@
         (this.price.max !== ""
           ? formatMoney(this.price.max, this.currency)
           : "Max") +
-        '</span><span class="smart-filter__chip-remove" aria-hidden="true">×</span>';
+        '</span><span class="sf-chip-remove" aria-hidden="true">×</span>';
       priceChip.addEventListener("click", function () {
         self.price = { min: "", max: "" };
         self.commitFilters();
@@ -4689,7 +4689,7 @@
         }
 
         var wrap = document.createElement("div");
-        wrap.className = "smart-filter__facet";
+        wrap.className = "sf-facet";
         wrap.setAttribute("data-facet-key", facet.key);
         if (this.isFacetCollapsed(facet.key)) {
           wrap.classList.add("is-collapsed");
@@ -4697,14 +4697,14 @@
 
         var label = document.createElement("button");
         label.type = "button";
-        label.className = "smart-filter__facet-label";
+        label.className = "sf-facet-label";
         label.setAttribute("aria-expanded", String(!wrap.classList.contains("is-collapsed")));
 
         var labelText = document.createElement("span");
-        labelText.className = "smart-filter__facet-text";
+        labelText.className = "sf-facet-text";
         labelText.appendChild(document.createTextNode(facet.label));
         var chevron = document.createElement("span");
-        chevron.className = "smart-filter__chevron";
+        chevron.className = "sf-chevron";
         chevron.setAttribute("aria-hidden", "true");
         label.appendChild(labelText);
         label.appendChild(chevron);
@@ -4742,18 +4742,18 @@
 
   Widget.prototype.renderApplyBar = function () {
     if (!this.facetsEl) return;
-    var existing = this.facetsEl.querySelectorAll(".smart-filter__apply-bar");
+    var existing = this.facetsEl.querySelectorAll(".sf-apply-bar");
     for (var i = 0; i < existing.length; i += 1) {
       existing[i].parentNode.removeChild(existing[i]);
     }
     if (this.autoApplyFilters !== false) return;
 
     var bar = document.createElement("div");
-    bar.className = "smart-filter__apply-bar";
+    bar.className = "sf-apply-bar";
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-      "smart-filter__btn smart-filter__btn--primary smart-filter__apply-now";
+      "sf-btn sf-btn-primary sf-apply-now";
     btn.textContent = this.t("apply_now", MSG_APPLY_NOW);
     btn.disabled = !this.hasPendingFilterChanges();
     btn.addEventListener(
@@ -4768,9 +4768,9 @@
 
   Widget.prototype.renderDropdownFacet = function (facet) {
     var wrap = document.createElement("div");
-    wrap.className = "smart-filter__dropdown-wrap";
+    wrap.className = "sf-dropdown-wrap";
     var select = document.createElement("select");
-    select.className = "smart-filter__dropdown";
+    select.className = "sf-dropdown";
     select.setAttribute("aria-label", facet.label);
     var any = document.createElement("option");
     any.value = "";
@@ -4809,8 +4809,8 @@
   Widget.prototype.renderCollectionFacet = function (facet) {
     var list = document.createElement("ul");
     list.className =
-      "smart-filter__options smart-filter__options--collection-nav" +
-      (facet.collectionTree ? " smart-filter__options--collection-tree" : "");
+      "sf-options sf-options-collection-nav" +
+      (facet.collectionTree ? " sf-options-collection-tree" : "");
     this.appendCollectionNavItems(list, facet.values || []);
     return list;
   };
@@ -4835,10 +4835,10 @@
         var count = item.count;
         var li = document.createElement("li");
         if (item.children && item.children.length) {
-          li.classList.add("smart-filter__tree-node");
+          li.classList.add("sf-tree-node");
         }
         var link = document.createElement("a");
-        link.className = "smart-filter__option smart-filter__collection-link";
+        link.className = "sf-option sf-collection-link";
         link.href = href || "#";
         if (this.isCurrentCollectionNavItem(item, href)) {
           li.classList.add("is-current");
@@ -4846,12 +4846,12 @@
           link.setAttribute("aria-current", "page");
         }
         var text = document.createElement("span");
-        text.className = "smart-filter__option-text";
+        text.className = "sf-option-text";
         text.textContent = labelText;
         link.appendChild(text);
         if (this.showCounts && typeof count === "number") {
           var countEl = document.createElement("span");
-          countEl.className = "smart-filter__option-count";
+          countEl.className = "sf-option-count";
           countEl.textContent = String(count);
           link.appendChild(countEl);
         }
@@ -4873,7 +4873,7 @@
         if (item.children && item.children.length) {
           var toggle = document.createElement("button");
           toggle.type = "button";
-          toggle.className = "smart-filter__tree-toggle";
+          toggle.className = "sf-tree-toggle";
           toggle.setAttribute("aria-expanded", "true");
           toggle.setAttribute("aria-label", "Toggle " + labelText);
           toggle.addEventListener("click", function (event) {
@@ -4884,7 +4884,7 @@
           });
           li.appendChild(toggle);
           var nested = document.createElement("ul");
-          nested.className = "smart-filter__tree-children";
+          nested.className = "sf-tree-children";
           this.appendCollectionNavItems(nested, item.children);
           li.appendChild(nested);
         }
@@ -4895,7 +4895,7 @@
 
   Widget.prototype.renderBooleanFacet = function (facet) {
     var list = this.renderListFacet(facet);
-    list.className = "smart-filter__options smart-filter__options--boolean";
+    list.className = "sf-options sf-options-boolean";
     return list;
   };
 
@@ -4915,17 +4915,17 @@
     var asPlainList = displayType === "list";
     var asRating = facet.source === "rating" || facet.key === "rating";
     list.className =
-      "smart-filter__options" +
-      (asColor ? " smart-filter__options--swatches" : "") +
-      (asSize ? " smart-filter__options--pills" : "") +
-      (asBoolean ? " smart-filter__options--boolean" : "") +
-      (asRating ? " smart-filter__options--stars" : "") +
-      (asSwatchText ? " smart-filter__options--swatch-text" : "") +
-      (asPlainList ? " smart-filter__options--list" : "") +
+      "sf-options" +
+      (asColor ? " sf-options-swatches" : "") +
+      (asSize ? " sf-options-pills" : "") +
+      (asBoolean ? " sf-options-boolean" : "") +
+      (asRating ? " sf-options-stars" : "") +
+      (asSwatchText ? " sf-options-swatch-text" : "") +
+      (asPlainList ? " sf-options-list" : "") +
       (facet.collectionTree ||
       facet.source === "collection" ||
       valuesHaveChildren(facet.values)
-        ? " smart-filter__options--collection-tree"
+        ? " sf-options-collection-tree"
         : "");
     var selected = this.selected[facet.key] || [];
     var showCounts = this.showCounts;
@@ -4975,13 +4975,13 @@
 
         var li = document.createElement("li");
         if (item.children && item.children.length) {
-          li.classList.add("smart-filter__tree-node");
+          li.classList.add("sf-tree-node");
         }
         var label = document.createElement("label");
-        label.className = "smart-filter__option";
-        if (asColor) label.className += " smart-filter__swatch";
-        if (asSwatchText) label.className += " smart-filter__swatch-text";
-        if (asSize) label.className += " smart-filter__pill";
+        label.className = "sf-option";
+        if (asColor) label.className += " sf-swatch";
+        if (asSwatchText) label.className += " sf-swatch-text";
+        if (asSize) label.className += " sf-pill";
         label.title = labelText + (typeof count === "number" ? " (" + count + ")" : "");
 
         if (asColor) applyFacetSwatch(label, item, labelText, value);
@@ -5004,7 +5004,7 @@
           input.checked = selected.indexOf(value) !== -1;
         }
         input.disabled = isBinary && empty && !input.checked;
-        if (asPlainList) input.className = "smart-filter__sr-only";
+        if (asPlainList) input.className = "sf-sr-only";
         input.addEventListener(
           "change",
           function (event) {
@@ -5038,10 +5038,10 @@
         );
 
         var text = document.createElement("span");
-        text.className = "smart-filter__option-text";
+        text.className = "sf-option-text";
         if (asRating) {
           var filled = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
-          text.className += " smart-filter__stars";
+          text.className += " sf-stars";
           text.setAttribute(
             "aria-label",
             filled + " stars " + this.t("and_up", "and up"),
@@ -5049,7 +5049,7 @@
           for (var s = 1; s <= 5; s += 1) {
             var star = document.createElement("span");
             star.className =
-              "smart-filter__star" + (s <= filled ? " is-on" : "");
+              "sf-star" + (s <= filled ? " is-on" : "");
             star.textContent = s <= filled ? "★" : "☆";
             text.appendChild(star);
           }
@@ -5061,7 +5061,7 @@
 
         if (showCounts && typeof count === "number" && !asSize) {
           var countEl = document.createElement("span");
-          countEl.className = "smart-filter__option-count";
+          countEl.className = "sf-option-count";
           countEl.textContent = String(count);
           label.appendChild(countEl);
         }
@@ -5070,7 +5070,7 @@
         if (item.children && item.children.length) {
           var toggle = document.createElement("button");
           toggle.type = "button";
-          toggle.className = "smart-filter__tree-toggle";
+          toggle.className = "sf-tree-toggle";
           toggle.setAttribute("aria-expanded", "true");
           toggle.setAttribute("aria-label", "Toggle " + labelText);
           toggle.addEventListener("click", function (event) {
@@ -5081,7 +5081,7 @@
           });
           li.appendChild(toggle);
           var nested = document.createElement("ul");
-          nested.className = "smart-filter__tree-children";
+          nested.className = "sf-tree-children";
           addItems(nested, item.children);
           li.appendChild(nested);
         }
@@ -5132,7 +5132,7 @@
 
   Widget.prototype.renderPriceFacet = function (facet) {
     var wrap = document.createElement("div");
-    wrap.className = "smart-filter__price";
+    wrap.className = "sf-price";
     var isProductPrice = facet.isProductPrice || facet.key === "price";
     var boundMin = Number(facet.min);
     var boundMax = Number(facet.max);
@@ -5154,7 +5154,7 @@
     }
 
     var minField = document.createElement("div");
-    minField.className = "smart-filter__price-field";
+    minField.className = "sf-price-field";
     var minInput = document.createElement("input");
     minInput.type = "number";
     minInput.inputMode = "decimal";
@@ -5175,12 +5175,12 @@
     minField.appendChild(minInput);
 
     var sep = document.createElement("span");
-    sep.className = "smart-filter__price-sep";
+    sep.className = "sf-price-sep";
     sep.setAttribute("aria-hidden", "true");
     sep.textContent = "–";
 
     var maxField = document.createElement("div");
-    maxField.className = "smart-filter__price-field";
+    maxField.className = "sf-price-field";
     var maxInput = document.createElement("input");
     maxInput.type = "number";
     maxInput.inputMode = "decimal";
@@ -5217,11 +5217,11 @@
 
     if (hasBounds) {
       var slider = document.createElement("div");
-      slider.className = "smart-filter__slider";
+      slider.className = "sf-slider";
       var track = document.createElement("div");
-      track.className = "smart-filter__slider-track";
+      track.className = "sf-slider-track";
       var fill = document.createElement("div");
-      fill.className = "smart-filter__slider-fill";
+      fill.className = "sf-slider-fill";
       var low = document.createElement("input");
       low.type = "range";
       low.min = String(boundMin);
@@ -5251,7 +5251,7 @@
       wrap.appendChild(slider);
 
       var bounds = document.createElement("div");
-      bounds.className = "smart-filter__price-bounds";
+      bounds.className = "sf-price-bounds";
       var boundLow = document.createElement("span");
       boundLow.textContent = formatMoney(boundMin, this.currency);
       var boundHigh = document.createElement("span");
@@ -5340,7 +5340,7 @@
   Widget.prototype.hasFacetChrome = function () {
     if (!this.facetsEl) return false;
     return Boolean(
-      this.facetsEl.querySelector(".smart-filter__facet, [data-skeleton]"),
+      this.facetsEl.querySelector(".sf-facet, [data-skeleton]"),
     );
   };
 

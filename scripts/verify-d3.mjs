@@ -131,7 +131,7 @@ function assertStaticMarkers() {
   ) {
     fail("collection filter blocks missing data-collection-handle");
   }
-  if (!widget.includes("smart-filter__tree-children")) {
+  if (!widget.includes("sf-tree-children")) {
     fail("smart-filter.js missing nested collection tree markup");
   }
   const editor = readRepo("app", "components", "filter-option-editor.tsx");

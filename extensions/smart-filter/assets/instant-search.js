@@ -81,7 +81,7 @@
         (el.closest(".smart-filter-search") ||
           el.closest(".findly-instant") ||
           el.closest(".sf-search-host") ||
-          el.closest(".smart-filter__search")),
+          el.closest(".sf-search")),
     );
   }
 
@@ -187,7 +187,7 @@
     this._abort = null;
     this._reqId = 0;
     this.panel = document.createElement("div");
-    this.panel.className = "findly-instant__panel";
+    this.panel.className = "findly-instant-panel";
     this.panel.setAttribute("data-instant-panel", "");
     root.appendChild(this.panel);
   }
@@ -262,9 +262,9 @@
 
   InstantSearch.prototype.section = function (title, className) {
     var wrap = document.createElement("section");
-    wrap.className = "findly-instant__section " + className;
+    wrap.className = "findly-instant-section " + className;
     var heading = document.createElement("h3");
-    heading.className = "findly-instant__heading";
+    heading.className = "findly-instant-heading";
     heading.textContent = title;
     wrap.appendChild(heading);
     return wrap;
@@ -272,9 +272,9 @@
 
   InstantSearch.prototype.linkItem = function (href, label, extraClass) {
     var li = document.createElement("li");
-    li.className = "findly-instant__item";
+    li.className = "findly-instant-item";
     var a = document.createElement("a");
-    a.className = "findly-instant__link" + (extraClass ? " " + extraClass : "");
+    a.className = "findly-instant-link" + (extraClass ? " " + extraClass : "");
     a.href = href || "#";
     a.textContent = label;
     li.appendChild(a);
@@ -286,13 +286,13 @@
     var href = item && item.url ? String(item.url) : item && item.handle ? "/products/" + item.handle : "#";
     var title = String((item && (item.title || item.handle)) || "Product");
     var a = document.createElement("a");
-    a.className = "findly-instant__product";
+    a.className = "findly-instant-product";
     a.href = href;
 
     var src = item && item.imageUrl ? String(item.imageUrl) : "";
     if (src) {
       var img = document.createElement("img");
-      img.className = "findly-instant__image";
+      img.className = "findly-instant-image";
       img.src = src;
       img.alt = "";
       img.loading = "lazy";
@@ -301,21 +301,21 @@
       a.appendChild(img);
     } else {
       var ph = document.createElement("span");
-      ph.className = "findly-instant__image findly-instant__image--empty";
+      ph.className = "findly-instant-image is-empty";
       ph.setAttribute("aria-hidden", "true");
       a.appendChild(ph);
     }
 
     var meta = document.createElement("span");
-    meta.className = "findly-instant__meta";
+    meta.className = "findly-instant-meta";
     var name = document.createElement("span");
-    name.className = "findly-instant__title";
+    name.className = "findly-instant-title";
     name.textContent = title;
     meta.appendChild(name);
 
     if (instant.showVendor && item && item.vendor) {
       var vendor = document.createElement("span");
-      vendor.className = "findly-instant__vendor";
+      vendor.className = "findly-instant-vendor";
       vendor.textContent = String(item.vendor);
       meta.appendChild(vendor);
     }
@@ -327,7 +327,7 @@
       );
       if (priceText) {
         var price = document.createElement("span");
-        price.className = "findly-instant__price";
+        price.className = "findly-instant-price";
         price.textContent = priceText;
         meta.appendChild(price);
       }
@@ -339,7 +339,7 @@
 
   InstantSearch.prototype.renderList = function (items, mapFn) {
     var ul = document.createElement("ul");
-    ul.className = "findly-instant__list";
+    ul.className = "findly-instant-list";
     ul.setAttribute("role", "list");
     items.forEach(function (item) {
       ul.appendChild(mapFn(item));
@@ -378,7 +378,7 @@
       suggestion.toLowerCase() !== query.toLowerCase();
     if (showSpell) {
       var spell = document.createElement("p");
-      spell.className = "findly-instant__spell";
+      spell.className = "findly-instant-spell";
       spell.appendChild(
         document.createTextNode(
           (chrome.did_you_mean || "Did you mean") + " ",
@@ -386,7 +386,7 @@
       );
       var spellBtn = document.createElement("button");
       spellBtn.type = "button";
-      spellBtn.className = "findly-instant__spell-link";
+      spellBtn.className = "findly-instant-spell-link";
       spellBtn.textContent = suggestion;
       var selfSpell = this;
       spellBtn.addEventListener("click", function () {
@@ -402,7 +402,7 @@
     if (!showQueries && !showProducts && !showCollections && !showPages && !showPosts) {
       if (query) {
         var empty = document.createElement("p");
-        empty.className = "findly-instant__empty";
+        empty.className = "findly-instant-empty";
         empty.textContent = "No results";
         this.panel.appendChild(empty);
         setHidden(this.root, false);
@@ -414,28 +414,28 @@
     }
 
     var layout = document.createElement("div");
-    layout.className = "findly-instant__layout";
+    layout.className = "findly-instant-layout";
     var aside = document.createElement("div");
-    aside.className = "findly-instant__aside";
+    aside.className = "findly-instant-aside";
     var main = document.createElement("div");
-    main.className = "findly-instant__main";
+    main.className = "findly-instant-main";
 
     var self = this;
 
     if (showQueries) {
-      var qSec = this.section("Queries", "findly-instant__section--queries");
+      var qSec = this.section("Queries", "findly-instant-section-queries");
       qSec.appendChild(
         this.renderList(queries, function (row) {
           var label = text(row.query, "");
           var href = text(row.url, "/search?q=" + encodeURIComponent(label));
-          return self.linkItem(href, label, "findly-instant__link--query");
+          return self.linkItem(href, label, "findly-instant-link-query");
         }),
       );
       aside.appendChild(qSec);
     }
 
     if (showCollections) {
-      var cSec = this.section("Collections", "findly-instant__section--collections");
+      var cSec = this.section("Collections", "findly-instant-section-collections");
       cSec.appendChild(
         this.renderList(collections, function (row) {
           var label = text(row.title || row.handle, "Collection");
@@ -447,7 +447,7 @@
     }
 
     if (showPosts) {
-      var bSec = this.section("Blog posts", "findly-instant__section--articles");
+      var bSec = this.section("Blog posts", "findly-instant-section-articles");
       bSec.appendChild(
         this.renderList(articles, function (row) {
           return self.linkItem(text(row.url, "#"), text(row.title, "Article"));
@@ -457,7 +457,7 @@
     }
 
     if (showPages) {
-      var pSec = this.section("Pages", "findly-instant__section--pages");
+      var pSec = this.section("Pages", "findly-instant-section-pages");
       pSec.appendChild(
         this.renderList(pages, function (row) {
           return self.linkItem(text(row.url, "#"), text(row.title, "Page"));
@@ -467,9 +467,9 @@
     }
 
     if (showProducts) {
-      var prodSec = this.section("Products", "findly-instant__section--products");
+      var prodSec = this.section("Products", "findly-instant-section-products");
       var grid = document.createElement("div");
-      grid.className = "findly-instant__products";
+      grid.className = "findly-instant-products";
       products.forEach(function (item) {
         grid.appendChild(self.productCard(item));
       });
@@ -496,16 +496,16 @@
     if (!this.panel) return;
     this.applyChrome();
     this.panel.innerHTML =
-      '<div class="findly-instant__layout is-skeleton" aria-hidden="true">' +
-      '<div class="findly-instant__main">' +
-      '<div class="findly-instant__skel-row"></div>' +
-      '<div class="findly-instant__skel-row"></div>' +
-      '<div class="findly-instant__skel-row is-short"></div>' +
-      '<div class="findly-instant__products">' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
+      '<div class="findly-instant-layout is-skeleton" aria-hidden="true">' +
+      '<div class="findly-instant-main">' +
+      '<div class="findly-instant-skel-row"></div>' +
+      '<div class="findly-instant-skel-row"></div>' +
+      '<div class="findly-instant-skel-row is-short"></div>' +
+      '<div class="findly-instant-products">' +
+      '<div class="findly-instant-skel-card"></div>' +
+      '<div class="findly-instant-skel-card"></div>' +
+      '<div class="findly-instant-skel-card"></div>' +
+      '<div class="findly-instant-skel-card"></div>' +
       "</div></div></div>";
     setHidden(this.root, false);
     this.position();
@@ -580,7 +580,7 @@
         if (self._lastQuery === query) self._lastQuery = undefined;
         if (!self.panel) return;
         self.panel.innerHTML =
-          '<p class="findly-instant__empty">Search could not be loaded.</p>';
+          '<p class="findly-instant-empty">Search could not be loaded.</p>';
         setHidden(self.root, false);
         self.position();
       });
@@ -731,7 +731,7 @@
     var bar = document.createElement("div");
     bar.className = "findly-instant-bar";
     var input = document.createElement("input");
-    input.className = "findly-instant-bar__input";
+    input.className = "findly-instant-bar-input";
     input.type = "search";
     input.name = "q";
     input.setAttribute("role", "searchbox");

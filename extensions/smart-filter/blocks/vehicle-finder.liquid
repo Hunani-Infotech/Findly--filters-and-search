@@ -9,25 +9,25 @@
   data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
   {{ block.shopify_attributes }}
 >
-  <h2 class="smart-filter-ymm__heading" data-ymm-heading></h2>
-  <label class="smart-filter-ymm__input-label vis-hidden" for="smart-filter-ymm-q-{{ block.id }}">
+  <h2 class="sf-ymm-heading" data-ymm-heading></h2>
+  <label class="sf-ymm-input-label vis-hidden" for="smart-filter-ymm-q-{{ block.id }}">
     Search
   </label>
   <input
     id="smart-filter-ymm-q-{{ block.id }}"
-    class="smart-filter-ymm__input"
+    class="sf-ymm-input"
     type="search"
     data-ymm-q
     placeholder="Search"
     autocomplete="off"
     hidden
   >
-  <div class="smart-filter-ymm__fields" data-ymm-fields></div>
-  <button type="button" class="smart-filter-ymm__search" data-ymm-search>
+  <div class="sf-ymm-fields" data-ymm-fields></div>
+  <button type="button" class="sf-ymm-search" data-ymm-search>
     SEARCH
   </button>
-  <div class="smart-filter-ymm__status" data-ymm-status aria-live="polite"></div>
-  <ul class="smart-filter-ymm__results" data-ymm-results role="list"></ul>
+  <div class="sf-ymm-status" data-ymm-status aria-live="polite"></div>
+  <ul class="sf-ymm-results" data-ymm-results role="list"></ul>
 </div>
 
 {% schema %}

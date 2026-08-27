@@ -54,10 +54,10 @@ function assertSourceMarkers() {
   if (grid.includes("setControlBusy(search, on)") || grid.includes("setControlBusy(select, on)")) {
     fail("search and sort must stay enabled while the product grid loads");
   }
-  if (/html\.sf-filter-loading\s+\.smart-filter__search-input[\s\S]{0,120}visibility:\s*hidden/.test(css)) {
+  if (/html\.sf-filter-loading\s+\.sf-search-input[\s\S]{0,120}visibility:\s*hidden/.test(css)) {
     fail("search input must stay visible while the product grid loads");
   }
-  if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(css)) {
+  if (/html\.sf-filter-loading\s+\.sf-sort-btn-value[\s\S]{0,80}visibility:\s*hidden/.test(css)) {
     fail("sort value must stay visible while the product grid loads");
   }
   if (!css.includes("html.sf-filter-loading .sf-total-count::after")) {
@@ -79,37 +79,37 @@ function assertSourceMarkers() {
   if (!checkCss.includes("sf-filter-ready") || !checkCss.includes("sf-filter-loading")) {
     fail("smart-filter-check.css must hide the product grid until the filter is ready");
   }
-  if (/html\.sf-filter-loading\s+\.smart-filter__search-input[\s\S]{0,120}visibility:\s*hidden/.test(checkCss)) {
+  if (/html\.sf-filter-loading\s+\.sf-search-input[\s\S]{0,120}visibility:\s*hidden/.test(checkCss)) {
     fail("smart-filter-check.css must not hide search while the product grid loads");
   }
-  if (/html\.sf-filter-loading\s+\.sf-sort-btn__value[\s\S]{0,80}visibility:\s*hidden/.test(checkCss)) {
+  if (/html\.sf-filter-loading\s+\.sf-sort-btn-value[\s\S]{0,80}visibility:\s*hidden/.test(checkCss)) {
     fail("smart-filter-check.css must not hide sort while the product grid loads");
   }
-  if (!grid.includes("data-findly-skel") || !grid.includes("findly-grid-skel__img")) {
+  if (!grid.includes("data-findly-skel") || !grid.includes("findly-grid-skel-img")) {
     fail("grid missing skeleton markup");
   }
   if (!grid.includes('hostTag === "ul" || hostTag === "ol" ? "LI" : "DIV"')) {
     fail("grid skeletons must use DIV/LI, not theme custom elements");
   }
-  if (!css.includes("findly-grid-skel__img") || !css.includes("findly-grid-busy-overlay")) {
+  if (!css.includes("findly-grid-skel-img") || !css.includes("findly-grid-busy-overlay")) {
     fail("smart-filter.css missing grid loading styles");
   }
   if (!filterJs.includes("if (!self._importingCards)") || !filterJs.includes("self.setGridBusy(false)")) {
     fail("fetchFilters must keep the grid busy while cards import");
   }
-  if (!searchJs.includes("renderSearchSkeletons") || !searchCss.includes("smart-filter-search__skel-img")) {
+  if (!searchJs.includes("renderSearchSkeletons") || !searchCss.includes("sf-search-skel-img")) {
     fail("search skeletons missing");
   }
-  if (!instantJs.includes("showLoadingPanel") || !instantCss.includes("findly-instant__skel-card")) {
+  if (!instantJs.includes("showLoadingPanel") || !instantCss.includes("findly-instant-skel-card")) {
     fail("instant-search skeletons missing");
   }
-  if (!recsJs.includes("renderSkeletons") || !recsCss.includes("smart-filter-recs__skel-img")) {
+  if (!recsJs.includes("renderSkeletons") || !recsCss.includes("sf-recs-skel-img")) {
     fail("recommendations skeletons missing");
   }
-  if (!ymmJs.includes("renderSkeletons") || !ymmCss.includes("smart-filter-ymm__skel-img")) {
+  if (!ymmJs.includes("renderSkeletons") || !ymmCss.includes("sf-ymm-skel-img")) {
     fail("vehicle-finder skeletons missing");
   }
-  if (!pagerJs.includes("sf-pager__spin") || !pagerJs.includes("is-busy")) {
+  if (!pagerJs.includes("sf-pager-spin") || !pagerJs.includes("is-busy")) {
     fail("pager loading spinner missing");
   }
   if (!pagerJs.includes("syncThemePager") || !pagerJs.includes("usesThemeNumberedPager")) {
@@ -236,13 +236,13 @@ function assertSourceMarkers() {
     fail("both collection blocks must load the grid companion");
   }
   const boot = read("extensions/smart-filter/assets/smart-filter-boot.js");
-  if (!boot.includes("findly-grid-skel__img") || !boot.includes("sf-filter-loading")) {
+  if (!boot.includes("findly-grid-skel-img") || !boot.includes("sf-filter-loading")) {
     fail("boot script must mount the existing 8-card grid skeletons on first paint");
   }
   if (!boot.includes("findly-grid-busy-overlay")) {
     fail("boot script must mount the centered busy overlay on first paint");
   }
-  if (!checkCss.includes("findly-grid-skel__img") || !checkCss.includes("products-count-wrapper")) {
+  if (!checkCss.includes("findly-grid-skel-img") || !checkCss.includes("products-count-wrapper")) {
     fail("smart-filter-check.css must paint grid skeletons and hide Horizon product counts");
   }
   if (!checkCss.includes("findly-grid-busy-overlay") || !checkCss.includes("sf-grid-spin")) {
@@ -320,26 +320,26 @@ function writeHarness() {
 <html>
 <body>
   <div id="smart-filter-root" class="smart-filter">
-    <div class="smart-filter__facets" data-facets>
-      <div class="smart-filter__skeleton" data-skeleton></div>
+    <div class="sf-facets" data-facets>
+      <div class="sf-skeleton" data-skeleton></div>
     </div>
   </div>
   <p class="product-count">163 products</p>
   <div class="products-count-wrapper" data-testid="products-count">163 products</div>
   <div class="sf-toolbar">
-    <div class="sf-search-host sf-toolbar__search">
-      <div class="smart-filter__search" data-collection-search-wrap>
-        <div class="smart-filter__search-field">
-          <input data-collection-search class="smart-filter__search-input" placeholder="Search products" />
+    <div class="sf-search-host sf-toolbar-search">
+      <div class="sf-search" data-collection-search-wrap>
+        <div class="sf-search-field">
+          <input data-collection-search class="sf-search-input" placeholder="Search products" />
         </div>
       </div>
     </div>
-    <div class="sf-toolbar__end">
+    <div class="sf-toolbar-end">
       <div class="sf-sort-host">
-        <div data-sort-wrap class="smart-filter__sort">
-          <label class="smart-filter__sort-label">Sort by</label>
+        <div data-sort-wrap class="sf-sort">
+          <label class="sf-sort-label">Sort by</label>
           <div class="sf-sort-control">
-            <select data-sort class="smart-filter__sort-select"><option>Featured</option></select>
+            <select data-sort class="sf-sort-select"><option>Featured</option></select>
           </div>
         </div>
       </div>
@@ -415,8 +415,8 @@ function writeHarness() {
         if (searchList && !searchList.children.length) {
           for (var i = 0; i < 5; i++) {
             var li = document.createElement("li");
-            li.className = "smart-filter-search__item is-skeleton";
-            li.innerHTML = '<span class="smart-filter-search__skel-img"></span>';
+            li.className = "sf-search-item is-skeleton";
+            li.innerHTML = '<span class="sf-search-skel-img"></span>';
             searchList.appendChild(li);
           }
         }
@@ -442,7 +442,7 @@ function writeHarness() {
         var countVis = countEl && window.getComputedStyle(countEl).visibility;
         if (countVis !== "hidden") throw new Error("product count visible while loading: " + countVis);
         var searchEl = document.querySelector("[data-collection-search]");
-        var sortEl = document.querySelector(".smart-filter__sort-select");
+        var sortEl = document.querySelector(".sf-sort-select");
         var findlyCount = document.querySelector(".sf-total-count");
         if (searchEl) searchEl.value = "blue shirt";
         if (!searchEl) throw new Error("search input missing");
@@ -496,7 +496,7 @@ function writeHarness() {
           ready: document.documentElement.classList.contains("sf-filter-ready"),
           skelTag: skel[0] ? skel[0].tagName : "",
           skelHost: skelHost ? skelHost.id : "",
-          searchSkel: document.querySelectorAll(".smart-filter-search__item.is-skeleton").length,
+          searchSkel: document.querySelectorAll(".sf-search-item.is-skeleton").length,
           recsReady: Boolean(recs),
           ymmReady: Boolean(ymm)
         };

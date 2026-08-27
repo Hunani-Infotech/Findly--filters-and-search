@@ -102,10 +102,10 @@ function assertStaticMarkers() {
     "assets",
     "smart-filter.css",
   );
-  if (!css.includes(".sf-pager") || !css.includes("sf-pager__sentinel")) {
+  if (!css.includes(".sf-pager") || !css.includes("sf-pager-sentinel")) {
     fail("smart-filter.css missing .sf-pager styles");
   }
-  if (!css.includes(".sf-pager--infinite .sf-pager__more")) {
+  if (!css.includes(".sf-pager--infinite .sf-pager-more")) {
     fail("smart-filter.css must hide Load more in infinite mode");
   }
   log.info("D9 static markers present");

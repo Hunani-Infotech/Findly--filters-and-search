@@ -50,7 +50,7 @@ const SYNC_STATUS_POLL_MS = 8000;
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { shop, plan } = await ensureShopAccess(session.shop);
-  // Unstick admin "Syncingâ?¦" if the bulk finish webhook was missed.
+  // Unstick admin "Syncingï¿½?ï¿½" if the bulk finish webhook was missed.
   await recoverStuckSyncIfNeeded(session.shop);
   const [setup, syncJob, dashboard, caps] = await Promise.all([
     getSetupProgress(shop.id, session.shop),
@@ -233,7 +233,7 @@ export default function Home() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, syncFetcher]);
 
-  // Light status poll only â?? avoid reloading analytics on the home loader.
+  // Light status poll only ï¿½?? avoid reloading analytics on the home loader.
   useEffect(() => {
     if (!shouldPoll) return;
     const statusUrl = withEmbeddedParams("/app/sync/status", searchParams);
@@ -258,11 +258,11 @@ export default function Home() {
   return (
     <Page>
       <div className="findly-home-hero">
-        <p className="findly-home-hero__kicker">Filters &amp; Search</p>
-        <h1 className="findly-home-hero__title">
+        <p className="findly-home-hero-kicker">Filters &amp; Search</p>
+        <h1 className="findly-home-hero-title">
           Welcome to <span>Findly</span>
         </h1>
-        <p className="findly-home-hero__sub">
+        <p className="findly-home-hero-sub">
           {setup.showGuide
             ? "Finish these steps to show filters and search on your store."
             : "Manage filters, search, and catalog sync from here."}

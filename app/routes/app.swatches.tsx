@@ -272,8 +272,8 @@ function ColorHexField({
       <label
         className={
           filled
-            ? "findly-swatch-hex__chip"
-            : "findly-swatch-hex__chip findly-swatch-hex__chip--empty"
+            ? "findly-swatch-hex-chip"
+            : "findly-swatch-hex-chip is-empty"
         }
       >
         <input
@@ -289,7 +289,7 @@ function ColorHexField({
       </label>
       <input
         type="text"
-        className="findly-swatch-hex__input"
+        className="findly-swatch-hex-input"
         placeholder="#hex"
         aria-label={`${label} hex`}
         value={hex}
@@ -639,19 +639,19 @@ export default function SwatchesPage() {
       <BlockStack gap="400">
       {promoOpen ? (
         <div className="findly-swatch-promo">
-          <span className="findly-swatch-promo__icon" aria-hidden />
-          <p className="findly-swatch-promo__body">
+          <span className="findly-swatch-promo-icon" aria-hidden />
+          <p className="findly-swatch-promo-body">
             Make separate products feel like real variants. Connect colors,
             styles, and related products in one product experience.
           </p>
-          <div className="findly-swatch-promo__actions">
+          <div className="findly-swatch-promo-actions">
             <button type="button" onClick={dismissPromo}>
               Start for free
             </button>
           </div>
           <button
             type="button"
-            className="findly-swatch-promo__close"
+            className="findly-swatch-promo-close"
             aria-label="Dismiss"
             onClick={dismissPromo}
           >
@@ -676,11 +676,11 @@ export default function SwatchesPage() {
                   navigate(swatchesHref(searchParams, { option: option.optionKey }))
                 }
               >
-                <span className="findly-swatch-option__label">
+                <span className="findly-swatch-option-label">
                   {option.label}
                 </span>
                 {option.missing > 0 ? (
-                  <span className="findly-swatch-option__badge">
+                  <span className="findly-swatch-option-badge">
                     {option.missing} missing
                   </span>
                 ) : null}
@@ -691,7 +691,7 @@ export default function SwatchesPage() {
         <div className="findly-swatch-main">
           <div className="findly-swatch-toolbar">
             <div className="findly-swatch-search">
-              <span className="findly-swatch-search__icon" aria-hidden>
+              <span className="findly-swatch-search-icon" aria-hidden>
                 <SearchIcon width={16} height={16} />
               </span>
               <input
@@ -787,14 +787,14 @@ export default function SwatchesPage() {
             </div>
           ) : (
             <div className="findly-swatch-table">
-              <div className="findly-swatch-table__head">
+              <div className="findly-swatch-table-head">
                 <span />
                 <span>Value</span>
                 <span>Type</span>
                 <span>{SHOW_IMAGE_SWATCHES ? "Color & Image" : "Color"}</span>
               </div>
               {paged.map((row) => (
-                <div className="findly-swatch-table__row" key={row.value}>
+                <div className="findly-swatch-table-row" key={row.value}>
                   <input
                     type="checkbox"
                     aria-label={`Select ${row.value}`}
@@ -808,7 +808,7 @@ export default function SwatchesPage() {
                       )
                     }
                   />
-                  <span className="findly-swatch-table__value">
+                  <span className="findly-swatch-table-value">
                     <ValuePreview row={row} />
                     {row.value}
                   </span>
@@ -835,8 +835,8 @@ export default function SwatchesPage() {
                             (!SHOW_IMAGE_SWATCHES &&
                               kind === "solid" &&
                               row.kind === "image"))
-                            ? "findly-swatch-type__btn findly-swatch-type__btn--active"
-                            : "findly-swatch-type__btn"
+                            ? "findly-swatch-type-btn is-active"
+                            : "findly-swatch-type-btn"
                         }
                         disabled={busy}
                         onClick={() => patchRow(row.value, { kind })}
@@ -928,7 +928,7 @@ export default function SwatchesPage() {
           )}
           <div className="findly-swatch-pager">
             {total > 0 ? (
-              <span className="findly-swatch-pager__label">
+              <span className="findly-swatch-pager-label">
                 {`Showing ${showingFrom}–${showingTo} of ${total}`}
               </span>
             ) : null}

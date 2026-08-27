@@ -149,17 +149,17 @@ function assertThemeSeoAndUi() {
     !gridJs.includes("GRID_BUSY_CSS") ||
     !gridJs.includes("findly-grid-busy-overlay") ||
     !gridJs.includes("data-findly-skel") ||
-    !gridJs.includes("findly-grid-skel__img") ||
+    !gridJs.includes("findly-grid-skel-img") ||
     !gridJs.includes("bootEarlyGridBusy")
   ) {
     fail("smart-filter-grid.js must show product-grid skeletons while filters fetch");
   }
-  if (!filterCss.includes("findly-grid-skel__img")) {
+  if (!filterCss.includes("findly-grid-skel-img")) {
     fail("smart-filter.css must style product-grid skeleton cards");
   }
   if (
     !searchJs.includes("renderSearchSkeletons") ||
-    !searchCss.includes("smart-filter-search__skel-img")
+    !searchCss.includes("sf-search-skel-img")
   ) {
     fail("product search must show result skeletons while fetching");
   }
@@ -191,7 +191,7 @@ function assertThemeSeoAndUi() {
   ) {
     fail("instant search must bind any theme search input and hide native predictive results");
   }
-  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant__skel-card")) {
+  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant-skel-card")) {
     fail("instant search must show a loading panel while fetching");
   }
   if (!filterCss.includes("max-width: 320px") && !filterCss.includes("max-width: 280px")) {

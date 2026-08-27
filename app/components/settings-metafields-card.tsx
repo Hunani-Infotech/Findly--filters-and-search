@@ -104,7 +104,7 @@ function AppliesToField({
       }
       onClose={() => setOpen(false)}
     >
-      <div className="findly-meta-applies__menu">
+      <div className="findly-meta-applies-menu">
         <BlockStack gap="200">
           {METAFIELD_APPLY_KEYS.map((key) => (
             <BlockStack key={key} gap="050">
@@ -260,7 +260,7 @@ export function SettingsMetafieldsCard({
 
   return (
     <div className="findly-meta-card">
-      <div className="findly-meta-card__head">
+      <div className="findly-meta-card-head">
         <div>
           <Text as="h2" variant="headingMd">
             Metafields
@@ -282,10 +282,10 @@ export function SettingsMetafieldsCard({
 
       {empty ? (
         <div className="findly-meta-empty">
-          <div className="findly-meta-empty__art" aria-hidden>
-            <span className="findly-meta-empty__bar findly-meta-empty__bar--teal" />
-            <span className="findly-meta-empty__bar findly-meta-empty__bar--orange" />
-            <span className="findly-meta-empty__bar findly-meta-empty__bar--red" />
+          <div className="findly-meta-empty-art" aria-hidden>
+            <span className="findly-meta-empty-bar findly-meta-empty-bar-teal" />
+            <span className="findly-meta-empty-bar findly-meta-empty-bar-orange" />
+            <span className="findly-meta-empty-bar findly-meta-empty-bar-red" />
           </div>
           <Text as="p" variant="headingSm">
             {pendingClear
@@ -320,7 +320,7 @@ export function SettingsMetafieldsCard({
       ) : (
         <BlockStack gap="300">
           <div className="findly-meta-table">
-            <div className="findly-meta-table__head">
+            <div className="findly-meta-table-head">
               <span>Resource</span>
               <span>Namespace</span>
               <span>Key</span>
@@ -329,7 +329,7 @@ export function SettingsMetafieldsCard({
               <span />
             </div>
             {paged.map((row) => (
-              <div className="findly-meta-table__row" key={row.clientId}>
+              <div className="findly-meta-table-row" key={row.clientId}>
                 <Select
                   label="Resource"
                   labelHidden
@@ -384,7 +384,7 @@ export function SettingsMetafieldsCard({
                 />
                 <button
                   type="button"
-                  className="findly-meta-table__remove"
+                  className="findly-meta-table-remove"
                   aria-label="Remove metafield"
                   disabled={busy}
                   onClick={async () => {

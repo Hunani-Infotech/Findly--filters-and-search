@@ -68,9 +68,9 @@ function assertJsDrawer(js) {
 
 function assertCssDrawer(css) {
   const requiredClasses = [
-    ".smart-filter__toggle",
-    ".smart-filter__panel",
-    ".smart-filter__backdrop",
+    ".sf-toggle",
+    ".sf-panel",
+    ".sf-backdrop",
     ".is-drawer-open",
   ];
   const missingClasses = requiredClasses.filter((sel) => !css.includes(sel));
@@ -78,55 +78,74 @@ function assertCssDrawer(css) {
     fail(`smart-filter.css missing ${missingClasses.join(", ")}`);
   }
 
-  const maxWidth749 = extractMediaBlock(
-    css,
-    /@media\s*\(\s*max-width:\s*749px\s*\)/,
-  );
-  const maxWidth74998 = extractMediaBlock(
-    css,
+  // Drawer chrome lives in the mobile max-width block (989px today; 749px legacy).
+  const mobileQueries = [
+    /@media\s*\(\s*max-width:\s*989px\s*\)/,
     /@media\s*\(\s*max-width:\s*749\.98px\s*\)/,
-  );
-  const drawerMedia = maxWidth749 ?? maxWidth74998;
+    /@media\s*\(\s*max-width:\s*749px\s*\)/,
+  ];
+  let drawerMedia = null;
+  for (const queryRe of mobileQueries) {
+    // Scan all matching media blocks until drawer markers appear.
+    let searchFrom = 0;
+    while (searchFrom < css.length) {
+      const sliced = css.slice(searchFrom);
+      const match = queryRe.exec(sliced);
+      if (!match) break;
+      const absoluteIndex = searchFrom + match.index;
+      const block = extractMediaBlock(css.slice(absoluteIndex), queryRe);
+      if (
+        block &&
+        [".sf-toggle", ".sf-panel", ".sf-backdrop", ".is-drawer-open"].some(
+          (sel) => block.includes(sel),
+        )
+      ) {
+        drawerMedia = block;
+        break;
+      }
+      searchFrom = absoluteIndex + match[0].length;
+    }
+    if (drawerMedia) break;
+  }
   if (!drawerMedia) {
     fail(
-      "smart-filter.css missing @media (max-width: 749px) or (max-width: 749.98px) for the drawer",
-    );
-  }
-  const drawerMarkers = [
-    ".smart-filter__toggle",
-    ".smart-filter__panel",
-    ".smart-filter__backdrop",
-    ".is-drawer-open",
-  ];
-  if (!drawerMarkers.some((sel) => drawerMedia.includes(sel))) {
-    fail(
-      "max-width ~749px media query exists but does not contain drawer toggle/panel/backdrop/is-drawer-open rules",
+      "smart-filter.css missing a mobile max-width media query with drawer toggle/panel/backdrop/is-drawer-open rules",
     );
   }
 
-  const desktopMedia = extractMediaBlock(
-    css,
-    /@media\s*\(\s*min-width:\s*750px\s*\)/,
-  );
-  if (!desktopMedia || !desktopMedia.includes(".smart-filter--left")) {
+  const desktopQuery = /@media\s*\(\s*min-width:\s*750px\s*\)/;
+  let hasDesktopLeft = false;
+  let desktopSearchFrom = 0;
+  while (desktopSearchFrom < css.length) {
+    const sliced = css.slice(desktopSearchFrom);
+    const match = desktopQuery.exec(sliced);
+    if (!match) break;
+    const absoluteIndex = desktopSearchFrom + match.index;
+    const block = extractMediaBlock(css.slice(absoluteIndex), desktopQuery);
+    if (block && block.includes(".smart-filter--left")) {
+      hasDesktopLeft = true;
+      break;
+    }
+    desktopSearchFrom = absoluteIndex + match[0].length;
+  }
+  if (!hasDesktopLeft) {
     fail(
       "@media (min-width: 750px) must still contain .smart-filter--left (desktop unchanged)",
     );
   }
 
-  for (const sel of [
-    ".smart-filter__toggle",
-    ".smart-filter__panel",
-    ".smart-filter__backdrop",
-  ]) {
-    if (!sel.includes(".smart-filter")) {
-      fail(`drawer selector ${sel} is not scoped under .smart-filter`);
-    }
-    if (!css.includes(sel)) {
-      fail(`drawer selector ${sel} missing (must include .smart-filter)`);
-    }
+  const scopedDrawerMarkers = [
+    ".smart-filter.is-drawer-open .sf-backdrop",
+    ".smart-filter.is-drawer-open .sf-panel",
+    ".smart-filter--offcanvas .sf-toggle",
+  ];
+  const missingScoped = scopedDrawerMarkers.filter((sel) => !css.includes(sel));
+  if (missingScoped.length) {
+    fail(
+      `drawer selectors must remain scoped under .smart-filter (missing ${missingScoped.join(", ")})`,
+    );
   }
-  log.info("css has scoped drawer + mobile 749 / desktop 750 breakpoints");
+  log.info("css has scoped drawer + mobile / desktop breakpoints");
 }
 
 function assertLocaleFilterLabel(localeJson) {

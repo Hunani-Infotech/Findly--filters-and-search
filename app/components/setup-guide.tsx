@@ -80,7 +80,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
   return (
     <Card padding="0">
       <div className="findly-setup">
-        <div className="findly-setup__header">
+        <div className="findly-setup-header">
           <Text as="h2" variant="headingMd">
             Get started
           </Text>
@@ -92,7 +92,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
           </Text>
         </div>
 
-        <ol className="findly-setup__list">
+        <ol className="findly-setup-list">
           {progress.steps.map((step) => {
             const complete = step.status === "complete";
             const isNext = progress.nextStep?.id === step.id;
@@ -109,14 +109,14 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                 key={step.id}
                 className={
                   expanded
-                    ? "findly-setup__item findly-setup__item--open"
-                    : "findly-setup__item"
+                    ? "findly-setup-item is-open"
+                    : "findly-setup-item"
                 }
               >
-                <div className="findly-setup__row">
+                <div className="findly-setup-row">
                   <button
                     type="button"
-                    className="findly-setup__toggle"
+                    className="findly-setup-toggle"
                     aria-expanded={expanded}
                     onClick={() => setExpandedId(expanded ? "" : step.id)}
                   >
@@ -135,14 +135,14 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                         step.number
                       )}
                     </span>
-                    <span className="findly-setup__title">
+                    <span className="findly-setup-title">
                       <Text as="span" variant="bodyMd" fontWeight="semibold">
                         {step.title}
                       </Text>
                       {complete ? (
-                        <span className="findly-setup__done">Done</span>
+                        <span className="findly-setup-done">Done</span>
                       ) : isNext ? (
-                        <span className="findly-setup__next">Current step</span>
+                        <span className="findly-setup-next">Current step</span>
                       ) : null}
                     </span>
                   </button>
@@ -168,7 +168,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                   id={`findly-setup-${step.id}`}
                   transition={{ duration: "120ms", timingFunction: "ease-out" }}
                 >
-                  <div className="findly-setup__body">
+                  <div className="findly-setup-body">
                     <Text as="p" variant="bodySm" tone="subdued">
                       {step.description}
                     </Text>
