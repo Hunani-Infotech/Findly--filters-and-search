@@ -57,7 +57,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent, #0f766e);
+  color: var(--accent, #1c7f3e);
 }
 
 .doc h1 {
@@ -74,8 +74,8 @@
   margin: 0 0 1.75rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: var(--accent-soft, #ecfdf5);
-  color: var(--accent, #0f766e);
+  background: var(--accent-soft, #e8f8ee);
+  color: var(--accent, #1c7f3e);
   font-size: 0.8125rem;
   font-weight: 600;
 }
@@ -110,12 +110,12 @@
 }
 
 .doc a {
-  color: var(--accent, #0f766e);
+  color: var(--accent, #1c7f3e);
   text-underline-offset: 3px;
 }
 
 .doc a:hover {
-  color: var(--accent-hover, #0d9488);
+  color: var(--accent-hover, #176b34);
 }
 
 .doc code {

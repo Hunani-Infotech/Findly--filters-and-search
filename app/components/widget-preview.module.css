@@ -314,7 +314,7 @@
 .preview .clear {
   font-size: 13px;
   font-weight: 500;
-  color: #005bd3;
+  color: var(--sf-accent, var(--findly-green-strong, #1c7f3e));
 }
 
 .preview .chips {

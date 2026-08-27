@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import type { WidgetPosition } from "../types/search";
 import styles from "./widget-preview.module.css";
 
@@ -21,6 +21,31 @@ export type WidgetPreviewSettings = {
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
 };
+
+/** Pick only fields the look preview reads so unrelated edits skip its render. */
+export function toWidgetPreviewSettings(
+  settings: WidgetPreviewSettings,
+): WidgetPreviewSettings {
+  return {
+    widgetPosition: settings.widgetPosition,
+    accentColor: settings.accentColor,
+    showProductCounts: settings.showProductCounts,
+    collapseByDefault: settings.collapseByDefault,
+    widgetShadow: settings.widgetShadow,
+    widgetRadius: settings.widgetRadius,
+    widgetFontMode: settings.widgetFontMode,
+    widgetFontFamily: settings.widgetFontFamily,
+    widgetTitle: settings.widgetTitle,
+    widgetTitleSize: settings.widgetTitleSize,
+    widgetTitleColor: settings.widgetTitleColor,
+    enableCollectionSearch: settings.enableCollectionSearch,
+    hideSortDropdown: settings.hideSortDropdown,
+    showTotalProductCount: settings.showTotalProductCount,
+    hideSingleValueFacets: settings.hideSingleValueFacets,
+    showRefineBy: settings.showRefineBy,
+    autoApplyFilters: settings.autoApplyFilters,
+  };
+}
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
 
@@ -355,7 +380,7 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   );
 }
 
-export function WidgetLookPreview({
+export const WidgetLookPreview = memo(function WidgetLookPreview({
   settings,
 }: {
   settings: WidgetPreviewSettings;
@@ -400,4 +425,4 @@ export function WidgetLookPreview({
       </div>
     </div>
   );
-}
+});

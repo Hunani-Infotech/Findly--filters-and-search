@@ -1,3 +1,34 @@
+/* Findly brand — matches the app icon (leaf green + white check).
+   Strong green is darkened so white button text stays WCAG AA. */
+:root,
+.p-theme-light {
+  --findly-green: #3bb75e;
+  --findly-green-strong: #1c7f3e;
+  --findly-green-hover: #176b34;
+  --findly-green-active: #145a2c;
+  --findly-green-soft: #e8f8ee;
+  --findly-green-soft-2: #c6ebd2;
+  --findly-green-text: #146c34;
+  --findly-green-rgb: 59 183 94;
+
+  --p-color-bg-fill-brand: var(--findly-green-strong);
+  --p-color-bg-fill-brand-hover: var(--findly-green-hover);
+  --p-color-bg-fill-brand-active: var(--findly-green-active);
+  --p-color-bg-fill-brand-selected: var(--findly-green-strong);
+  --p-color-bg-surface-brand: var(--findly-green-soft);
+  --p-color-bg-surface-brand-hover: #d4f0de;
+  --p-color-bg-surface-brand-active: var(--findly-green-soft-2);
+  --p-color-bg-surface-brand-selected: var(--findly-green-soft);
+  --p-color-text-brand: var(--findly-green-strong);
+  --p-color-text-brand-hover: var(--findly-green-hover);
+  --p-color-text-link: var(--findly-green-strong);
+  --p-color-text-link-hover: var(--findly-green-hover);
+  --p-color-text-link-active: var(--findly-green-active);
+  --p-color-border-focus: var(--findly-green-strong);
+  --p-color-border-brand: var(--findly-green-soft-2);
+  --p-color-icon-brand: var(--findly-green-strong);
+}
+
 .findly-root-skeleton {
   box-sizing: border-box;
   max-width: 62.375rem;
@@ -351,7 +382,7 @@
 }
 
 .findly-filter-option-table__type:focus {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--findly-green-strong);
   outline-offset: 2px;
 }
 
@@ -375,7 +406,7 @@
   height: 3px;
   margin: 0 4px 6px;
   border-radius: 99px;
-  background: #005bd3;
+  background: var(--findly-green-strong);
 }
 
 .findly-option-source-badge {
@@ -383,8 +414,8 @@
   align-items: center;
   padding: 1px 8px;
   border-radius: 999px;
-  background: #d6e7ff;
-  color: #005bd3;
+  background: var(--findly-green-soft);
+  color: var(--findly-green-strong);
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
@@ -425,7 +456,7 @@
   padding: 12px 16px;
   border: none;
   border-radius: 12px;
-  background: #f4e8ff;
+  background: var(--findly-green-soft);
   color: #202223;
 }
 
@@ -434,7 +465,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: #c9a8f5;
+  background: var(--findly-green);
 }
 
 .findly-swatch-promo__body {
@@ -536,7 +567,7 @@
 
 .findly-swatch-option--selected,
 .findly-swatch-option--selected:hover {
-  background: #edf0f4;
+  background: var(--findly-green-soft);
 }
 
 .findly-swatch-option__label {
@@ -678,7 +709,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #005bd3;
+  accent-color: var(--findly-green-strong);
 }
 
 .findly-swatch-pager button svg,
@@ -901,8 +932,8 @@
 
 .findly-swatch-thumb--selected,
 .findly-swatch-thumb--selected:hover {
-  border-color: #005bd3;
-  box-shadow: 0 0 0 2px #005bd3;
+  border-color: var(--findly-green-strong);
+  box-shadow: 0 0 0 2px var(--findly-green-strong);
 }
 
 .findly-swatch-thumb img {
@@ -1043,7 +1074,7 @@
   height: 3px;
   margin: 0 4px 6px;
   border-radius: 99px;
-  background: #005bd3;
+  background: var(--findly-green-strong);
 }
 
 .findly-search-fields__row {
@@ -1104,8 +1135,8 @@
 }
 
 .findly-instant-layout-card--selected {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 1px #1a1a1a;
+  border-color: var(--findly-green-strong);
+  box-shadow: 0 0 0 1px var(--findly-green-strong);
 }
 
 .findly-instant-layout-card--disabled {
@@ -1519,7 +1550,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: #005bd3;
+  color: var(--findly-green-strong);
   font-size: 13px;
 }
 
@@ -1659,9 +1690,9 @@
 }
 
 .findly-i18n-input:focus {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--findly-green-strong);
   outline-offset: 1px;
-  border-color: #005bd3;
+  border-color: var(--findly-green-strong);
 }
 
 .findly-i18n-input::placeholder {
@@ -1677,7 +1708,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: #005bd3;
+  color: var(--findly-green-strong);
   font: 13px/20px inherit;
   cursor: pointer;
 }
@@ -1686,7 +1717,7 @@
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  border: 1px solid #005bd3;
+  border: 1px solid var(--findly-green-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1734,7 +1765,7 @@
 
 .findly-meta-empty__bar--teal {
   width: 100%;
-  background: #0d9488;
+  background: var(--findly-green);
 }
 
 .findly-meta-empty__bar--orange {
@@ -1860,7 +1891,7 @@
 }
 
 .findly-home-hero__title span {
-  background: linear-gradient(90deg, #1a1a1a 0%, #5c4dff 40%, #1a1a1a 80%);
+  background: linear-gradient(90deg, var(--findly-green-strong) 0%, var(--findly-green) 45%, var(--findly-green-strong) 85%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -1906,7 +1937,7 @@
   }
 
   .findly-home-hero__title span {
-    color: #1a1a1a;
+    color: var(--findly-green-strong);
     background: none;
   }
 }
@@ -1961,7 +1992,7 @@
 }
 
 .findly-setup__toggle:focus-visible {
-  outline: 2px solid #005bd3;
+  outline: 2px solid var(--findly-green-strong);
   outline-offset: 2px;
 }
 
@@ -1981,7 +2012,7 @@
 }
 
 .findly-setup__done {
-  color: #0c5132;
+  color: var(--findly-green-text);
 }
 
 .findly-setup__next {
@@ -2003,13 +2034,13 @@
 }
 
 .findly-setup-marker--done {
-  background: #1a1a1a;
+  background: var(--findly-green-strong);
   color: #fff;
 }
 
 .findly-setup-marker--current {
-  border: 2px solid #1a1a1a;
-  color: #1a1a1a;
+  border: 2px solid var(--findly-green-strong);
+  color: var(--findly-green-strong);
   background: #fff;
 }
 
@@ -2065,9 +2096,9 @@
 }
 
 .findly-stock-radio--selected {
-  border-color: #005bd3;
-  background: #f2f7fe;
-  box-shadow: 0 0 0 1px #005bd3;
+  border-color: var(--findly-green-strong);
+  background: var(--findly-green-soft);
+  box-shadow: 0 0 0 1px var(--findly-green-strong);
 }
 
 .findly-stock-radio--disabled {
@@ -2080,7 +2111,7 @@
   width: 16px;
   height: 16px;
   margin-top: 2px;
-  accent-color: #005bd3;
+  accent-color: var(--findly-green-strong);
 }
 
 .findly-stock-radio__label {
@@ -2126,7 +2157,7 @@
 }
 
 .findly-sort-chip--over {
-  box-shadow: inset 0 0 0 1px #005bd3;
+  box-shadow: inset 0 0 0 1px var(--findly-green-strong);
 }
 
 .findly-sort-chip--disabled {
@@ -2175,8 +2206,8 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #5c4dff;
-  box-shadow: 0 0 0 4px rgb(92 77 255 / 12%);
+  background: var(--findly-green);
+  box-shadow: 0 0 0 4px rgb(var(--findly-green-rgb) / 16%);
 }
 
 @media (max-width: 720px) {

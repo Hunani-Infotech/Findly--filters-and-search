@@ -186,7 +186,7 @@ export function HomePageSkeleton() {
     "Check performance",
   ];
   return (
-    <SkeletonPage title="Welcome to Findly Smart Filters">
+    <SkeletonPage title="Welcome to Findly">
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">

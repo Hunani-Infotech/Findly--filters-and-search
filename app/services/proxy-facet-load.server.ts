@@ -135,6 +135,9 @@ function selectedFacetColumnSql(select: Prisma.ProductFacetSelect): Prisma.Sql[]
   return cols;
 }
 
+/** Matches storefront JS: (status || "ACTIVE") === "ACTIVE". */
+const ACTIVE_FACET_STATUS_SQL = Prisma.sql`(pf.status IS NULL OR pf.status = '' OR pf.status = 'ACTIVE')`;
+
 async function loadCollectionProductFacetsUncached(
   shopId: string,
   collectionGid: string,
@@ -149,6 +152,7 @@ async function loadCollectionProductFacetsUncached(
       ON pf."shopId" = cm."shopId" AND pf."productGid" = cm."productGid"
     WHERE cm."shopId" = ${shopId}
       AND cm."collectionGid" = ${collectionGid}
+      AND ${ACTIVE_FACET_STATUS_SQL}
   `);
 }
 
@@ -185,6 +189,7 @@ async function loadShopProductFacetsUncached(
     SELECT ${Prisma.join(columns)}, 0 AS "position"
     FROM "ProductFacet" pf
     WHERE pf."shopId" = ${shopId}
+      AND ${ACTIVE_FACET_STATUS_SQL}
   `);
 }
 

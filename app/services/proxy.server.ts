@@ -72,7 +72,7 @@ import {
   stripStopWordsFromQuery,
 } from "../utils/instant-search";
 import { applyMarketPricesToRow, parseMarketContext } from "./markets.server";
-import { getCatalogGeneration } from "../lib/catalog-cache.server";
+import { getStorefrontCacheGens } from "../lib/catalog-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import {
@@ -300,8 +300,8 @@ export async function getCollectionFilterPayload(input: {
   pageSize?: number;
 } & MarketRequestFields) {
   pruneFilterPayloadCache();
-  const gen = await getCatalogGeneration(input.shopDomain);
-  const cacheKey = `${gen}:${collectionFilterCacheKey(input)}`;
+  const gens = await getStorefrontCacheGens(input.shopDomain);
+  const cacheKey = `${gens.catalog}:${gens.config}:${collectionFilterCacheKey(input)}`;
   const cached = filterPayloadCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     return cached.result;
@@ -858,8 +858,8 @@ const searchPayloadCache = createTtlCache<SearchFilterPayload>(45_000);
 export async function getSearchFilterPayload(
   input: Parameters<typeof loadSearchFilterPayload>[0],
 ) {
-  const gen = await getCatalogGeneration(input.shopDomain);
-  const cacheKey = `${gen}:search:${collectionFilterCacheKey({
+  const gens = await getStorefrontCacheGens(input.shopDomain);
+  const cacheKey = `${gens.catalog}:${gens.config}:search:${collectionFilterCacheKey({
     shopDomain: input.shopDomain,
     selected: input.selected,
     sort: input.sort,

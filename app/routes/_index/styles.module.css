@@ -15,7 +15,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #0f766e;
+  color: var(--accent);
 }
 
 .heading {
@@ -147,8 +147,8 @@
 }
 
 .previewFilter:first-of-type span {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: var(--accent-bright, var(--accent));
+  border-color: var(--accent-bright, var(--accent));
 }
 
 .previewSwatches {
@@ -173,7 +173,7 @@
 }
 
 .previewSwatches i:nth-child(3) {
-  background: #0f766e;
+  background: var(--accent-bright, var(--accent));
 }
 
 .previewSwatches i:nth-child(4) {
@@ -251,8 +251,8 @@
   height: 1.75rem;
   margin-bottom: 0.7rem;
   border-radius: 999px;
-  background: #ecfdf5;
-  color: #0f766e;
+  background: var(--accent-soft, #e8f8ee);
+  color: var(--accent);
   font-size: 0.8125rem;
   font-weight: 700;
 }
@@ -341,7 +341,7 @@
 }
 
 .legalRow a {
-  color: #0f766e;
+  color: var(--accent);
   font-weight: 600;
   text-decoration: none;
 }

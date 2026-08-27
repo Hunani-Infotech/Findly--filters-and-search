@@ -160,15 +160,7 @@ export function DisplayOrderList({
           return (
             <div key={key}>
               {showLine ? (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 3,
-                    margin: "0 4px 6px",
-                    borderRadius: 99,
-                    background: "#005bd3",
-                  }}
-                />
+                <div className="findly-filter-option-table__line" aria-hidden="true" />
               ) : null}
               <div
                 style={{
@@ -269,15 +261,7 @@ export function DisplayOrderList({
         {dragIndex != null &&
         overIndex === paged.length &&
         overIndex !== dragIndex + 1 ? (
-          <div
-            aria-hidden="true"
-            style={{
-              height: 3,
-              margin: "0 4px 6px",
-              borderRadius: 99,
-              background: "#005bd3",
-            }}
-          />
+          <div className="findly-filter-option-table__line" aria-hidden="true" />
         ) : null}
       </div>
       <AdminListPagination

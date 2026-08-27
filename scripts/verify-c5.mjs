@@ -145,6 +145,52 @@ async function seedShopData() {
     });
   }
 
+  await prisma.productFacet.upsert({
+    where: {
+      shopId_productGid: {
+        shopId: shop.id,
+        productGid: "gid://shopify/Product/9505099",
+      },
+    },
+    create: {
+      shopId: shop.id,
+      productGid: "gid://shopify/Product/9505099",
+      handle: "draft-hidden",
+      title: "Draft Hidden",
+      vendor: "Acme",
+      productType: "Apparel",
+      tags: ["c5-verify"],
+      options: {},
+      priceMin: 1,
+      priceMax: 1,
+      available: true,
+      status: "DRAFT",
+      imageUrl: null,
+      metafields: {},
+    },
+    update: {
+      title: "Draft Hidden",
+      status: "DRAFT",
+      available: true,
+    },
+  });
+  await prisma.collectionMembership.upsert({
+    where: {
+      shopId_collectionGid_productGid: {
+        shopId: shop.id,
+        collectionGid: COLLECTION_GID,
+        productGid: "gid://shopify/Product/9505099",
+      },
+    },
+    create: {
+      shopId: shop.id,
+      collectionGid: COLLECTION_GID,
+      productGid: "gid://shopify/Product/9505099",
+      position: 99,
+    },
+    update: { position: 99 },
+  });
+
   return shop;
 }
 
@@ -171,6 +217,9 @@ try {
   });
   if (titles(unsorted).join(",") !== "OOS Other,OOS Cheap,In Mid,In Pricey") {
     fail(`plain price_asc expected OOS Other,OOS Cheap,In Mid,In Pricey got ${titles(unsorted)}`);
+  }
+  if (titles(unsorted).includes("Draft Hidden")) {
+    fail("DRAFT products must not appear in storefront filter payloads");
   }
 
   await saveAppSettings(shop.id, {

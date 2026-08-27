@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -35,6 +35,7 @@ import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   LayoutPicker,
   WidgetLookPreview,
+  toWidgetPreviewSettings,
 } from "../components/widget-preview";
 import { SortOptionsPicker } from "../components/sort-options-picker";
 import {
@@ -496,6 +497,28 @@ export default function SettingsPage() {
   const showPreview =
     selectedTab === "general" || selectedTab === "panel";
   const hidePageSave = selectedTab === "metafields";
+  const previewSettings = useMemo(
+    () => toWidgetPreviewSettings(settings),
+    [
+      settings.widgetPosition,
+      settings.accentColor,
+      settings.showProductCounts,
+      settings.collapseByDefault,
+      settings.widgetShadow,
+      settings.widgetRadius,
+      settings.widgetFontMode,
+      settings.widgetFontFamily,
+      settings.widgetTitle,
+      settings.widgetTitleSize,
+      settings.widgetTitleColor,
+      settings.enableCollectionSearch,
+      settings.hideSortDropdown,
+      settings.showTotalProductCount,
+      settings.hideSingleValueFacets,
+      settings.showRefineBy,
+      settings.autoApplyFilters,
+    ],
+  );
 
   const saving = isMutationBusy(navigation);
 
@@ -1270,7 +1293,7 @@ export default function SettingsPage() {
                     <Text as="h2" variant="headingMd">
                       Preview
                     </Text>
-                    <WidgetLookPreview settings={settings} />
+                    <WidgetLookPreview settings={previewSettings} />
                   </BlockStack>
                 </Card>
               </div>

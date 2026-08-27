@@ -1,5 +1,6 @@
 import type { FilterConfig, Prisma } from "@prisma/client";
 import prisma from "../db.server";
+import { bumpStorefrontConfigGenerationForShopId } from "../lib/catalog-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { DEFAULT_DISPLAY_ORDER, mappedFacetsForAdmin } from "./filters.server";
 import {
@@ -20,8 +21,9 @@ export type FilterTreeWithCollections = FilterConfig & {
 
 const filterTreeResolveCache = createTtlCache<FilterConfig | null>(30_000);
 
-export function invalidateFilterTreeResolveCache(shopId: string) {
+export async function invalidateFilterTreeResolveCache(shopId: string) {
   filterTreeResolveCache.deletePrefix(shopId);
+  await bumpStorefrontConfigGenerationForShopId(shopId);
 }
 
 function newest(trees: FilterConfig[]): FilterConfig | null {
@@ -174,7 +176,7 @@ export async function syncMappedMetafieldKeysOnTrees(
       });
     }),
   );
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function createFilterTree(
@@ -212,7 +214,7 @@ export async function createFilterTree(
   if (input?.collectionGids?.length) {
     await replaceTreeCollections(shopId, tree.id, input.collectionGids);
   }
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return tree;
 }
 
@@ -226,7 +228,7 @@ export async function ensureDefaultFilterTree(shopId: string) {
     name: DEFAULT_FILTER_TREE_NAME,
     appliesToSearch: true,
   });
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function replaceTreeCollections(
@@ -251,7 +253,7 @@ export async function replaceTreeCollections(
       collectionGid: unique.length === 1 ? unique[0] : "",
     },
   });
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
 }
 
 export async function updateFilterTree(
@@ -282,7 +284,7 @@ export async function updateFilterTree(
   if (collectionGids) {
     await replaceTreeCollections(shopId, treeId, collectionGids);
   }
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return getFilterTree(shopId, treeId);
 }
 
@@ -324,7 +326,7 @@ export async function duplicateFilterTree(shopId: string, treeId: string) {
     copy.id,
     source.treeCollections.map((row) => row.collectionGid),
   );
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return copy;
 }
 
@@ -339,7 +341,7 @@ export async function deleteFilterTree(shopId: string, treeId: string) {
   });
   if (!existing) return { error: "Filter tree not found." as const };
   await prisma.filterConfig.delete({ where: { id: treeId } });
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return { ok: true as const };
 }
 
@@ -361,7 +363,7 @@ export async function reorderFilterTrees(shopId: string, orderedIds: string[]) {
       }),
     ),
   );
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return { ok: true as const };
 }
 
@@ -435,7 +437,7 @@ export async function setFilterTreesEnabled(
     where: { shopId, id: { in: unique } },
     data: { enabled },
   });
-  invalidateFilterTreeResolveCache(shopId);
+  await invalidateFilterTreeResolveCache(shopId);
   return { updated: result.count };
 }
 

@@ -33,6 +33,7 @@ import {
   sanitizeProductListLiquid,
 } from "../utils/widget-code";
 import { createTtlCache } from "../lib/read-cache.server";
+import { bumpStorefrontConfigGenerationForShopId } from "../lib/catalog-cache.server";
 
 export { DEFAULT_APP_SETTINGS };
 
@@ -433,6 +434,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     await persistSearchExtrasColumn(shopId, n.searchExtras);
   }
   appSettingsCache.del(shopId);
+  await bumpStorefrontConfigGenerationForShopId(shopId);
   return row;
 }
 
@@ -488,6 +490,7 @@ export async function saveSearchSettings(
     );
   }
   appSettingsCache.del(shopId);
+  await bumpStorefrontConfigGenerationForShopId(shopId);
   return row;
 }
 
