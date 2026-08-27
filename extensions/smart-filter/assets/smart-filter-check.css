@@ -2,11 +2,13 @@
    stylesheet) so Horizon cannot flatten checkboxes or the price slider. */
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"],
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"] {
   -webkit-appearance: none !important;
   appearance: none !important;
@@ -32,21 +34,24 @@
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"] {
   border-radius: 4px !important;
 }
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"],
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"] {
   border-radius: 999px !important;
 }
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]::after {
   content: "";
   width: 4px;
@@ -59,7 +64,8 @@
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]::after {
   content: "";
   width: 8px;
@@ -72,11 +78,13 @@
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked,
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:indeterminate,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:indeterminate {
   background: currentColor !important;
   border-color: currentColor !important;
@@ -84,7 +92,8 @@
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked {
   background: #fff !important;
   border-color: currentColor !important;
@@ -92,14 +101,16 @@
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="checkbox"]:checked::after {
   transform: scale(1) rotate(45deg);
 }
 
 #smart-filter-root .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked::after,
-#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill)
+#smart-filter-embed .sf-option:not(.sf-swatch):not(.sf-pill),
+.sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill)
   input[type="radio"]:checked::after {
   transform: scale(1);
 }
@@ -666,6 +677,32 @@ html.is-sf-drawer-open .sf-panel .sf-facets {
   opacity: 1 !important;
   display: flex !important;
   flex-direction: column !important;
+}
+
+.sf-panel.sf-drawer-portal .sf-facet,
+html.is-sf-drawer-open .sf-panel .sf-facet {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.sf-panel.sf-drawer-portal .sf-facet-label,
+html.is-sf-drawer-open .sf-panel .sf-facet-label {
+  display: flex !important;
+  visibility: visible !important;
+}
+
+.sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed) > .sf-options,
+html.is-sf-drawer-open .sf-panel .sf-facet:not(.is-collapsed) > .sf-options {
+  display: flex !important;
+  visibility: visible !important;
+}
+
+.sf-panel.sf-drawer-portal .sf-facet.is-collapsed > .sf-options,
+.sf-panel.sf-drawer-portal .sf-facet.is-collapsed > .sf-price,
+html.is-sf-drawer-open .sf-panel .sf-facet.is-collapsed > .sf-options,
+html.is-sf-drawer-open .sf-panel .sf-facet.is-collapsed > .sf-price {
+  display: none !important;
 }
 
 .sf-chips-slot[hidden] {

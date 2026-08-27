@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v32";
+  var STYLE_ID = "findly-grid-takeover-v33";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -312,24 +312,35 @@
     if (document.getElementById(STYLE_ID)) return;
     var css =
       ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]," +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{" +
       "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
       "position:relative!important;width:18px!important;height:18px!important;min-width:18px!important;margin:0!important;" +
       "border:1.5px solid #c3c3c3!important;background:#fff!important;display:inline-grid!important;place-content:center!important;" +
       "clip:auto!important;transform:none!important;box-shadow:none!important;color:inherit!important}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]{border-radius:4px!important}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{border-radius:999px!important}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]::after{" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]{border-radius:4px!important}" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]{border-radius:999px!important}" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]::after," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]::after{" +
       "content:\"\";width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:scale(0) rotate(45deg);margin-top:-1px}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]::after{" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]::after," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]::after{" +
       "content:\"\";width:8px;height:8px;border:0;border-radius:50%;background:currentColor;transform:scale(0)}" +
       ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:checked," +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:indeterminate{" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:indeterminate," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:checked," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:indeterminate{" +
       "background:currentColor!important;border-color:currentColor!important}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked{" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked{" +
       "background:#fff!important;border-color:currentColor!important}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:checked::after{transform:scale(1) rotate(45deg)}" +
-      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after{transform:scale(1)}" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:checked::after," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=checkbox]:checked::after{transform:scale(1) rotate(45deg)}" +
+      ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after," +
+      ".sf-panel .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after{transform:scale(1)}" +
       ".smart-filter .sf-price,.sf-panel.sf-drawer-portal .sf-price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important}" +
       ".smart-filter .sf-facet.is-collapsed .sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed .sf-price{display:none!important}" +
       ".smart-filter .sf-slider,.sf-panel.sf-drawer-portal .sf-slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:1.7rem!important;overflow:visible!important;background:transparent!important}" +
@@ -350,6 +361,11 @@
       "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
       ".sf-panel.sf-drawer-portal .sf-header{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
       ".sf-panel.sf-drawer-portal .sf-facets{flex:1 1 auto;min-height:50vh;overflow:auto;color:#111;visibility:visible;display:flex;flex-direction:column}" +
+      ".sf-panel.sf-drawer-portal .sf-facet,.sf-panel.sf-drawer-portal .sf-facet-label{visibility:visible!important;opacity:1!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet{display:block!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet-label{display:flex!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options{display:flex!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price{display:none!important}" +
       ".sf-panel.sf-drawer-portal{color:#111!important;background:#fff!important}" +
       "html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important;opacity:1!important}" +
       ".sf-sort-toolbar,.sf-sort-host,.sf-sort-trigger,.sf-sort-row{overflow:visible!important;position:relative}" +
@@ -675,11 +691,32 @@
     var prev = node.getAttribute("data-findly-theme-display");
     node.removeAttribute("data-findly-theme-hidden");
     node.removeAttribute("data-findly-theme-display");
+    node.removeAttribute("data-findly-native-chrome");
     node.removeAttribute("hidden");
     if (node.classList) node.classList.remove("hidden");
     node.hidden = false;
     if (prev) node.style.display = prev;
     else node.style.removeProperty("display");
+  }
+
+  function restoreFindlyPanelChrome(panel) {
+    if (!panel || !panel.querySelectorAll) return;
+    if (panel.getAttribute("data-findly-theme-hidden") === "1") {
+      restoreThemeHidden(panel);
+    }
+    panel.removeAttribute("data-findly-native-chrome");
+    var nodes = panel.querySelectorAll(
+      "[data-findly-theme-hidden='1'], [data-findly-native-chrome='1']",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      restoreThemeHidden(nodes[i]);
+      nodes[i].removeAttribute("data-findly-native-chrome");
+      nodes[i].removeAttribute("hidden");
+      nodes[i].hidden = false;
+      if (nodes[i].classList) nodes[i].classList.remove("hidden");
+      if (nodes[i].style) nodes[i].style.removeProperty("display");
+    }
   }
 
   function countThemeCards(parent) {
@@ -3997,6 +4034,7 @@
   function ensurePortaledFacetsPainted(widget, panel) {
     if (!widget || !panel) return;
     syncDrawerPanelRefs(widget, panel);
+    restoreFindlyPanelChrome(panel);
     var facets = widget.facetsEl;
     if (!facets) return;
     var hasFacet = facets.querySelector(".sf-facet, [data-skeleton]");
@@ -4128,6 +4166,7 @@
       copyDrawerThemeVars(widget, panel);
       applyPortaledPanelLayout(panel, widget);
       syncDrawerPanelRefs(widget, panel);
+      restoreFindlyPanelChrome(panel);
       ensurePortaledFacetsPainted(widget, panel);
       decorateCheckMarks(panel);
       enhancePriceSliders(panel);
@@ -5698,6 +5737,7 @@
         panel.classList.add("is-open");
         syncDrawerPanelRefs(this, panel);
         applyPortaledPanelLayout(panel, this);
+        restoreFindlyPanelChrome(panel);
         ensurePortaledFacetsPainted(this, panel);
         enhancePriceSliders(panel);
         decorateCheckMarks(panel);
@@ -5806,6 +5846,7 @@
       var result = origRenderFacets
         ? origRenderFacets.apply(this, arguments)
         : undefined;
+      if (panel) restoreFindlyPanelChrome(panel);
       placeDrawerChips(this);
       // Panel is moved to document.body on mobile — never search only this.root.
       enhancePriceSliders(this.panelEl || this.facetsEl || this.root);

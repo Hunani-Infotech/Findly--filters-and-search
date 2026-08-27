@@ -7,11 +7,11 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v8";
+  var STYLE_ID = "findly-theme-compat-v9";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
-    ".smart-filter, .smart-filter-search, .findly-instant, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
+    ".smart-filter, .smart-filter-search, .findly-instant, .sf-panel, .sf-facet, .sf-facets, .sf-header, .sf-backdrop, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
@@ -142,7 +142,7 @@
     if (!el || el.nodeType !== 1) return;
     if (isFindlyUi(el) || isSkipped(el)) return;
     if (el.getAttribute("data-findly-native-chrome") === "1") return;
-    if (el.querySelector && el.querySelector(".smart-filter, .sf-app-card, .sf-pager")) {
+    if (el.querySelector && el.querySelector(".smart-filter, .sf-panel, .sf-app-card, .sf-pager")) {
       return;
     }
     try {
@@ -175,6 +175,24 @@
     hideLeaf(el);
   }
 
+  function restoreFindlyNode(el) {
+    if (!el || el.nodeType !== 1) return;
+    el.removeAttribute("data-findly-theme-hidden");
+    el.removeAttribute("data-findly-native-chrome");
+    el.removeAttribute("hidden");
+    el.hidden = false;
+    if (el.classList) el.classList.remove("hidden");
+    if (el.style) el.style.removeProperty("display");
+  }
+
+  function unhideFindlyDrawer() {
+    var nodes = document.querySelectorAll(
+      ".sf-panel[data-findly-theme-hidden='1'], .sf-panel[data-findly-native-chrome='1'], .sf-panel [data-findly-theme-hidden='1'], .sf-panel [data-findly-native-chrome='1']",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) restoreFindlyNode(nodes[i]);
+  }
+
   function looksLikeFilterChrome(el) {
     if (!el || el.nodeType !== 1) return false;
     if (isFindlyUi(el) || isSkipped(el)) return false;
@@ -193,6 +211,10 @@
       return true;
     }
     if (el.querySelector && el.querySelector(NATIVE_INPUT)) return true;
+    var cls = " " + String(el.className || "") + " ";
+    if (/\s sf-(panel|facet|facets|header|option|toolbar|toggle)\b/.test(cls)) {
+      return false;
+    }
     var hint =
       String(el.id || "") +
       " " +
@@ -230,6 +252,7 @@
     for (i = 0; i < Math.min(candidates.length, 80); i++) {
       if (looksLikeFilterChrome(candidates[i])) hideIfChrome(candidates[i]);
     }
+    unhideFindlyDrawer();
   }
 
   function injectCompatCss() {
@@ -242,6 +265,7 @@
       "findly-theme-compat-v6",
       "findly-theme-compat-v7",
       "findly-theme-compat-v8",
+      "findly-theme-compat-v9",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -270,6 +294,13 @@
       ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout,.container>.sf-collection-layout{width:100%!important;max-width:100%!important}" +
       ".sf-collection-layout,[data-findly-theme-hidden='1'],[data-findly-native-chrome='1']{--findly-theme-compat:1}" +
       "[data-findly-native-chrome='1'],[data-findly-theme-hidden='1']{display:none!important}" +
+      ".sf-panel[data-findly-theme-hidden='1'],.sf-panel[data-findly-native-chrome='1']," +
+      ".sf-panel [data-findly-theme-hidden='1'],.sf-panel [data-findly-native-chrome='1']{" +
+      "display:revert!important;visibility:visible!important}" +
+      ".sf-panel .sf-facet{display:block!important;visibility:visible!important}" +
+      ".sf-panel .sf-facet-label{display:flex!important;visibility:visible!important}" +
+      ".sf-panel .sf-facet:not(.is-collapsed)>.sf-options{display:flex!important;visibility:visible!important}" +
+      ".sf-panel .sf-facet.is-collapsed>.sf-options,.sf-panel .sf-facet.is-collapsed>.sf-price{display:none!important}" +
       "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +

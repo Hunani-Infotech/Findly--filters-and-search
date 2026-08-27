@@ -2566,7 +2566,7 @@
       if (
         el.closest &&
         el.closest(
-          ".smart-filter, .sf-sort-host, .sf-search-host, .sf-toolbar, .sf-total-count, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
+          ".smart-filter, .sf-panel, .sf-sort-host, .sf-search-host, .sf-toolbar, .sf-total-count, .sf-app-card, .sf-pager, [data-collection-search-wrap]",
         )
       ) {
         return true;
@@ -2643,7 +2643,7 @@
       "dropdown-facet, facet-dropdown, facet-status, facet-status-component, .facets__disclosure, .facets__panel, details.facets__panel, .facets__item, .facets-toolbar, .facets-header, sorting-filter-component, .sorting-filter, .sorting-filter__container, .active-facets, details.facets__disclosure",
     ).forEach(hideLeaf);
     document.querySelectorAll("[name^='filter.'], select[name='sort_by'], select[name='sortBy']").forEach(function (input) {
-      if (!input || (input.closest && input.closest(".smart-filter"))) return;
+      if (!input || (input.closest && input.closest(".smart-filter, .sf-panel"))) return;
       var chrome =
         (input.closest &&
           input.closest(
