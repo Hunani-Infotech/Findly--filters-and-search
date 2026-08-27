@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { getShopPlan, isDevUnlockLimits, isPaidPlanKey } from "./billing.server";
+import { log } from "../lib/log.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 
@@ -80,9 +81,13 @@ export async function ingestAnalyticsEvent(input: IngestInput) {
     const plan = getShopPlan(shop);
     const days = retentionDaysForPlan(plan);
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    void prisma.analyticsEvent.deleteMany({
-      where: { shopId: shop.id, createdAt: { lt: cutoff } },
-    });
+    void prisma.analyticsEvent
+      .deleteMany({
+        where: { shopId: shop.id, createdAt: { lt: cutoff } },
+      })
+      .catch((error) => {
+        log.warn("[analytics] retention prune failed", error);
+      });
   }
 
   await prisma.analyticsEvent.create({

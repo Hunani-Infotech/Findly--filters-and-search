@@ -1,5 +1,3 @@
-import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
 import { log } from "../lib/log.server";
 import { COLLECTION_REBUILD_DELAY_MS } from "../constants/limits";
 import {
@@ -304,16 +302,4 @@ export async function handleWebhookTopic(
     default:
       log.warn(`Unhandled webhook topic: ${topic}`);
   }
-}
-
-export async function catalogWebhookAction({ request }: ActionFunctionArgs) {
-  const { shop, topic, payload } = await authenticate.webhook(request);
-  await handleWebhookTopic(shop, topic, payload as Record<string, unknown>);
-  return new Response();
-}
-
-export async function productEventWebhookAction({ request }: ActionFunctionArgs) {
-  const { shop, payload } = await authenticate.webhook(request);
-  await handleProductEvent(shop, payload as Record<string, unknown>);
-  return new Response();
 }

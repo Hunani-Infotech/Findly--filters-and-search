@@ -498,7 +498,26 @@ export default function SettingsPage() {
     selectedTab === "general" || selectedTab === "panel";
   const hidePageSave = selectedTab === "metafields";
   const previewSettings = useMemo(
-    () => toWidgetPreviewSettings(settings),
+    () =>
+      toWidgetPreviewSettings({
+        widgetPosition: settings.widgetPosition,
+        accentColor: settings.accentColor,
+        showProductCounts: settings.showProductCounts,
+        collapseByDefault: settings.collapseByDefault,
+        widgetShadow: settings.widgetShadow,
+        widgetRadius: settings.widgetRadius,
+        widgetFontMode: settings.widgetFontMode,
+        widgetFontFamily: settings.widgetFontFamily,
+        widgetTitle: settings.widgetTitle,
+        widgetTitleSize: settings.widgetTitleSize,
+        widgetTitleColor: settings.widgetTitleColor,
+        enableCollectionSearch: settings.enableCollectionSearch,
+        hideSortDropdown: settings.hideSortDropdown,
+        showTotalProductCount: settings.showTotalProductCount,
+        hideSingleValueFacets: settings.hideSingleValueFacets,
+        showRefineBy: settings.showRefineBy,
+        autoApplyFilters: settings.autoApplyFilters,
+      }),
     [
       settings.widgetPosition,
       settings.accentColor,

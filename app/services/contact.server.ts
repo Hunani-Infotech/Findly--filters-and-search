@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { log } from "../lib/log.server";
 
 const MAX_MESSAGE_CHARS = 10_000;
 const MAX_SUBJECT_CHARS = 200;
@@ -220,7 +221,7 @@ export async function deliverContactMessage(
     return { ok: false, error: "Message is too long" };
   }
   if (!contactDeliveryConfigured()) {
-    console.error("Contact form has no GMAIL_USER / GMAIL_APP_PASSWORD");
+    log.error("Contact form has no GMAIL_USER / GMAIL_APP_PASSWORD");
     return {
       ok: false,
       error: "Could not send your message. Findly support is not configured yet.",
@@ -251,11 +252,11 @@ export async function deliverContactMessage(
         error: "Could not send your message. Findly support is not configured yet.",
       };
     }
-    console.info(`Contact message delivered for ${payload.shopDomain} via smtp`);
+    log.info(`Contact message delivered for ${payload.shopDomain} via smtp`);
     return { ok: true, channels: [channel] };
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Delivery failed";
-    console.error("Contact delivery failed", detail);
+    log.error("Contact delivery failed", detail);
     return {
       ok: false,
       error: "Could not reach Findly support. Please try again in a few minutes.",

@@ -849,7 +849,7 @@
     };
 
     var origGoToPage = proto.goToPage;
-    proto.goToPage = function (page) {
+    proto.goToPage = function () {
       if (this._loadingPage && !this._inflight) this._loadingPage = false;
       if (origGoToPage) return origGoToPage.apply(this, arguments);
     };
