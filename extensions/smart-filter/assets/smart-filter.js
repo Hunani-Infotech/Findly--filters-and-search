@@ -738,72 +738,9 @@
   var partnerUpdateHandles = [];
 
   function reinitPartnerWidgets() {
-    try {
-      if (window.jdgm && typeof window.jdgm.customizeBadges === "function") {
-        window.jdgm.customizeBadges();
-      } else if (window.jdgm && typeof window.jdgm.preLoader === "function") {
-        window.jdgm.preLoader();
-      }
-    } catch (errJdgm) {
-      /* optional partner widget */
-    }
-
-    try {
-      var heroButtons = document.querySelectorAll(".wishlist-hero-custom-button");
-      var hi;
-      for (hi = 0; hi < heroButtons.length; hi++) {
-        document.dispatchEvent(
-          new CustomEvent("wishlist-hero-add-to-custom-element", {
-            bubbles: true,
-            detail: heroButtons[hi],
-          }),
-        );
-      }
-    } catch (errHero) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (
-        window.frcp &&
-        window.frcp.wishlist &&
-        typeof window.frcp.wishlist.attachOnCollection === "function"
-      ) {
-        window.frcp.wishlist.attachOnCollection();
-      }
-    } catch (errFrcp) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (window._swat && typeof window._swat.initializeActionButtons === "function") {
-        window._swat.initializeActionButtons();
-      }
-    } catch (errSwym) {
-      /* optional partner widget */
-    }
-
-    try {
-      // Shopify Translate & Adapt needs no JS because we hide/show locale-rendered theme cards.
-      if (window.Weglot && typeof window.Weglot.refresh === "function") {
-        window.Weglot.refresh();
-      }
-    } catch (errWeglot) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (window.Currency && typeof window.Currency.convertAll === "function") {
-        window.Currency.convertAll(
-          window.Currency.currentCurrency ||
-            (window.Shopify &&
-              window.Shopify.currency &&
-              window.Shopify.currency.active) ||
-            "USD",
-        );
-      }
-    } catch (errCurrency) {
-      /* optional currency converter */
+    var api = window.__FINDLY_DOM;
+    if (api && api.reinitPartnerWidgets) {
+      api.reinitPartnerWidgets();
     }
   }
 
