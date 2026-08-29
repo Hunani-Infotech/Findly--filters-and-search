@@ -1,15 +1,15 @@
 /**
- * Storefront client timing for filter → grid paint.
+ * Storefront client UI timing (filter → grid paint).
  * Load via Liquid asset_url (not schema JS). Does not change behavior.
  *
- * Logs only the final UI load-time summary (cycle#N UI …ms).
- * Force-log even when fast: ?findly_perf=1 or localStorage.findly_perf=1
- * Summary always logs when post-API / busy work exceeds 250ms.
+ * Single browser log to share: console → [FindlyUI] { … }
+ * Also: window.__FINDLY_UI_LAST
+ * Always on when cycle ≥250ms; force with ?findly_perf=1 or localStorage.findly_perf=1
  */
 (function () {
   "use strict";
 
-  var TAG = "[FindlyPerf]";
+  var TAG = "[FindlyUI]";
   var SLOW_MS = 250;
 
   function now() {
@@ -37,15 +37,16 @@
     return Math.round(ms * 10) / 10;
   }
 
-  function emit(level, msg, detail) {
+  function emitUi(summary) {
     if (typeof console === "undefined") return;
-    var fn =
-      level === "warn" && console.warn
-        ? console.warn
-        : console.info || console.log;
+    try {
+      window.__FINDLY_UI_LAST = summary;
+    } catch (err) {
+      /* ignore */
+    }
+    var fn = console.info || console.log;
     if (!fn) return;
-    if (detail != null) fn.call(console, TAG, msg, detail);
-    else fn.call(console, TAG, msg);
+    fn.call(console, TAG, summary);
   }
 
   function markPerf(name) {
@@ -91,12 +92,16 @@
     cycle.marks[key] = now();
   }
 
-  function filtersNetworkMs(cycle) {
-    if (!cycle || typeof performance === "undefined") return null;
+  function filtersNetworkStats(cycle) {
+    var empty = { ms: null, totalMs: null, count: 0 };
+    if (!cycle || typeof performance === "undefined") return empty;
     try {
       var entries = performance.getEntriesByType("resource");
       var i;
-      var best = null;
+      var count = 0;
+      var total = 0;
+      var lastMs = null;
+      var lastStart = -1;
       for (i = 0; i < entries.length; i++) {
         var e = entries[i];
         if (!e || !e.name) continue;
@@ -104,22 +109,32 @@
           continue;
         }
         if (e.startTime + 1 < cycle.t0) continue;
+        if (cycle.t1 != null && e.startTime > cycle.t1 + 1) continue;
         var ms = e.responseEnd - e.startTime;
         if (!Number.isFinite(ms) || ms < 0) continue;
-        if (best == null || e.startTime > best.startTime) {
-          best = { startTime: e.startTime, ms: ms };
+        count += 1;
+        total += ms;
+        if (e.startTime >= lastStart) {
+          lastStart = e.startTime;
+          lastMs = ms;
         }
       }
-      return best ? round(best.ms) : null;
+      if (!count) return empty;
+      return {
+        ms: lastMs != null ? round(lastMs) : null,
+        totalMs: round(total),
+        count: count,
+      };
     } catch (err) {
-      return null;
+      return empty;
     }
   }
 
-  function finishCycle(widget, reason) {
-    var cycle = activeCycle(widget);
+  function finishCycle(widget, reason, cycle) {
+    cycle = cycle || activeCycle(widget);
     if (!cycle) return;
     var t1 = now();
+    cycle.t1 = t1;
     var total = t1 - cycle.t0;
     var themeMs = 0;
     var i;
@@ -134,42 +149,27 @@
       cycle.marks.ensureStart != null && cycle.marks.ensureEnd != null
         ? cycle.marks.ensureEnd - cycle.marks.ensureStart
         : null;
-    var networkMs = filtersNetworkMs(cycle);
+    var net = filtersNetworkStats(cycle);
+    var applyMs =
+      net.totalMs != null ? round(Math.max(0, total - net.totalMs)) : null;
     var summary = {
       cycle: cycle.id,
       reason: reason || "settle",
       totalMs: round(total),
-      filtersNetworkMs: networkMs,
+      filtersNetworkMs: net.totalMs,
+      filtersNetworkCount: net.count,
+      applyMs: applyMs,
       themePageFetches: cycle.themePages.length,
       themePagesMs: round(themeMs),
       ensureCardsMs: ensureMs != null ? round(ensureMs) : null,
       gridBusyMs: busyMs != null ? round(busyMs) : null,
-      themePages: enabled() ? cycle.themePages : undefined,
     };
     markPerf("findly-filter-cycle-" + cycle.id + "-end");
     if (enabled() || total >= SLOW_MS || themeMs >= SLOW_MS) {
-      var hint =
-        cycle.themePages.length > 0
-          ? "theme HTML import after filters API"
-          : "filters API / App Proxy RTT (no theme HTML fetches this cycle)";
-      emit(
-        total >= 1000 || themeMs >= 800 ? "warn" : "info",
-        "cycle#" +
-          cycle.id +
-          " UI " +
-          summary.totalMs +
-          "ms (filters net " +
-          (networkMs != null ? networkMs + "ms" : "?") +
-          ", theme HTML " +
-          summary.themePagesMs +
-          "ms × " +
-          summary.themePageFetches +
-          " pages) — " +
-          hint,
-        summary,
-      );
+      emitUi(summary);
     }
-    session(widget).active = null;
+    var s = session(widget);
+    if (s.active === cycle) s.active = null;
   }
 
   function patchWidget(widget) {
@@ -186,21 +186,23 @@
       var origFetch = proto.fetchFilters;
       proto.fetchFilters = function (opts) {
         var self = this;
-        startCycle(self, opts || {});
+        var reuse =
+          Boolean(self._inflight) && !(opts && opts.append) && activeCycle(self);
+        var cycle = reuse ? activeCycle(self) : startCycle(self, opts || {});
         var result = origFetch ? origFetch.apply(this, arguments) : undefined;
         if (result && typeof result.then === "function") {
           return result.then(
             function (value) {
-              finishCycle(self, "fetchFilters-ok");
+              finishCycle(self, "fetchFilters-ok", cycle);
               return value;
             },
             function (err) {
-              finishCycle(self, "fetchFilters-err");
+              finishCycle(self, "fetchFilters-err", cycle);
               throw err;
             },
           );
         }
-        finishCycle(self, "fetchFilters-sync");
+        finishCycle(self, "fetchFilters-sync", cycle);
         return result;
       };
       proto.fetchFilters.__findlyPerf = true;

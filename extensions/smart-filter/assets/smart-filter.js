@@ -3979,11 +3979,15 @@
     var handleCount = Array.isArray(data.handles) ? data.handles.length : 0;
     if (!Number.isFinite(total) || total < 0) {
       total = handleCount || handles.length || 0;
-    } else if (handleCount > total) {
-      total = handleCount;
     }
+    /* Do not inflate total from page-sliced handles.length */
     this._pageTotal = total;
-    if (handles.length > this._pageTotal) this._pageTotal = handles.length;
+    if (
+      handles.length > this._pageTotal &&
+      !(Number.isFinite(Number(data.total)) && Number(data.total) >= 0)
+    ) {
+      this._pageTotal = handles.length;
+    }
     this._statusProductCount = this._pageTotal;
   };
 

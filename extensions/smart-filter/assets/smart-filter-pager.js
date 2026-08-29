@@ -171,20 +171,19 @@
 
   function filteredTotal(widget) {
     var data = widget && widget._lastFilterData;
-    var latest = [];
     if (data) {
       var fromTotal = Number(data.total);
-      if (Number.isFinite(fromTotal) && fromTotal >= 0) latest.push(fromTotal);
+      if (Number.isFinite(fromTotal) && fromTotal >= 0) return fromTotal;
       var fromCount = Number(data.count);
-      if (Number.isFinite(fromCount) && fromCount >= 0) latest.push(fromCount);
+      if (Number.isFinite(fromCount) && fromCount >= 0) return fromCount;
+      /* handles may be page-sliced — only fall back when total/count absent */
       if (Array.isArray(data.handles) && data.handles.length) {
-        latest.push(data.handles.length);
+        return data.handles.length;
       }
     }
     // Latest filter payload wins. Mixing it with leftover
     // _statusProductCount / _pageTotal from the previous unfiltered view
     // kept theme pagination visible on the first filter apply.
-    if (latest.length) return Math.max.apply(null, latest);
     var pageTotal = Number(widget && widget._pageTotal);
     if (Number.isFinite(pageTotal) && pageTotal >= 0) return pageTotal;
     var all = widget && widget._allFilterHandles;

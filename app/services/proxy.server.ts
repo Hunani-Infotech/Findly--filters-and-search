@@ -794,7 +794,9 @@ async function buildFacetPayload(input: {
     i18n: chrome,
     settings,
     facets: aggregations,
-    handles: filtered.map(productHandle),
+    /* Page-sliced handles only — full catalog list bloated JSON parse on the client.
+       Pager/total use `total` + `hasNext`; next page refetches the next handle slice. */
+    handles: paged.products.map(productHandle),
     products: paged.products.map(productCard),
     sort: resolved.sort,
     total: paged.total,

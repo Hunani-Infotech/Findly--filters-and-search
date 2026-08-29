@@ -4,7 +4,8 @@ import { log } from "./log.server";
 type StorefrontTimingMarks = Record<string, number>;
 
 function timingEnabled() {
-  return process.env.STOREFRONT_TIMING !== "0";
+  /* Opt-in only — UI timing lives in the browser [FindlyUI] log. */
+  return process.env.STOREFRONT_TIMING === "1";
 }
 
 type TimingStore = {
