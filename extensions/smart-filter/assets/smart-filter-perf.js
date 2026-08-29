@@ -159,6 +159,9 @@
       filtersNetworkMs: net.totalMs,
       filtersNetworkCount: net.count,
       applyMs: applyMs,
+      facetsMs:
+        cycle.marks.facetsMs != null ? round(cycle.marks.facetsMs) : null,
+      gridMs: cycle.marks.gridMs != null ? round(cycle.marks.gridMs) : null,
       themePageFetches: cycle.themePages.length,
       themePagesMs: round(themeMs),
       ensureCardsMs: ensureMs != null ? round(ensureMs) : null,
@@ -255,6 +258,49 @@
         if (origBusy) return origBusy.apply(this, arguments);
       };
       proto.setGridBusy.__findlyPerf = true;
+    }
+
+    if (proto.renderFacets && !proto.renderFacets.__findlyPerf) {
+      var origFacets = proto.renderFacets;
+      proto.renderFacets = function () {
+        var cycle = activeCycle(this);
+        var t0 = now();
+        var result = origFacets.apply(this, arguments);
+        if (cycle) {
+          cycle.marks.facetsMs =
+            (cycle.marks.facetsMs || 0) + (now() - t0);
+        }
+        return result;
+      };
+      proto.renderFacets.__findlyPerf = true;
+    }
+
+    if (proto.applyInterceptGrid && !proto.applyInterceptGrid.__findlyPerf) {
+      var origIntercept = proto.applyInterceptGrid;
+      proto.applyInterceptGrid = function () {
+        var cycle = activeCycle(this);
+        var t0 = now();
+        var result = origIntercept.apply(this, arguments);
+        if (cycle) {
+          cycle.marks.gridMs = (cycle.marks.gridMs || 0) + (now() - t0);
+        }
+        return result;
+      };
+      proto.applyInterceptGrid.__findlyPerf = true;
+    }
+
+    if (proto.syncProductGrid && !proto.syncProductGrid.__findlyPerf) {
+      var origSync = proto.syncProductGrid;
+      proto.syncProductGrid = function () {
+        var cycle = activeCycle(this);
+        var t0 = now();
+        var result = origSync.apply(this, arguments);
+        if (cycle) {
+          cycle.marks.gridMs = (cycle.marks.gridMs || 0) + (now() - t0);
+        }
+        return result;
+      };
+      proto.syncProductGrid.__findlyPerf = true;
     }
   }
 

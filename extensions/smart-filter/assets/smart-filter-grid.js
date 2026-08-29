@@ -2960,6 +2960,11 @@
       clone.querySelector("img"),
       product.variantImageUrl || product.imageUrl || "",
     );
+    var imgs = clone.querySelectorAll("img");
+    for (i = 0; i < imgs.length; i++) {
+      if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
+      if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
+    }
     var heading = clone.querySelector(
       ".card__heading, .card__title, .product-card-title, h3, h2, h4",
     );
@@ -3046,6 +3051,7 @@
       img.src = imgUrl;
       img.alt = product.title || "";
       img.setAttribute("loading", "lazy");
+      img.setAttribute("decoding", "async");
       a.appendChild(img);
     }
     var title = document.createElement("p");
@@ -3119,10 +3125,7 @@
         showCardTree(existing);
         continue;
       }
-      if (existing && cardIsInHost(existing, parent) && existing.offsetHeight > 40) {
-        showCardTree(existing);
-        continue;
-      }
+      /* Avoid sync layout (offsetHeight) per card — use structural fragility only. */
       if (existing && cardIsInHost(existing, parent) && isFragileThemeCard(existing)) {
         hideEl(existing);
       }
@@ -3220,6 +3223,7 @@
           }
         }
         syncGridEmptyState(widget, parent, handles, shown);
+        markGridPainted(widget);
       } finally {
         if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
         if (widget._reqId === reqId) {
@@ -3314,9 +3318,138 @@
     return cards.length > 0;
   }
 
+  function markGridPainted(widget) {
+    if (widget) widget._sfPaintedReq = widget._reqId;
+  }
+
+  function alreadyPaintedGrid(widget) {
+    return Boolean(widget && widget._sfPaintedReq === widget._reqId);
+  }
+
+  /**
+   * Patch facet counts / checked state in place when the facet key set is unchanged.
+   * Avoids full facetsEl.innerHTML rebuild on every filter click (major applyMs cost).
+   */
+  function tryPatchFacetDom(widget) {
+    if (!widget || !widget.facetsEl) return false;
+    var root = widget.facetsEl;
+    var facets = widget.facets || [];
+    if (!facets.length) return false;
+    var existing = root.querySelectorAll(".sf-facet[data-facet-key]");
+    if (!existing.length) return false;
+
+    var hideSingle = widget.hideSingleValueFacets;
+    var visible = [];
+    var i;
+    for (i = 0; i < facets.length; i++) {
+      var facet = facets[i];
+      if (!facet || !facet.key) continue;
+      var isPrice =
+        facet.type === "price_range" || facet.displayType === "slider";
+      var selectedCount = widget.selectedCount
+        ? widget.selectedCount(facet)
+        : 0;
+      if (
+        hideSingle &&
+        !isPrice &&
+        (facet.values || []).length <= 1 &&
+        selectedCount === 0
+      ) {
+        continue;
+      }
+      visible.push(facet);
+    }
+    if (visible.length !== existing.length) return false;
+
+    var byKey = {};
+    for (i = 0; i < existing.length; i++) {
+      byKey[existing[i].getAttribute("data-facet-key")] = existing[i];
+    }
+
+    for (i = 0; i < visible.length; i++) {
+      facet = visible[i];
+      var node = byKey[facet.key];
+      if (!node) return false;
+      isPrice =
+        facet.type === "price_range" || facet.displayType === "slider";
+      if (isPrice) continue;
+
+      var values = facet.values || [];
+      var selected = (widget.selected && widget.selected[facet.key]) || [];
+      var valueMap = {};
+      var v;
+      for (v = 0; v < values.length; v++) {
+        var item = values[v];
+        if (!item) continue;
+        var val = String(
+          item.value != null
+            ? item.value
+            : item.handle != null
+              ? item.handle
+              : item.label || "",
+        );
+        if (val) valueMap[val] = item;
+      }
+
+      var inputs = node.querySelectorAll("input[type='checkbox'], input[type='radio']");
+      if (!inputs.length && values.length) return false;
+      var seen = 0;
+      for (v = 0; v < inputs.length; v++) {
+        var input = inputs[v];
+        var inputVal = String(input.value || "");
+        var meta = valueMap[inputVal];
+        if (!meta) return false;
+        seen += 1;
+        var checked = selected.indexOf(inputVal) !== -1;
+        if (input.checked !== checked) input.checked = checked;
+        var count = meta.count;
+        var empty = typeof count === "number" && count === 0;
+        var isAvailability =
+          facet.source === "availability" || facet.key === "availability";
+        if (isAvailability || facet.type === "boolean") {
+          input.disabled = empty && !checked;
+        }
+        var countEl = input.parentNode
+          ? input.parentNode.querySelector(".sf-option-count")
+          : null;
+        if (countEl && typeof count === "number") {
+          countEl.textContent = String(count);
+        }
+        var label = input.closest ? input.closest("label") : input.parentNode;
+        if (label && label.title != null) {
+          var textEl = label.querySelector(".sf-option-text");
+          var labelText = textEl ? textEl.textContent : inputVal;
+          label.title =
+            labelText +
+            (typeof count === "number" ? " (" + count + ")" : "");
+        }
+      }
+      if (seen !== Object.keys(valueMap).length) return false;
+    }
+
+    /* Refresh chips without wiping facet trees. */
+    var chipsHost = root.querySelector(".sf-chips");
+    if (widget.renderChips) {
+      var nextChips = widget.renderChips();
+      if (chipsHost && chipsHost.parentNode) {
+        if (nextChips) chipsHost.parentNode.replaceChild(nextChips, chipsHost);
+        else chipsHost.parentNode.removeChild(chipsHost);
+      } else if (nextChips && root.firstChild) {
+        root.insertBefore(nextChips, root.firstChild);
+      } else if (nextChips) {
+        root.appendChild(nextChips);
+      }
+    }
+    if (widget.syncClearAll) widget.syncClearAll();
+    if (widget.renderApplyBar) widget.renderApplyBar();
+    return true;
+  }
+
   function applyNativeAfterGrid(self) {
     if (!self) return;
     if (self._importingCards) return;
+    /* Same filter cycle already painted — skip a second full hide/show/reorder pass. */
+    if (alreadyPaintedGrid(self) && shouldTakeOverThemeCards(self)) return;
     if (self.isAppGridMode && self.isAppGridMode()) {
       var parent = self._gridParent;
       if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
@@ -3324,6 +3457,7 @@
     }
     if (!shouldTakeOverThemeCards(self)) {
       applyNativeFilterGrid(null, self._gridParent);
+      markGridPainted(self);
       return;
     }
     var handles =
@@ -3332,9 +3466,11 @@
         : self._shownHandles;
     if (!handles || !handles.length) {
       applyNativeFilterGrid(handles || [], self._gridParent);
+      markGridPainted(self);
       return;
     }
     applyNativeFilterGrid(handles, self._gridParent);
+    markGridPainted(self);
   }
 
   function isMobileDrawer() {
@@ -5833,13 +5969,13 @@
     };
 
     /**
-     * Faster card import: fetch theme HTML pages in parallel waves (batch of 4).
-     * Same completion rules as core ensureCardsForHandles (wait until all requested
-     * handles are cached, or max / no-more) — no early partial resolve, so gap-fill
-     * is not required to “finish” the page. Core sequential path stays as fallback.
+     * Prefer API product clones over theme HTML crawling when the payload already
+     * has product rows for missing handles. Theme page order ≠ filter sort, so
+     * Clear/filter often hunted 8–12 Liquid pages for a 16-product page slice.
      */
     var THEME_PAGE_BATCH = 4;
     var THEME_PAGE_FETCH_MAX_GRID = 40;
+    var THEME_PAGE_FETCH_CAP_WITH_PRODUCTS = 4;
     var origEnsureCards = proto.ensureCardsForHandles;
     proto.ensureCardsForHandles = function (handles) {
       var self = this;
@@ -5879,12 +6015,43 @@
         if (self._ensureHandles === handles) self._ensureHandles = null;
       }
 
+      function productsForSeed() {
+        var products = self._lastProducts || [];
+        if (
+          self._lastFilterData &&
+          self._lastFilterData.products &&
+          self._lastFilterData.products.length > products.length
+        ) {
+          products = self._lastFilterData.products;
+        }
+        return products;
+      }
+
+      function seedFromProductPayload() {
+        var parent = preferProductCardGrid(
+          resolveCardHost(self._gridParent) || self._gridParent,
+        );
+        if (!parent || !productsForSeed().length) return false;
+        fillGapsWithThemeClones(self, handles, parent);
+        return missingLeft() === 0;
+      }
+
+      /* Clone-first: skip theme crawl when API products cover the page slice. */
+      if (seedFromProductPayload()) {
+        clearEnsureHandles();
+        return Promise.resolve(true);
+      }
+
+      var pageCap = productsForSeed().length
+        ? THEME_PAGE_FETCH_CAP_WITH_PRODUCTS
+        : THEME_PAGE_FETCH_MAX_GRID;
+
       function fetchBatch(startPage) {
         var jobs = [];
         var i;
         for (i = 0; i < THEME_PAGE_BATCH; i++) {
           var page = startPage + i;
-          if (page > THEME_PAGE_FETCH_MAX_GRID) break;
+          if (page > pageCap) break;
           jobs.push(self.fetchThemePage(page));
         }
         if (!jobs.length) return Promise.resolve([]);
@@ -5908,11 +6075,18 @@
           clearEnsureHandles();
           return Promise.resolve(true);
         }
-        if (startPage > THEME_PAGE_FETCH_MAX_GRID) {
+        if (startPage > pageCap) {
+          seedFromProductPayload();
           clearEnsureHandles();
-          return Promise.resolve(hasAnyRequested());
+          return Promise.resolve(hasAnyRequested() || !missingLeft());
         }
         if (self._themeNoMore && missingLeft() > 0) {
+          /* With product payload, stop crawling empty theme pages and clone. */
+          if (productsForSeed().length) {
+            seedFromProductPayload();
+            clearEnsureHandles();
+            return Promise.resolve(hasAnyRequested() || !missingLeft());
+          }
           self._themeNoMore = false;
         }
         if (self._themeNoMore) {
@@ -5924,16 +6098,19 @@
             clearEnsureHandles();
             return false;
           }
-          if (self._themeNoMore && missingLeft() > 0) {
-            self._themeNoMore = false;
-          }
           if (!missingLeft()) {
             clearEnsureHandles();
             return true;
           }
-          if (!anyOk(results)) {
+          /* After each wave, try clones before more theme HTML. */
+          if (productsForSeed().length && seedFromProductPayload()) {
             clearEnsureHandles();
-            return hasAnyRequested();
+            return true;
+          }
+          if (!anyOk(results)) {
+            seedFromProductPayload();
+            clearEnsureHandles();
+            return hasAnyRequested() || !missingLeft();
           }
           return step(startPage + THEME_PAGE_BATCH);
         });
@@ -6001,6 +6178,7 @@
       if (host && !isPageShellHost(host)) this._gridParent = host;
       if (!shouldTakeOverThemeCards(this)) {
         applyNativeFilterGrid(null, host);
+        markGridPainted(this);
         return true;
       }
       mountCachedCards(this, next, host);
@@ -6008,6 +6186,7 @@
       fillGapsWithThemeClones(this, next, host);
       var shown = countAllowedInHost(host, next);
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
+      markGridPainted(this);
       return uniqueAllowedCount(next) === 0 || shown > 0;
     };
 
@@ -6016,6 +6195,7 @@
       var opts = arguments[0] || {};
       if (!opts.append) {
         this._importingCards = false;
+        this._sfPaintedReq = -1;
         stripThemePageParamIfFiltering(this);
       }
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
@@ -6214,7 +6394,15 @@
       if (parent) this._gridParent = parent;
       if (!shouldTakeOverThemeCards(this)) {
         applyNativeFilterGrid(null, parent);
+        markGridPainted(this);
         syncGridEmptyState(this, parent, null, 0);
+        placeCollectionSearchOnGrid(this);
+        return;
+      }
+      /* afterGrid often re-enters here after applyInterceptGrid already painted. */
+      if (alreadyPaintedGrid(this) && !this._importingCards) {
+        var shownFast = countAllowedInHost(parent, handles);
+        syncGridEmptyState(this, parent, handles, shownFast);
         placeCollectionSearchOnGrid(this);
         return;
       }
@@ -6236,6 +6424,7 @@
       ) {
         fillMissingFilterCards(this, handles, parent);
       } else {
+        markGridPainted(this);
         syncGridEmptyState(this, parent, handles, shown);
       }
       placeCollectionSearchOnGrid(this);
@@ -6278,6 +6467,14 @@
       rememberFacetChipLabels(this, this.facets);
       var panel = liveDrawerPanel(this);
       if (panel) syncDrawerPanelRefs(this, panel);
+      if (tryPatchFacetDom(this)) {
+        if (panel) restoreFindlyPanelChrome(panel);
+        placeDrawerChips(this);
+        placeMobilePageChips(this);
+        enhancePriceSliders(this.panelEl || this.facetsEl || this.root);
+        decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
+        return;
+      }
       var result = origRenderFacets
         ? origRenderFacets.apply(this, arguments)
         : undefined;

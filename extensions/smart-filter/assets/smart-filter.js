@@ -678,7 +678,17 @@
       }
     });
 
-    var links = document.querySelectorAll('a[href*="/products/"]');
+    /* Scope to the product grid when known — full-document scans thrash large themes. */
+    var scanRoot = document;
+    try {
+      var live = window.__FINDLY_FILTER_WIDGET;
+      if (live && live._gridParent && live._gridParent.querySelectorAll) {
+        scanRoot = live._gridParent;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    var links = scanRoot.querySelectorAll('a[href*="/products/"]');
     var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
     var seenList = seen ? null : [];
 
