@@ -60,6 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     query,
     locale,
     take,
+    listing: url.searchParams.get("listing") === "1",
     country,
     currency,
     companyLocationId,

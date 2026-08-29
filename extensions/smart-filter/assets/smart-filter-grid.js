@@ -5273,6 +5273,31 @@
     }
   }
 
+  function publishListingSuggestions(widget) {
+    if (!widget) return;
+    var data = widget._lastFilterData || {};
+    var products = Array.isArray(data.products) ? data.products : [];
+    var query = String(widget.collectionQuery || "").trim();
+    var currency =
+      (data.settings && data.settings.currency) ||
+      (widget.currency ? String(widget.currency) : "");
+    try {
+      document.dispatchEvent(
+        new CustomEvent("findly:listing-suggest", {
+          bubbles: true,
+          detail: {
+            query: query,
+            products: products,
+            total: data.total != null ? data.total : products.length,
+            currency: currency,
+          },
+        }),
+      );
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function patchWidget(widget) {
     if (!widget) return;
     liftOutOfThemeForm(widget);
@@ -5714,27 +5739,34 @@
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       if (result && typeof result.then === "function") {
-        return result.then(function (value) {
-          var host = preferProductCardGrid(resolveCardHost(self._gridParent));
-          var handles = self._visibleHandles || self._shownHandles;
-          if (
-            shouldTakeOverThemeCards(self) &&
-            Array.isArray(handles) &&
-            handles.length &&
-            countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
-          ) {
-            fillMissingFilterCards(self, handles, host);
-          } else if (
-            !(self.isAppGridMode && self.isAppGridMode())
-          ) {
-            applyNativeAfterGrid(self);
-          } else if (self._gridParent && self.hideNativeGridCards) {
-            self.hideNativeGridCards(self._gridParent);
-          }
-          if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
-          mountFindlyPager(self);
-          return value;
-        });
+        return result.then(
+          function (value) {
+            var host = preferProductCardGrid(resolveCardHost(self._gridParent));
+            var handles = self._visibleHandles || self._shownHandles;
+            if (
+              shouldTakeOverThemeCards(self) &&
+              Array.isArray(handles) &&
+              handles.length &&
+              countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
+            ) {
+              fillMissingFilterCards(self, handles, host);
+            } else if (
+              !(self.isAppGridMode && self.isAppGridMode())
+            ) {
+              applyNativeAfterGrid(self);
+            } else if (self._gridParent && self.hideNativeGridCards) {
+              self.hideNativeGridCards(self._gridParent);
+            }
+            if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
+            mountFindlyPager(self);
+            if (!opts.append) publishListingSuggestions(self);
+            return value;
+          },
+          function (err) {
+            if (!opts.append) publishListingSuggestions(self);
+            return Promise.reject(err);
+          },
+        );
       }
       return result;
     };

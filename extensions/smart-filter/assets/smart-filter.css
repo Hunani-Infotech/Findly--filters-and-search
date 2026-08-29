@@ -2140,6 +2140,17 @@ results-list > .sf-toolbar {
   border-color: #cfcfcf;
 }
 
+.sf-search-host,
+.sf-toolbar .sf-search-field,
+.sf-toolbar .sf-search-input {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+
 .sf-search-icon {
   display: flex;
   align-items: center;
@@ -2147,8 +2158,8 @@ results-list > .sf-toolbar {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
-  color: #6d6d6d;
-  opacity: 1;
+  color: currentColor;
+  opacity: 0.45;
   pointer-events: none;
 }
 
@@ -2238,8 +2249,8 @@ results-list > .sf-toolbar {
 }
 
 .sf-toolbar .sf-search-input::placeholder {
-  color: #8a8a8a;
-  opacity: 1;
+  color: currentColor;
+  opacity: 0.45;
 }
 
 .sf-toolbar input[type="search"]::-webkit-search-decoration,

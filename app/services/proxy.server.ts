@@ -915,6 +915,7 @@ export async function getSearchPayload(input: {
   query: string;
   locale?: string | null;
   take?: number;
+  listing?: boolean;
 } & MarketRequestFields) {
   const shop = await findShopCached(input.shopDomain);
   if (!shop) {
@@ -925,7 +926,9 @@ export async function getSearchPayload(input: {
   const extras = parseSearchExtras(settings.searchExtras);
   const normalizedQuery = normalizeSearchQuery(input.query);
   const queryKey = normalizeSearchQueryKey(normalizedQuery);
-  const redirect = extras.redirects.find((row) => row.query === queryKey);
+  const redirect = input.listing
+    ? undefined
+    : extras.redirects.find((row) => row.query === queryKey);
 
   const take = Math.min(Math.max(input.take ?? 24, 1), 48);
   const collectionQuery = stripStopWordsFromQuery(
@@ -934,7 +937,9 @@ export async function getSearchPayload(input: {
   );
   const fields = normalizeSearchFields(settings.searchFields);
   const wantCollections =
-    extras.instant.showCollections || fields.includes("collectionTitle");
+    input.listing === true ||
+    extras.instant.showCollections ||
+    fields.includes("collectionTitle");
 
   const [{ products, meta }, liveCollections, pages, articles, extrasNav] =
     await Promise.all([

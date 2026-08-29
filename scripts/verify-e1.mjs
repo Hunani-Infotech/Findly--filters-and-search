@@ -32,13 +32,20 @@ function assertStaticMarkers() {
   if (!liquid.includes('"target": "body"') || !liquid.includes("findly-instant")) {
     fail("instant-search.liquid must be a body app embed with .findly-instant");
   }
-  if (!liquid.includes("instant-search.js") || !liquid.includes("instant-search.css")) {
+  if (
+    (!liquid.includes("instant-search.js") &&
+      !liquid.includes("instant-search.min.js")) ||
+    !liquid.includes("instant-search.css")
+  ) {
     fail("instant-search.liquid missing stylesheet/javascript assets");
   }
 
   const js = readRepo("extensions", "smart-filter", "assets", "instant-search.js");
   if (!js.includes(".smart-filter-search") || !js.includes("widget=1")) {
     fail("instant-search.js must ignore product-search and fetch widget=1");
+  }
+  if (!js.includes("isCollectionSearchInput") || !js.includes("listing=1")) {
+    fail("instant-search.js must suggest on the collection listing search bar");
   }
   if (!js.includes("AbortController") || !js.includes("maxProducts")) {
     fail("instant-search.js missing AbortController or maxProducts limit");

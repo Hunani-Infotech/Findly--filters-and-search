@@ -89,6 +89,26 @@ function assertStaticMarkers() {
   if (!filterCss.includes(":has(> li:nth-child(6))")) {
     fail("facet option lists must scroll only when they have many values");
   }
+
+  const instantJs = readFileSync(
+    join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
+    "utf8",
+  );
+  if (
+    !instantJs.includes("function isCollectionSearchInput") ||
+    !instantJs.includes("shouldHandleInput") ||
+    !instantJs.includes("listing=1") ||
+    !instantJs.includes("findly:listing-suggest") ||
+    !instantJs.includes("restoreCachedResults")
+  ) {
+    fail("instant-search.js must attach suggestions to the collection search bar");
+  }
+  if (!gridJs.includes("findly:listing-suggest")) {
+    fail("collection search must publish listing suggestions from the same grid results");
+  }
+  if (!instantJs.includes(".sf-facet-search")) {
+    fail("instant-search.js must ignore per-facet Search values inputs");
+  }
 }
 
 async function cleanup() {
