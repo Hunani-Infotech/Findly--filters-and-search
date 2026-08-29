@@ -556,6 +556,7 @@ export function FilterOptionEditorPage({
                     label="Enable search within values"
                     checked={enableValueSearch}
                     disabled={saving}
+                    helpText="Adds a Search values box that filters this facet’s option list only (for example tags). It does not show product suggestions."
                     onChange={setEnableValueSearch}
                   />
                   <ChoiceList

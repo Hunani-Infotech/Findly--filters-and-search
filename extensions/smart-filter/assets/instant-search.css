@@ -50,6 +50,7 @@
 }
 
 .findly-instant-panel {
+  width: 100%;
   padding: 0.75rem;
 }
 
@@ -277,13 +278,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .findly-instant.is-loading.findly-instant--dropdown-two .findly-instant-layout,
-  .findly-instant.is-loading.findly-instant--overlay .findly-instant-layout {
-    display: flex;
-    flex-direction: column;
-    grid-template-columns: none;
-  }
-
   .findly-instant--collection.findly-instant--dropdown-two .findly-instant-layout,
   .findly-instant--collection .findly-instant-layout {
     display: flex;
@@ -296,14 +290,25 @@
   }
 }
 
-.findly-instant.is-loading .findly-instant-layout.is-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.findly-instant.is-loading .findly-instant-panel,
+.findly-instant .findly-instant-skel-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  grid-column: 1 / -1;
 }
 
-.findly-instant.is-loading .findly-instant-products {
+.findly-instant .findly-instant-skel-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
   width: 100%;
+}
+
+@media (max-width: 549px) {
+  .findly-instant .findly-instant-skel-products {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .findly-instant-skel-status {
@@ -322,6 +327,7 @@
 .findly-instant-skel-thumb {
   display: block;
   border-radius: 8px;
+  background: #e8e8e8;
   background: color-mix(in srgb, currentColor 12%, #ececec);
   animation: fi-skel-pulse 1.1s ease-in-out infinite;
   color: transparent;
@@ -331,6 +337,7 @@
 .findly-instant-skel-row {
   height: 0.7rem;
   width: 78%;
+  max-width: 100%;
   line-height: 0.7rem;
   font-size: 1px;
 }
@@ -359,10 +366,11 @@
 }
 
 .findly-instant-skel-meta {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.4rem;
 }
 

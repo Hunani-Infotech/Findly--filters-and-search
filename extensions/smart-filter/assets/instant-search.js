@@ -75,8 +75,18 @@
     return Array.isArray(value) ? value.filter(Boolean) : [];
   }
 
+  function isFacetValueSearchInput(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.classList && el.classList.contains("sf-facet-search-input")) return true;
+    if (el.getAttribute && el.getAttribute("data-findly-ignore-instant") != null) {
+      return true;
+    }
+    return Boolean(el.closest && el.closest(".sf-facet-search"));
+  }
+
   function isCollectionSearchInput(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isFacetValueSearchInput(el)) return false;
     if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
     if (!el.hasAttribute || !el.hasAttribute("data-collection-search")) return false;
     var wrap =
@@ -101,6 +111,7 @@
   function isThemeSearchInput(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
+    if (isFacetValueSearchInput(el)) return false;
     if (isCollectionSearchInput(el)) return false;
     if (isIgnoredContainer(el)) return false;
     var type = String(el.getAttribute("type") || "text").toLowerCase();
@@ -134,7 +145,7 @@
       return true;
     }
     if (name === "q" && (type === "search" || type === "text")) return true;
-    if (type === "search" && /q|search|query/.test(name || "q")) return true;
+    if (type === "search" && name && /^(q|search|query)$/i.test(name)) return true;
     if (role === "searchbox") return true;
     if (
       inSearchForm &&
@@ -214,6 +225,7 @@
   };
 
   InstantSearch.prototype.shouldHandleInput = function (input) {
+    if (isFacetValueSearchInput(input)) return false;
     if (isCollectionSearchInput(input)) return true;
     return this.themeEnabled() && isThemeSearchInput(input);
   };
@@ -656,7 +668,9 @@
   InstantSearch.prototype.showLoadingPanel = function () {
     if (!this.panel) return;
     this.applyChrome();
+    this.root.classList.remove("findly-instant--dropdown-two");
     this.root.classList.add("findly-instant--no-aside");
+    this.root.classList.add("is-loading");
     var n = Number(this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
     if (!(n > 0)) n = DEFAULT_LIMIT;
     if (n > 8) n = 8;
@@ -665,14 +679,11 @@
     for (i = 0; i < n; i++) cards += this.skeletonProduct();
     this.panel.innerHTML =
       '<p class="findly-instant-skel-status" role="status">Searching\u2026</p>' +
-      '<div class="findly-instant-layout is-skeleton">' +
-      '<div class="findly-instant-main">' +
-      '<section class="findly-instant-section findly-instant-section-products">' +
+      '<div class="findly-instant-skel-wrap is-skeleton">' +
       '<h3 class="findly-instant-heading">Products</h3>' +
-      '<div class="findly-instant-products" aria-hidden="true">' +
+      '<div class="findly-instant-skel-products" aria-hidden="true">' +
       cards +
-      "</div></section></div></div>";
-    this.root.classList.add("is-loading");
+      "</div></div>";
     this.root.setAttribute("aria-busy", "true");
     setHidden(this.root, false);
     if (this.activeInput) {
@@ -884,6 +895,10 @@
   };
 
   InstantSearch.prototype.onInputValue = function (input) {
+    if (isFacetValueSearchInput(input)) {
+      this.close();
+      return;
+    }
     if (!this.shouldHandleInput(input)) return;
     this.activeInput = input;
     if (!isCollectionSearchInput(input)) suppressThemePredictive(input);
@@ -908,6 +923,10 @@
   };
 
   InstantSearch.prototype.onFocus = function (input) {
+    if (isFacetValueSearchInput(input)) {
+      this.close();
+      return;
+    }
     if (!this.shouldHandleInput(input)) return;
     this.activeInput = input;
     if (!isCollectionSearchInput(input)) suppressThemePredictive(input);

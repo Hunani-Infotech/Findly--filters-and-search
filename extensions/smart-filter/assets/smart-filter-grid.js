@@ -4817,6 +4817,8 @@
     input.type = "search";
     input.className = "sf-facet-search-input";
     input.autocomplete = "off";
+    input.setAttribute("data-findly-ignore-instant", "");
+    input.setAttribute("role", "textbox");
     input.placeholder =
       widget && widget.t
         ? widget.t("search_values", "Search values")

@@ -594,7 +594,7 @@ export default function SearchPage() {
                         label="Enable Instant Search widget"
                         checked={state.searchExtras.instant.enabled}
                         disabled={saving}
-                        helpText="Shows live results while customers type in the store search bar. Enable the Instant search app embeds toggle in the theme editor if header search does not show suggestions."
+                        helpText="Shows live product results while customers type in the store header search or the collection Search products bar. Does not apply to per-filter Search values boxes (those only filter that facet’s options)."
                         onChange={(checked) =>
                           setState((s) => ({
                             ...s,
