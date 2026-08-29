@@ -435,6 +435,10 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
   }
   appSettingsCache.del(shopId);
   await bumpStorefrontConfigGenerationForShopId(shopId);
+  // Drop in-process filter JSON so the next storefront/proxy hit cannot serve
+  // a payload built under the previous enableCollectionSearch (etc.) value.
+  const { clearFilterPayloadCache } = await import("./proxy.server");
+  clearFilterPayloadCache();
   return row;
 }
 
@@ -491,6 +495,8 @@ export async function saveSearchSettings(
   }
   appSettingsCache.del(shopId);
   await bumpStorefrontConfigGenerationForShopId(shopId);
+  const { clearFilterPayloadCache } = await import("./proxy.server");
+  clearFilterPayloadCache();
   return row;
 }
 

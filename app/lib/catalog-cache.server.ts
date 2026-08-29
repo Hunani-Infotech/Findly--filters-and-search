@@ -65,16 +65,48 @@ export async function getCatalogGeneration(shopDomain: string): Promise<string> 
   }
 }
 
+/**
+ * Advance the in-process generation past Redis when incr fails.
+ * Otherwise getStorefrontCacheGens Math.max(redis, local) stays on the old
+ * Redis value and in-memory filter payloads keep serving stale settings
+ * (e.g. enableCollectionSearch still on after admin save).
+ */
+async function advanceLocalPastRedis(
+  store: Map<string, number>,
+  shopDomain: string,
+  redisKey: string,
+  label: string,
+) {
+  try {
+    const value = await getRedis().get(redisKey);
+    const redisN = Number(value ?? "0") || 0;
+    const local = localMapValue(store, shopDomain);
+    if (redisN >= local) {
+      store.set(shopDomain, redisN + 1);
+    }
+  } catch (readError) {
+    log.warn(`[catalog-cache] ${label} fallback read failed`, readError);
+  }
+}
+
 /** Call after ProductFacet / membership writes so filter payloads miss cache. */
 export async function bumpCatalogGeneration(shopDomain: string): Promise<void> {
-  localCatalogGen.set(
-    shopDomain,
-    localMapValue(localCatalogGen, shopDomain) + 1,
-  );
+  const next = localMapValue(localCatalogGen, shopDomain) + 1;
+  localCatalogGen.set(shopDomain, next);
   try {
-    await getRedis().incr(catalogRedisKey(shopDomain));
+    const redisN = await getRedis().incr(catalogRedisKey(shopDomain));
+    localCatalogGen.set(
+      shopDomain,
+      Math.max(next, Number(redisN) || next),
+    );
   } catch (error) {
     log.warn("[catalog-cache] bump generation failed", error);
+    await advanceLocalPastRedis(
+      localCatalogGen,
+      shopDomain,
+      catalogRedisKey(shopDomain),
+      "catalog",
+    );
   }
 }
 
@@ -82,11 +114,19 @@ export async function bumpCatalogGeneration(shopDomain: string): Promise<void> {
 export async function bumpStorefrontConfigGeneration(
   shopDomain: string,
 ): Promise<void> {
-  localConfigGen.set(shopDomain, localMapValue(localConfigGen, shopDomain) + 1);
+  const next = localMapValue(localConfigGen, shopDomain) + 1;
+  localConfigGen.set(shopDomain, next);
   try {
-    await getRedis().incr(configRedisKey(shopDomain));
+    const redisN = await getRedis().incr(configRedisKey(shopDomain));
+    localConfigGen.set(shopDomain, Math.max(next, Number(redisN) || next));
   } catch (error) {
     log.warn("[catalog-cache] bump config generation failed", error);
+    await advanceLocalPastRedis(
+      localConfigGen,
+      shopDomain,
+      configRedisKey(shopDomain),
+      "config",
+    );
   }
 }
 

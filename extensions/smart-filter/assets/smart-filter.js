@@ -5463,6 +5463,7 @@
         if (current._gridObserver) current._gridObserver.disconnect();
         if (current._lateGridObserver) current._lateGridObserver.disconnect();
         if (current._infiniteObserver) current._infiniteObserver.disconnect();
+        if (current._findlyGridObserver) current._findlyGridObserver.disconnect();
       } catch (err) {
         /* ignore */
       }
