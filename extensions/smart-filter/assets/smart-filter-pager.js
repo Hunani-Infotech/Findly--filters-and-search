@@ -6,6 +6,8 @@
  * Patches Widget.prototype as soon as window.__FINDLY_FILTER_WIDGET is set.
  * Findly never mounts load-more / infinite chrome; filtered views sync the
  * theme pager via syncThemePager + bindThemePagerClicks → goToPage.
+ * Unfiltered pager clicks are also AJAX (grid only) so the filter panel
+ * stays painted instead of a full collection reload.
  */
 (function () {
   "use strict";
@@ -588,8 +590,6 @@
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
         if (root.closest && root.closest(PAGER_CHROME_SKIP)) return;
-        // Only hijack while filters/search/sort are active — never on unfiltered browse.
-        if (!shouldDriveThemePager(widget)) return;
         var ctrl = target.closest("a, button");
         if (!ctrl) return;
         var page = pageFromControl(ctrl);
@@ -783,8 +783,14 @@
     };
 
     var origGoToPage = proto.goToPage;
-    proto.goToPage = function () {
-      if (this._loadingPage && !this._inflight) this._loadingPage = false;
+    proto.goToPage = function (page) {
+      var next = Math.max(1, Math.floor(Number(page) || 1));
+      if (next !== this.page) {
+        this._loadingPage = false;
+        this._keepThemeCards = false;
+      } else if (this._loadingPage && !this._inflight) {
+        this._loadingPage = false;
+      }
       if (origGoToPage) return origGoToPage.apply(this, arguments);
     };
 
@@ -800,13 +806,15 @@
       clearCustomPagerClass();
       removeFindlyNumberedPagers(this);
 
-      // Unfiltered browse: theme owns paging URL + chrome completely.
+      // Unfiltered browse: leave theme pager chrome as-is, but still bind
+      // clicks so page changes AJAX the grid instead of reloading the panel.
       if (!drive) {
         setPagerUnneeded(false);
         unhideThemePagers();
         var idleRoots = findThemePagers();
         var r;
         for (r = 0; r < idleRoots.length; r++) restorePager(idleRoots[r]);
+        bindThemePagerClicks();
         return true;
       }
 
@@ -871,6 +879,8 @@
       this.disconnectInfinite();
       this.syncThemePager();
     };
+
+    bindThemePagerClicks();
   }
 
   function scheduleThemePagerSync(widget) {

@@ -1816,6 +1816,7 @@
           valueSortMode: facet.valueSortMode || "auto",
           collectionTree: Boolean(facet.collectionTree) || valuesHaveChildren(nestedValues),
           hasMergedValues: Boolean(facet.hasMergedValues),
+          enableValueSearch: Boolean(facet.enableValueSearch),
           values: nestedValues,
           min: Number(
             range.min != null ? range.min : facet.min != null ? facet.min : NaN,
@@ -4163,7 +4164,11 @@
               normalizeFacets(data),
             );
             this.markFiltersApplied();
-            this.renderFacets();
+            var keepFacets =
+              opts.page != null &&
+              this.facetsEl &&
+              this.facetsEl.querySelector(".sf-facet");
+            if (!keepFacets) this.renderFacets();
             setStatus(this.statusEl, "", false);
           }
 

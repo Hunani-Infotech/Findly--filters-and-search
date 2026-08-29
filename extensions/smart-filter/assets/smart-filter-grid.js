@@ -342,7 +342,7 @@
       ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after," +
       ".sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after{transform:scale(1)}" +
       ".smart-filter .sf-price,.sf-panel.sf-drawer-portal .sf-price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important}" +
-      ".smart-filter .sf-facet.is-collapsed .sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed .sf-price{display:none!important}" +
+      ".smart-filter .sf-facet.is-collapsed>.sf-options,.smart-filter .sf-facet.is-collapsed>.sf-price,.smart-filter .sf-facet.is-collapsed>.sf-dropdown-wrap,.smart-filter .sf-facet.is-collapsed>.sf-facet-search,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-dropdown-wrap,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-facet-search{display:none!important}" +
       ".smart-filter .sf-slider,.sf-panel.sf-drawer-portal .sf-slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:1.7rem!important;overflow:visible!important;background:transparent!important}" +
       ".smart-filter .sf-slider-track,.smart-filter .sf-slider-fill,.sf-panel.sf-drawer-portal .sf-slider-track,.sf-panel.sf-drawer-portal .sf-slider-fill{position:absolute!important;left:0!important;top:50%!important;height:2px!important;margin-top:-1px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important}" +
       ".smart-filter .sf-slider-track,.sf-panel.sf-drawer-portal .sf-slider-track{right:0!important;width:auto!important;background:#dcdcdc!important;z-index:0!important}" +
@@ -364,9 +364,11 @@
       ".sf-panel.sf-drawer-portal .sf-facet,.sf-panel.sf-drawer-portal .sf-facet-label{visibility:visible!important;opacity:1!important}" +
       ".sf-panel.sf-drawer-portal .sf-facet{display:block!important}" +
       ".sf-panel.sf-drawer-portal .sf-facet-label{display:flex!important}" +
-      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options{display:flex!important;flex-direction:column!important;align-items:stretch!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options:not(.sf-options-swatches):not(.sf-options-pills){display:flex!important;flex-direction:column!important;align-items:stretch!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options-swatches:not(.sf-options-swatch-text),.sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options-pills{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;align-items:flex-start!important;align-content:flex-start!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-options-swatches:not(.sf-options-swatch-text)>li,.sf-panel.sf-drawer-portal .sf-options-pills>li{flex:0 0 auto!important;width:auto!important}" +
       ".sf-panel.sf-drawer-portal .sf-options:not(.sf-options-swatches):not(.sf-options-pills)>li{flex:0 0 auto!important;width:100%!important;height:auto!important}" +
-      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price{display:none!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-dropdown-wrap,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-facet-search{display:none!important}" +
       ".sf-panel.sf-drawer-portal{color:#111!important;background:#fff!important}" +
       "html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important;opacity:1!important}" +
       ".sf-sort-toolbar,.sf-sort-host,.sf-sort-trigger,.sf-sort-row{overflow:visible!important;position:relative}" +
@@ -4750,6 +4752,124 @@
     });
   }
 
+  function applyFacetValueQuery(wrap, query) {
+    var q = String(query || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    var list =
+      wrap.querySelector(".sf-options") ||
+      wrap.querySelector("select.sf-dropdown");
+    if (!list) return;
+    if (list.tagName === "SELECT") {
+      var opts = list.options;
+      var i;
+      for (i = 0; i < opts.length; i++) {
+        if (!opts[i].value) {
+          opts[i].hidden = false;
+          continue;
+        }
+        var optText = String(opts[i].textContent || "").toLowerCase();
+        opts[i].hidden = Boolean(q) && optText.indexOf(q) === -1;
+      }
+      return;
+    }
+    function visit(li) {
+      var label = "";
+      var textEl = li.querySelector(".sf-option-text, .sf-collection-link");
+      if (textEl) label = String(textEl.textContent || "").toLowerCase();
+      var childList = null;
+      var kids = li.children;
+      var c;
+      for (c = 0; c < kids.length; c++) {
+        if (
+          kids[c].classList &&
+          kids[c].classList.contains("sf-tree-children")
+        ) {
+          childList = kids[c];
+          break;
+        }
+      }
+      var childHit = false;
+      if (childList) {
+        var nested = childList.children;
+        for (c = 0; c < nested.length; c++) {
+          if (nested[c].nodeType === 1 && visit(nested[c])) childHit = true;
+        }
+      }
+      var input = li.querySelector("input");
+      var checked = Boolean(input && input.checked);
+      var hit = !q || label.indexOf(q) !== -1 || childHit || checked;
+      li.hidden = !hit;
+      return hit;
+    }
+    var top = list.children;
+    var t;
+    for (t = 0; t < top.length; t++) {
+      if (top[t].nodeType === 1) visit(top[t]);
+    }
+  }
+
+  function buildFacetValueSearch(wrap, widget) {
+    var box = document.createElement("div");
+    box.className = "sf-facet-search";
+    var input = document.createElement("input");
+    input.type = "search";
+    input.className = "sf-facet-search-input";
+    input.autocomplete = "off";
+    input.placeholder =
+      widget && widget.t
+        ? widget.t("search_values", "Search values")
+        : "Search values";
+    input.setAttribute("aria-label", input.placeholder);
+    input.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") event.preventDefault();
+    });
+    input.addEventListener("input", function () {
+      applyFacetValueQuery(wrap, input.value);
+    });
+    box.appendChild(input);
+    return box;
+  }
+
+  function mountFacetValueSearch(widget) {
+    if (!widget) return;
+    var root = widget.panelEl || widget.facetsEl || widget.root;
+    if (!root || !root.querySelectorAll) return;
+    var wanted = {};
+    var facets = widget.facets || [];
+    var i;
+    for (i = 0; i < facets.length; i++) {
+      if (
+        facets[i] &&
+        facets[i].enableValueSearch &&
+        facets[i].type !== "price_range" &&
+        facets[i].displayType !== "slider"
+      ) {
+        var facetKey = String(facets[i].key);
+        wanted[facetKey] = true;
+        if (facetKey === "tag") wanted.tags = true;
+        if (facetKey === "tags") wanted.tag = true;
+      }
+    }
+    var nodes = root.querySelectorAll(".sf-facet[data-facet-key]");
+    for (i = 0; i < nodes.length; i++) {
+      var wrap = nodes[i];
+      var key = wrap.getAttribute("data-facet-key");
+      if (!wanted[key]) continue;
+      if (wrap.querySelector(".sf-facet-search")) continue;
+      if (wrap.querySelector(".sf-price")) continue;
+      var after =
+        wrap.querySelector(".sf-options") ||
+        wrap.querySelector(".sf-dropdown-wrap");
+      if (!after) continue;
+      wrap.insertBefore(buildFacetValueSearch(wrap, widget), after);
+    }
+  }
+
   function enhancePriceSliders(root) {
     if (!root || !root.querySelectorAll) return;
     var sliders = root.querySelectorAll(".sf-slider");
@@ -5851,6 +5971,7 @@
       // Panel is moved to document.body on mobile — never search only this.root.
       enhancePriceSliders(this.panelEl || this.facetsEl || this.root);
       decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
+      mountFacetValueSearch(this);
       return result;
     };
 

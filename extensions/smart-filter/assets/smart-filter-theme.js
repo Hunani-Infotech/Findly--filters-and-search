@@ -300,11 +300,14 @@
       "display:revert!important;visibility:visible!important}" +
       ".sf-panel.sf-drawer-portal .sf-facet{display:block!important;visibility:visible!important}" +
       ".sf-panel.sf-drawer-portal .sf-facet-label{display:flex!important;visibility:visible!important}" +
-      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options{" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options:not(.sf-options-swatches):not(.sf-options-pills){" +
       "display:flex!important;flex-direction:column!important;align-items:stretch!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options-swatches:not(.sf-options-swatch-text),.sf-panel.sf-drawer-portal .sf-facet:not(.is-collapsed)>.sf-options-pills{" +
+      "display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;align-items:flex-start!important;align-content:flex-start!important;visibility:visible!important}" +
+      ".sf-panel.sf-drawer-portal .sf-options-swatches:not(.sf-options-swatch-text)>li,.sf-panel.sf-drawer-portal .sf-options-pills>li{flex:0 0 auto!important;width:auto!important}" +
       ".sf-panel.sf-drawer-portal .sf-options:not(.sf-options-swatches):not(.sf-options-pills)>li{" +
       "flex:0 0 auto!important;width:100%!important;height:auto!important}" +
-      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price{display:none!important}" +
+      ".sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-dropdown-wrap,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-facet-search{display:none!important}" +
       "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] nav.pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination," +

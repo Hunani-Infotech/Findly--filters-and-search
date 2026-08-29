@@ -14,7 +14,12 @@ import {
   type ProductFacetRow,
   type SelectedFilters,
 } from "./filters.server";
-import { applyFacetValueFilter, applyFacetValueLabel, parseFacetSettings } from "../utils/facet-settings";
+import {
+  applyFacetValueFilter,
+  applyFacetValueLabel,
+  parseFacetSettings,
+  settingForFacetKey,
+} from "../utils/facet-settings";
 import {
   listMetafieldSortOptions,
   resolveStorefrontSort,
@@ -608,7 +613,7 @@ async function buildFacetPayload(input: {
     visibleRows,
   )
     .map((facet) => {
-      const custom = facetSettings[facet.key]?.label;
+      const custom = settingForFacetKey(facetSettings, facet.key).label;
       return custom ? { ...facet, label: custom } : facet;
     })
     .filter(
@@ -668,7 +673,7 @@ async function buildFacetPayload(input: {
       facet.optionName || String(facet.key || "").replace(/^opt_/, ""),
     );
     const shopSwatches = swatches[optionKey] || {};
-    const setting = facetSettings[facet.key] || {};
+    const setting = settingForFacetKey(facetSettings, facet.key);
     let nextValues = values
       ?.filter((item) =>
         applyFacetValueFilter(facet.key, [item.value], facetSettings).includes(
@@ -696,6 +701,7 @@ async function buildFacetPayload(input: {
       ...facet,
       label: setting.label || facet.label,
       collectionTree: Boolean(setting.collectionTree),
+      enableValueSearch: Boolean(setting.enableValueSearch),
       hasMergedValues: Boolean(
         valueGroups?.some((group) => group.sourceKey === sourceKey),
       ),

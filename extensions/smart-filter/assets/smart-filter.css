@@ -303,8 +303,10 @@
   margin-top: 0.15rem;
 }
 
-.sf-facet.is-collapsed .sf-options,
-.sf-facet.is-collapsed .sf-price {
+.sf-facet.is-collapsed > .sf-options,
+.sf-facet.is-collapsed > .sf-price,
+.sf-facet.is-collapsed > .sf-dropdown-wrap,
+.sf-facet.is-collapsed > .sf-facet-search {
   display: none !important;
 }
 

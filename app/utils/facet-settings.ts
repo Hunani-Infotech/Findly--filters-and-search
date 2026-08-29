@@ -41,6 +41,25 @@ export type FacetSettingsMap = Record<string, FacetSetting>;
 /** Reserved facetSettings key for tree-level meta (not a filter option). */
 export const TREE_FACET_META_KEY = "__tree";
 
+/** Admin option rows use `tags`; storefront aggregations use `tag`. */
+const FACET_SETTING_KEY_ALIASES: Record<string, readonly string[]> = {
+  tag: ["tags"],
+  tags: ["tag"],
+};
+
+export function settingForFacetKey(
+  settings: FacetSettingsMap,
+  key: string,
+): FacetSetting {
+  const exact = settings[key];
+  if (exact) return exact;
+  for (const alias of FACET_SETTING_KEY_ALIASES[key] || []) {
+    const hit = settings[alias];
+    if (hit) return hit;
+  }
+  return {};
+}
+
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   return raw as Record<string, unknown>;
@@ -202,7 +221,7 @@ export function applyFacetValueFilter(
   values: string[],
   settings: FacetSettingsMap,
 ): string[] {
-  const setting = settings[key] || {};
+  const setting = settingForFacetKey(settings, key);
   const mode = setting.valueMode || "all";
   if (mode === "manual") {
     const allowed = new Set(setting.selectedValues || []);
@@ -235,7 +254,7 @@ export function applyFacetValueLabel(
   value: string,
   settings: FacetSettingsMap,
 ): string {
-  const setting = settings[key] || {};
+  const setting = settingForFacetKey(settings, key);
   if (setting.removePrefix && setting.prefix && value.startsWith(setting.prefix)) {
     return value.slice(setting.prefix.length);
   }

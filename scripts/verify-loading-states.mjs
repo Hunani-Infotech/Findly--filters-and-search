@@ -109,11 +109,17 @@ function assertSourceMarkers() {
   if (!ymmJs.includes("renderSkeletons") || !ymmCss.includes("sf-ymm-skel-img")) {
     fail("vehicle-finder skeletons missing");
   }
-  if (!pagerJs.includes("sf-pager-spin") || !pagerJs.includes("is-busy")) {
-    fail("pager loading spinner missing");
+  if (!pagerJs.includes("_keepThemeCards = false")) {
+    fail("unfiltered pager clicks must take over the grid instead of a full page reload");
+  }
+  if (pagerJs.includes("Only hijack while filters/search/sort are active")) {
+    fail("pager must intercept pagination even when no filters are selected");
   }
   if (!pagerJs.includes("syncThemePager") || !pagerJs.includes("usesThemeNumberedPager")) {
     fail("pager must reuse the theme numbered pagination");
+  }
+  if (!pagerJs.includes("sf-pager-spin") || !pagerJs.includes("is-busy")) {
+    fail("pager loading spinner missing");
   }
   if (!pagerJs.includes("data-sf-pager-suppressed")) {
     fail("pager must suppress the theme pager when filtered results fit on one page");
@@ -841,6 +847,30 @@ function writeDawnPagerHarness() {
         if (!page2Link) throw new Error("Dawn page 2 link missing after rewrite");
         page2Link.click();
         if (widget._went !== 2) throw new Error("goToPage not called with 2: " + widget._went);
+        widget.hasActiveFilters = function () { return false; };
+        widget._keepThemeCards = undefined;
+        widget._went = undefined;
+        widget.page = 1;
+        window.__findlyThemePagerSyncing = false;
+        widget.syncThemePager();
+        var idlePager = pagerEl();
+        var idleLink = null;
+        var idleLinks = idlePager ? idlePager.querySelectorAll("a") : [];
+        for (i = 0; i < idleLinks.length; i++) {
+          var idleLabel = String(idleLinks[i].textContent || "").replace(/\\s+/g, " ").trim();
+          if (idleLabel === "2") {
+            idleLink = idleLinks[i];
+            break;
+          }
+        }
+        if (!idleLink) throw new Error("unfiltered page 2 link missing");
+        idleLink.click();
+        if (widget._went !== 2) {
+          throw new Error("unfiltered pager click did not goToPage: " + widget._went);
+        }
+        if (widget._keepThemeCards !== false) {
+          throw new Error("unfiltered pager click did not take over the grid");
+        }
         report(true, {
           fewHidden: true,
           multiVisible: true,

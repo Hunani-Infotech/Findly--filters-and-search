@@ -18,6 +18,8 @@ import { chalk, log } from "./terminal-log.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const isWin = process.platform === "win32";
+/** Local BullMQ Redis started by start-local-infra.mjs — never use Upstash in dev. */
+const LOCAL_REDIS_URL = "redis://localhost:6379";
 const children = [];
 let shuttingDown = false;
 
@@ -198,6 +200,12 @@ function preparePrisma() {
 try {
   log.info("[dev] Starting Findly stack: infra + worker + Shopify app");
   await ensureInfra();
+  if (process.env.REDIS_URL !== LOCAL_REDIS_URL) {
+    log.info(
+      `[dev] REDIS_URL → ${LOCAL_REDIS_URL} (local dev; Upstash/production URL ignored)`,
+    );
+    process.env.REDIS_URL = LOCAL_REDIS_URL;
+  }
   preparePrisma();
 
   log.info("[dev] Minifying theme extension JS (100 KB app-block limit)…");
