@@ -7,12 +7,28 @@ const CONFIG_PREFIX = "config:";
 const localCatalogGen = new Map<string, number>();
 const localConfigGen = new Map<string, number>();
 
-function catalogKey(shopDomain: string) {
+/** Postgres CacheGeneration.key for catalog invalidation — keep in sync with GDPR purge. */
+export function catalogCacheKey(shopDomain: string) {
   return `${CATALOG_PREFIX}${shopDomain}`;
 }
 
-function configKey(shopDomain: string) {
+/** Postgres CacheGeneration.key for widget/config invalidation — keep in sync with GDPR purge. */
+export function configCacheKey(shopDomain: string) {
   return `${CONFIG_PREFIX}${shopDomain}`;
+}
+
+function catalogKey(shopDomain: string) {
+  return catalogCacheKey(shopDomain);
+}
+
+function configKey(shopDomain: string) {
+  return configCacheKey(shopDomain);
+}
+
+/** Drop in-process generation counters for a shop (uninstall / shop/redact). */
+export function forgetShopCacheGenerations(shopDomain: string) {
+  localCatalogGen.delete(shopDomain);
+  localConfigGen.delete(shopDomain);
 }
 
 function localMapValue(store: Map<string, number>, shopDomain: string): number {

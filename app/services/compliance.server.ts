@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import prisma from "../db.server";
+import {
+  catalogCacheKey,
+  configCacheKey,
+  forgetShopCacheGenerations,
+} from "../lib/catalog-cache.server";
 import { forgetShop } from "../lib/shop-cache.server";
 import { log } from "../lib/log.server";
 import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
@@ -12,20 +17,68 @@ export type ComplianceLogMeta = {
 };
 
 /**
+ * QueueJob.payload always includes `{ shop: "<domain>" }` (see enqueueSyncJob
+ * callers + processors). No Shop FK — must delete by JSON path.
+ */
+async function deleteShopQueueJobs(shopDomain: string) {
+  return prisma.queueJob.deleteMany({
+    where: {
+      payload: {
+        path: ["shop"],
+        equals: shopDomain,
+      },
+    },
+  });
+}
+
+/**
+ * CacheGeneration keys are `catalog:{domain}` / `config:{domain}`
+ * (catalog-cache.server.ts). Not Shop-FK — delete by exact key.
+ */
+async function deleteShopCacheGenerations(shopDomain: string) {
+  forgetShopCacheGenerations(shopDomain);
+  return prisma.cacheGeneration.deleteMany({
+    where: {
+      key: {
+        in: [catalogCacheKey(shopDomain), configCacheKey(shopDomain)],
+      },
+    },
+  });
+}
+
+/**
  * Hard-delete all tenant data for a shop domain (APP_UNINSTALLED / shop/redact).
  * ComplianceRequest rows are kept (keyed by shopDomain, no FK) for audit.
  * Those rows never contain the raw customer webhook body.
+ *
+ * Order: drop QueueJobs first so SKIP LOCKED cannot claim orphaned jobs that
+ * would re-write catalog/cache after Shop is gone; then CacheGeneration keys;
+ * then FK-cascaded Shop rows.
  */
 export async function purgeShopData(shopDomain: string) {
-  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    include: { subscription: true },
+  });
 
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
   forgetShop(shopDomain);
 
+  // Always scrub non-FK leftovers (idempotent when Shop is already gone).
+  const queueDeleted = await deleteShopQueueJobs(shopDomain);
+  const cacheDeleted = await deleteShopCacheGenerations(shopDomain);
+
   if (!shop) {
-    log.info(`[compliance] purgeShopData: no Shop row for ${shopDomain}`);
+    log.info(
+      `[compliance] purgeShopData: no Shop row for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count})`,
+    );
     return { deleted: false as const };
   }
+
+  // Audit #11: uninstall/redact — compare with afterAuth billing-audit line after reinstall.
+  log.info(
+    `[compliance] billing-audit before-purge shop=${shopDomain} plan=${shop.plan} subStatus=${shop.subscription?.status ?? "none"} subPlan=${shop.subscription?.planName ?? "none"} shopifySubId=${shop.subscription?.shopifySubscriptionId ?? "none"}`,
+  );
 
   // Explicit deletes for clarity; Shop CASCADE covers relations if any remain.
   await prisma.$transaction([
@@ -42,7 +95,7 @@ export async function purgeShopData(shopDomain: string) {
   ]);
 
   log.success(
-    `[compliance] purgeShopData: deleted tenant data for ${shopDomain}`,
+    `[compliance] purgeShopData: deleted tenant data for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count})`,
   );
   return { deleted: true as const, shopId: shop.id };
 }

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -16,6 +16,7 @@ import {
   InlineStack,
   Layout,
   List,
+  Modal,
   Page,
   ProgressBar,
   Text,
@@ -25,8 +26,10 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { forgetShop } from "../lib/shop-cache.server";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import {
   PLANS,
+  cancelSubscription,
   createAppSubscription,
   enforcePlanLimits,
   ensureShopAccess,
@@ -81,6 +84,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = await ensureShopAccess(session.shop);
 
   const formData = await request.formData();
+  const intent = String(formData.get("intent") || "upgrade");
+
+  if (intent === "cancel_to_free") {
+    const subId = shop.subscription?.shopifySubscriptionId;
+    if (!subId) {
+      return {
+        error:
+          "No active Shopify subscription id on file. Open Pricing again to refresh, or cancel from Shopify Settings → Billing.",
+      };
+    }
+    const result = await cancelSubscription(admin, shop.id, subId);
+    if (!result.ok) {
+      return { error: result.error };
+    }
+    forgetShop(session.shop);
+    lastBillingSyncAt.delete(shop.id);
+    return redirect(
+      withEmbeddedParamsFromRequest(request, "/app/billing?notice=downgraded"),
+    );
+  }
+
   const requested = String(formData.get("plan") ?? "");
   if (!isPaidPlanKey(requested)) {
     return { error: "Choose Standard or Pro to start a Shopify charge." };
@@ -138,6 +162,15 @@ export default function BillingPage() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+  const [downgradeOpen, setDowngradeOpen] = useState(false);
+  const [seenFetcherData, setSeenFetcherData] = useState(fetcher.data);
+
+  if (fetcher.data !== seenFetcherData) {
+    setSeenFetcherData(fetcher.data);
+    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
+      setDowngradeOpen(false);
+    }
+  }
 
   useEffect(() => {
     if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
@@ -145,15 +178,26 @@ export default function BillingPage() {
     }
   }, [fetcher.data, shopify]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("notice") === "downgraded") {
+      shopify.toast.show("You are on the Free plan.");
+    }
+  }, [shopify]);
+
+  const submitting = ["loading", "submitting"].includes(fetcher.state);
   const upgradingPlan =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST"
+    submitting && fetcher.formMethod === "POST"
       ? String(fetcher.formData?.get("plan") ?? "")
       : "";
+  const cancelling =
+    submitting &&
+    String(fetcher.formData?.get("intent") ?? "") === "cancel_to_free";
   const free = data.plans.free;
   const standard = data.plans.standard;
   const pro = data.plans.pro;
   const currentPlan = data.plans[data.currentPlan];
+  const onPaid = data.currentPlan !== "free";
   const subStatus = data.subscription?.status
     ? data.subscription.status
     : "None (Free)";
@@ -285,11 +329,18 @@ export default function BillingPage() {
                     </List.Item>
                     <List.Item>Up to {free.productLimit} products</List.Item>
                   </List>
-                  <Button disabled>
-                    {data.currentPlan === "free"
-                      ? "Current plan"
-                      : "Available on Free"}
-                  </Button>
+                  {data.currentPlan === "free" ? (
+                    <Button disabled>Current plan</Button>
+                  ) : (
+                    <Button
+                      tone="critical"
+                      loading={cancelling}
+                      disabled={Boolean(upgradingPlan) || cancelling}
+                      onClick={() => setDowngradeOpen(true)}
+                    >
+                      Downgrade to Free
+                    </Button>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -316,7 +367,7 @@ export default function BillingPage() {
                   </List>
                   <Button
                     loading={upgradingPlan === "standard"}
-                    disabled={Boolean(upgradingPlan)}
+                    disabled={Boolean(upgradingPlan) || cancelling}
                     onClick={() =>
                       fetcher.submit({ plan: "standard" }, { method: "POST" })
                     }
@@ -359,7 +410,7 @@ export default function BillingPage() {
                   <Button
                     variant="primary"
                     loading={upgradingPlan === "pro"}
-                    disabled={Boolean(upgradingPlan)}
+                    disabled={Boolean(upgradingPlan) || cancelling}
                     onClick={() =>
                       fetcher.submit({ plan: "pro" }, { method: "POST" })
                     }
@@ -384,6 +435,48 @@ export default function BillingPage() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+
+      <Modal
+        open={downgradeOpen}
+        onClose={() => setDowngradeOpen(false)}
+        title="Downgrade to Free?"
+        primaryAction={{
+          content: "Downgrade to Free",
+          destructive: true,
+          loading: cancelling,
+          onAction: () =>
+            fetcher.submit(
+              { intent: "cancel_to_free" },
+              { method: "POST" },
+            ),
+        }}
+        secondaryActions={[
+          {
+            content: "Keep current plan",
+            onAction: () => setDowngradeOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="200">
+            <Text as="p">
+              This cancels your Shopify app subscription and moves the shop to
+              Free immediately.
+            </Text>
+            {onPaid ? (
+              <Text as="p">
+                Free caps are {free.productLimit} products and{" "}
+                {free.filterLimit} metafield filters. You currently have{" "}
+                {data.usage.productCount} products and {data.usage.filterCount}{" "}
+                metafield filters on {currentPlan.name} (limits{" "}
+                {data.usage.productLimit} / {data.usage.filterLimit}). Features
+                stay available; anything over Free caps is limited until you
+                upgrade again or reduce usage.
+              </Text>
+            ) : null}
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }

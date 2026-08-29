@@ -102,7 +102,11 @@ const shopify = shopifyApp({
         `[afterAuth] shop=${session.shop} online=${session.isOnline}`,
       );
       const { ensureShop } = await import("./services/shop.server");
-      await ensureShop(session.shop);
+      const shop = await ensureShop(session.shop);
+      // Audit #11: uninstall→reinstall — diff these two log lines with purge.
+      log.info(
+        `[afterAuth] billing-audit shop=${session.shop} plan=${shop.plan} subStatus=${shop.subscription?.status ?? "none"} subPlan=${shop.subscription?.planName ?? "none"} shopifySubId=${shop.subscription?.shopifySubscriptionId ?? "none"}`,
+      );
       // Queue is Postgres-backed — don't block OAuth if enqueue fails.
       try {
         const { queueFullSync } = await import("./sync/queue-full-sync");

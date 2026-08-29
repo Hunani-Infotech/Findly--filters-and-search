@@ -363,6 +363,7 @@ export async function syncActiveSubscriptions(
       where: { id: shopId },
       data: { plan: PLANS.free.key },
     });
+    planUsageCache.del(shopId);
     return null;
   }
 
@@ -412,5 +413,86 @@ export async function syncActiveSubscriptions(
     data: { plan: isPaid ? paidKey : PLANS.free.key },
   });
 
+  planUsageCache.del(shopId);
   return subscription;
+}
+
+/** Reset local billing to Free (same shape as a fresh install / cancelled sync). */
+export async function applyLocalFreePlan(shopId: string) {
+  await prisma.subscription.upsert({
+    where: { shopId },
+    create: {
+      shopId,
+      planName: PLANS.free.name,
+      status: "CANCELLED",
+      test: isBillingTestMode(),
+      productLimit: PLANS.free.productLimit,
+      filterLimit: PLANS.free.filterLimit,
+      shopifySubscriptionId: null,
+    },
+    update: {
+      status: "CANCELLED",
+      planName: PLANS.free.name,
+      shopifySubscriptionId: null,
+      productLimit: PLANS.free.productLimit,
+      filterLimit: PLANS.free.filterLimit,
+      trialEndsAt: null,
+    },
+  });
+  await prisma.shop.update({
+    where: { id: shopId },
+    data: { plan: PLANS.free.key },
+  });
+  planUsageCache.del(shopId);
+}
+
+/**
+ * Cancel an active Shopify app subscription (paid → Free).
+ * Does not use replacementBehavior — that is only for paid ↔ paid switches.
+ */
+export async function cancelSubscription(
+  admin: GraphqlAdmin,
+  shopId: string,
+  subscriptionGid: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const response = await admin.graphql(
+    `#graphql
+    mutation AppSubscriptionCancel($id: ID!) {
+      appSubscriptionCancel(id: $id) {
+        appSubscription {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    { variables: { id: subscriptionGid } },
+  );
+  const json = await response.json();
+  const payload = json.data?.appSubscriptionCancel;
+  const errors = payload?.userErrors ?? [];
+  if (errors.length) {
+    return {
+      ok: false,
+      error:
+        errors.map((e: { message: string }) => e.message).join("; ") ||
+        "Could not cancel subscription",
+    };
+  }
+  if (json.errors?.length) {
+    return {
+      ok: false,
+      error:
+        json.errors.map((e: { message?: string }) => e.message || "GraphQL error").join("; ") ||
+        "Could not cancel subscription",
+    };
+  }
+
+  await applyLocalFreePlan(shopId);
+  // Re-read Shopify so a failed cancel that still left an active sub is corrected.
+  await syncActiveSubscriptions(admin, shopId);
+  return { ok: true };
 }

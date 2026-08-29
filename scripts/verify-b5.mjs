@@ -254,7 +254,20 @@ function assertThemeSeoAndUi() {
     !compliance.includes("running inline purge") ||
     !compliance.includes("inline purge FAILED")
   ) {
-    fail("compliance.server.ts must queue cleanup, inline-purge on Redis failure, and rethrow if purge fails");
+    fail(
+      "compliance.server.ts must queue cleanup, inline-purge on enqueue failure, and rethrow if purge fails",
+    );
+  }
+  if (
+    !compliance.includes('path: ["shop"]') ||
+    !compliance.includes("queueJob.deleteMany") ||
+    !compliance.includes("cacheGeneration.deleteMany") ||
+    !compliance.includes("catalogCacheKey") ||
+    !compliance.includes("configCacheKey")
+  ) {
+    fail(
+      "purgeShopData must delete QueueJob by payload.shop and CacheGeneration catalog:/config: keys",
+    );
   }
   if (!dataRequest.includes("logComplianceEvent")) {
     fail("customers/data_request must log compliance (not a stub)");
@@ -282,6 +295,26 @@ function assertThemeSeoAndUi() {
 async function cleanup() {
   await prisma.shop.deleteMany({
     where: { domain: { in: [SHOP_A, SHOP_B] } },
+  });
+  await prisma.queueJob.deleteMany({
+    where: {
+      OR: [
+        { payload: { path: ["shop"], equals: SHOP_A } },
+        { payload: { path: ["shop"], equals: SHOP_B } },
+      ],
+    },
+  });
+  await prisma.cacheGeneration.deleteMany({
+    where: {
+      key: {
+        in: [
+          `catalog:${SHOP_A}`,
+          `config:${SHOP_A}`,
+          `catalog:${SHOP_B}`,
+          `config:${SHOP_B}`,
+        ],
+      },
+    },
   });
 }
 
@@ -963,6 +996,45 @@ try {
   if (kept !== 1) fail("unrelated analytics must survive customers/redact");
   log.info("customers/redact scrubbed matching analytics only");
 
+  // Seed non-FK leftovers that CASCADE cannot reach (Postgres queue + cache gens).
+  await prisma.queueJob.createMany({
+    data: [
+      {
+        type: "product.upsert",
+        payload: { shop: SHOP_A, productGid: "gid://shopify/Product/b5-purge-a" },
+        jobKey: `b5_purge_${SHOP_A}_a`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+      {
+        type: "shop.fullSync",
+        payload: { shop: SHOP_A },
+        jobKey: `b5_purge_${SHOP_A}_full`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+      {
+        type: "product.upsert",
+        payload: { shop: SHOP_B, productGid: "gid://shopify/Product/b5-purge-b" },
+        jobKey: `b5_purge_${SHOP_B}_b`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+    ],
+  });
+  await prisma.cacheGeneration.createMany({
+    data: [
+      { key: `catalog:${SHOP_A}`, version: 7 },
+      { key: `config:${SHOP_A}`, version: 4 },
+      { key: `catalog:${SHOP_B}`, version: 2 },
+      { key: `config:${SHOP_B}`, version: 1 },
+    ],
+    skipDuplicates: true,
+  });
+
   const purged = await purgeShopData(SHOP_A);
   if (!purged.deleted) fail("purgeShopData should delete shop A");
   const gone = await prisma.shop.findUnique({ where: { domain: SHOP_A } });
@@ -971,7 +1043,62 @@ try {
     where: { shopId: shopA.id },
   });
   if (leftoverFacets !== 0) fail("product facets leaked after purge");
-  log.info("compliance purge removed tenant data");
+
+  const leftoverJobsA = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_A } },
+  });
+  if (leftoverJobsA !== 0) {
+    fail("QueueJob rows for purged shop must be deleted (payload.shop)");
+  }
+  const leftoverJobsB = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_B } },
+  });
+  if (leftoverJobsB < 1) {
+    fail("QueueJob rows for other shops must survive purgeShopData");
+  }
+  const leftoverCacheA = await prisma.cacheGeneration.count({
+    where: {
+      key: { in: [`catalog:${SHOP_A}`, `config:${SHOP_A}`] },
+    },
+  });
+  if (leftoverCacheA !== 0) {
+    fail("CacheGeneration catalog:/config: keys for purged shop must be deleted");
+  }
+  const leftoverCacheB = await prisma.cacheGeneration.count({
+    where: {
+      key: { in: [`catalog:${SHOP_B}`, `config:${SHOP_B}`] },
+    },
+  });
+  if (leftoverCacheB !== 2) {
+    fail("CacheGeneration keys for other shops must survive purgeShopData");
+  }
+
+  // Idempotent second pass (Shop already gone) still scrubs any re-seeded leftovers.
+  await prisma.queueJob.create({
+    data: {
+      type: "inventory.sync",
+      payload: { shop: SHOP_A, inventoryItemGid: "gid://shopify/InventoryItem/1" },
+      jobKey: `b5_purge_${SHOP_A}_orphan`,
+      status: "pending",
+      maxAttempts: 3,
+      runAt: new Date(),
+    },
+  });
+  await prisma.cacheGeneration.create({
+    data: { key: `catalog:${SHOP_A}`, version: 1 },
+  });
+  const purgedAgain = await purgeShopData(SHOP_A);
+  if (purgedAgain.deleted) fail("second purge should report deleted=false (no Shop row)");
+  const orphanJobs = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_A } },
+  });
+  if (orphanJobs !== 0) fail("idempotent purge must still delete QueueJob leftovers");
+  const orphanCache = await prisma.cacheGeneration.count({
+    where: { key: `catalog:${SHOP_A}` },
+  });
+  if (orphanCache !== 0) fail("idempotent purge must still delete CacheGeneration leftovers");
+
+  log.info("compliance purge removed tenant data including QueueJob + CacheGeneration");
 
   log.success("STEPB5_OK launch E2E: filters + search isolation + billing + compliance");
 } catch (error) {
