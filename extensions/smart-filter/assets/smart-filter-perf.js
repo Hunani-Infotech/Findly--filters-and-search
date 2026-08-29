@@ -91,6 +91,31 @@
     cycle.marks[key] = now();
   }
 
+  function filtersNetworkMs(cycle) {
+    if (!cycle || typeof performance === "undefined") return null;
+    try {
+      var entries = performance.getEntriesByType("resource");
+      var i;
+      var best = null;
+      for (i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (!e || !e.name) continue;
+        if (e.name.indexOf("/filters") === -1 && e.name.indexOf("filters?") === -1) {
+          continue;
+        }
+        if (e.startTime + 1 < cycle.t0) continue;
+        var ms = e.responseEnd - e.startTime;
+        if (!Number.isFinite(ms) || ms < 0) continue;
+        if (best == null || e.startTime > best.startTime) {
+          best = { startTime: e.startTime, ms: ms };
+        }
+      }
+      return best ? round(best.ms) : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   function finishCycle(widget, reason) {
     var cycle = activeCycle(widget);
     if (!cycle) return;
@@ -109,10 +134,12 @@
       cycle.marks.ensureStart != null && cycle.marks.ensureEnd != null
         ? cycle.marks.ensureEnd - cycle.marks.ensureStart
         : null;
+    var networkMs = filtersNetworkMs(cycle);
     var summary = {
       cycle: cycle.id,
       reason: reason || "settle",
       totalMs: round(total),
+      filtersNetworkMs: networkMs,
       themePageFetches: cycle.themePages.length,
       themePagesMs: round(themeMs),
       ensureCardsMs: ensureMs != null ? round(ensureMs) : null,
@@ -121,17 +148,24 @@
     };
     markPerf("findly-filter-cycle-" + cycle.id + "-end");
     if (enabled() || total >= SLOW_MS || themeMs >= SLOW_MS) {
+      var hint =
+        cycle.themePages.length > 0
+          ? "theme HTML import after filters API"
+          : "filters API / App Proxy RTT (no theme HTML fetches this cycle)";
       emit(
         total >= 1000 || themeMs >= 800 ? "warn" : "info",
         "cycle#" +
           cycle.id +
           " UI " +
           summary.totalMs +
-          "ms (theme HTML " +
+          "ms (filters net " +
+          (networkMs != null ? networkMs + "ms" : "?") +
+          ", theme HTML " +
           summary.themePagesMs +
           "ms × " +
           summary.themePageFetches +
-          " pages) — Network 'filters' is only the API; skeletons stay until theme cards import finishes",
+          " pages) — " +
+          hint,
         summary,
       );
     }
@@ -139,9 +173,10 @@
   }
 
   function patchWidget(widget) {
-    if (!widget || widget.__findlyPerfPatched) return;
-    widget.__findlyPerfPatched = true;
+    if (!widget) return;
+    /* Always re-run patchProto: grid.js may replace methods after the first boot. */
     patchProto(Object.getPrototypeOf(widget));
+    widget.__findlyPerfPatched = true;
   }
 
   function patchProto(proto) {
@@ -176,7 +211,7 @@
       !proto.ensureCardsForHandles.__findlyPerf
     ) {
       var origEnsure = proto.ensureCardsForHandles;
-      proto.ensureCardsForHandles = function (handles) {
+      proto.ensureCardsForHandles = function () {
         var cycle = activeCycle(this);
         stamp(cycle, "ensureStart");
         return Promise.resolve(origEnsure.apply(this, arguments)).then(
@@ -234,10 +269,10 @@
     if (desc && desc.get && desc.set) {
       var prevSet = desc.set;
       var prevGet = desc.get;
-      function setWrapped(widget) {
+      var setWrapped = function (widget) {
         prevSet.call(this, widget);
         if (widget) patchWidget(widget);
-      }
+      };
       setWrapped.__findlyPerfWrapped = true;
       Object.defineProperty(window, "__FINDLY_FILTER_WIDGET", {
         configurable: true,
@@ -248,10 +283,10 @@
         set: setWrapped,
       });
     } else {
-      function setDirect(widget) {
+      var setDirect = function (widget) {
         held = widget;
         if (widget) patchWidget(widget);
-      }
+      };
       setDirect.__findlyPerfWrapped = true;
       Object.defineProperty(window, "__FINDLY_FILTER_WIDGET", {
         configurable: true,

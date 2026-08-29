@@ -137,6 +137,15 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sf-chip > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(70vw, 16rem);
 }
 
 .sf-chip:hover {

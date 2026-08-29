@@ -3179,7 +3179,10 @@
     parent = preferProductCardGrid(resolveCardHost(parent) || parent);
     if (parent && !isPageShellHost(parent)) widget._gridParent = parent;
     lockThemeGridTracks(parent);
-    if (widget.setGridBusy) widget.setGridBusy(true);
+    var needFetch =
+      widget.missingHandles && widget.missingHandles(handles).length > 0;
+    /* Avoid a second long busy crawl when cache already has cards (DOM gaps only). */
+    if (needFetch && widget.setGridBusy) widget.setGridBusy(true);
     function stale() {
       return widget._reqId !== reqId;
     }
@@ -3236,7 +3239,7 @@
         if (widget._reqId === reqId) widget._reapplyingGrid = false;
       }
     };
-    if (widget.ensureCardsForHandles) {
+    if (needFetch && widget.ensureCardsForHandles) {
       Promise.resolve(widget.ensureCardsForHandles(handles)).then(done, done);
       return;
     }
@@ -4038,6 +4041,83 @@
     return null;
   }
 
+  function isShopifyGidLabel(value) {
+    return /^gid:\/\/shopify\//i.test(String(value == null ? "" : value).trim());
+  }
+
+  function chipLabelKey(key, value) {
+    return String(key) + "\0" + String(value == null ? "" : value);
+  }
+
+  function humanChipItemLabel(item) {
+    if (!item) return "";
+    var label = item.label != null ? String(item.label).trim() : "";
+    if (label && !isShopifyGidLabel(label)) return label;
+    var handle = item.handle != null ? String(item.handle).trim() : "";
+    if (handle) return handle;
+    return "";
+  }
+
+  function rememberChipLabel(widget, key, value, label) {
+    if (!widget) return;
+    if (!widget._valueLabels) widget._valueLabels = {};
+    var text = String(label == null ? "" : label).trim();
+    if (!key || value == null || value === "" || !text || isShopifyGidLabel(text)) {
+      return;
+    }
+    widget._valueLabels[chipLabelKey(key, value)] = text;
+  }
+
+  function rememberFacetChipLabels(widget, facets) {
+    if (!widget) return;
+    if (!widget._valueLabels) widget._valueLabels = {};
+    function walk(key, items) {
+      (items || []).forEach(function (item) {
+        if (!item) return;
+        var value = item.value != null ? item.value : item.label;
+        var label = humanChipItemLabel(item);
+        if (value != null && value !== "" && label) {
+          rememberChipLabel(widget, key, value, label);
+        }
+        if (item.handle && label) {
+          rememberChipLabel(widget, key, item.handle, label);
+        }
+        if (item.children && item.children.length) walk(key, item.children);
+      });
+    }
+    (facets || []).forEach(function (facet) {
+      if (!facet || !facet.key) return;
+      walk(facet.key, facet.values);
+    });
+  }
+
+  function resolveChipLabel(widget, key, value) {
+    if (!widget) return "";
+    if (!widget._valueLabels) widget._valueLabels = {};
+    var cacheKey = chipLabelKey(key, value);
+    var cached = widget._valueLabels[cacheKey];
+    if (cached && !isShopifyGidLabel(cached)) return String(cached);
+    rememberFacetChipLabels(widget, widget.facets);
+    cached = widget._valueLabels[cacheKey];
+    if (cached && !isShopifyGidLabel(cached)) return String(cached);
+    // Match GID / numeric collection ids across facet values.
+    var wantedId = String(value == null ? "" : value).match(/\/Collection\/(\d+)/i);
+    wantedId = wantedId ? wantedId[1] : /^\d+$/.test(String(value || "")) ? String(value) : "";
+    if (wantedId) {
+      var keys = Object.keys(widget._valueLabels);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf(String(key) + "\0") !== 0) continue;
+        var rawVal = keys[i].slice(String(key).length + 1);
+        var idMatch = String(rawVal).match(/\/Collection\/(\d+)/i);
+        var id = idMatch ? idMatch[1] : /^\d+$/.test(rawVal) ? rawVal : "";
+        if (id && id === wantedId && !isShopifyGidLabel(widget._valueLabels[keys[i]])) {
+          return String(widget._valueLabels[keys[i]]);
+        }
+      }
+    }
+    return cached && !isShopifyGidLabel(cached) ? String(cached) : "";
+  }
+
   /** Mobile-only applied chips on the collection page (outside the drawer). */
   function placeMobilePageChips(widget) {
     if (!widget) return;
@@ -4059,6 +4139,7 @@
     clearPageChipsSlot(slot);
     if (typeof widget.renderChips !== "function") return;
 
+    rememberFacetChipLabels(widget, widget.facets);
     var chips = widget.renderChips();
     if (chips) {
       slot.appendChild(chips);
@@ -5740,12 +5821,125 @@
       if (!origThemePage) return Promise.resolve(false);
       return origThemePage.call(this, page).then(function (ok) {
         if (!self._themeNoMore) return ok;
-        var pending = self._visibleHandles || self._shownHandles;
+        var pending =
+          self._ensureHandles ||
+          self._visibleHandles ||
+          self._shownHandles;
         if (pending && pending.length && self.missingHandles(pending).length) {
           self._themeNoMore = false;
         }
         return ok;
       });
+    };
+
+    /**
+     * Faster card import: fetch theme HTML pages in parallel waves (batch of 4).
+     * Same completion rules as core ensureCardsForHandles (wait until all requested
+     * handles are cached, or max / no-more) — no early partial resolve, so gap-fill
+     * is not required to “finish” the page. Core sequential path stays as fallback.
+     */
+    var THEME_PAGE_BATCH = 4;
+    var THEME_PAGE_FETCH_MAX_GRID = 40;
+    var origEnsureCards = proto.ensureCardsForHandles;
+    proto.ensureCardsForHandles = function (handles) {
+      var self = this;
+      var reqId = this._reqId;
+      if (this.cacheNativeCards) this.cacheNativeCards();
+      if (!this._gridParent) {
+        return origEnsureCards
+          ? origEnsureCards.apply(this, arguments)
+          : Promise.resolve(false);
+      }
+      if (!this.missingHandles(handles).length) return Promise.resolve(true);
+
+      self._ensureHandles = handles;
+
+      function stale() {
+        return self._reqId !== reqId;
+      }
+
+      function hasAnyRequested() {
+        var list = handles || [];
+        var i;
+        for (i = 0; i < list.length; i++) {
+          var key = String(list[i] || "").toLowerCase();
+          if (!key) continue;
+          var base = key.split("::")[0];
+          var cache = self._cardCache || {};
+          if (cache[key] || (base && cache[base])) return true;
+        }
+        return false;
+      }
+
+      function missingLeft() {
+        return self.missingHandles(handles).length;
+      }
+
+      function clearEnsureHandles() {
+        if (self._ensureHandles === handles) self._ensureHandles = null;
+      }
+
+      function fetchBatch(startPage) {
+        var jobs = [];
+        var i;
+        for (i = 0; i < THEME_PAGE_BATCH; i++) {
+          var page = startPage + i;
+          if (page > THEME_PAGE_FETCH_MAX_GRID) break;
+          jobs.push(self.fetchThemePage(page));
+        }
+        if (!jobs.length) return Promise.resolve([]);
+        return Promise.all(jobs);
+      }
+
+      function anyOk(results) {
+        var i;
+        for (i = 0; i < results.length; i++) {
+          if (results[i]) return true;
+        }
+        return false;
+      }
+
+      function step(startPage) {
+        if (stale()) {
+          clearEnsureHandles();
+          return Promise.resolve(false);
+        }
+        if (!missingLeft()) {
+          clearEnsureHandles();
+          return Promise.resolve(true);
+        }
+        if (startPage > THEME_PAGE_FETCH_MAX_GRID) {
+          clearEnsureHandles();
+          return Promise.resolve(hasAnyRequested());
+        }
+        if (self._themeNoMore && missingLeft() > 0) {
+          self._themeNoMore = false;
+        }
+        if (self._themeNoMore) {
+          clearEnsureHandles();
+          return Promise.resolve(hasAnyRequested());
+        }
+        return fetchBatch(startPage).then(function (results) {
+          if (stale()) {
+            clearEnsureHandles();
+            return false;
+          }
+          if (self._themeNoMore && missingLeft() > 0) {
+            self._themeNoMore = false;
+          }
+          if (!missingLeft()) {
+            clearEnsureHandles();
+            return true;
+          }
+          if (!anyOk(results)) {
+            clearEnsureHandles();
+            return hasAnyRequested();
+          }
+          return step(startPage + THEME_PAGE_BATCH);
+        });
+      }
+
+      return step(1);
     };
 
     var origImport = proto.importCardsFromDocument;
@@ -6081,6 +6275,7 @@
 
     var origRenderFacets = proto.renderFacets;
     proto.renderFacets = function () {
+      rememberFacetChipLabels(this, this.facets);
       var panel = liveDrawerPanel(this);
       if (panel) syncDrawerPanelRefs(this, panel);
       var result = origRenderFacets
@@ -6094,6 +6289,68 @@
       decorateCheckMarks(this.panelEl || this.facetsEl || this.root);
       mountFacetValueSearch(this);
       return result;
+    };
+
+    var origToggleValue = proto.toggleValue;
+    proto.toggleValue = function (key, value, checked) {
+      if (checked) {
+        rememberChipLabel(this, key, value, resolveChipLabel(this, key, value));
+      }
+      return origToggleValue
+        ? origToggleValue.apply(this, arguments)
+        : undefined;
+    };
+
+    var origRenderChips = proto.renderChips;
+    proto.renderChips = function () {
+      rememberFacetChipLabels(this, this.facets);
+      if (!origRenderChips) return null;
+      var self = this;
+      var prevFacets = this.facets;
+      var facets = (prevFacets || []).slice();
+      var byKey = {};
+      facets.forEach(function (facet, index) {
+        if (facet && facet.key) byKey[facet.key] = index;
+      });
+
+      Object.keys(this.selected || {}).forEach(function (key) {
+        (self.selected[key] || []).forEach(function (value) {
+          var label = resolveChipLabel(self, key, value);
+          if (!label || isShopifyGidLabel(label)) return;
+          var index = byKey[key];
+          var facet =
+            index != null
+              ? facets[index]
+              : { key: key, label: key, type: "list", values: [] };
+          if (index == null) {
+            byKey[key] = facets.length;
+            facets.push(facet);
+          }
+          var values = (facet.values || []).slice();
+          var found = false;
+          values = values.map(function (item) {
+            if (!item) return item;
+            var itemValue = item.value != null ? item.value : item.label;
+            if (String(itemValue) !== String(value)) return item;
+            found = true;
+            if (isShopifyGidLabel(item.label) || !item.label) {
+              return Object.assign({}, item, { label: label });
+            }
+            return item;
+          });
+          if (!found) values.push({ value: value, label: label });
+          facets[byKey[key]] = Object.assign({}, facet, { values: values });
+        });
+      });
+
+      this.facets = facets;
+      var chips = null;
+      try {
+        chips = origRenderChips.call(this);
+      } finally {
+        this.facets = prevFacets;
+      }
+      return chips;
     };
 
     var origFail = proto.failFilterLoad;

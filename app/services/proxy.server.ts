@@ -846,12 +846,15 @@ async function loadSearchFilterPayload(input: {
     ]),
   );
   if (!(appSettings.enableFiltersOnSearch ?? true)) {
+    const resolved = resolveWidgetChrome(navExtras.i18n, input.locale);
     return {
       data: {
         enabled: false,
         facets: [],
         products: [],
         total: 0,
+        locale: resolved.locale,
+        i18n: resolved.chrome,
         settings: { enableFiltersOnSearch: false },
       },
       status: 200 as const,
@@ -860,15 +863,32 @@ async function loadSearchFilterPayload(input: {
 
   const query = normalizeSearchQuery(input.query);
   if (!query) {
+    const resolved = resolveWidgetChrome(navExtras.i18n, input.locale);
     return {
-      data: { enabled: true, query: "", facets: [], products: [], total: 0 },
+      data: {
+        enabled: true,
+        query: "",
+        facets: [],
+        products: [],
+        total: 0,
+        locale: resolved.locale,
+        i18n: resolved.chrome,
+      },
       status: 200 as const,
     };
   }
 
   if (!config?.enabled) {
+    const resolved = resolveWidgetChrome(navExtras.i18n, input.locale);
     return {
-      data: { enabled: false, facets: [], products: [], total: 0 },
+      data: {
+        enabled: false,
+        facets: [],
+        products: [],
+        total: 0,
+        locale: resolved.locale,
+        i18n: resolved.chrome,
+      },
       status: 200 as const,
     };
   }

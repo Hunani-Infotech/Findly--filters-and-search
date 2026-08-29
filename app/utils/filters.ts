@@ -1475,7 +1475,7 @@ export function buildFacetAggregations(
         )
         .map((row) => ({
           value: row.collectionGid,
-          label: row.title || row.collectionGid,
+          label: row.title || row.handle || row.collectionGid,
           count: counts.get(row.collectionGid) || 0,
           handle: row.handle,
           url: collectionStorefrontPath(row.handle),

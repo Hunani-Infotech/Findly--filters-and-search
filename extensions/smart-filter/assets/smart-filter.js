@@ -381,17 +381,31 @@
   }
 
   function chipDisplayLabel(facets, key, value) {
+    function walk(values) {
+      var list = values || [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (!item) continue;
+        var itemValue = String(item.value != null ? item.value : item.label || "");
+        var handle = String(item.handle || "");
+        if (itemValue === String(value) || (handle && handle === String(value))) {
+          var label = String(item.label != null ? item.label : "").trim();
+          if (label && label.indexOf("gid://") !== 0) return label;
+          if (handle) return handle;
+        }
+        var nested = walk(item.children);
+        if (nested) return nested;
+      }
+      return "";
+    }
     var list = facets || [];
     for (var i = 0; i < list.length; i++) {
       if (list[i].key !== key) continue;
-      var values = list[i].values || [];
-      for (var j = 0; j < values.length; j++) {
-        if (String(values[j].value) === String(value) && values[j].label) {
-          return String(values[j].label);
-        }
-      }
+      var found = walk(list[i].values);
+      if (found) return found;
     }
-    return String(value);
+    var raw = String(value == null ? "" : value);
+    return raw.indexOf("gid://") === 0 ? "" : raw;
   }
 
   function isSizeFacet(facet) {
@@ -4609,6 +4623,7 @@
       }
       vals.forEach(function (value) {
         var chipLabel = chipDisplayLabel(self.facets, key, value);
+        if (!chipLabel || String(chipLabel).indexOf("gid://") === 0) return;
         var chip = document.createElement("button");
         chip.type = "button";
         chip.className = "sf-chip";

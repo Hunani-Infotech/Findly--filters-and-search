@@ -5,11 +5,11 @@ import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 
 /**
  * Shopify Admin sometimes opens `/collections` (no `/app` prefix).
- * Send merchants into the Polaris Collections index instead of the marketing 404.
+ * Collections browse was removed; send merchants to Filters instead.
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  throw redirect(withEmbeddedParamsFromRequest(request, "/app/collections"));
+  throw redirect(withEmbeddedParamsFromRequest(request, "/app/filters"));
 };
 
 export default function CollectionsRedirect() {
