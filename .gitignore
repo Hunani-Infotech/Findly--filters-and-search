@@ -41,6 +41,13 @@ pnpm-lock.yaml
 .local-globo-research/
 npmdev.log
 
+# Perf audit / LCP fixture outputs (regenerate locally)
+scripts/perf-audit-*.json
+scripts/perf-audit-*-log*.txt
+scripts/perf-lcp-compare.json
+scripts/_dead-*
+scripts/_tmp-*
+
 # Cursor skills on this PC only — not shared via git
 .cursor/skills/*
 # Shared: 100 KB Theme App Extension split workflow

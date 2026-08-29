@@ -7,6 +7,20 @@ const CONFIG_PREFIX = "config:";
 const localCatalogGen = new Map<string, number>();
 const localConfigGen = new Map<string, number>();
 
+/**
+ * Soft freshness window for CacheGeneration reads.
+ * After this, serve stale-while-revalidate (return memory immediately,
+ * refresh Postgres in the background). Same-process bumps still win via
+ * Math.max(db, local) without waiting for refresh.
+ */
+const GENS_FRESH_MS = 5_000;
+type GensReadEntry = { catalog: number; config: number; freshUntil: number };
+const gensReadCache = new Map<string, GensReadEntry>();
+const gensReadInflight = new Map<
+  string,
+  Promise<{ catalog: number; config: number }>
+>();
+
 /** Postgres CacheGeneration.key for catalog invalidation — keep in sync with GDPR purge. */
 export function catalogCacheKey(shopDomain: string) {
   return `${CATALOG_PREFIX}${shopDomain}`;
@@ -25,10 +39,16 @@ function configKey(shopDomain: string) {
   return configCacheKey(shopDomain);
 }
 
+function invalidateGensReadCache(shopDomain: string) {
+  gensReadCache.delete(shopDomain);
+  gensReadInflight.delete(shopDomain);
+}
+
 /** Drop in-process generation counters for a shop (uninstall / shop/redact). */
 export function forgetShopCacheGenerations(shopDomain: string) {
   localCatalogGen.delete(shopDomain);
   localConfigGen.delete(shopDomain);
+  invalidateGensReadCache(shopDomain);
 }
 
 function localMapValue(store: Map<string, number>, shopDomain: string): number {
@@ -60,48 +80,110 @@ async function readGeneration(key: string): Promise<number> {
   return row?.version ?? 0;
 }
 
+async function fetchGensFromDb(
+  shopDomain: string,
+): Promise<{ catalog: number; config: number }> {
+  let pending = gensReadInflight.get(shopDomain);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const rows = await prisma.cacheGeneration.findMany({
+          where: {
+            key: { in: [catalogKey(shopDomain), configKey(shopDomain)] },
+          },
+        });
+        const byKey = new Map(rows.map((row) => [row.key, row.version]));
+        return {
+          catalog: byKey.get(catalogKey(shopDomain)) ?? 0,
+          config: byKey.get(configKey(shopDomain)) ?? 0,
+        };
+      } finally {
+        gensReadInflight.delete(shopDomain);
+      }
+    })();
+    gensReadInflight.set(shopDomain, pending);
+  }
+  return pending;
+}
+
+function storeGensRead(
+  shopDomain: string,
+  db: { catalog: number; config: number },
+) {
+  gensReadCache.set(shopDomain, {
+    catalog: db.catalog,
+    config: db.config,
+    freshUntil: Date.now() + GENS_FRESH_MS,
+  });
+}
+
+function mergeWithLocal(
+  shopDomain: string,
+  catalog: number,
+  config: number,
+): StorefrontCacheGens {
+  return {
+    catalog: String(
+      Math.max(catalog, localMapValue(localCatalogGen, shopDomain)),
+    ),
+    config: String(Math.max(config, localMapValue(localConfigGen, shopDomain))),
+  };
+}
+
+/** Non-blocking refresh for stale-while-revalidate hits. */
+function revalidateGensInBackground(shopDomain: string) {
+  if (gensReadInflight.has(shopDomain)) return;
+  void fetchGensFromDb(shopDomain)
+    .then((db) => {
+      storeGensRead(shopDomain, db);
+    })
+    .catch((error) => {
+      log.warn("[catalog-cache] background gens refresh failed", error);
+    });
+}
+
 /**
- * One DB round-trip for catalog + widget-config generations.
- * Filter/search JSON caches should include both so admin saves are visible
- * without invalidating the product-row cache.
+ * One DB round-trip for catalog + widget-config generations (true cold only).
+ * After the first successful read, subsequent calls return memory immediately
+ * (stale-while-revalidate when soft TTL expired). Same-process sync/admin
+ * bumps update local counters so Math.max still invalidates payload caches.
+ *
+ * Correctness bound after a *cross-process* bump (e.g. worker): stale gen
+ * may be served for at most GENS_FRESH_MS while still "soft-fresh", then one
+ * more request returns the stale value while a background refresh runs; the
+ * next request sees the updated generation (and may cold-load the new
+ * gens-keyed payload once). Same-process bumps are immediate via
+ * invalidateGensReadCache + local Math.max.
+ *
+ * Filter/search payload caches use the same SWR pattern (see createTtlCache /
+ * getCollectionFilterPayload): soft TTL expiry never blocks; only a true
+ * miss or a new cache key after a gen bump blocks on Postgres.
  */
 export async function getStorefrontCacheGens(
   shopDomain: string,
 ): Promise<StorefrontCacheGens> {
-  const localCatalog = localMapValue(localCatalogGen, shopDomain);
-  const localConfig = localMapValue(localConfigGen, shopDomain);
+  const cached = gensReadCache.get(shopDomain);
+  if (cached) {
+    if (cached.freshUntil <= Date.now()) {
+      revalidateGensInBackground(shopDomain);
+    }
+    return mergeWithLocal(shopDomain, cached.catalog, cached.config);
+  }
+
   try {
-    const rows = await prisma.cacheGeneration.findMany({
-      where: { key: { in: [catalogKey(shopDomain), configKey(shopDomain)] } },
-    });
-    const byKey = new Map(rows.map((row) => [row.key, row.version]));
-    return {
-      catalog: String(
-        Math.max(byKey.get(catalogKey(shopDomain)) ?? 0, localCatalog),
-      ),
-      config: String(
-        Math.max(byKey.get(configKey(shopDomain)) ?? 0, localConfig),
-      ),
-    };
+    const db = await fetchGensFromDb(shopDomain);
+    storeGensRead(shopDomain, db);
+    return mergeWithLocal(shopDomain, db.catalog, db.config);
   } catch (error) {
     log.warn("[catalog-cache] get storefront gens failed", error);
-    return {
-      catalog: String(localCatalog),
-      config: String(localConfig),
-    };
+    return mergeWithLocal(shopDomain, 0, 0);
   }
 }
 
 /** Storefront/admin caches should include this so catalog writes are visible immediately. */
 export async function getCatalogGeneration(shopDomain: string): Promise<string> {
-  const local = localMapValue(localCatalogGen, shopDomain);
-  try {
-    const version = await readGeneration(catalogKey(shopDomain));
-    return String(Math.max(version, local));
-  } catch (error) {
-    log.warn("[catalog-cache] get generation failed", error);
-    return String(local);
-  }
+  const gens = await getStorefrontCacheGens(shopDomain);
+  return gens.catalog;
 }
 
 /**
@@ -130,6 +212,7 @@ async function advanceLocalPastDb(
 export async function bumpCatalogGeneration(shopDomain: string): Promise<void> {
   const next = localMapValue(localCatalogGen, shopDomain) + 1;
   localCatalogGen.set(shopDomain, next);
+  invalidateGensReadCache(shopDomain);
   try {
     const dbN = await incrGeneration(catalogKey(shopDomain));
     localCatalogGen.set(shopDomain, Math.max(next, dbN));
@@ -145,11 +228,12 @@ export async function bumpCatalogGeneration(shopDomain: string): Promise<void> {
 }
 
 /** Call after filter-tree / widget-settings writes so JSON payloads miss cache. */
-export async function bumpStorefrontConfigGeneration(
+async function bumpStorefrontConfigGeneration(
   shopDomain: string,
 ): Promise<void> {
   const next = localMapValue(localConfigGen, shopDomain) + 1;
   localConfigGen.set(shopDomain, next);
+  invalidateGensReadCache(shopDomain);
   try {
     const dbN = await incrGeneration(configKey(shopDomain));
     localConfigGen.set(shopDomain, Math.max(next, dbN));

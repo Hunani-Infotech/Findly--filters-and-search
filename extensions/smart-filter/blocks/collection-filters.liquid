@@ -1,15 +1,16 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'smart-filter-ui.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'instant-search.css' | asset_url }}" media="all">
-{% # Inline class only: hide theme products before deferred boot mounts skeletons. %}
+{% # LCP-safe: leave Liquid products visible; do not preload filters API. %}
 <script>
-  document.documentElement.classList.add("sf-filter-loading");
-  document.documentElement.classList.remove("sf-filter-ready");
+  document.documentElement.classList.remove("sf-filter-loading");
+  document.documentElement.classList.add("sf-filter-ready");
 </script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
+<script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
 <script src="{{ 'instant-search.min.js' | asset_url }}" defer></script>
 {% assign sf_page_size = 16 %}
@@ -18,19 +19,9 @@
 {% elsif search.results.size >= 8 and search.results.size <= 48 %}
   {% assign sf_page_size = search.results.size %}
 {% endif %}
-{% if template contains 'collection' or template contains 'search' %}
-  {% # App proxy JSON — not a theme asset; preload_tag / asset_url cannot be used. %}
-  {% # theme-check-disable AssetPreload, RemoteAsset %}
-  <link
-    rel="preload"
-    href="/apps/smart-filter/filters?collection_id={{ collection.id }}&collection_handle={{ collection.handle }}&page=1&pageSize={{ sf_page_size }}&locale={{ request.locale.iso_code }}&country={{ localization.country.iso_code }}&currency={{ cart.currency.iso_code }}"
-    as="fetch"
-  >
-  {% # theme-check-enable AssetPreload, RemoteAsset %}
-{% endif %}
 <div
   id="smart-filter-root"
-  class="smart-filter smart-filter--{{ block.settings.position }}"
+  class="smart-filter smart-filter--{{ block.settings.position }} sf-layout-stub"
   data-collection-id="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-page-size="{{ sf_page_size }}"

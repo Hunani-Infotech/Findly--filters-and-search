@@ -31,7 +31,22 @@ export async function findShopCached(
   domain: string,
 ): Promise<ShopWithSubscription | null> {
   const hit = shopCache.get(domain);
-  if (hit && hit.expires > Date.now()) return hit.value;
+  if (hit) {
+    if (hit.expires <= Date.now()) {
+      void prisma.shop
+        .findUnique({
+          where: { domain },
+          include: { subscription: true },
+        })
+        .then((shop) => {
+          if (shop) rememberShop(shop);
+        })
+        .catch(() => {
+          /* keep serving stale */
+        });
+    }
+    return hit.value;
+  }
   const shop = await prisma.shop.findUnique({
     where: { domain },
     include: { subscription: true },
@@ -44,7 +59,22 @@ export async function findShopByIdCached(
   shopId: string,
 ): Promise<ShopWithSubscription | null> {
   const hit = shopByIdCache.get(shopId);
-  if (hit && hit.expires > Date.now()) return hit.value;
+  if (hit) {
+    if (hit.expires <= Date.now()) {
+      void prisma.shop
+        .findUnique({
+          where: { id: shopId },
+          include: { subscription: true },
+        })
+        .then((shop) => {
+          if (shop) rememberShop(shop);
+        })
+        .catch(() => {
+          /* keep serving stale */
+        });
+    }
+    return hit.value;
+  }
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     include: { subscription: true },

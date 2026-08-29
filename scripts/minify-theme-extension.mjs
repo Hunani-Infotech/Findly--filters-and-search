@@ -62,6 +62,14 @@ const JOBS = [
     banner: "/* generated from smart-filter-boot.js — do not edit */\n",
   },
   {
+    src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-perf.js"),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-perf.min.js",
+    ),
+    banner: "/* generated from smart-filter-perf.js — do not edit */\n",
+  },
+  {
     src: path.join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
     out: path.join(
       ROOT,
@@ -98,7 +106,7 @@ async function minifyJob(job) {
   const output = job.banner + result.code;
   const bytes = Buffer.byteLength(output);
   const relOut = path.relative(ROOT, job.out);
-  if (job.limitBytes != null && bytes >= job.limitBytes) {
+  if (job.limitBytes != null && bytes > job.limitBytes) {
     throw new Error(
       `${relOut} is ${bytes} B after minify (limit ${job.limitBytes} B). Split the widget before deploying.`,
     );

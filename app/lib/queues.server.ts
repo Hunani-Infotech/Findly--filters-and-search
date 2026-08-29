@@ -9,8 +9,6 @@ import {
 } from "../constants/limits";
 import { log } from "./log.server";
 
-export const SYNC_QUEUE = "sync-queue";
-
 export type SyncJobName =
   | "shop.fullSync"
   | "shop.ingestBulk"
@@ -39,8 +37,6 @@ const DROP_IF_BUSY_JOBS: ReadonlySet<SyncJobName> = new Set([
   "shop.cleanup",
   "shop.finalizeFullSync",
 ]);
-
-const ACTIVE: ReadonlySet<QueueJobStatus> = new Set(["pending", "processing"]);
 
 /** Stable worker id for lockedBy — helps debug which process held a stale lock. */
 export function workerLockId() {
@@ -216,9 +212,6 @@ export async function enqueueSyncJobWithTimeout(
   ]);
 }
 
-/** Alias used by the new API surface. */
-export const enqueueJob = enqueueSyncJob;
-
 /**
  * Requeue jobs left in `processing` after a crash / killed process.
  * Uses Postgres NOW() so Hostinger clock skew cannot strand jobs.
@@ -368,8 +361,4 @@ export async function pruneTerminalJobs(keep = 200) {
       where: { status, id: { notIn: keepIds } },
     });
   }
-}
-
-export function isActiveQueueStatus(status: QueueJobStatus) {
-  return ACTIVE.has(status);
 }

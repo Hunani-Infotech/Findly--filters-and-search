@@ -6,8 +6,7 @@
 (function (global) {
   "use strict";
 
-  var DEBOUNCE_MS = 300;
-  var IDLE_TIMEOUT_MS = 2000;
+  var IDLE_TIMEOUT_MS = 1500;
 
   function qs(root, selector) {
     return root.querySelector(selector);
@@ -128,7 +127,6 @@
   }
 
   global.__FINDLY_DOM = {
-    DEBOUNCE_MS: DEBOUNCE_MS,
     qs: qs,
     shopDomain: shopDomain,
     setHidden: setHidden,

@@ -1,21 +1,16 @@
 /** Short-lived in-process cache for Tokyo-latency GET loaders. */
 
+/**
+ * Soft-TTL stale-while-revalidate cache.
+ * After `ttlMs`, `wrap` still returns the last value immediately and refreshes
+ * in the background. Only a true miss (never cached / deleted) blocks on load.
+ */
 export function createTtlCache<T>(ttlMs: number) {
-  const store = new Map<string, { value: T; expires: number }>();
+  const store = new Map<string, { value: T; freshUntil: number }>();
   const inflight = new Map<string, Promise<T>>();
 
-  function get(key: string): T | undefined {
-    const hit = store.get(key);
-    if (!hit) return undefined;
-    if (hit.expires <= Date.now()) {
-      store.delete(key);
-      return undefined;
-    }
-    return hit.value;
-  }
-
   function set(key: string, value: T) {
-    store.set(key, { value, expires: Date.now() + ttlMs });
+    store.set(key, { value, freshUntil: Date.now() + ttlMs });
   }
 
   function del(key: string) {
@@ -32,9 +27,32 @@ export function createTtlCache<T>(ttlMs: number) {
     }
   }
 
+  function revalidateInBackground(key: string, load: () => Promise<T>) {
+    if (inflight.has(key)) return;
+    const promise = load()
+      .then((value) => {
+        set(key, value);
+        inflight.delete(key);
+        return value;
+      })
+      .catch((error) => {
+        inflight.delete(key);
+        throw error;
+      });
+    inflight.set(key, promise);
+    void promise.catch(() => {
+      /* keep serving stale; next request can retry refresh */
+    });
+  }
+
   async function wrap(key: string, load: () => Promise<T>): Promise<T> {
-    const hit = get(key);
-    if (hit !== undefined) return hit;
+    const hit = store.get(key);
+    if (hit) {
+      if (hit.freshUntil <= Date.now()) {
+        revalidateInBackground(key, load);
+      }
+      return hit.value;
+    }
     const pending = inflight.get(key);
     if (pending) return pending;
     const promise = load()
@@ -51,5 +69,5 @@ export function createTtlCache<T>(ttlMs: number) {
     return promise;
   }
 
-  return { get, set, del, deletePrefix, wrap };
+  return { wrap, del, deletePrefix };
 }

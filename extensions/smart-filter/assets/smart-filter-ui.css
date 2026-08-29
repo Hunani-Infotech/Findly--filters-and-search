@@ -554,3 +554,46 @@
   padding: 0.5rem 0.65rem !important;
   border-radius: 6px !important;
 }
+
+/* Mobile page-level applied filter chips (outside the drawer). Desktop never shows. */
+.sf-page-chips {
+  display: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sf-page-chips[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 989px) {
+  .sf-page-chips:not([hidden]) {
+    display: block;
+    margin: 0 0 0.85rem;
+  }
+
+  .sf-page-chips .sf-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin: 0 !important;
+    padding: 0.1rem 0 0 !important;
+    border-bottom: 0 !important;
+    width: 100%;
+  }
+
+  .sf-page-chips .sf-chip {
+    padding: 0.28rem 0.55rem;
+    gap: 0.35rem;
+    line-height: 1.3;
+  }
+}
+
+@media (min-width: 990px) {
+  .sf-page-chips,
+  .sf-page-chips:not([hidden]) {
+    display: none !important;
+  }
+}

@@ -80,6 +80,7 @@ import { applyMarketPricesToRow, parseMarketContext } from "./markets.server";
 import { getStorefrontCacheGens } from "../lib/catalog-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
+import { measureStorefrontStep } from "../lib/storefront-timing.server";
 import {
   catalogGenerationForShopId,
   facetDbRowToProductRow,
@@ -99,19 +100,19 @@ const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
 const FILTER_PAYLOAD_CACHE_MAX = 80;
 const shopCollectionsCache = createTtlCache<ShopCollection[]>(45_000);
 const collectionProductCountsCache = createTtlCache<Map<string, number>>(45_000);
+/** productGid → collectionGids — avoids per-request CollectionMembership round-trips. */
+const collectionMembershipIndexCache = createTtlCache<Map<string, string[]>>(
+  45_000,
+);
 
 type CachedFilterPayload = {
-  expires: number;
+  freshUntil: number;
   result: Awaited<ReturnType<typeof loadCollectionFilterPayload>>;
 };
 
 const filterPayloadCache = new Map<string, CachedFilterPayload>();
 
 function pruneFilterPayloadCache() {
-  const now = Date.now();
-  for (const [key, entry] of filterPayloadCache) {
-    if (entry.expires <= now) filterPayloadCache.delete(key);
-  }
   if (filterPayloadCache.size <= FILTER_PAYLOAD_CACHE_MAX) return;
   const extra = filterPayloadCache.size - FILTER_PAYLOAD_CACHE_MAX;
   const keys = filterPayloadCache.keys();
@@ -125,6 +126,8 @@ function pruneFilterPayloadCache() {
 export function clearFilterPayloadCache() {
   filterPayloadCache.clear();
   collectionProductCountsCache.deletePrefix("");
+  collectionMembershipIndexCache.deletePrefix("");
+  shopCollectionsCache.deletePrefix("");
 }
 
 function collectionFilterCacheKey(input: {
@@ -266,24 +269,31 @@ async function loadCollectionProductCounts(
   });
 }
 
+async function loadCollectionMembershipIndex(
+  shopId: string,
+): Promise<Map<string, string[]>> {
+  const gen = await catalogGenerationForShopId(shopId);
+  return collectionMembershipIndexCache.wrap(`${gen}:${shopId}`, async () => {
+    const memberships = await prisma.collectionMembership.findMany({
+      where: { shopId },
+      select: { productGid: true, collectionGid: true },
+    });
+    const byProduct = new Map<string, string[]>();
+    for (const row of memberships) {
+      const list = byProduct.get(row.productGid);
+      if (list) list.push(row.collectionGid);
+      else byProduct.set(row.productGid, [row.collectionGid]);
+    }
+    return byProduct;
+  });
+}
+
 async function attachCollectionGids(
   shopId: string,
   rows: ProductFacetRow[],
 ): Promise<ProductFacetRow[]> {
   if (!rows.length) return rows;
-  const memberships = await prisma.collectionMembership.findMany({
-    where: {
-      shopId,
-      productGid: { in: rows.map((row) => row.productGid) },
-    },
-    select: { productGid: true, collectionGid: true },
-  });
-  const byProduct = new Map<string, string[]>();
-  for (const row of memberships) {
-    const list = byProduct.get(row.productGid) || [];
-    list.push(row.collectionGid);
-    byProduct.set(row.productGid, list);
-  }
+  const byProduct = await loadCollectionMembershipIndex(shopId);
   return rows.map((row) => ({
     ...row,
     collectionGids: byProduct.get(row.productGid) || [],
@@ -308,10 +318,33 @@ export async function getCollectionFilterPayload(input: {
   pageSize?: number;
 } & MarketRequestFields) {
   pruneFilterPayloadCache();
-  const gens = await getStorefrontCacheGens(input.shopDomain);
+  const gens = await measureStorefrontStep("cacheGenMs", () =>
+    getStorefrontCacheGens(input.shopDomain),
+  );
   const cacheKey = `${gens.catalog}:${gens.config}:${collectionFilterCacheKey(input)}`;
   const cached = filterPayloadCache.get(cacheKey);
-  if (cached && cached.expires > Date.now()) {
+  if (cached) {
+    if (cached.freshUntil <= Date.now() && !filterPayloadInflight.has(cacheKey)) {
+      const refresh = loadCollectionFilterPayload(input)
+        .then((result) => {
+          if (!("error" in result && result.error)) {
+            filterPayloadCache.set(cacheKey, {
+              freshUntil: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
+              result,
+            });
+          }
+          filterPayloadInflight.delete(cacheKey);
+          return result;
+        })
+        .catch((error) => {
+          filterPayloadInflight.delete(cacheKey);
+          throw error;
+        });
+      filterPayloadInflight.set(cacheKey, refresh);
+      void refresh.catch(() => {
+        /* keep serving stale */
+      });
+    }
     return cached.result;
   }
   const pending = filterPayloadInflight.get(cacheKey);
@@ -320,7 +353,7 @@ export async function getCollectionFilterPayload(input: {
     .then((result) => {
       if (!("error" in result && result.error)) {
         filterPayloadCache.set(cacheKey, {
-          expires: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
+          freshUntil: Date.now() + FILTER_PAYLOAD_CACHE_TTL_MS,
           result,
         });
       }
@@ -386,15 +419,17 @@ async function loadCollectionFilterPayload(input: {
     valueGroups,
     swatches,
     navExtras,
-  ] = await Promise.all([
-    getFilterConfig(shop.id, collectionGid || ""),
-    getAppSettings(shop.id),
-    getMetafieldMappings(shop.id),
-    resolveFilterLimit(shop.id),
-    listValueGroups(shop.id),
-    swatchMapForShop(shop.id),
-    getAdminNavExtras(shop.id),
-  ]);
+  ] = await measureStorefrontStep("configDbMs", () =>
+    Promise.all([
+      getFilterConfig(shop.id, collectionGid || ""),
+      getAppSettings(shop.id),
+      getMetafieldMappings(shop.id),
+      resolveFilterLimit(shop.id),
+      listValueGroups(shop.id),
+      swatchMapForShop(shop.id),
+      getAdminNavExtras(shop.id),
+    ]),
+  );
   if (!config?.enabled) {
     const resolved = resolveWidgetChrome(navExtras.i18n, input.locale);
     return {
@@ -424,9 +459,11 @@ async function loadCollectionFilterPayload(input: {
     searchFields,
     sort: input.sort,
   });
-  const productsDb = isAll
-    ? await loadShopProductFacets(shop.id, facetSelect)
-    : await loadCollectionProductFacets(shop.id, collectionGid as string, facetSelect);
+  const productsDb = await measureStorefrontStep("facetQueryMs", () =>
+    isAll
+      ? loadShopProductFacets(shop.id, facetSelect)
+      : loadCollectionProductFacets(shop.id, collectionGid as string, facetSelect),
+  );
 
   const metafieldPaths = searchFields.includes("metafields")
     ? enabledMetafieldPaths(mappings)
@@ -471,27 +508,29 @@ async function loadCollectionFilterPayload(input: {
       sortPosition: product.position ?? 0,
     }));
 
-  return buildFacetPayload({
-    shopId: shop.id,
-    config,
-    rows: allRows,
-    selected: input.selected,
-    collectionGid,
-    isAllProductsCollection: isAll,
-    shopWideCollectionCounts: isAll,
-    sort: input.sort,
-    query: collectionQuery || null,
-    locale: input.locale,
-    page: input.page,
-    pageSize: input.pageSize,
-    currency: payloadCurrency(context, allRows),
-    appSettings,
-    extras: navExtras,
-    mappings,
-    filterLimit,
-    valueGroups,
-    swatches,
-  });
+  return measureStorefrontStep("aggregateMs", () =>
+    buildFacetPayload({
+      shopId: shop.id,
+      config,
+      rows: allRows,
+      selected: input.selected,
+      collectionGid,
+      isAllProductsCollection: isAll,
+      shopWideCollectionCounts: isAll,
+      sort: input.sort,
+      query: collectionQuery || null,
+      locale: input.locale,
+      page: input.page,
+      pageSize: input.pageSize,
+      currency: payloadCurrency(context, allRows),
+      appSettings,
+      extras: navExtras,
+      mappings,
+      filterLimit,
+      valueGroups,
+      swatches,
+    }),
+  );
 }
 
 async function buildFacetPayload(input: {
@@ -575,13 +614,17 @@ async function buildFacetPayload(input: {
   let collectionCatalog: ShopCollection[] = [];
   let collectionTotals: Map<string, number> | null = null;
   if (wantsCollection || selectedCollection) {
-    const [withGids, catalog, totals] = await Promise.all([
-      attachCollectionGids(input.shopId, visibleBase),
-      loadShopCollections(input.shopId),
-      input.isSearch || input.shopWideCollectionCounts === false
-        ? Promise.resolve(null)
-        : loadCollectionProductCounts(input.shopId),
-    ]);
+    const [withGids, catalog, totals] = await measureStorefrontStep(
+      "collectionJoinMs",
+      () =>
+        Promise.all([
+          attachCollectionGids(input.shopId, visibleBase),
+          loadShopCollections(input.shopId),
+          input.isSearch || input.shopWideCollectionCounts === false
+            ? Promise.resolve(null)
+            : loadCollectionProductCounts(input.shopId),
+        ]),
+    );
     visibleRows = withGids;
     collectionCatalog = catalog;
     collectionTotals = totals;
@@ -791,15 +834,17 @@ async function loadSearchFilterPayload(input: {
     valueGroups,
     swatches,
     navExtras,
-  ] = await Promise.all([
-    getAppSettings(shop.id),
-    getFilterConfig(shop.id, ""),
-    getMetafieldMappings(shop.id),
-    resolveFilterLimit(shop.id),
-    listValueGroups(shop.id),
-    swatchMapForShop(shop.id),
-    getAdminNavExtras(shop.id),
-  ]);
+  ] = await measureStorefrontStep("configDbMs", () =>
+    Promise.all([
+      getAppSettings(shop.id),
+      getFilterConfig(shop.id, ""),
+      getMetafieldMappings(shop.id),
+      resolveFilterLimit(shop.id),
+      listValueGroups(shop.id),
+      swatchMapForShop(shop.id),
+      getAdminNavExtras(shop.id),
+    ]),
+  );
   if (!(appSettings.enableFiltersOnSearch ?? true)) {
     return {
       data: {
@@ -828,7 +873,9 @@ async function loadSearchFilterPayload(input: {
     };
   }
 
-  const productsDb = await searchProductFacets(shop.id, query);
+  const productsDb = await measureStorefrontStep("facetQueryMs", () =>
+    searchProductFacets(shop.id, query),
+  );
   const enableMarkets = appSettings.enableMarkets !== false;
   const context = parseMarketContext(input);
   const allRows = productsDb.map((product) =>
@@ -863,11 +910,15 @@ async function loadSearchFilterPayload(input: {
 
 type SearchFilterPayload = Awaited<ReturnType<typeof loadSearchFilterPayload>>;
 const searchPayloadCache = createTtlCache<SearchFilterPayload>(45_000);
+type InstantSearchPayload = Awaited<ReturnType<typeof loadSearchPayload>>;
+const instantSearchPayloadCache = createTtlCache<InstantSearchPayload>(45_000);
 
 export async function getSearchFilterPayload(
   input: Parameters<typeof loadSearchFilterPayload>[0],
 ) {
-  const gens = await getStorefrontCacheGens(input.shopDomain);
+  const gens = await measureStorefrontStep("cacheGenMs", () =>
+    getStorefrontCacheGens(input.shopDomain),
+  );
   const cacheKey = `${gens.catalog}:${gens.config}:search:${collectionFilterCacheKey({
     shopDomain: input.shopDomain,
     selected: input.selected,
@@ -917,6 +968,31 @@ export async function getSearchPayload(input: {
   take?: number;
   listing?: boolean;
 } & MarketRequestFields) {
+  const gens = await measureStorefrontStep("cacheGenMs", () =>
+    getStorefrontCacheGens(input.shopDomain),
+  );
+  const cacheKey = `${gens.catalog}:${gens.config}:instant:${JSON.stringify({
+    shop: input.shopDomain,
+    q: input.query,
+    locale: input.locale || "",
+    take: input.take ?? 24,
+    listing: Boolean(input.listing),
+    country: input.country || "",
+    currency: input.currency || "",
+    loc: input.companyLocationId || input.company_location || "",
+  })}`;
+  return instantSearchPayloadCache.wrap(cacheKey, () =>
+    loadSearchPayload(input),
+  );
+}
+
+async function loadSearchPayload(input: {
+  shopDomain: string;
+  query: string;
+  locale?: string | null;
+  take?: number;
+  listing?: boolean;
+} & MarketRequestFields) {
   const shop = await findShopCached(input.shopDomain);
   if (!shop) {
     return { error: "Shop not synced", status: 404 as const };
@@ -942,19 +1018,21 @@ export async function getSearchPayload(input: {
     fields.includes("collectionTitle");
 
   const [{ products, meta }, liveCollections, pages, articles, extrasNav] =
-    await Promise.all([
-      searchProductsWithMeta(shop.id, input.query, { take }),
-      wantCollections
-        ? searchCollections(shop.id, collectionQuery, { take: 6 })
-        : Promise.resolve([]),
-      extras.instant.showPages
-        ? searchPages(shop.id, input.query, { take: 6 })
-        : Promise.resolve([]),
-      extras.instant.showBlogPosts
-        ? searchArticles(shop.id, input.query, { take: 6 })
-        : Promise.resolve([]),
-      getAdminNavExtras(shop.id),
-    ]);
+    await measureStorefrontStep("searchQueryMs", () =>
+      Promise.all([
+        searchProductsWithMeta(shop.id, input.query, { take }),
+        wantCollections
+          ? searchCollections(shop.id, collectionQuery, { take: 6 })
+          : Promise.resolve([]),
+        extras.instant.showPages
+          ? searchPages(shop.id, input.query, { take: 6 })
+          : Promise.resolve([]),
+        extras.instant.showBlogPosts
+          ? searchArticles(shop.id, input.query, { take: 6 })
+          : Promise.resolve([]),
+        getAdminNavExtras(shop.id),
+      ]),
+    );
 
   const wantSuggestions =
     (!normalizedQuery && settings.showSuggestionsOnEmptyQuery) ||
