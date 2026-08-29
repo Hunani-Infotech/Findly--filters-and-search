@@ -196,11 +196,10 @@ export default function PrivacyPolicy() {
             port 6543 plus a direct connection on port 5432 for migrations).
           </li>
           <li>
-            <strong>Redis + BullMQ (Upstash)</strong> — short-lived job
-            payloads (shop domain, product/collection ids, sync commands) for
-            background workers, over TLS (<code>rediss://</code>). Jobs are
-            not a second catalog copy. The worker usually runs in-process on
-            the Hostinger Node app.
+            <strong>PostgreSQL job queue</strong> — short-lived job
+            payloads (shop domain, product/collection ids, sync commands) stored
+            as <code>QueueJob</code> rows and drained by an in-process or
+            nohup/cron worker. Jobs are not a second catalog copy.
           </li>
           <li>
             <strong>Shopify</strong> — OAuth, Billing, Files (swatch uploads),
@@ -252,7 +251,7 @@ export default function PrivacyPolicy() {
             </strong>{" "}
             — Shopify sends this after uninstall (typically within 48 hours)
             when the shop’s data must be erased. We try to queue a background
-            cleanup; if Redis is down we delete tenant data in the webhook
+            cleanup; if the queue is unavailable we delete tenant data in the webhook
             process before responding. If that purge also fails we return an
             error so Shopify retries. Audit status is queued, redacted, or
             failed.
@@ -289,7 +288,7 @@ export default function PrivacyPolicy() {
           <li>
             <strong>After uninstall:</strong> we queue deletion of sessions and
             all shop-scoped rows (products, collections, settings, mappings,
-            swatches, analytics, billing mirror). Redis jobs for that shop are
+            swatches, analytics, billing mirror). Pending queue jobs for that shop are
             not used as a long-term store.
           </li>
           <li>
@@ -321,7 +320,7 @@ export default function PrivacyPolicy() {
         <h2 id="transfers">10. International transfers</h2>
         <p>
           The app process is hosted on Hostinger (Node.js). PostgreSQL is
-          hosted on Supabase. Redis is hosted on Upstash. Shopify remains
+          hosted on Supabase (including the background job queue). Shopify remains
           the merchant’s store, Admin, Billing, and Files host.
           If a merchant or shopper is in the EEA, UK, or another region, data
           described above may be processed in the US to provide the app.

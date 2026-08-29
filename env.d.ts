@@ -11,7 +11,6 @@ declare namespace NodeJS {
     SHOP_CUSTOM_DOMAIN?: string;
     DATABASE_URL?: string;
     DIRECT_URL?: string;
-    REDIS_URL?: string;
     BILLING_TEST_MODE?: string;
     HEALTH_CHECK_TOKEN?: string;
     GMAIL_USER?: string;

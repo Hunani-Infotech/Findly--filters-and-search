@@ -1,4 +1,3 @@
-import type { Job } from "bullmq";
 import { purgeShopData } from "../services/compliance.server";
 import {
   deleteProduct,
@@ -12,14 +11,20 @@ import {
   upsertProduct,
 } from "../sync/sync.server";
 
+/** Minimal job shape shared by Postgres queue drain and inline webhook fallback. */
+export type SyncJobLike = {
+  name: string;
+  data: Record<string, unknown>;
+};
+
 export async function runSyncJobInline(
   name: string,
   data: Record<string, unknown>,
 ) {
-  return processSyncJob({ name, data } as Job);
+  return processSyncJob({ name, data });
 }
 
-export async function processSyncJob(job: Job) {
+export async function processSyncJob(job: SyncJobLike) {
   const shop = String(job.data.shop);
 
   switch (job.name) {

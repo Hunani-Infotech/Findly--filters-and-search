@@ -1,17 +1,17 @@
+import prisma from "../db.server";
 import { log } from "./log.server";
-import { getRedis } from "./redis.server";
 import { findShopByIdCached } from "./shop-cache.server";
 
-const CATALOG_PREFIX = "findly:catalog-gen:";
-const CONFIG_PREFIX = "findly:config-gen:";
+const CATALOG_PREFIX = "catalog:";
+const CONFIG_PREFIX = "config:";
 const localCatalogGen = new Map<string, number>();
 const localConfigGen = new Map<string, number>();
 
-function catalogRedisKey(shopDomain: string) {
+function catalogKey(shopDomain: string) {
   return `${CATALOG_PREFIX}${shopDomain}`;
 }
 
-function configRedisKey(shopDomain: string) {
+function configKey(shopDomain: string) {
   return `${CONFIG_PREFIX}${shopDomain}`;
 }
 
@@ -25,7 +25,27 @@ export type StorefrontCacheGens = {
 };
 
 /**
- * One Redis round-trip for catalog + widget-config generations.
+ * Atomic upsert+increment via UPDATE … RETURNING / INSERT ON CONFLICT.
+ * Avoids read-then-write races between concurrent admin/storefront requests.
+ */
+async function incrGeneration(key: string): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ version: number }>>`
+    INSERT INTO "CacheGeneration" (key, version)
+    VALUES (${key}, 1)
+    ON CONFLICT (key) DO UPDATE
+      SET version = "CacheGeneration".version + 1
+    RETURNING version
+  `;
+  return Number(rows[0]?.version ?? 1);
+}
+
+async function readGeneration(key: string): Promise<number> {
+  const row = await prisma.cacheGeneration.findUnique({ where: { key } });
+  return row?.version ?? 0;
+}
+
+/**
+ * One DB round-trip for catalog + widget-config generations.
  * Filter/search JSON caches should include both so admin saves are visible
  * without invalidating the product-row cache.
  */
@@ -35,13 +55,17 @@ export async function getStorefrontCacheGens(
   const localCatalog = localMapValue(localCatalogGen, shopDomain);
   const localConfig = localMapValue(localConfigGen, shopDomain);
   try {
-    const [catalogRaw, configRaw] = await getRedis().mget(
-      catalogRedisKey(shopDomain),
-      configRedisKey(shopDomain),
-    );
+    const rows = await prisma.cacheGeneration.findMany({
+      where: { key: { in: [catalogKey(shopDomain), configKey(shopDomain)] } },
+    });
+    const byKey = new Map(rows.map((row) => [row.key, row.version]));
     return {
-      catalog: String(Math.max(Number(catalogRaw ?? "0") || 0, localCatalog)),
-      config: String(Math.max(Number(configRaw ?? "0") || 0, localConfig)),
+      catalog: String(
+        Math.max(byKey.get(catalogKey(shopDomain)) ?? 0, localCatalog),
+      ),
+      config: String(
+        Math.max(byKey.get(configKey(shopDomain)) ?? 0, localConfig),
+      ),
     };
   } catch (error) {
     log.warn("[catalog-cache] get storefront gens failed", error);
@@ -56,9 +80,8 @@ export async function getStorefrontCacheGens(
 export async function getCatalogGeneration(shopDomain: string): Promise<string> {
   const local = localMapValue(localCatalogGen, shopDomain);
   try {
-    const value = await getRedis().get(catalogRedisKey(shopDomain));
-    const redisN = Number(value ?? "0") || 0;
-    return String(Math.max(redisN, local));
+    const version = await readGeneration(catalogKey(shopDomain));
+    return String(Math.max(version, local));
   } catch (error) {
     log.warn("[catalog-cache] get generation failed", error);
     return String(local);
@@ -66,23 +89,21 @@ export async function getCatalogGeneration(shopDomain: string): Promise<string> 
 }
 
 /**
- * Advance the in-process generation past Redis when incr fails.
- * Otherwise getStorefrontCacheGens Math.max(redis, local) stays on the old
- * Redis value and in-memory filter payloads keep serving stale settings
- * (e.g. enableCollectionSearch still on after admin save).
+ * Advance the in-process generation past Postgres when incr fails.
+ * Otherwise getStorefrontCacheGens Math.max(db, local) stays on the old
+ * value and in-memory filter payloads keep serving stale settings.
  */
-async function advanceLocalPastRedis(
+async function advanceLocalPastDb(
   store: Map<string, number>,
   shopDomain: string,
-  redisKey: string,
+  key: string,
   label: string,
 ) {
   try {
-    const value = await getRedis().get(redisKey);
-    const redisN = Number(value ?? "0") || 0;
+    const dbN = await readGeneration(key);
     const local = localMapValue(store, shopDomain);
-    if (redisN >= local) {
-      store.set(shopDomain, redisN + 1);
+    if (dbN >= local) {
+      store.set(shopDomain, dbN + 1);
     }
   } catch (readError) {
     log.warn(`[catalog-cache] ${label} fallback read failed`, readError);
@@ -94,17 +115,14 @@ export async function bumpCatalogGeneration(shopDomain: string): Promise<void> {
   const next = localMapValue(localCatalogGen, shopDomain) + 1;
   localCatalogGen.set(shopDomain, next);
   try {
-    const redisN = await getRedis().incr(catalogRedisKey(shopDomain));
-    localCatalogGen.set(
-      shopDomain,
-      Math.max(next, Number(redisN) || next),
-    );
+    const dbN = await incrGeneration(catalogKey(shopDomain));
+    localCatalogGen.set(shopDomain, Math.max(next, dbN));
   } catch (error) {
     log.warn("[catalog-cache] bump generation failed", error);
-    await advanceLocalPastRedis(
+    await advanceLocalPastDb(
       localCatalogGen,
       shopDomain,
-      catalogRedisKey(shopDomain),
+      catalogKey(shopDomain),
       "catalog",
     );
   }
@@ -117,14 +135,14 @@ export async function bumpStorefrontConfigGeneration(
   const next = localMapValue(localConfigGen, shopDomain) + 1;
   localConfigGen.set(shopDomain, next);
   try {
-    const redisN = await getRedis().incr(configRedisKey(shopDomain));
-    localConfigGen.set(shopDomain, Math.max(next, Number(redisN) || next));
+    const dbN = await incrGeneration(configKey(shopDomain));
+    localConfigGen.set(shopDomain, Math.max(next, dbN));
   } catch (error) {
     log.warn("[catalog-cache] bump config generation failed", error);
-    await advanceLocalPastRedis(
+    await advanceLocalPastDb(
       localConfigGen,
       shopDomain,
-      configRedisKey(shopDomain),
+      configKey(shopDomain),
       "config",
     );
   }

@@ -1,5 +1,5 @@
 /**
- * Parallel job slots for the BullMQ sync worker (one process, N concurrent jobs).
+ * Parallel job slots for the Postgres queue worker (one process, N concurrent jobs).
  * Set WORKER_COUNT in env — used by in-process (Hostinger / `npm start`) and
  * by `npm run worker` / the worker child from `npm run dev`.
  */

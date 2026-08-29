@@ -219,8 +219,8 @@ export default function TermsOfService() {
           uptime. Catalog sync depends on Shopify Admin GraphQL, webhooks,
           and background workers. Theme widgets depend on your theme and on
           you adding the app blocks. The app process runs on Hostinger;
-          catalog and settings live in Supabase Postgres; job queues use
-          Upstash Redis.
+          catalog and settings live in Supabase Postgres; background jobs use
+          the same Postgres database.
         </p>
         <p>
           Support is offered through <strong>Findly → Contact</strong> and

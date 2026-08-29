@@ -50,11 +50,11 @@ export async function purgeShopData(shopDomain: string) {
 export type ShopPurgeMode = "queued" | "inline";
 
 /**
- * GDPR / uninstall deletion must not depend on Redis being up.
+ * GDPR / uninstall deletion must not depend on the background worker being up.
  *
  * Failure modes:
- * 1. Redis/BullMQ accepts the job within 2s → worker runs purgeShopData. 200.
- * 2. Enqueue throws or times out (Redis down) → purgeShopData runs in this
+ * 1. Postgres queue accepts the job within 2s → worker runs purgeShopData. 200.
+ * 2. Enqueue throws or times out (DB blip) → purgeShopData runs in this
  *    process, then 200. Logged as "enqueue failed … running inline purge".
  * 3. Inline purge also throws (Postgres down) → error is rethrown so the
  *    webhook returns 5xx and Shopify retries. Logged as "inline purge FAILED".
@@ -72,7 +72,7 @@ export async function ensureShopPurged(
       { jobId: `${shopDomain}:shop.cleanup`, timeoutMs: 2000 },
     );
     log.success(
-      `[compliance] ${source}: queued shop.cleanup for ${shopDomain} (Redis ok)`,
+      `[compliance] ${source}: queued shop.cleanup for ${shopDomain}`,
     );
     return { mode: "queued" };
   } catch (enqueueError) {

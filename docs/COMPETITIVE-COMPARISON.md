@@ -74,7 +74,7 @@ Legend: **Yes** = in Findly launch · **Partial** = limited vs Globo · **No (la
 | Capability | Findly launch | Notes |
 |---|---|---|
 | Theme App Extension (not script tags) | **Yes** | |
-| Admin GraphQL sync (bulk + webhooks) | **Yes** | BullMQ `sync-queue` |
+| Admin GraphQL sync (bulk + webhooks) | **Yes** | Postgres `QueueJob` |
 | Shopify Billing API | **Yes** | Free + Pro (`AppSubscriptionCreate`) |
 | Mandatory compliance webhooks | **Yes** | Uninstall + GDPR topics |
 | Plan product / metafield caps | **Yes** | Free 200 / 5 · Pro 5000 / 25 |

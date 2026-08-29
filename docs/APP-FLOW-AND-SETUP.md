@@ -13,9 +13,9 @@ flowchart LR
   Merchant[Merchant_Admin] --> Admin[Embedded_Admin_RR7_Polaris]
   Admin -->|Admin_GraphQL| Shopify[(Shopify)]
   Shopify -->|webhooks| Web[Hostinger_Node]
-  Web -->|enqueue| Redis[(Upstash_Redis)]
-  Redis --> Worker[In_process_worker]
-  Worker -->|upsert_index| PG[(Supabase_Postgres)]
+  Web -->|enqueue| PG[(Supabase_Postgres)]
+  Web --> Worker[In_process_worker]
+  Worker -->|claim_QueueJob| PG
   Admin --> PG
   Shopper[Shopper_Storefront] --> TEA[Theme_App_Extension]
   TEA -->|App_Proxy| Web
@@ -28,7 +28,7 @@ Three surfaces:
 |---------|------|
 | **Embedded admin** | Merchant configures filters, sync, billing, settings |
 | **Theme App Extension** | Shopper-facing filter (+ search) widgets on the storefront |
-| **Backend sync** | Keeps product/collection/metafield index current via Admin GraphQL + BullMQ |
+| **Backend sync** | Keeps product/collection/metafield index current via Admin GraphQL + Postgres queue |
 
 ---
 
@@ -49,8 +49,8 @@ app/
     auth.*                  # Managed OAuth / install
   shopify.server.ts         # shopifyApp + PrismaSessionStorage
   db.server.ts              # Prisma client
-  queues.server.ts          # BullMQ sync-queue
-  workers/                  # Background job processors
+  queues.server.ts          # Postgres QueueJob enqueue/claim
+  workers/                  # Background job processors (poll Postgres)
   sync/                     # Bulk + incremental sync (Admin GraphQL)
   billing.server.ts         # Plans + AppSubscriptionCreate
   compliance.server.ts      # GDPR purge / audit log
@@ -59,7 +59,7 @@ app/
 extensions/smart-filter/    # Theme App Extension (Liquid + JS + CSS)
 prisma/                     # Schema + migrations (PostgreSQL; Supabase via DATABASE_URL + DIRECT_URL)
 docs/                       # Specs + this guide
-docker-compose.yml          # Optional Docker Postgres + Redis (`npm run dev` does not need this)
+docker-compose.yml          # Optional Docker Postgres + worker (`npm run dev` does not need this)
 ```
 
 ---
@@ -144,7 +144,7 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 |------|-----|
 | **Node.js** ≥ 20.19 (see `package.json` engines) | App runtime |
 | **npm** | Dependencies |
-| **Docker Desktop** *(optional)* | Alternative to the bundled local Postgres/Redis |
+| **Docker Desktop** *(optional)* | Alternative to the bundled local Postgres |
 | **Shopify CLI** (`npm i -g @shopify/cli`) | `shopify app dev` / deploy |
 | **Git** | Version control |
 
@@ -155,9 +155,8 @@ Every business table is shop-scoped (`Shop` FK), except `Session` (keyed by `sho
 | Shopify Partner account | Create the app |
 | Development store | Install + test (ideally **50+ products**) |
 | App API key + secret | `.env` + `shopify.app.toml` `client_id` |
-| Postgres database (Supabase) | Sessions + catalog index. Prisma: pooled `DATABASE_URL` (6543) + `DIRECT_URL` (5432) |
-| Redis | BullMQ `sync-queue` (local in dev; Upstash in production) |
-| Hostinger Node *(production)* | Hosts the web app **and** the BullMQ worker in-process (`ensureWorkerRunning`). Scale parallel jobs with `WORKER_COUNT` (default 2). Leave `START_WORKER` unset. Locally: one command `npm run dev` (infra + worker + app). |
+| Postgres database (Supabase) | Sessions + catalog index + `QueueJob` queue. Prisma: pooled `DATABASE_URL` (6543) + `DIRECT_URL` (5432) |
+| Hostinger Node *(production)* | Hosts the web app **and** the Postgres queue poller in-process (`ensureWorkerRunning`). Scale parallel jobs with `WORKER_COUNT` (default 2). Leave `START_WORKER` unset. Locally: one command `npm run dev` (infra + worker + app). |
 
 ### 6.3 Environment variables
 
@@ -171,8 +170,7 @@ Copy `.env.example` → `.env` (never commit secrets):
 | `SHOPIFY_APP_URL` | Yes | Local: CLI tunnel. Production: `https://deeppink-manatee-141983.hostingersite.com` |
 | `DATABASE_URL` | Yes | Supabase **pooled** URI (port 6543) with `?pgbouncer=true&sslmode=require`. Encode `@` in the password as `%40`. |
 | `DIRECT_URL` | Yes | Supabase **direct** URI (port 5432) with `?sslmode=require`. Used by `prisma migrate deploy`. |
-| `REDIS_URL` | Yes | Redis for BullMQ (local `redis://localhost:6379` in dev) |
-| `WORKER_COUNT` | Optional | Parallel BullMQ job slots (default `2`, max `32`). Same process — no extra worker host. |
+| `WORKER_COUNT` | Optional | Parallel queue job slots (default `2`, max `32`). Same process — no Redis. |
 | `BILLING_TEST_MODE` | Recommended | `true` in development |
 | `PROXY_SIGNATURE_BYPASS` | Optional | Local only |
 | `PORT` | Optional | Default `3000` |
@@ -186,14 +184,14 @@ Also set `client_id` in `shopify.app.toml` to the API key.
 ```powershell
 # 1) Fill .env with Shopify credentials, then:
 npm install
-npm run dev            # Redis (+ unused local Postgres if 5432 is free) + migrate on Supabase + worker + Shopify app
+npm run dev            # local Postgres if 5432 is free + migrate on Supabase + worker + Shopify app
 
 # 2) Install on a development store in the browser
 node .\scripts\verify-step1.mjs
 node .\scripts\verify-step2.mjs
 ```
 
-`npm run dev` still starts local Redis (and local Postgres in `.local/` if port 5432 is free). With the current `.env`, Prisma talks to **Supabase**, not that local copy. `prisma migrate deploy` therefore runs against live Supabase. Docker remains optional for a local DB: `docker compose up -d`, then `npm run dev:shopify` and `npm run worker`. Keep the local database until the app is confirmed on Supabase.
+`npm run dev` starts local Postgres in `.local/` if port 5432 is free. With the current `.env`, Prisma talks to **Supabase**, not that local copy. `prisma migrate deploy` therefore runs against live Supabase. Docker remains optional for a local DB: `docker compose up -d`, then `npm run dev:shopify` and `npm run worker`. Keep the local database until the app is confirmed on Supabase.
 
 ---
 
@@ -221,11 +219,12 @@ Do **not** treat Theme Extension / billing as “done” until earlier gates pas
 Live host is Hostinger Node (`https://deeppink-manatee-141983.hostingersite.com`). There is no `fly.toml`. Production does not use Fly.io. If Fly is needed later, add a new `fly.toml` then (`fly launch`).
 
 1. Use the existing Supabase Postgres project (`DATABASE_URL` pooler + `DIRECT_URL` direct).
-2. Set Hostinger env: Shopify keys, both Prisma URLs, `REDIS_URL` (Upstash `rediss://…`), `WORKER_COUNT` (e.g. `4` if the box has headroom), `HOST` / `SHOPIFY_APP_URL` to the Hostinger origin. Leave `START_WORKER` unset so the in-process worker starts with the web app (AS-P13). Do not add a separate worker hosting service.
-3. Deploy the Node app on Hostinger (Passenger starts the web process; the BullMQ worker runs in-process with `WORKER_COUNT` concurrency). Locally use only `npm run dev`.
+2. Set Hostinger env: Shopify keys, both Prisma URLs, `WORKER_COUNT` (e.g. `4` if the box has headroom), `HOST` / `SHOPIFY_APP_URL` to the Hostinger origin. Leave `START_WORKER` unset so the in-process queue poller starts with the web app (AS-P13). Do not add a separate worker hosting service unless you prefer `npm run worker:prod` / cron with `QUEUE_POLL_ONCE=1`.
+3. Deploy the Node app on Hostinger (Passenger starts the web process; the Postgres queue poller runs in-process with `WORKER_COUNT` concurrency). Locally use only `npm run dev`.
 4. `shopify app deploy` for app config + Theme App Extension.
 5. Point App URL, OAuth redirect, and App Proxy at `https://deeppink-manatee-141983.hostingersite.com`. After changing `shopify.app.toml`, run `shopify app deploy` to push URLs to Partner Dashboard.
 6. Set `BILLING_TEST_MODE=false` for real charges when ready.
+7. Remove any leftover `REDIS_URL` from Hostinger env (no longer used).
 
 ---
 

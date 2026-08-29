@@ -1,7 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { timingSafeEqual } from "node:crypto";
 import prisma, { summarizeDatabaseError } from "../db.server";
-import { getRedis } from "../lib/redis.server";
 import { getWorkerCount } from "../workers/concurrency.server";
 import { isSyncWorkerRunning } from "../workers/ensure-running.server";
 
@@ -50,49 +49,36 @@ type ProbeResult = Awaited<ReturnType<typeof probe>>;
 let cachedProbes: {
   expires: number;
   postgres: ProbeResult;
-  redis: ProbeResult;
 } | null = null;
 
 async function getCachedProbes() {
   if (cachedProbes && cachedProbes.expires > Date.now()) {
     return cachedProbes;
   }
-  const [postgres, redis] = await Promise.all([
-    // Hostinger → Supabase (esp. ap-northeast-1) needs a generous budget.
-    probe(
-      "postgres",
-      async () => {
-        await prisma.$connect();
-        await prisma.$queryRaw`SELECT 1`;
-      },
-      15_000,
-    ),
-    probe(
-      "redis",
-      async () => {
-        const pong = await getRedis().ping();
-        if (pong !== "PONG") throw new Error("redis ping failed");
-      },
-      5_000,
-    ),
-  ]);
+  const postgres = await probe(
+    "postgres",
+    async () => {
+      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
+    },
+    15_000,
+  );
   cachedProbes = {
     expires: Date.now() + HEALTH_PROBE_CACHE_MS,
     postgres,
-    redis,
   };
   return cachedProbes;
 }
 
 /**
- * Load balancers get `{ ok }` only. Detailed postgres/redis/worker probes require
+ * Load balancers get `{ ok }` only. Detailed postgres/worker probes require
  * HEALTH_CHECK_TOKEN via `X-Health-Token` or `?token=`.
  * Unauthenticated details are development-only (unset NODE_ENV is not treated as dev).
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { postgres, redis } = await getCachedProbes();
+  const { postgres } = await getCachedProbes();
   const workerRunning = isSyncWorkerRunning();
-  const ok = postgres.ok && redis.ok;
+  const ok = postgres.ok;
 
   const expected = process.env.HEALTH_CHECK_TOKEN?.trim() || "";
   const provided =
@@ -108,7 +94,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         service: "findly-smart-filters-search",
         checks: {
           postgres,
-          redis,
           worker: {
             ok: workerRunning,
             mode: workerRunning ? "in-process" : "down",

@@ -8,7 +8,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  // Queue when Redis is up; purge inline if enqueue fails. Throws → 5xx retry.
+  // Queue when possible; purge inline if enqueue fails. Throws → 5xx retry.
   await ensureShopPurged(shop, "app/uninstalled");
 
   return new Response(null, { status: 200 });

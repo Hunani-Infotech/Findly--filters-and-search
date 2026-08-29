@@ -74,7 +74,7 @@ Legend: **Yes** = shipped in repo for launch · **Partial** = limited · **No (l
 | Capability | Findly launch | Notes |
 |---|---|---|
 | Theme App Extension (not script tags) | **Yes** | |
-| Admin GraphQL sync (bulk + webhooks) | **Yes** | BullMQ; live sync proof still open |
+| Admin GraphQL sync (bulk + webhooks) | **Yes** | Postgres queue; live sync proof still open |
 | Shopify Billing API | **Yes** | Free + Standard + Pro |
 | Mandatory compliance webhooks | **Yes** | Uninstall + GDPR topics |
 | Plan product / metafield caps | **Yes** | Free 200 / 5 · Standard 1000 / 12 · Pro 5000 / 25 |

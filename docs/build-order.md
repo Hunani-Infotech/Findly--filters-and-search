@@ -19,7 +19,7 @@ Live storefront clicks for filters, search, billing, and GDPR remain open jobs (
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Scaffold + Prisma + Postgres connection | **VERIFIED** (data on **Supabase**). Re-run `verify-step1.mjs` against `DATABASE_URL`. Local Redis is fine for `npm run dev`. |
+| 1 | Scaffold + Prisma + Postgres connection | **VERIFIED** (data on **Supabase**). Re-run `verify-step1.mjs` against `DATABASE_URL`. |
 | 2 | Auth/session E2E install on dev store | **VERIFIED** — `verify-step2.mjs` → `STEP2_OK` (offline Session for `findly-test-store.myshopify.com`) |
 | 3 | Data models + migrations applied | **CODE COMPLETE** — Prisma schema + migrations in repo |
 | 4 | Bulk sync on install (50+ products) | **CODE COMPLETE** — live sync proof is AS-Q1 / AS-P1 |
@@ -40,7 +40,7 @@ Pick one:
 1. **Supabase (current):** set both URLs in `.env`, then `npm install` and `npm run dev`.
    - `DATABASE_URL` — pooled (port 6543) with `pgbouncer=true&sslmode=require`
    - `DIRECT_URL` — direct (port 5432) with `sslmode=require`
-   Redis still runs locally. `npm run dev` may also start unused local Postgres on `5432` if that port is free; Prisma ignores it while `.env` points at Supabase. Catalog was copied from local `smart_filter` — do not drop the local DB until the app is confirmed.
+   `npm run dev` may also start unused local Postgres on `5432` if that port is free; Prisma ignores it while `.env` points at Supabase. Catalog was copied from local `smart_filter` — do not drop the local DB until the app is confirmed.
 2. **No Docker (local rollback):** comment the Supabase URLs, restore `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_filter?schema=public`, and `npm run dev`. Data stays in gitignored `.local/`.
 3. Install Docker Desktop, then:
    ```powershell

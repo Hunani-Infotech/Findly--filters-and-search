@@ -447,3 +447,44 @@ model ComplianceRequest {
 
   @@index([shopDomain])
 }
+
+/// Postgres job queue (replaces BullMQ/Redis). Distinct from SyncJob (per-shop status).
+enum QueueJobStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model QueueJob {
+  id          String         @id @default(cuid())
+  /// Handler name (e.g. shop.fullSync) — former BullMQ job name.
+  type        String
+  payload     Json
+  status      QueueJobStatus @default(pending)
+  attempts    Int            @default(0)
+  /// Matches former BullMQ attempts: 3.
+  maxAttempts Int            @default(3)
+  /// Due time; delays and exponential backoff set this in the future.
+  runAt       DateTime       @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  /// Former BullMQ custom jobId — unique when set for webhook / sync idempotency.
+  jobKey      String?        @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  /// Claim hot path: status=pending AND runAt<=now() ORDER BY runAt.
+  @@index([status, runAt])
+  /// Stale recovery: status=processing AND lockedAt < timeout.
+  @@index([status, lockedAt])
+  /// DROP_IF_BUSY / follow-up checks by type.
+  @@index([type, status])
+}
+
+/// Storefront cache generation counters (replaces Redis INCR keys).
+model CacheGeneration {
+  key     String @id
+  version Int    @default(0)
+}

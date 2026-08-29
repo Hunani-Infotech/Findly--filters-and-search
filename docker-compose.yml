@@ -1,6 +1,6 @@
-# Optional Docker stack: Postgres + Redis 7 + BullMQ worker
+# Optional Docker stack: Postgres + queue worker
 # Default local path does not need Docker: `npm run dev`
-# (embedded Postgres + Redis, worker, and Shopify app).
+# (embedded Postgres, worker, and Shopify app).
 #
 # Docker one-click (Windows):
 #   Double-click START-DEV.cmd
@@ -25,16 +25,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   worker:
     image: node:20-bookworm-slim
     working_dir: /app
@@ -45,11 +35,10 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smart_filter?schema=public
-      REDIS_URL: redis://redis:6379
+      DIRECT_URL: postgresql://postgres:postgres@postgres:5432/smart_filter?schema=public
+      FINDLY_WORKER_CHILD: "1"
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     command: >
       sh -c "npm ci &&

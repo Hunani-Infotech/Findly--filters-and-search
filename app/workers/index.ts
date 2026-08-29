@@ -1,38 +1,62 @@
-import { Worker } from "bullmq";
 import { log } from "../lib/log.server";
-import { SYNC_QUEUE } from "../lib/queues.server";
-import { createRedisConnection } from "../lib/redis.server";
+import { drainOnce } from "./ensure-running.server";
 import { getWorkerCount } from "./concurrency.server";
-import { processSyncJob } from "./processors";
+import { QUEUE_POLL_INTERVAL_MS } from "../constants/limits";
+import { pruneTerminalJobs } from "../lib/queues.server";
 
-// Dedicated connection — BullMQ Worker blocking commands must not share Queue/cache client.
-const connection = createRedisConnection();
+/**
+ * Dedicated worker process (`npm run worker` / nohup / Hostinger cron).
+ * Polls Postgres QueueJob rows — no Redis/BullMQ.
+ *
+ * QUEUE_POLL_ONCE=1 → single drain then exit (cron-friendly).
+ * Otherwise loop until SIGINT/SIGTERM.
+ */
+process.env.FINDLY_WORKER_CHILD = "1";
+
 const concurrency = getWorkerCount();
-
-const syncWorker = new Worker(SYNC_QUEUE, processSyncJob, {
-  connection,
-  concurrency,
-  lockDuration: 30 * 60 * 1000,
-  stalledInterval: 60_000,
-});
-
-syncWorker.on("completed", (job) => {
-  log.success(`[sync] completed ${job.name} (${job.id})`);
-});
-
-syncWorker.on("failed", (job, err) => {
-  log.error(`[sync] failed ${job?.name} (${job?.id}): ${err.message}`);
-});
+let stopping = false;
 
 log.info(
-  `Smart Filter worker listening on ${SYNC_QUEUE} (WORKER_COUNT=${concurrency})`,
+  `Smart Filter worker listening on postgres queue (WORKER_COUNT=${concurrency})`,
 );
 
-async function shutdown() {
-  log.info("Shutting down worker…");
-  await syncWorker.close();
-  process.exit(0);
+async function main() {
+  if (process.env.QUEUE_POLL_ONCE === "1") {
+    const n = await drainOnce(concurrency);
+    await pruneTerminalJobs().catch(() => {});
+    log.info(`[worker] poll-once drained ${n} job(s); exiting`);
+    process.exit(0);
+  }
+
+  let pruneTick = 0;
+  while (!stopping) {
+    try {
+      await drainOnce(concurrency);
+      pruneTick += 1;
+      if (pruneTick % 30 === 0) {
+        await pruneTerminalJobs().catch((error) => {
+          log.warn("[queue] prune failed", error);
+        });
+      }
+    } catch (error) {
+      log.error("[worker] poll cycle failed", error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, QUEUE_POLL_INTERVAL_MS));
+  }
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  log.info("Shutting down worker…");
+  // Let the current drain finish via stopping flag on next loop.
+  setTimeout(() => process.exit(0), 500);
+}
+
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());
+
+main().catch((error) => {
+  log.error("[worker] fatal", error);
+  process.exit(1);
+});

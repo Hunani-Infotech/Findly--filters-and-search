@@ -1158,7 +1158,7 @@ export async function upsertProduct(
       "../workers/ensure-running.server"
     );
     await ensureWorkerRunning();
-    // Redis up but no in-process worker (and not a dedicated-worker setup):
+    // Enqueued but no in-process worker (and not a dedicated-worker setup):
     // process markets here so the job does not sit forever.
     if (process.env.START_WORKER !== "0" && !isSyncWorkerRunning()) {
       log.warn("[sync] worker not running; syncing market prices inline");

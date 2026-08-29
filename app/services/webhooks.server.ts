@@ -5,7 +5,7 @@ import {
   type SyncJobName,
 } from "../lib/queues.server";
 
-/** Fast-ack webhook handling — enqueue BullMQ jobs, run inline if Redis is down. */
+/** Fast-ack webhook handling — enqueue Postgres jobs, run inline if enqueue fails. */
 export function webhookGraphqlId(
   payload: Record<string, unknown>,
   resource: "Product" | "Collection",

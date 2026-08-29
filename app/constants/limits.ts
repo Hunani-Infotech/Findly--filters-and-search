@@ -9,8 +9,23 @@ export const SAMPLE_TEXT_MAX = 500;
 /** Debounce collection rebuilds after product membership churn. */
 export const COLLECTION_REBUILD_DELAY_MS = 2000;
 
-/** BullMQ exponential backoff base delay. */
+/** Queue exponential backoff base delay (matches former BullMQ setting). */
 export const QUEUE_BACKOFF_DELAY_MS = 2000;
+
+/** Cap for exponential backoff after repeated failures. */
+export const QUEUE_MAX_BACKOFF_MS = 15 * 60 * 1000;
+
+/**
+ * Requeue jobs stuck in `processing` longer than this (crashed worker).
+ * Matches former BullMQ lockDuration (30m).
+ */
+export const QUEUE_STALE_LOCK_MS = 30 * 60 * 1000;
+
+/** How often the in-process / nohup worker polls for due jobs. */
+export const QUEUE_POLL_INTERVAL_MS = 2000;
+
+/** Soft cap per poll so one Hostinger cron/tick cannot claim more than it can finish. */
+export const QUEUE_CLAIM_BATCH_MAX = 5;
 
 /** Standard delay for admin search / typeahead that hits the server. */
 export const SEARCH_DEBOUNCE_MS = 300;

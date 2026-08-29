@@ -103,13 +103,13 @@ const shopify = shopifyApp({
       );
       const { ensureShop } = await import("./services/shop.server");
       await ensureShop(session.shop);
-      // Redis/BullMQ is optional for admin boot — don't block OAuth if Redis is down.
+      // Queue is Postgres-backed — don't block OAuth if enqueue fails.
       try {
         const { queueFullSync } = await import("./sync/queue-full-sync");
         await queueFullSync(session.shop);
       } catch (error) {
         log.warn(
-          `[afterAuth] sync enqueue skipped (is Redis running?): ${
+          `[afterAuth] sync enqueue skipped: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );

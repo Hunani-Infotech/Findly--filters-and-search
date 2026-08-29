@@ -19,7 +19,7 @@ Target merchants: stores with 200–5,000+ products, especially fashion, beauty,
 - API: Shopify Admin GraphQL API only — no REST
 - Database: PostgreSQL
 - ORM: Prisma
-- Queue/jobs: Redis + BullMQ (Upstash in production)
+- Queue/jobs: Postgres `QueueJob` table + in-process / nohup poller
 - Hosting target: Hostinger Node (web + in-process worker). Postgres is Supabase. There is no `fly.toml`; add one later only if Fly.io is chosen again.
 - Billing: Shopify Billing API (`AppSubscriptionCreate` GraphQL mutation)
 
@@ -33,7 +33,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 Then:
 - Add Prisma with a PostgreSQL provider (replace any default SQLite config)
-- Add Redis + BullMQ as dependencies
+- Add Postgres `QueueJob` model (no Redis/BullMQ)
 - Set up `.env.example` listing every required environment variable (no real secrets committed)
 
 ## 3. Data Model
@@ -55,7 +55,7 @@ Use the built-in token exchange / managed installation flow from the React Route
 - Initial sync on install: use Admin API Bulk Operations (`bulkOperationRunQuery`), not paginated REST/GraphQL loops.
 - Incremental sync: register webhooks for `products/update`, `products/delete`, `collections/update`, re-run sync for affected shop/collection only.
 - Sync populates: product list, collection list, tags, vendors, product types, and metafields (store all metafields found, even before merchant selects which to use).
-- Build as a BullMQ job (`sync-queue`), not inline in request/response cycle.
+- Build as a Postgres queue job (`QueueJob`), not inline in request/response cycle.
 
 ### 4.3 Mandatory Compliance Webhooks
 Implement and register: `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request`. Required for App Store approval — do not skip or stub.

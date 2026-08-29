@@ -9,7 +9,7 @@ import { log } from "./lib/log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { ensureWorkerRunning } from "./workers/ensure-running.server";
 
-// Warm Postgres + start BullMQ before serving shopper/admin traffic.
+// Warm Postgres + start Postgres queue poller before serving shopper/admin traffic.
 void ensureDatabaseReady();
 ensureWorkerRunning();
 

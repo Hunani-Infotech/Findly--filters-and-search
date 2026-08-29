@@ -1,7 +1,7 @@
 /**
  * `npm run dev` — one terminal for local development.
  *
- * Starts Postgres + Redis (no Docker required), Prisma migrate,
+ * Starts Postgres (no Docker required), Prisma migrate,
  * the sync worker, and the Shopify app.
  *
  * Extra Shopify CLI flags pass through:
@@ -18,8 +18,6 @@ import { chalk, log } from "./terminal-log.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const isWin = process.platform === "win32";
-/** Local BullMQ Redis started by start-local-infra.mjs — never use Upstash in dev. */
-const LOCAL_REDIS_URL = "redis://localhost:6379";
 const children = [];
 let shuttingDown = false;
 
@@ -131,9 +129,8 @@ function runPrisma(args, { capture = false } = {}) {
 
 async function ensureInfra() {
   const pgUp = await isPortOpen(5432);
-  const redisUp = await isPortOpen(6379);
-  if (pgUp && redisUp) {
-    log.success("[dev] Postgres and Redis already running");
+  if (pgUp) {
+    log.success("[dev] Postgres already running");
     return;
   }
 
@@ -147,7 +144,7 @@ async function ensureInfra() {
     throw new Error("Missing embedded-postgres. Run npm install and retry.");
   }
 
-  log.info("[dev] Starting local Postgres + Redis (no Docker)…");
+  log.info("[dev] Starting local Postgres (no Docker)…");
   const infra = spawnTracked(process.execPath, [localInfra], {
     tag: "infra",
   });
@@ -157,16 +154,13 @@ async function ensureInfra() {
       if (shuttingDown) return;
       reject(
         new Error(
-          `Local Postgres/Redis exited (code ${code ?? "null"}). Check [infra] logs above.`,
+          `Local Postgres exited (code ${code ?? "null"}). Check [infra] logs above.`,
         ),
       );
     });
   });
 
-  const waits = [];
-  if (!pgUp) waits.push(waitForPort(5432, "Postgres"));
-  if (!redisUp) waits.push(waitForPort(6379, "Redis"));
-  await Promise.race([Promise.all(waits), infraFailed]);
+  await Promise.race([waitForPort(5432, "Postgres"), infraFailed]);
 }
 
 function preparePrisma() {
@@ -200,12 +194,6 @@ function preparePrisma() {
 try {
   log.info("[dev] Starting Findly stack: infra + worker + Shopify app");
   await ensureInfra();
-  if (process.env.REDIS_URL !== LOCAL_REDIS_URL) {
-    log.info(
-      `[dev] REDIS_URL → ${LOCAL_REDIS_URL} (local dev; Upstash/production URL ignored)`,
-    );
-    process.env.REDIS_URL = LOCAL_REDIS_URL;
-  }
   preparePrisma();
 
   log.info("[dev] Minifying theme extension JS (100 KB app-block limit)…");
@@ -229,7 +217,7 @@ log.info("[dev] Starting sync worker…");
   const raw = process.env.WORKER_COUNT?.trim();
   const n = raw ? Number.parseInt(raw, 10) : 2;
   const count = Number.isFinite(n) && n >= 1 ? Math.min(n, 32) : 2;
-  log.info(`[dev] WORKER_COUNT=${count} (BullMQ concurrency)`);
+  log.info(`[dev] WORKER_COUNT=${count} (postgres queue concurrency)`);
 }
 spawnTracked(
   process.execPath,

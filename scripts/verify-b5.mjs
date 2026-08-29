@@ -512,7 +512,7 @@ try {
     fail("events.app.products must enqueue catalog sync via handleProductEvent");
   }
   if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
-    fail("ensureWorkerRunning must start an in-process BullMQ Worker");
+    fail("ensureWorkerRunning must start an in-process postgres queue poller");
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");
