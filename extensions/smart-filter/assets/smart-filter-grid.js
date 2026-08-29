@@ -685,6 +685,12 @@
 
   function hideEl(node) {
     if (!node || node.nodeType !== 1) return;
+    if (
+      node.hidden &&
+      node.getAttribute("data-smart-filter-hidden") === "true"
+    ) {
+      return;
+    }
     node.hidden = true;
     node.setAttribute("data-smart-filter-hidden", "true");
     node.style.setProperty("display", "none", "important");
@@ -692,6 +698,14 @@
 
   function showEl(node) {
     if (!node || node.nodeType !== 1) return;
+    if (
+      !node.hidden &&
+      !node.hasAttribute("data-smart-filter-hidden") &&
+      !(node.classList && node.classList.contains("hidden"))
+    ) {
+      /* Still clear display:none if we set it earlier. */
+      if (!node.style || !node.style.getPropertyValue("display")) return;
+    }
     node.hidden = false;
     node.removeAttribute("hidden");
     node.removeAttribute("data-smart-filter-hidden");
@@ -2089,9 +2103,23 @@
   }
 
   function showCardTree(card) {
+    if (!card || card.nodeType !== 1) return;
+    var alreadyShown =
+      !card.hidden &&
+      card.getAttribute("data-smart-filter-hidden") !== "true" &&
+      card.getAttribute("data-findly-theme-hidden") !== "1";
     showEl(card);
     restoreThemeHidden(card);
-    if (!card || !card.querySelectorAll) return;
+    if (!card.querySelectorAll) return;
+    /* Skip descendant walk when the card was already visible and has no Findly hides. */
+    if (
+      alreadyShown &&
+      !card.querySelector(
+        "[data-smart-filter-hidden='true'], [data-findly-theme-hidden='1']",
+      )
+    ) {
+      return;
+    }
     var hidden = card.querySelectorAll(
       "[data-smart-filter-hidden='true'], [data-findly-theme-hidden='1']",
     );
@@ -3250,6 +3278,52 @@
     done();
   }
 
+  function findGridChromeChild(parent) {
+    if (!parent || !parent.children) return null;
+    var kids = parent.children;
+    var i;
+    for (i = 0; i < kids.length; i++) {
+      var kid = kids[i];
+      var cls = kid.classList;
+      var tag = String(kid.tagName || "").toLowerCase();
+      if (
+        (cls &&
+          (cls.contains("sf-toolbar") ||
+            cls.contains("sf-page-chips") ||
+            cls.contains("sf-sort-host") ||
+            cls.contains("sf-search-host") ||
+            cls.contains("sf-total-count") ||
+            cls.contains("sf-pager") ||
+            cls.contains("pagination"))) ||
+        tag === "nav"
+      ) {
+        return kid;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Reorder shown cards with minimal moves (same final order as append-before-chrome).
+   * Skips insert when nextSibling is already the correct neighbor.
+   */
+  function reorderShownHosts(parent, shownHosts) {
+    if (!parent || !shownHosts || !shownHosts.length) return;
+    var chrome = findGridChromeChild(parent);
+    var reference = chrome;
+    var i;
+    for (i = shownHosts.length - 1; i >= 0; i--) {
+      var el = shownHosts[i];
+      if (!el || el.nodeType !== 1) continue;
+      if (el.parentNode === parent && el.nextSibling === reference) {
+        reference = el;
+        continue;
+      }
+      parent.insertBefore(el, reference || null);
+      reference = el;
+    }
+  }
+
   function applyNativeFilterGrid(handles, hint) {
     stripAppCards(document);
     var parent = preferProductCardGrid(resolveCardHost(hint) || hint);
@@ -3311,9 +3385,7 @@
       if (hidden[i].el.parentNode === tray) placeCardInGrid(parent, hidden[i].el);
       hideEl(hidden[i].el);
     }
-    for (i = 0; i < shownHosts.length; i++) {
-      placeCardInGrid(parent, shownHosts[i]);
-    }
+    reorderShownHosts(parent, shownHosts);
     sweepHostOrphans(parent, shownHosts, allowed, tray);
     return cards.length > 0;
   }
@@ -6032,7 +6104,10 @@
           resolveCardHost(self._gridParent) || self._gridParent,
         );
         if (!parent || !productsForSeed().length) return false;
-        fillGapsWithThemeClones(self, handles, parent);
+        var missing = self.missingHandles(handles);
+        if (!missing.length) return true;
+        /* Only clone gaps — same end state, less DOM work. */
+        fillGapsWithThemeClones(self, missing, parent);
         return missingLeft() === 0;
       }
 
@@ -6187,6 +6262,14 @@
       var shown = countAllowedInHost(host, next);
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
       markGridPainted(this);
+      /* Drop busy as soon as the page of cards is on screen — same cards, earlier paint feel. */
+      if (
+        shown >= uniqueAllowedCount(next) &&
+        this.setGridBusy &&
+        !this._importingCards
+      ) {
+        this.setGridBusy(false);
+      }
       return uniqueAllowedCount(next) === 0 || shown > 0;
     };
 

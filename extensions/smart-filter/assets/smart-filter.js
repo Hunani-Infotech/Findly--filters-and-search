@@ -4116,7 +4116,18 @@
           if (!response.ok) {
             throw new Error("Request failed (" + response.status + ")");
           }
-          return response.json();
+          var self = this;
+          var tJson =
+            typeof performance !== "undefined" && performance.now
+              ? performance.now()
+              : Date.now();
+          return response.json().then(function (data) {
+            self._findlyJsonMs =
+              (typeof performance !== "undefined" && performance.now
+                ? performance.now()
+                : Date.now()) - tJson;
+            return data;
+          });
         }.bind(this),
       )
       .then(

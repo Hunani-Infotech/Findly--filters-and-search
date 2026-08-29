@@ -152,6 +152,23 @@
     var net = filtersNetworkStats(cycle);
     var applyMs =
       net.totalMs != null ? round(Math.max(0, total - net.totalMs)) : null;
+    var jsonMs =
+      widget && widget._findlyJsonMs != null
+        ? round(widget._findlyJsonMs)
+        : cycle.marks.jsonMs != null
+          ? round(cycle.marks.jsonMs)
+          : null;
+    var facetsMs =
+      cycle.marks.facetsMs != null ? round(cycle.marks.facetsMs) : null;
+    var gridMs = cycle.marks.gridMs != null ? round(cycle.marks.gridMs) : null;
+    var ensureMsRounded = ensureMs != null ? round(ensureMs) : null;
+    var accounted = 0;
+    if (jsonMs != null) accounted += jsonMs;
+    if (facetsMs != null) accounted += facetsMs;
+    if (gridMs != null) accounted += gridMs;
+    if (ensureMsRounded != null) accounted += ensureMsRounded;
+    var otherMs =
+      applyMs != null ? round(Math.max(0, applyMs - accounted)) : null;
     var summary = {
       cycle: cycle.id,
       reason: reason || "settle",
@@ -159,14 +176,20 @@
       filtersNetworkMs: net.totalMs,
       filtersNetworkCount: net.count,
       applyMs: applyMs,
-      facetsMs:
-        cycle.marks.facetsMs != null ? round(cycle.marks.facetsMs) : null,
-      gridMs: cycle.marks.gridMs != null ? round(cycle.marks.gridMs) : null,
+      jsonMs: jsonMs,
+      facetsMs: facetsMs,
+      gridMs: gridMs,
+      otherMs: otherMs,
       themePageFetches: cycle.themePages.length,
       themePagesMs: round(themeMs),
-      ensureCardsMs: ensureMs != null ? round(ensureMs) : null,
+      ensureCardsMs: ensureMsRounded,
       gridBusyMs: busyMs != null ? round(busyMs) : null,
     };
+    try {
+      if (widget) widget._findlyJsonMs = null;
+    } catch (err) {
+      /* ignore */
+    }
     markPerf("findly-filter-cycle-" + cycle.id + "-end");
     if (enabled() || total >= SLOW_MS || themeMs >= SLOW_MS) {
       emitUi(summary);
