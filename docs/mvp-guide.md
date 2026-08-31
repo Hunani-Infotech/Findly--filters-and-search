@@ -53,10 +53,10 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 1. Scaffold the app with Shopify CLI, connect to a Partner account + dev store — **done**
 2. Metafield mapping, filter admin, Theme App Extension filters — **done in repo**
 3. Storefront search + Instant search + search extras — **done in repo**
-4. Catalog sync (bulk + webhooks) — **done in repo**; live proof still open
-5. Billing API — Free / Standard / Pro — **done in repo**; live plan clicks still open
-6. Mandatory GDPR webhooks — **done in repo**; live delivery still open
-7. Fix production `/health` (Postgres on Hostinger) + `shopify app deploy`
+4. Catalog sync (bulk + webhooks) — **done in repo**; live proof: AS-Q1 / AS-Q2
+5. Billing API — Free / Standard / Pro — **done in repo**; live charges: AS-B5–B7
+6. Mandatory GDPR webhooks — **done in repo**; live delivery: AS-C6
+7. Fix production `/health` (Postgres on Hostinger) + `shopify app deploy` — **done**
 8. Live QA on a development store (filters, search, billing)
 9. Partner listing assets + reviewer notes
 10. Submit for App Store review

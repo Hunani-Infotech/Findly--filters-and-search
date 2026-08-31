@@ -13,7 +13,7 @@ Do **not** advertise or treat as finished:
 - AI/ML semantic ranking, embeddings
 - Custom theme editor / drag-drop widget builder beyond basic position (+ accent / counts)
 
-Live storefront clicks for filters, search, billing, and GDPR remain open jobs (AS-Q*, AS-B5–B7, AS-C6).
+Live Hostinger health, storefront QA, and Partner Dashboard submission are the remaining gates — see `docs/app-store-approval-jobs.html`.
 
 | Step | Description | Status |
 |------|-------------|--------|

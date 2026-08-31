@@ -2,7 +2,7 @@
 
 Paste-ready text for **Apps → Findly → Distribution → Manage listing**. No prior draft existed in the repo; this is the source of truth.
 
-Cross-checked on 27 Aug 2026 against `app/routes/app.tsx` NavMenu and the pages those links open. Do not invent extras in the Partner form.
+Cross-checked 31 Aug 2026 against `app/routes/app.tsx` NavMenu. Vehicle Finder and Recommendations have been removed from the codebase. Do not invent extras in the Partner form.
 
 ## NavMenu vs listing (current)
 
@@ -148,4 +148,5 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 
 - AS-L4 is done for **copy**. Someone still has to paste this into the Partner listing form.
 - AS-L5: enter the same three prices. Do not type “draft”.
+- App version `findly-smart-filters-8` deployed 31 Aug 2026 with Vehicle Finder and Recommendations removed.
 
