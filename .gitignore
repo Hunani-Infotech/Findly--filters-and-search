@@ -4,6 +4,7 @@ node_modules
 .DS_Store
 
 /.cache
+/.vite
 /build
 /app/build
 /public/build/

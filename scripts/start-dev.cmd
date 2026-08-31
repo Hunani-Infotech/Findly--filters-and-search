@@ -31,10 +31,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [1/4] Starting Postgres + Redis 7 + worker...
+echo [1/4] Starting Postgres + worker...
 docker compose up -d
 if errorlevel 1 (
-  echo docker compose failed ^(port 5432/6379 conflict?^).
+  echo docker compose failed ^(port 5432 conflict?^).
   pause
   exit /b 1
 )

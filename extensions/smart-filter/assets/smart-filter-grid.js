@@ -295,6 +295,13 @@
     window.addEventListener("hashchange", function () {
       var widget = window.__FINDLY_FILTER_WIDGET;
       if (!widget || !widget.fetchFilters) return;
+      var raw = String(window.location.hash || "").replace(/^#/, "");
+      if (!raw) {
+        resetWidgetFilterState(widget);
+        prepareNativeListingRestore(widget);
+        widget.fetchFilters();
+        return;
+      }
       if (widget.restoreFromHash) widget.restoreFromHash();
       applyLooseHash(widget);
       widget.fetchFilters();
@@ -2788,6 +2795,14 @@
       card = resolveOuterThemeCard(card);
       if (!card) continue;
       widget._cardCache[key] = card;
+      if (
+        card.parentNode === parent &&
+        !card.hidden &&
+        card.getAttribute("data-smart-filter-hidden") !== "true"
+      ) {
+        n += 1;
+        continue;
+      }
       placeCardInGrid(parent, card);
       showCardTree(card);
       n += 1;
@@ -3115,6 +3130,10 @@
     if (!widget || !handles || !handles.length || !parent) return;
     if (widget.isAppGridMode && widget.isAppGridMode()) return;
     handles = pageHandlesForGrid(widget, handles, false);
+    if (countAllowedInHost(parent, handles) >= uniqueAllowedCount(handles)) {
+      return;
+    }
+    if (widget.cacheNativeCards) widget.cacheNativeCards();
     var cache = widget._cardCache || {};
     widget._cardCache = cache;
     var products = widget._lastProducts || [];
@@ -3141,6 +3160,11 @@
       var base = key.split("::")[0];
       var cached = cache[key] || (base && cache[base]);
       var existing = cached ? resolveOuterThemeCard(cached) || cached : null;
+      if (existing && !cardIsInHost(existing, parent)) {
+        placeCardInGrid(parent, existing);
+        showCardTree(existing);
+        continue;
+      }
       if (existing && cardIsInHost(existing, parent) && !isFragileThemeCard(existing)) {
         showCardTree(existing);
         continue;
@@ -3199,11 +3223,66 @@
     if (!widget) return;
     delete widget._keepThemeCards;
     if (widget.restoreThemePaging) widget.restoreThemePaging();
+    restoreNativeGridOrder(widget);
+  }
+
+  function resetWidgetFilterState(widget) {
+    if (!widget) return;
+    widget.selected = {};
+    widget.price = { min: "", max: "" };
+    widget.collectionQuery = "";
+    widget.sortKey = widget.defaultSort || "manual";
+    if (widget.sortEl) widget.sortEl.value = widget.sortKey;
+    if (widget.collectionSearchEl) widget.collectionSearchEl.value = "";
+  }
+
+  function prepareNativeListingRestore(widget) {
+    if (!widget || !isNativeThemeGridState(widget)) return;
+    widget._sfNativeListing = true;
+    restoreNativeThemeGridState(widget);
+  }
+
+  function snapshotNativeGridOrder(widget, parent) {
+    if (!widget || widget._nativeGridOrder) return;
+    parent = preferProductCardGrid(resolveCardHost(parent) || parent);
+    if (!parent || !parent.children || !parent.children.length) return;
+    var snapshot = [];
+    var i;
+    for (i = 0; i < parent.children.length; i++) {
+      snapshot.push(parent.children[i]);
+    }
+    if (!snapshot.length) return;
+    widget._nativeGridOrder = snapshot;
+    widget._nativeGridParent = parent;
+  }
+
+  function restoreNativeGridOrder(widget) {
+    if (!widget || !widget._nativeGridOrder) return;
+    var parent = widget._nativeGridParent;
+    if (!parent || !parent.isConnected) {
+      parent = preferProductCardGrid(
+        resolveCardHost(widget._gridParent) ||
+          (widget.ensureGridParent && widget.ensureGridParent()),
+      );
+      if (!parent) return;
+      widget._nativeGridParent = parent;
+    }
+    var snapshot = widget._nativeGridOrder;
+    var i;
+    for (i = 0; i < snapshot.length; i++) {
+      var el = snapshot[i];
+      if (!el || el.nodeType !== 1) continue;
+      parent.appendChild(el);
+    }
   }
 
   function shouldTakeOverThemeCards(widget) {
     if (!widget) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    if (isNativeThemeGridState(widget)) {
+      delete widget._keepThemeCards;
+      return false;
+    }
     if (widget.hasActiveFilters && widget.hasActiveFilters()) {
       markGridTakeover(widget);
       return true;
@@ -3349,11 +3428,18 @@
   }
 
   function applyNativeFilterGrid(handles, hint) {
-    stripAppCards(document);
     var parent = preferProductCardGrid(resolveCardHost(hint) || hint);
+    stripAppCards(parent || document);
     if (!parent) return false;
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (widget && !widget._nativeGridOrder) {
+      snapshotNativeGridOrder(widget, parent);
+    }
     lockThemeGridTracks(parent);
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
+    if (!allowed && widget && widget._nativeGridOrder) {
+      restoreNativeGridOrder(widget);
+    }
     var cards = collectTrayAndGridCards(parent);
     var tray = cardTray();
     var shown = [];
@@ -3409,7 +3495,13 @@
       if (hidden[i].el.parentNode === tray) placeCardInGrid(parent, hidden[i].el);
       hideEl(hidden[i].el);
     }
-    reorderShownHosts(parent, shownHosts);
+    if (allowed) {
+      reorderShownHosts(parent, shownHosts);
+    } else if (widget && widget._nativeGridOrder) {
+      restoreNativeGridOrder(widget);
+    } else {
+      reorderShownHosts(parent, shownHosts);
+    }
     sweepHostOrphans(parent, shownHosts, allowed, tray);
     return cards.length > 0;
   }
@@ -5939,6 +6031,8 @@
     proto.shouldInterceptPaging = function () {
       if (this.isAppGridMode && this.isAppGridMode()) return true;
       if (this._pagingFallback) return false;
+      /* Clear All on a default collection view — use native Liquid grid, not card import. */
+      if (this._sfNativeListing && isNativeThemeGridState(this)) return false;
       return shouldTakeOverThemeCards(this);
     };
 
@@ -6003,10 +6097,11 @@
         } else {
           applyNativeFilterGrid(null, parent);
         }
-        fillGapsWithThemeClones(this, sliced.handles, parent);
         var shownNative = countAllowedInHost(parent, sliced.handles);
         var neededNative = uniqueAllowedCount(sliced.handles);
         if (neededNative > 0 && shownNative >= neededNative) return true;
+        fillGapsWithThemeClones(this, sliced.handles, parent);
+        shownNative = countAllowedInHost(parent, sliced.handles);
         if (!shouldTakeOverThemeCards(this)) return shownNative > 0;
         if (shownNative > 0) return true;
         fillGapsWithThemeClones(this, sliced.handles, parent);
@@ -6082,6 +6177,9 @@
           ? origEnsureCards.apply(this, arguments)
           : Promise.resolve(false);
       }
+      if (this._sfNativeListing && isNativeThemeGridState(this)) {
+        return Promise.resolve(true);
+      }
       if (!this.missingHandles(handles).length) return Promise.resolve(true);
 
       self._ensureHandles = handles;
@@ -6129,6 +6227,9 @@
         );
         if (!parent || !productsForSeed().length) return false;
         var missing = self.missingHandles(handles);
+        if (!missing.length) return true;
+        mountCachedCards(self, missing, parent);
+        missing = self.missingHandles(handles);
         if (!missing.length) return true;
         /* Only clone gaps — same end state, less DOM work. */
         fillGapsWithThemeClones(self, missing, parent);
@@ -6308,6 +6409,11 @@
         this._importingCards = false;
         this._sfPaintedReq = -1;
         this._sfChromeHiddenReq = -1;
+        if (isNativeThemeGridState(this)) {
+          prepareNativeListingRestore(this);
+        } else {
+          this._sfNativeListing = false;
+        }
         stripThemePageParamIfFiltering(this);
       }
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
@@ -6340,10 +6446,14 @@
                 publish(self);
               }, 0);
             }
+            if (!opts.append) self._sfNativeListing = false;
             return value;
           },
           function (err) {
-            if (!opts.append) publishListingSuggestions(self);
+            if (!opts.append) {
+              self._sfNativeListing = false;
+              publishListingSuggestions(self);
+            }
             return Promise.reject(err);
           },
         );
@@ -6351,23 +6461,10 @@
       return result;
     };
 
-    var origCommit = proto.commitFilters;
-    proto.commitFilters = function (keepFacets) {
-      if (isNativeThemeGridState(this)) {
-        restoreNativeThemeGridState(this);
-      }
-      if (origCommit) return origCommit.apply(this, arguments);
-    };
-
     var origClear = proto.clearFilters;
     proto.clearFilters = function () {
       this._importingCards = false;
-      this.selected = {};
-      this.price = { min: "", max: "" };
-      if (isNativeThemeGridState(this)) {
-        restoreNativeThemeGridState(this);
-      }
-      this.fetchFilters();
+      if (origClear) origClear.apply(this, arguments);
     };
 
     var origRestoreHash = proto.restoreFromHash;
@@ -6421,6 +6518,7 @@
       applyLooseHash(this);
       if (this.ensureGridParent) this.ensureGridParent();
       if (this.ensurePageSize) this.ensurePageSize();
+      snapshotNativeGridOrder(this, this._gridParent);
       if (origInit) origInit.apply(this, arguments);
       portalMobileDrawer(this);
     };
