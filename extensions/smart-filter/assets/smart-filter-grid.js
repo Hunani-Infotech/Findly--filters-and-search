@@ -6258,19 +6258,23 @@
       }
       mountCachedCards(this, next, host);
       applyNativeFilterGrid(next, host);
-      fillGapsWithThemeClones(this, next, host);
       var shown = countAllowedInHost(host, next);
+      var needed = uniqueAllowedCount(next);
+      if (needed > shown) {
+        fillGapsWithThemeClones(this, next, host);
+        shown = countAllowedInHost(host, next);
+      }
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
       markGridPainted(this);
       /* Drop busy as soon as the page of cards is on screen — same cards, earlier paint feel. */
       if (
-        shown >= uniqueAllowedCount(next) &&
+        shown >= needed &&
         this.setGridBusy &&
         !this._importingCards
       ) {
         this.setGridBusy(false);
       }
-      return uniqueAllowedCount(next) === 0 || shown > 0;
+      return needed === 0 || shown > 0;
     };
 
     var origFetch = proto.fetchFilters;
@@ -6279,6 +6283,7 @@
       if (!opts.append) {
         this._importingCards = false;
         this._sfPaintedReq = -1;
+        this._sfChromeHiddenReq = -1;
         stripThemePageParamIfFiltering(this);
       }
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
@@ -6304,7 +6309,13 @@
             }
             if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
             mountFindlyPager(self);
-            if (!opts.append) publishListingSuggestions(self);
+            if (!opts.append) {
+              /* Suggestions are observational — defer off the filter paint path. */
+              var publish = publishListingSuggestions;
+              window.setTimeout(function () {
+                publish(self);
+              }, 0);
+            }
             return value;
           },
           function (err) {
@@ -6513,21 +6524,56 @@
       placeCollectionSearchOnGrid(this);
     };
     proto.watchThemeGrid = function () {
-      if (this._gridObserver) {
-        try {
-          this._gridObserver.disconnect();
-        } catch (err) {
-          /* ignore */
-        }
-        this._gridObserver = null;
-        this._gridObserveEl = null;
-      }
+      /* Keep the observer alive across filter cycles — do not disconnect then bail. */
       if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
         applyNativeAfterGrid(this);
       }
       if (this._findlyGridWatch) return;
       this._findlyGridWatch = true;
       ensureFindlyGridObserver(this);
+    };
+
+    var origApplySettings = proto.applySettings;
+    proto.applySettings = function (settings) {
+      var stamp = "";
+      try {
+        stamp = JSON.stringify(settings || {});
+      } catch (err) {
+        stamp = "";
+      }
+      if (
+        stamp &&
+        this._sfSettingsStamp === stamp &&
+        this._sfSettingsApplied
+      ) {
+        /* Same settings payload as last apply — skip sort/search/chrome rebuild. */
+        return;
+      }
+      if (stamp) {
+        this._sfSettingsStamp = stamp;
+        this._sfSettingsApplied = true;
+      }
+      if (origApplySettings) return origApplySettings.apply(this, arguments);
+    };
+
+    var origHideChrome = proto.hideThemeDuplicateChrome;
+    proto.hideThemeDuplicateChrome = function () {
+      if (this._sfChromeHiddenReq === this._reqId && this._reqId) return;
+      this._sfChromeHiddenReq = this._reqId;
+      if (origHideChrome) return origHideChrome.apply(this, arguments);
+    };
+
+    var origQuickview = proto.ensureQuickviewButtons;
+    proto.ensureQuickviewButtons = function () {
+      var self = this;
+      var args = arguments;
+      if (!origQuickview) return;
+      /* Non-paint work — defer so filter→grid settle is not blocked. */
+      if (self._sfQvTimer) window.clearTimeout(self._sfQvTimer);
+      self._sfQvTimer = window.setTimeout(function () {
+        self._sfQvTimer = 0;
+        origQuickview.apply(self, args);
+      }, 0);
     };
 
     var origRenderPrice = proto.renderPriceFacet;

@@ -161,12 +161,18 @@
     var facetsMs =
       cycle.marks.facetsMs != null ? round(cycle.marks.facetsMs) : null;
     var gridMs = cycle.marks.gridMs != null ? round(cycle.marks.gridMs) : null;
+    var settingsMs =
+      cycle.marks.settingsMs != null ? round(cycle.marks.settingsMs) : null;
+    var chromeMs =
+      cycle.marks.chromeMs != null ? round(cycle.marks.chromeMs) : null;
     var ensureMsRounded = ensureMs != null ? round(ensureMs) : null;
     var accounted = 0;
     if (jsonMs != null) accounted += jsonMs;
     if (facetsMs != null) accounted += facetsMs;
     if (gridMs != null) accounted += gridMs;
     if (ensureMsRounded != null) accounted += ensureMsRounded;
+    if (settingsMs != null) accounted += settingsMs;
+    if (chromeMs != null) accounted += chromeMs;
     var otherMs =
       applyMs != null ? round(Math.max(0, applyMs - accounted)) : null;
     var summary = {
@@ -177,6 +183,8 @@
       filtersNetworkCount: net.count,
       applyMs: applyMs,
       jsonMs: jsonMs,
+      settingsMs: settingsMs,
+      chromeMs: chromeMs,
       facetsMs: facetsMs,
       gridMs: gridMs,
       otherMs: otherMs,
@@ -324,6 +332,39 @@
         return result;
       };
       proto.syncProductGrid.__findlyPerf = true;
+    }
+
+    if (proto.applySettings && !proto.applySettings.__findlyPerf) {
+      var origSettings = proto.applySettings;
+      proto.applySettings = function () {
+        var cycle = activeCycle(this);
+        var t0 = now();
+        var result = origSettings.apply(this, arguments);
+        if (cycle) {
+          cycle.marks.settingsMs =
+            (cycle.marks.settingsMs || 0) + (now() - t0);
+        }
+        return result;
+      };
+      proto.applySettings.__findlyPerf = true;
+    }
+
+    if (
+      proto.hideThemeDuplicateChrome &&
+      !proto.hideThemeDuplicateChrome.__findlyPerf
+    ) {
+      var origChrome = proto.hideThemeDuplicateChrome;
+      proto.hideThemeDuplicateChrome = function () {
+        var cycle = activeCycle(this);
+        var t0 = now();
+        var result = origChrome.apply(this, arguments);
+        if (cycle) {
+          cycle.marks.chromeMs =
+            (cycle.marks.chromeMs || 0) + (now() - t0);
+        }
+        return result;
+      };
+      proto.hideThemeDuplicateChrome.__findlyPerf = true;
     }
   }
 
