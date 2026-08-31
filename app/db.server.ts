@@ -20,15 +20,30 @@ const DIRECT_CONNECTION_LIMIT = "3";
 const ERROR_MESSAGE_MAX = 180;
 const DB_READY_ATTEMPTS = 4;
 
+function parsePgUrl(raw: string | undefined): URL | null {
+  if (!raw?.trim()) return null;
+  try {
+    const normalized = raw.trim().replace(/^postgresql:/i, "http:");
+    return new URL(normalized);
+  } catch {
+    return null;
+  }
+}
+
+/** Supabase transaction pooler (:6543) only — session pooler (:5432) must not use it. */
+function isTransactionPoolerPort(port: string): boolean {
+  return port === "6543";
+}
+
 function withPrismaDbParams(
   raw: string | undefined,
   { pgbouncer }: { pgbouncer: boolean },
 ): string | undefined {
   if (!raw?.trim()) return raw;
+  const url = parsePgUrl(raw);
+  if (!url) return raw;
   try {
-    const normalized = raw.trim().replace(/^postgresql:/i, "http:");
-    const url = new URL(normalized);
-    if (pgbouncer) {
+    if (pgbouncer && isTransactionPoolerPort(url.port)) {
       url.searchParams.set("pgbouncer", "true");
     }
     if (!url.searchParams.get("sslmode")) {
@@ -52,13 +67,22 @@ function withPrismaDbParams(
 
 function applyDatabaseEnv() {
   const databaseUrl = withPrismaDbParams(process.env.DATABASE_URL, {
-    pgbouncer: true,
+    pgbouncer: isTransactionPoolerPort(
+      parsePgUrl(process.env.DATABASE_URL)?.port ?? "",
+    ),
   });
   const directUrl = withPrismaDbParams(process.env.DIRECT_URL, {
     pgbouncer: false,
   });
   if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
   if (directUrl) process.env.DIRECT_URL = directUrl;
+
+  const runtime = parsePgUrl(process.env.DATABASE_URL);
+  if (runtime) {
+    log.info(
+      `[db] runtime target ${runtime.hostname}:${runtime.port || "5432"} user=${runtime.username}`,
+    );
+  }
 }
 
 applyDatabaseEnv();

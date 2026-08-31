@@ -71,9 +71,9 @@ async function getCachedProbes() {
 }
 
 /**
- * Load balancers get `{ ok }` only. Detailed postgres/worker probes require
- * HEALTH_CHECK_TOKEN via `X-Health-Token` or `?token=`.
- * Unauthenticated details are development-only (unset NODE_ENV is not treated as dev).
+ * Public JSON is `{ ok }` on success. On postgres failure, `{ ok, postgres.error }`
+ * includes a redacted error string (no credentials). Full worker/latency details
+ * require HEALTH_CHECK_TOKEN via `X-Health-Token` or `?token=`.
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { postgres } = await getCachedProbes();
@@ -101,7 +101,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           },
         },
       }
-    : { ok };
+    : ok
+      ? { ok }
+      : {
+          ok,
+          postgres: {
+            ok: false,
+            error: postgres.error ?? "unknown_error",
+          },
+        };
 
   return new Response(JSON.stringify(body), {
     status: ok ? 200 : 503,
