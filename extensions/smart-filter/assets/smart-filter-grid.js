@@ -2858,9 +2858,10 @@
     if (emptyEl.parentNode !== parent) parent.appendChild(emptyEl);
   }
 
-  // keep-theme-cards: on first unfiltered load, leave native Liquid cards
-  // alone. After the shopper filters/searches/sorts, keep rendering API
-  // results — including Clear All — so the grid and pagination stay in sync.
+  // keep-theme-cards: on first unfiltered load (and after Clear All / removing
+  // the last filter with default sort), leave native Liquid cards alone. After
+  // the shopper filters/searches/sorts, keep rendering API results until the
+  // listing returns to that native state.
   function shopifyImageKey(url) {
     if (!url) return "";
     var path = String(url).split("?")[0];
@@ -3175,6 +3176,29 @@
 
   function markGridTakeover(widget) {
     if (widget) widget._keepThemeCards = false;
+  }
+
+  function isNativeThemeGridState(widget) {
+    if (!widget) return false;
+    if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
+    if (widget.collectionQuery) return false;
+    if (widget.searchQuery) return false;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return false;
+    }
+    if (widget.hasVariantCards && widget.hasVariantCards()) return false;
+    return true;
+  }
+
+  function restoreNativeThemeGridState(widget) {
+    if (!widget) return;
+    delete widget._keepThemeCards;
+    if (widget.restoreThemePaging) widget.restoreThemePaging();
   }
 
   function shouldTakeOverThemeCards(widget) {
@@ -6327,11 +6351,23 @@
       return result;
     };
 
+    var origCommit = proto.commitFilters;
+    proto.commitFilters = function (keepFacets) {
+      if (isNativeThemeGridState(this)) {
+        restoreNativeThemeGridState(this);
+      }
+      if (origCommit) return origCommit.apply(this, arguments);
+    };
+
     var origClear = proto.clearFilters;
     proto.clearFilters = function () {
       this._importingCards = false;
-      markGridTakeover(this);
-      if (origClear) origClear.apply(this, arguments);
+      this.selected = {};
+      this.price = { min: "", max: "" };
+      if (isNativeThemeGridState(this)) {
+        restoreNativeThemeGridState(this);
+      }
+      this.fetchFilters();
     };
 
     var origRestoreHash = proto.restoreFromHash;
