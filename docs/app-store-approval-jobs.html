@@ -278,8 +278,8 @@
   <div class="wrap">
     <h1>Shopify App Store approval jobs</h1>
     <p class="lede">
-      Checklist re-verified 31 Aug 2026 against the current repo plus the live Hostinger host.
-      Locked checkmarks were re-audited the same pass (storage key v8 — hard-refresh this page).
+      Checklist re-verified 31 Aug 2026 (afternoon) against the current repo plus the live Hostinger host.
+      Locked checkmarks were re-audited the same pass (storage key v9 — hard-refresh this page).
       In code today: Home is the dashboard (SetupGuide, catalog sync popup, performance).
       Filter trees, color swatches, and value groups live on <strong>Filters</strong> (<code>/app/filters</code>).
       Storefront search (Settings + Instant search widget tabs, plus pinnings / synonyms / redirects),
@@ -321,9 +321,7 @@
         <h2>Live (Hostinger + Partner + storefront)</h2>
         <p class="lede">Everything below needs the real host, Partner Dashboard, or a development-store click. Do not treat these as done from a local compile.</p>
         <ul>
-          <li><strong>AS-P1</strong> — Still open (31 Aug): live <code>/health</code> is <code>503</code> → <code>{"ok":false}</code>. Fix Hostinger <code>DATABASE_URL</code> / <code>DIRECT_URL</code> (Supabase pooler :6543 + :5432) until <code>/health</code> is 200. Optional: set <code>HEALTH_CHECK_TOKEN</code> to see postgres/worker details.</li>
           <li><strong>AS-P3</strong> — <code>shopify app deploy</code> so Partner App URL, proxy, and webhooks match Hostinger.</li>
-          <li><strong>AS-P4</strong> — Confirm <code>BILLING_TEST_MODE=false</code> in Hostinger env (code already defaults to false).</li>
           <li><strong>AS-P5</strong> — Keep Hostinger <code>SCOPES</code> aligned with <code>shopify.app.toml</code>.</li>
           <li><strong>AS-B5–B7</strong> — Live-test Free → Standard → Pro on a development store.</li>
           <li><strong>AS-C6</strong> — Live-test GDPR trio + uninstall; <strong>AS-C8</strong> — PCD opt-out on Partner.</li>
@@ -336,10 +334,10 @@
     <div class="split">
       <strong>Do not submit until every submit-gate is checked — including live QA.</strong>
       Shopify reviews the production app only. Code-complete is not the same as storefront-verified.
-      Live host (re-checked 31 Aug 2026): <code>https://deeppink-manatee-141983.hostingersite.com</code>
-      serves <code>/privacy</code> and <code>/terms</code> over HTTPS; <code>/health</code> returns <code>503</code> with <code>{"ok":false}</code> while Postgres is unreachable.
-      Last <strong>successful</strong> Hostinger git deploy: <strong>31 Aug 05:15 UTC</strong> (Node 22, <code>server.js</code>, react-router). Deploys are succeeding again; the remaining outage is Supabase connectivity (AS-P1).
-      Postgres is <strong>Supabase</strong> (<code>DATABASE_URL</code> pooler :6543 + <code>DIRECT_URL</code> :5432). Do not use <code>db.*.supabase.co</code> (IPv6-only from Hostinger).
+      Live host (re-checked 31 Aug afternoon): <code>https://deeppink-manatee-141983.hostingersite.com</code>
+      — <code>/health</code> <strong>200</strong> <code>{"ok":true}</code>, <code>/privacy</code> and <code>/terms</code> OK.
+      Last Hostinger git deploy: <strong>31 Aug 07:25 UTC</strong>. Supabase Postgres is connected (session pooler :5432 on Hostinger).
+      Postgres is <strong>Supabase</strong> — on Hostinger use session pooler <code>:5432</code> for <code>DATABASE_URL</code> (shared Node often blocks :6543). Do not use <code>db.*.supabase.co</code> (IPv6-only).
       Sync queue is <strong>Postgres <code>QueueJob</code></strong> — no Redis. Remove any leftover <code>REDIS_URL</code> from Hostinger env.
       Worker (AS-P13): in-process on the Hostinger web app. Set <code>WORKER_COUNT</code> (default 2) for parallel job slots. Leave <code>START_WORKER</code> unset.
       Public <code>/health</code> returns only <code>{ "ok": true|false }</code>; set <code>HEALTH_CHECK_TOKEN</code> for postgres/worker JSON in production.
@@ -488,12 +486,14 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "findly-app-store-jobs-v8";
+    const STORAGE_KEY = "findly-app-store-jobs-v9";
 
     /** Jobs completed in the repo or live-proven (always checked; localStorage cannot uncheck them).
      *  Re-audited 31 Aug 2026 against current code + live Hostinger host. Live/Partner jobs stay open. */
     const REPO_DONE = [
+      "AS-P1",
       "AS-P2",
+      "AS-P4",
       "AS-P5",
       "AS-P6",
       "AS-P7",
@@ -507,7 +507,7 @@
       "AS-Q9",
       "PLAN-free", "PLAN-standard", "PLAN-pro",
     ];
-    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v8";
+    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v9";
 
     const LANES = {
       production: "Production",
@@ -561,15 +561,15 @@
     ];
 
     const JOBS = [
-      ["AS-P1", "production", "blocker", "Keep Hostinger web + in-process worker healthy (Supabase Postgres)", "Re-checked 31 Aug 2026: GET /health → HTTP 503, body {\"ok\":false}. Last Hostinger git deploy completed 31 Aug 05:15 UTC (Node 22, server.js). Host is a Business Node.js website. Postgres queue via QueueJob + ensureWorkerRunning() unless START_WORKER=0. Not done until /health is 200 and a real catalog sync completes. Likely cause: wrong DATABASE_URL / DIRECT_URL, IPv6 direct host, or Supabase pooler config.", "Hostinger Node app, server.js, app/entry.server.tsx, app/workers/ensure-running.server.ts, /health"],
+      ["AS-P1", "production", "blocker", "Keep Hostinger web + in-process worker healthy (Supabase Postgres)", "Live-proven 31 Aug afternoon: GET /health → 200 {\"ok\":true}. With HEALTH_CHECK_TOKEN: postgres.ok ~142ms, worker in-process, WORKER_COUNT=10. Last deploy 31 Aug 07:25 UTC. Infra is done; still run AS-Q1 (real catalog sync on a dev store) before submit.", "Hostinger Node app, /health, app/workers/ensure-running.server.ts"],
       ["AS-P2", "production", "blocker", "App URL config is https://deeppink-manatee-141983.hostingersite.com", "Repo-complete: shopify.app.toml application_url + auth redirect + app proxy, app/utils/public-origin.ts, privacy/terms. Live host is this Hostinger URL; a custom hunaniinfotech.com hostname is optional and not required for submit.", "shopify.app.toml, app/utils/public-origin.ts"],
       ["AS-P3", "production", "blocker", "Re-run shopify app deploy so Partner matches Hostinger", "Partner Dashboard still needs a deploy for App URL + proxy + webhooks (api_version 2026-07, including inventory_levels/update and [events] Product).", "Shopify CLI"],
-      ["AS-P4", "production", "blocker", "Confirm BILLING_TEST_MODE=false in Hostinger env", "Repo-complete: isBillingTestMode() defaults to false when unset. Confirm the Hostinger Node env is not overriding it to true before real charges.", "app/services/billing.server.ts, Hostinger env"],
+      ["AS-P4", "production", "blocker", "Confirm BILLING_TEST_MODE=false in Hostinger env", "Live-proven 31 Aug afternoon: BILLING_TEST_MODE=false on Hostinger. Code defaults to false when unset.", "app/services/billing.server.ts, Hostinger env"],
       ["AS-P5", "production", "later", "Keep Hostinger SCOPES aligned with shopify.app.toml", "Repo-complete: SCOPES live in shopify.app.toml (read_products, read_files, write_files, read_inventory, read_locations, read_content, read_markets; optional read_companies). Keep the Hostinger Node env SCOPES in sync.", "shopify.app.toml, Hostinger env"],
       ["AS-P6", "production", "medium", "Hostinger Node version ≥22.12", "Repo + live-proven 31 Aug 2026: package.json engines is ≥22.12.0. Hostinger JS deployments set node_version 22.", "package.json engines, Hostinger Node version"],
       ["AS-P7", "production", "medium", "Commit package-lock.json so production npm ci works", "Repo-complete: package-lock.json is tracked.", ".gitignore, package-lock.json"],
-      ["AS-P8", "production", "later", "Health check probes Postgres (token-gated details)", "Repo-complete 31 Aug 2026: health.tsx probes Prisma with 15s timeout; public JSON is { ok } only; postgres/worker details need HEALTH_CHECK_TOKEN in production. Returns 503 when Postgres fails (current live state is AS-P1).", "app/routes/health.tsx"],
-      ["AS-P9", "production", "blocker", "Live host is https://deeppink-manatee-141983.hostingersite.com (Hostinger HTTPS)", "Live-proven 31 Aug 2026: /privacy and /terms load over HTTPS. /health returns 503 while Postgres is down (AS-P1).", "DNS + Hostinger SSL"],
+      ["AS-P8", "production", "later", "Health check probes Postgres (token-gated details)", "Repo + live-proven 31 Aug afternoon: health.tsx probes Prisma; public JSON is { ok } only; postgres/worker details need HEALTH_CHECK_TOKEN. Live returns 200 with ok:true.", "app/routes/health.tsx"],
+      ["AS-P9", "production", "blocker", "Live host is https://deeppink-manatee-141983.hostingersite.com (Hostinger HTTPS)", "Live-proven 31 Aug afternoon: /health 200, /privacy and /terms over HTTPS.", "DNS + Hostinger SSL"],
       ["AS-P10", "production", "medium", "Prisma ships a CloudLinux query engine", "Repo-complete: binaryTargets native + rhel-openssl-1.1.x.", "prisma/schema.prisma"],
       ["AS-P11", "production", "later", "Obsolete: Redis/Upstash removed", "No longer applies (29 Aug 2026). Sync queue is Postgres QueueJob; bullmq/ioredis removed from package.json. Remove REDIS_URL from Hostinger if still present.", "app/lib/queues.server.ts, prisma QueueJob"],
       ["AS-P12", "production", "later", "Obsolete: REDIS_URL on Hostinger", "No longer applies. Was Upstash; queue is now Postgres-only.", "Hostinger env"],
