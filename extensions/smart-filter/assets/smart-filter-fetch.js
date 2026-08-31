@@ -103,5 +103,6 @@
 
   window.__FINDLY_FILTER_FETCH = API;
   installSetter();
-  if (held) patchWidget(held);
+  var existing = window.__FINDLY_FILTER_WIDGET;
+  if (existing) patchWidget(existing);
 })();
