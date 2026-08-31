@@ -1686,7 +1686,7 @@ html.sf-filter-loading .sf-total-count::after {
   .sf-sort-btn {
     display: none !important;
   }
-  ul.sf-options > li:not(.sf-options-swatches li){
+  ul.sf-options > li:not(.sf-options-swatches li, .sf-options-pills li){
     padding-right: 10px;
   }
 }
