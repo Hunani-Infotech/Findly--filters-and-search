@@ -828,8 +828,9 @@ function variantOptionValue(
 
 export function selectedOptionFilterGroups(
   facets: FacetDef[],
-  selected: SelectedFilters,
+  selected?: SelectedFilters | null,
 ): Array<{ names: string[]; values: string[] }> {
+  if (!selected) return [];
   const groups: Array<{ names: string[]; values: string[] }> = [];
   for (const facet of facets) {
     if (facet.source !== "option" || !facet.enabled) continue;
@@ -1020,8 +1021,9 @@ function matchesUnspecified(selected: string[], actual: string) {
 export function productMatchesFilters(
   product: ProductFacetRow,
   facets: FacetDef[],
-  selected: SelectedFilters,
+  selected?: SelectedFilters | null,
 ) {
+  if (!selected) return true;
   for (const facet of facets.filter((item) => item.enabled)) {
     const values = selected[facet.key];
     if (!values?.length) continue;
@@ -1153,7 +1155,8 @@ export function productMatchesFilters(
   return true;
 }
 
-export function hasActiveFilterSelection(selected: SelectedFilters): boolean {
+export function hasActiveFilterSelection(selected?: SelectedFilters | null): boolean {
+  if (!selected) return false;
   return Object.values(selected).some(
     (values) => Array.isArray(values) && values.length > 0,
   );
@@ -1180,11 +1183,12 @@ export function excludeHiddenTaggedProducts<T extends { tags?: string[] | null }
 export function applyHideOutOfStock<T extends { available: boolean }>(
   products: T[],
   mode: string,
-  selected: SelectedFilters,
+  selected?: SelectedFilters | null,
 ): T[] {
   const hideAlways = mode === "hide";
   const hideAfter = mode === "hide_after_filter";
   if (!hideAlways && !hideAfter) return products;
+  if (!selected) return products;
   if ((selected.availability ?? []).includes("out_of_stock")) return products;
   if (hideAfter && !hasActiveFilterSelection(selected)) return products;
   return products.filter((product) => product.available);

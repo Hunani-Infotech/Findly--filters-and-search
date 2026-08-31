@@ -804,20 +804,20 @@
 
 .sf-swatch {
   position: relative;
+  display: inline-flex;
   flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
-  min-width: 2rem;
-  max-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  min-width: 3rem;
+  max-width: 3rem;
   padding: 0;
-  margin: 0 0.15rem 0.15rem 0;
+  margin: 0;
   gap: 0;
   border-radius: 6px;
-  justify-content: center;
-  align-items: center;
   border: 1px solid rgb(17 17 17 / 18%);
   background: var(--sf-swatch, #d6d3d1);
-  box-shadow: none;
   overflow: visible;
 }
 
@@ -1685,6 +1685,9 @@ html.sf-filter-loading .sf-total-count::after {
 @media (max-width: 749px) {
   .sf-sort-btn {
     display: none !important;
+  }
+  ul.sf-options > li:not(.sf-options-swatches li){
+    padding-right: 10px;
   }
 }
 
@@ -2928,6 +2931,11 @@ html.sf-pager-unneeded .ajaxinate-pagination {
     width: 320px;
     max-width: 320px;
     min-width: 320px;
+  }
+
+  .sf-collection-layout--left > .shopify-block:has(.smart-filter) {
+    position: sticky;
+    top: 10px;
   }
 
   .sf-collection-layout--left > .sf-layout-main,
