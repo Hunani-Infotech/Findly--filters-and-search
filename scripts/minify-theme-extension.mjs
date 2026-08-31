@@ -54,6 +54,14 @@ const JOBS = [
     banner: "/* generated from smart-filter-theme.js — do not edit */\n",
   },
   {
+    src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-fetch.js"),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-fetch.min.js",
+    ),
+    banner: "/* generated from smart-filter-fetch.js — do not edit */\n",
+  },
+  {
     src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-boot.js"),
     out: path.join(
       ROOT,

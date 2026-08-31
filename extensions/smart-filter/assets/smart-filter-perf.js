@@ -11,6 +11,7 @@
 
   var TAG = "[FindlyUI]";
   var SLOW_MS = 250;
+  var STALE_FILTER_ERR = "FindlyStaleRequest";
 
   function now() {
     return typeof performance !== "undefined" && performance.now
@@ -231,6 +232,7 @@
               return value;
             },
             function (err) {
+              if (err && err.name === STALE_FILTER_ERR) return;
               finishCycle(self, "fetchFilters-err", cycle);
               throw err;
             },

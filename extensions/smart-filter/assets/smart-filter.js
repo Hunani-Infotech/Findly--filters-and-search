@@ -5,7 +5,6 @@
   var DEBOUNCE_MS = 300;
   var MSG_LOADING = "Loading filters…";
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
-  var FILTER_FETCH_MS = 12000;
   var MSG_NO_MATCH = "No matching products.";
   var MSG_DISABLED = "Filters are not enabled for this collection.";
   var MSG_CLEAR = "Clear All";
@@ -4040,6 +4039,8 @@
   Widget.prototype.fetchFilters = function (opts) {
     opts = opts || {};
     var append = Boolean(opts.append);
+    var attempt = Number(opts._attempt) || 0;
+    var fr = window.__FINDLY_FILTER_FETCH;
     if (!append) {
       this.page = opts.page != null ? Math.max(1, Number(opts.page) || 1) : 1;
       this._shownHandles = [];
@@ -4085,6 +4086,9 @@
         : null;
     var timedOut = false;
     var timeoutId = 0;
+    var fetchMs =
+      (fr && fr.ms ? fr.ms : 15000) +
+      attempt * (fr && fr.step ? fr.step : 5000);
     if (ctrl) {
       this._abortCtrl = ctrl;
       timeoutId = window.setTimeout(function () {
@@ -4094,7 +4098,7 @@
         } catch (ignore) {
           /* ignore */
         }
-      }, FILTER_FETCH_MS);
+      }, fetchMs);
     }
 
     var clearFetchTimer = function () {
@@ -4132,7 +4136,9 @@
       )
       .then(
         function (data) {
-          if (reqId !== this._reqId) return;
+          if (reqId !== this._reqId) {
+            return fr && fr.stale ? fr.stale() : Promise.reject();
+          }
 
           if (data && data.enabled === false) {
             this.applyI18n(data);
@@ -4268,7 +4274,9 @@
 
           this.ensureVariantCards(this._lastProducts);
           return this.ensureCardsForHandles(handles).then(function (ok) {
-            if (reqId !== self._reqId) return;
+            if (reqId !== self._reqId) {
+              return fr && fr.stale ? fr.stale() : Promise.reject();
+            }
             self._loadingPage = false;
             if (!ok) {
               if (self.applyAppGrid(data, handles, append)) {
@@ -4306,22 +4314,24 @@
       .catch(
         function (err) {
           clearFetchTimer();
-          if (reqId !== this._reqId) return;
+          if (reqId !== this._reqId) {
+            return fr && fr.stale ? fr.stale() : Promise.reject();
+          }
+          if (err && err.name === "FindlyStaleRequest") return;
           if (err && err.name === "AbortError" && !timedOut) return;
-          this.failFilterLoad(err);
+          if (timedOut) {
+            try {
+              err._findlyTimedOut = 1;
+            } catch (ignore) {
+              /* ignore */
+            }
+          }
           if (append) {
             this.page = Math.max(1, (this.page || 1) - 1);
             this._loadingPage = false;
             this.renderPager();
-            return;
           }
-          if (this.autoApplyFilters === false) this.renderApplyBar();
-          if (Array.isArray(this._visibleHandles)) {
-            this.syncProductGrid(this._visibleHandles);
-            this.hideThemeDuplicateChrome();
-          } else {
-            this.enterPagingFallback(null);
-          }
+          return Promise.reject(err);
         }.bind(this),
       );
 
