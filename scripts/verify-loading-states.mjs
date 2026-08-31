@@ -27,10 +27,7 @@ function assertSourceMarkers() {
   const searchCss = read("extensions/smart-filter/assets/smart-filter-search.css");
   const instantJs = read("extensions/smart-filter/assets/instant-search.js");
   const instantCss = read("extensions/smart-filter/assets/instant-search.css");
-  const recsJs = read("extensions/smart-filter/assets/product-recommendations.js");
-  const recsCss = read("extensions/smart-filter/assets/product-recommendations.css");
-  const ymmJs = read("extensions/smart-filter/assets/vehicle-finder.js");
-  const ymmCss = read("extensions/smart-filter/assets/vehicle-finder.css");
+
   const pagerJs = read("extensions/smart-filter/assets/smart-filter-pager.js");
   const block = read("extensions/smart-filter/blocks/collection-filters.liquid");
   const embed = read("extensions/smart-filter/blocks/collection-filters-embed.liquid");
@@ -103,12 +100,7 @@ function assertSourceMarkers() {
   if (!instantJs.includes("showLoadingPanel") || !instantCss.includes("findly-instant-skel-card")) {
     fail("instant-search skeletons missing");
   }
-  if (!recsJs.includes("renderSkeletons") || !recsCss.includes("sf-recs-skel-img")) {
-    fail("recommendations skeletons missing");
-  }
-  if (!ymmJs.includes("renderSkeletons") || !ymmCss.includes("sf-ymm-skel-img")) {
-    fail("vehicle-finder skeletons missing");
-  }
+
   if (!pagerJs.includes("_keepThemeCards = false")) {
     fail("unfiltered pager clicks must take over the grid instead of a full page reload");
   }
@@ -337,12 +329,6 @@ function writeHarness() {
   const instantUrl = pathToFileURL(
     join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
   ).href;
-  const recsUrl = pathToFileURL(
-    join(ROOT, "extensions/smart-filter/assets/product-recommendations.js"),
-  ).href;
-  const ymmUrl = pathToFileURL(
-    join(ROOT, "extensions/smart-filter/assets/vehicle-finder.js"),
-  ).href;
   const html = `<!doctype html>
 <html>
 <body>
@@ -388,20 +374,10 @@ function writeHarness() {
     <ul data-results></ul>
   </div>
   <div class="findly-instant" hidden></div>
-  <div class="smart-filter-recs">
-    <div data-recs-status></div>
-    <ul data-recs-results></ul>
-  </div>
-  <div class="smart-filter-ymm" data-proxy-base="/apps/smart-filter">
-    <div data-ymm-status></div>
-    <ul data-ymm-results></ul>
-  </div>
   <script src="${bootUrl}"></script>
   <script src="${gridUrl}"></script>
   <script src="${searchUrl}"></script>
   <script src="${instantUrl}"></script>
-  <script src="${recsUrl}"></script>
-  <script src="${ymmUrl}"></script>
   <script>
     function report(ok, extra) {
       document.documentElement.setAttribute("data-load-ok", ok ? "1" : "0");
@@ -451,8 +427,7 @@ function writeHarness() {
             searchList.appendChild(li);
           }
         }
-        var recs = document.querySelector("[data-recs-results]");
-        var ymm = document.querySelector("[data-ymm-results]");
+
         if (skel.length < 4) throw new Error("grid skeletons missing: " + skel.length);
         if (!overlay) throw new Error("busy overlay missing");
         if (skel[0] && skel[0].tagName === "PRODUCT-CARD") throw new Error("used product-card custom element");
@@ -528,8 +503,7 @@ function writeHarness() {
           skelTag: skel[0] ? skel[0].tagName : "",
           skelHost: skelHost ? skelHost.id : "",
           searchSkel: document.querySelectorAll(".sf-search-item.is-skeleton").length,
-          recsReady: Boolean(recs),
-          ymmReady: Boolean(ymm)
+
         };
         if (extra.overlayPx > extra.viewH + 40) throw new Error("overlay taller than viewport: " + extra.overlayPx);
         report(true, extra);

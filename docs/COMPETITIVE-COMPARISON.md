@@ -57,7 +57,7 @@ Legend: **Yes** = in Findly launch · **Partial** = limited vs Globo · **No (la
 | Typo tolerance | **No (later)** | Beyond solid basic search — deferred |
 | Synonym groups | **No (later)** | Deferred / no stubs |
 | Search redirects / boosts | **No** | |
-| Product recommendations | **No** | |
+
 | Replace theme search bar | **No** | Theme block approach |
 
 ### C. Analytics & merchandising
@@ -129,7 +129,7 @@ Do not implement these to “catch up” during the current build:
 2. Synonym engines / typo-tolerance engines beyond solid basic search  
 3. Analytics dashboards (filter or search)  
 4. Filter tree builder / unlimited visual menu designer  
-5. Variants-as-products, Year-Make-Model, recommendation engines  
+5. Variants-as-products, Year-Make-Model  
 6. Deep custom CSS / drag-drop theme editor  
 
 Basic storefront search **is** in launch scope — do not treat it as a non-goal.

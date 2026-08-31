@@ -23,13 +23,6 @@ Enabled in `NavMenu` right now:
 
 Catalog sync is on **Home** (card + View details popup). `/app/sync` still redirects there for old links; it is not a NavMenu item.
 
-**Not in NavMenu** (routes exist as Under construction — do **not** advertise):
-
-- Vehicle Finder / YMM — `/app/vehicle-finder` → `UnderConstructionGate`
-- Recommendations — `/app/recommendations` → `UnderConstructionGate`
-
-Theme editor still lists **Vehicle finder** and **Product recommendations** blocks. Listing copy must not mention them. Do not tell merchants to add those blocks.
-
 ---
 
 ## Paste into Partner Dashboard
@@ -50,7 +43,7 @@ Findly: Smart Filters & Search
 Help shoppers find products faster with collection filters and storefront search
 ```
 
-80 characters. No AI, analytics headline, YMM, or recommendations.
+80 characters. No AI, analytics headline.
 
 ### App introduction (≤100)
 
@@ -144,8 +137,8 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 | Claim | Status | Action |
 |---|---|---|
 | Analytics / insights / dashboards as the **tagline** | Dashboard exists and is in nav | Keep it off the card subtitle. One feature line + one details sentence is enough. |
-| Year / Make / Model, Vehicle Finder, fitment search | Admin is Under construction; **not in nav** | Removed. Never add. |
-| Product recommendations, FBT, trending, recently viewed | Admin is Under construction; **not in nav** | Removed. Never add. |
+| Year / Make / Model, Vehicle Finder, fitment search | Not in scope | Removed. Never add. |
+| Product recommendations, FBT, trending, recently viewed | Not in scope | Removed. Never add. |
 | AI / semantic search / typo-tolerance engine | Not shipped | Removed. Search is keyword + instant suggestions + pins / synonyms / redirects. |
 | Unlimited products or filters | Caps in `PLANS` | Removed. Use the table above. |
 | Yearly billing | Disabled on `/app/billing` | Removed (AS-B9). |
@@ -155,4 +148,4 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 
 - AS-L4 is done for **copy**. Someone still has to paste this into the Partner listing form.
 - AS-L5: enter the same three prices. Do not type “draft”.
-- Do not add Vehicle finder or Product recommendations to screenshots or the screencast.
+

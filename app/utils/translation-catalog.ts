@@ -4,7 +4,6 @@ export const TRANSLATION_TABS = [
   { id: "filter", label: "Filter" },
   { id: "sort", label: "Sort" },
   { id: "labels", label: "Filter option labels" },
-  { id: "ymm", label: "Vehicle Finder form" },
   { id: "custom", label: "Custom" },
 ] as const;
 
@@ -273,43 +272,6 @@ export const TRANSLATION_FIELDS: Record<
       defaultValue: "Created: Newest first",
     },
     { key: "sort.discount", reference: "Discount", defaultValue: "Discount" },
-  ],
-  ymm: [
-    {
-      key: "ymm.heading",
-      reference: "Form heading",
-      defaultValue: "Search products",
-    },
-    {
-      key: "ymm.select_placeholder",
-      reference: "Select placeholder",
-      defaultValue: "-- Select --",
-    },
-    {
-      key: "ymm.search_placeholder",
-      reference: "Search input placeholder",
-      defaultValue: "Search",
-    },
-    {
-      key: "ymm.search_button",
-      reference: "Search button text",
-      defaultValue: "Search",
-    },
-    { key: "ymm.year", reference: "Year", defaultValue: "Year" },
-    { key: "ymm.make", reference: "Make", defaultValue: "Make" },
-    { key: "ymm.model", reference: "Model", defaultValue: "Model" },
-    { key: "ymm.reset", reference: "Reset", defaultValue: "Reset" },
-    { key: "ymm.clear", reference: "Clear", defaultValue: "Clear" },
-    {
-      key: "ymm.please_select",
-      reference: "Please select",
-      defaultValue: "Please select",
-    },
-    {
-      key: "ymm.no_results",
-      reference: "No matching vehicles",
-      defaultValue: "No matching products",
-    },
   ],
 };
 

@@ -76,9 +76,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const extras = await getAdminNavExtras(shop.id);
   const draftExtras = {
-    recOn: extras.recOn,
-    recs: extras.recs,
-    ymm: extras.ymm,
     langs: extras.langs,
     i18n: extras.i18n,
     translationCustom: extras.translationCustom,

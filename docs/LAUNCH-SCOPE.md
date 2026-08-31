@@ -6,7 +6,7 @@ What Findly ships at launch, what we defer, and how we talk about the product. U
 
 ## Positioning summary
 
-Findly is a Shopify embedded app for **collection filters + storefront search** via Theme App Extension. Merchants also get search extras (pins / synonyms / redirects), a usage analytics dashboard, translation, and integrations — on **Free / Standard / Pro** caps. Do **not** pitch AI ranking, Vehicle Finder, or recommendations as finished.
+Findly is a Shopify embedded app for **collection filters + storefront search** via Theme App Extension. Merchants also get search extras (pins / synonyms / redirects), a usage analytics dashboard, translation, and integrations — on **Free / Standard / Pro** caps. Do **not** pitch AI ranking as finished.
 
 | | **Findly: Smart Filters & Search** |
 |---|---|
@@ -41,7 +41,7 @@ Legend: **Yes** = shipped in repo for launch · **Partial** = limited · **No (l
 | Sidebar / top / left–right placement | **Yes** | Block + app settings (`left` \| `right` \| `top`) |
 | Mobile-responsive filters | **Yes** | Scoped CSS, 375px+ |
 | Separate variants as products on collection | **No** | Out of scope |
-| Year / Make / Model style filters | **No** | Admin Under construction; do not advertise |
+| Year / Make / Model style filters | **No** | Not in scope |
 | Infinite scroll browsing | **No** | Theme concern |
 | Multi-language filter UI | **Yes** | Translation admin for widget labels |
 | Custom CSS / deep theme styling | **No** | Basic accent + position only (non-goal: drag-drop theme editor) |
@@ -57,7 +57,7 @@ Legend: **Yes** = shipped in repo for launch · **Partial** = limited · **No (l
 | Typo tolerance engine | **No (later)** | Beyond keyword + synonyms |
 | Synonym groups | **Yes** | `/app/search/synonyms` |
 | Search redirects / pinnings | **Yes** | `/app/search/redirects`, `/app/search/pinnings` |
-| Product recommendations | **No** | Under construction; do not advertise |
+
 | Replace theme search bar | **No** | Theme block / embed approach |
 
 ### C. Analytics & merchandising
@@ -122,7 +122,7 @@ Do not implement-as-finished or advertise during listing review:
 1. AI-powered / semantic search
 2. Dedicated typo-tolerance engines beyond keyword + synonyms
 3. Filter tree builder / unlimited visual menu designer
-4. Variants-as-products, Year-Make-Model, recommendation engines
+4. Variants-as-products, Year-Make-Model
 5. Deep custom CSS / drag-drop theme editor
 
 See also: [build-order.md](./build-order.md) and [partner-listing.md](./partner-listing.md).
@@ -141,7 +141,7 @@ See also: [build-order.md](./build-order.md) and [partner-listing.md](./partner-
 - Clear Free → Standard → Pro path based on **product / metafield caps**
 
 **Product line:**  
-Findly launch is **filters + search (+ extras) + analytics** via Theme App Extension — not an AI ranking suite. Do not mention Vehicle Finder or recommendations on the listing.
+Findly launch is **filters + search (+ extras) + analytics** via Theme App Extension — not an AI ranking suite.
 
 ---
 

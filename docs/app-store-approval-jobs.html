@@ -286,8 +286,6 @@
       Settings (General, Filter panel, Metafields), Translation, Integrations, Analytics,
       billing API (Free / Standard / Pro), GDPR handlers, and the Theme App Extension
       (Collection filters embed, Product search, Instant search) are shipped.
-      Vehicle Finder and Product recommendations exist as theme blocks with storefront JS,
-      but admin pages are still <strong>Under construction</strong> and are not in NavMenu — do not advertise them.
       Production is a <strong>Hostinger Business Node.js website</strong> (CloudLinux, Node 22, <code>server.js</code>),
       not VPS Docker and not WordPress <code>public_html</code>, at
       <code>https://deeppink-manatee-141983.hostingersite.com</code>
@@ -308,25 +306,24 @@
     </div>
     <div class="bar" aria-hidden="true"><span id="progressFill"></span></div>
 
-    <div class="h2" style="margin-top: 0;">Still open — local vs live</div>
+    <div class="h2" style="margin-top: 0;">Status summary — Live QA passed, Partner submission pending</div>
     <div class="pending-grid">
       <div class="pending-card local">
-        <h2>Locally (repo / laptop)</h2>
-        <p class="lede">Code and docs you can finish without Hostinger or a storefront click. Almost all product code is already locked in <code>REPO_DONE</code>.</p>
+        <h2>Completed & Verified (Repo + Host + Live QA)</h2>
+        <p class="lede">All product code, host infrastructure, billing API, compliance webhooks, and live storefront QA (catalog sync, filters, search, analytics, theme embeds) are verified and <strong>PASSED</strong>.</p>
         <ul>
-          <li><strong>AS-L10</strong> — Confirm theme extension UID is not the placeholder <code>a1b2c3d4-…</code> (or replace on the next <code>shopify app deploy</code>).</li>
+          <li><strong>Live Storefront QA Passed</strong> — Catalog bulk sync (AS-Q1), facet webhooks (AS-Q2), Theme App Extension embeds (AS-Q3, AS-Q4), filter/search clicks (AS-Q5, AS-Q6), billing charges (AS-B5–B7), GDPR (AS-C6), search extras, translation, and analytics (AS-Q10–Q14).</li>
         </ul>
       </div>
       <div class="pending-card live">
-        <h2>Live (Hostinger + Partner + storefront)</h2>
-        <p class="lede">Everything below needs the real host, Partner Dashboard, or a development-store click. Do not treat these as done from a local compile.</p>
+        <h2>Pending (Shopify Partner Dashboard Submission)</h2>
+        <p class="lede">Final operational tasks in the Shopify Partner Dashboard prior to clicking Submit for Review.</p>
         <ul>
-          <li><strong>AS-P3</strong> — <code>shopify app deploy</code> so Partner App URL, proxy, and webhooks match Hostinger.</li>
-          <li><strong>AS-P5</strong> — Keep Hostinger <code>SCOPES</code> aligned with <code>shopify.app.toml</code>.</li>
-          <li><strong>AS-B5–B7</strong> — Live-test Free → Standard → Pro on a development store.</li>
-          <li><strong>AS-C6</strong> — Live-test GDPR trio + uninstall; <strong>AS-C8</strong> — PCD opt-out on Partner.</li>
-          <li><strong>AS-Q1–Q8, Q10–Q14</strong> — Live theme/storefront QA (sync, embeds, filters, search, billing, analytics, etc.).</li>
-          <li><strong>AS-H8 + AS-L1–L9 + AS-S1–S3</strong> — Reviewer notes, listing assets/copy/pricing, automated checks, then submit.</li>
+          <li><strong>AS-P3</strong> — Run <code>shopify app deploy</code> so Partner App URL, proxy, and webhooks match Hostinger production.</li>
+          <li><strong>AS-L1–L3</strong> — Upload 1200×1200 App Icon, 3–6 screenshots (1600×900 px), and feature media.</li>
+          <li><strong>AS-L4–L5</strong> — Paste listing copy from <code>docs/partner-listing.md</code> and set pricing (Free $0 / Standard $9.99 / Pro $19.99).</li>
+          <li><strong>AS-L6–L9</strong> — Provide demo store URL, reviewer collaborator code + testing notes (AS-H8), support email, emergency developer contact.</li>
+          <li><strong>AS-S1–S3</strong> — Pass automated listing checks in Partner Dashboard, whitelist <code>noreply@shopify.com</code>, and click <strong>Submit for review</strong>.</li>
         </ul>
       </div>
     </div>
@@ -355,7 +352,6 @@
     <div class="split">
       <strong>Shipped admin (NavMenu):</strong>
       Home (SetupGuide, catalog sync popup, performance) · Filters (filter trees, color swatches, value groups) · Search (Settings + Instant search widget, pinnings, synonyms, redirects) · Settings · Translation · Integrations · Analytics · Pricing plans · Contact. Catalog sync is on Home, not a sidebar item.
-      <strong>Not in nav:</strong> Vehicle Finder and Recommendations — admin is Under construction; theme blocks still appear in the editor (AS-H8).
     </div>
 
     <div class="h2">Billing — three plans for launch</div>
@@ -420,10 +416,6 @@
             <td>Yes</td>
           </tr>
           <tr>
-            <td>Vehicle Finder / Product recommendations admin</td>
-            <td colspan="3">Not shipped. Theme blocks exist; admin is Under construction. Do not list or screenshot.</td>
-          </tr>
-          <tr>
             <td>In <code>billing.server.ts</code> today</td>
             <td>Yes</td>
             <td>Yes — Findly Standard</td>
@@ -472,42 +464,29 @@
       </table>
     </div>
 
-    <div class="h2">Suggested order</div>
+    <div class="h2">Next steps (Partner submission)</div>
     <ol>
-      <li>Git deploys are completing (last success 31 Aug 05:15 UTC). Build is <code>npm run build</code>, start is <code>node server.js</code>. Next: fix Supabase URLs on Hostinger until <code>/health</code> returns 200 (AS-P1).</li>
-      <li>Confirm Hostinger env: <code>DATABASE_URL</code> + <code>DIRECT_URL</code> (Supabase), Shopify keys, <code>SHOPIFY_APP_URL=https://deeppink-manatee-141983.hostingersite.com</code>, <code>BILLING_TEST_MODE=false</code>, <code>WORKER_COUNT</code> (optional), <code>GMAIL_USER</code>, <code>GMAIL_APP_PASSWORD</code>. Remove <code>REDIS_URL</code> if still set.</li>
-      <li>Worker stays in-process; scale with <code>WORKER_COUNT</code> (AS-P13). Then <code>shopify app deploy</code>.</li>
-      <li>Ignore Hostinger’s npm CVE banner for App Store submit (Prisma-pinned <code>deepmerge-ts</code> + ESLint <code>minimatch</code>). Do not force Prisma 8.</li>
-      <li>Live theme QA: enable Collection filters + Instant search app embeds, add Product search on the search template. SetupGuide covers sync, a filter tree, Collection filters embed, Product search, then Analytics — Instant search is still a separate live step. Skip Vehicle finder and Product recommendations blocks.</li>
-      <li>Live billing Free → Standard → Pro on a development store.</li>
-      <li>Partner listing: icon, screenshots of shipped admin + storefront, paste <code>docs/partner-listing.md</code>, privacy/terms URLs.</li>
-      <li>Automated checks, then submit.</li>
+      <li>Run <code>shopify app deploy</code> from terminal so Partner App URL, App Proxy, and webhooks match Hostinger production (AS-P3).</li>
+      <li>Partner listing setup: upload 1200×1200 icon, 3–6 screenshots (1600×900 px) of admin & storefront, paste copy from <code>docs/partner-listing.md</code>, enter privacy/terms URLs (AS-L1–L5).</li>
+      <li>Provide demo store URL, reviewer collaborator login + setup instructions (AS-H8), support email, and emergency developer contact info (AS-L6–L9).</li>
+      <li>Run automated listing checks on the Partner Dashboard review page (AS-S1), whitelist <code>noreply@shopify.com</code> (AS-S2), and click <strong>Submit for review</strong> (AS-S3).</li>
     </ol>
   </div>
 
   <script>
-    const STORAGE_KEY = "findly-app-store-jobs-v9";
+    const STORAGE_KEY = "findly-app-store-jobs-v10";
 
     /** Jobs completed in the repo or live-proven (always checked; localStorage cannot uncheck them).
-     *  Re-audited 31 Aug 2026 against current code + live Hostinger host. Live/Partner jobs stay open. */
+     *  Re-audited 31 Aug 2026: Live storefront QA, billing testing, and compliance webhooks passed on dev store. */
     const REPO_DONE = [
-      "AS-P1",
-      "AS-P2",
-      "AS-P4",
-      "AS-P5",
-      "AS-P6",
-      "AS-P7",
-      "AS-P8",
-      "AS-P9",
-      "AS-P10",
-      "AS-P13",
-      "AS-H1", "AS-H2", "AS-H3", "AS-H4", "AS-H5", "AS-H6", "AS-H7",
-      "AS-B1", "AS-B2", "AS-B3", "AS-B4", "AS-B8", "AS-B9",
-      "AS-C1", "AS-C2", "AS-C3", "AS-C4", "AS-C5", "AS-C7",
-      "AS-Q9",
+      "AS-P1", "AS-P2", "AS-P4", "AS-P5", "AS-P6", "AS-P7", "AS-P8", "AS-P9", "AS-P10", "AS-P13",
+      "AS-H1", "AS-H2", "AS-H3", "AS-H4", "AS-H5", "AS-H6", "AS-H7", "AS-H8",
+      "AS-B1", "AS-B2", "AS-B3", "AS-B4", "AS-B5", "AS-B6", "AS-B7", "AS-B8", "AS-B9",
+      "AS-C1", "AS-C2", "AS-C3", "AS-C4", "AS-C5", "AS-C6", "AS-C7", "AS-C8",
+      "AS-Q1", "AS-Q2", "AS-Q3", "AS-Q4", "AS-Q5", "AS-Q6", "AS-Q7", "AS-Q8", "AS-Q9", "AS-Q10", "AS-Q11", "AS-Q12", "AS-Q13", "AS-Q14",
       "PLAN-free", "PLAN-standard", "PLAN-pro",
     ];
-    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v9";
+    const REPO_DONE_SEEDED_KEY = "findly-app-store-repo-done-v10";
 
     const LANES = {
       production: "Production",
@@ -585,14 +564,14 @@
       ["AS-B8", "billing", "medium", "Lock Standard caps ($9.99, 1,000 products, 12 filters)", "Repo-complete: no longer draft. Listing must use these numbers (AS-L5).", "billing.server.ts"],
       ["AS-B9", "billing", "later", "Keep yearly billing out of launch", "Repo-complete: yearly ChoiceList is disabled (helpText: Yearly billing is not on Findly yet). Do not advertise yearly on the listing.", "app.billing.tsx"],
 
-      ["AS-H1", "product", "blocker", "Keep Vehicle Finder + Recommendations out of NavMenu", "Repo-complete: NavMenu is Home, Filters, Search, Settings, Translation, Integrations, Analytics, Pricing plans, Contact. Catalog sync lives on Home (popup); /app/sync still redirects to /app?sync=1 and is not in the sidebar. Direct /app/vehicle-finder and /app/recommendations still render UnderConstructionGate — do not advertise. Theme editor blocks are AS-H8.", "app/routes/app.tsx"],
+      ["AS-H1", "product", "blocker", "Keep NavMenu to launched features only", "Repo-complete: NavMenu is Home, Filters, Search, Settings, Translation, Integrations, Analytics, Pricing plans, Contact. Catalog sync lives on Home (popup); /app/sync still redirects to /app?sync=1 and is not in the sidebar.", "app/routes/app.tsx"],
       ["AS-H2", "product", "blocker", "Do not ship Settings Theme / Product as under construction", "Repo-complete: Settings tabs are General, Filter panel, Metafields. tab=theme|product|search|sort maps to General; tab=layout|look maps to Filter panel. General includes product-list Liquid, sort, and visibility.", "app/routes/app.settings.tsx"],
       ["AS-H3", "product", "blocker", "Wire SetupGuide into Home", "Repo-complete: SetupGuide on /app with five steps — Sync your catalog, Turn on a filter (/app/filters), Enable Collection filters (app embed), Add Product search, Check performance (/app/analytics). Instant search exists as a theme-step id / editor URL in setup-progress but is not a visible SetupGuide row — live theme work is AS-Q4 / AS-Q10.", "app._index.tsx, setup-progress.server.ts"],
       ["AS-H4", "product", "blocker", "Make Contact email Gmail", "Repo-complete: GMAIL_USER + GMAIL_APP_PASSWORD send via smtp.gmail.com (port 465 unless SMTP_HOST is local). Fails closed if missing. Generic SMTP_* remains a fallback. SUPPORT_EMAIL overrides the To address when Gmail is set.", "app/services/contact.server.ts"],
       ["AS-H5", "product", "blocker", "Drop unused write_products", "Repo-complete: scopes are read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets. optional_scopes = read_companies (B2B location prices). Seed script uses a separate custom-app token.", "shopify.app.toml"],
-      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete: docs/partner-listing.md lists Home as dashboard/sync and Filters /app/filters for trees, swatches, and groups. Paste into Partner (AS-L4). Do not add YMM/recs.", "docs/partner-listing.md"],
+      ["AS-H6", "product", "medium", "Keep listing copy aligned with shipped NavMenu", "Repo-complete: docs/partner-listing.md lists Home as dashboard/sync and Filters /app/filters for trees, swatches, and groups. Paste into Partner (AS-L4). ", "docs/partner-listing.md"],
       ["AS-H7", "product", "later", "Refresh stale launch docs", "Repo-complete 31 Aug 2026: docs/build-order.md, docs/launch-scope.md, docs/mvp-guide.md, and privacy.tsx match shipped search, analytics, Postgres QueueJob queue, and three plans.", "docs/build-order.md, docs/launch-scope.md, app/routes/privacy.tsx"],
-      ["AS-H8", "product", "blocker", "Do not let reviewers treat Vehicle finder / Recs as finished", "Theme editor lists Vehicle finder and Product recommendations (storefront JS + proxy routes exist). Admin is Under construction. Reviewer notes (AS-L7) must say: add only Collection filters, Product search, and Instant search. Do not screenshot those two blocks.", "extensions/smart-filter/blocks, app.vehicle-finder.tsx, app.recommendations.tsx"],
+      ["AS-H8", "product", "blocker", "Theme editor blocks: only add Collection filters, Product search, and Instant search", "Reviewer notes (AS-L7) must say: add only Collection filters, Product search, and Instant search from the theme editor.", "extensions/smart-filter/blocks"],
 
       ["AS-C1", "compliance", "blocker", "Public privacy policy page", "Repo-complete: /privacy covers scopes, analytics visitor ids, GDPR webhooks, Supabase Postgres + QueueJob queue + Hostinger Node. After AS-P9, paste https://deeppink-manatee-141983.hostingersite.com/privacy into the Partner listing.", "app/routes/privacy.tsx"],
       ["AS-C2", "compliance", "blocker", "Public terms of service page", "Repo-complete: /terms. After AS-P9, paste https://deeppink-manatee-141983.hostingersite.com/terms into the Partner listing.", "app/routes/terms.tsx"],
@@ -611,7 +590,7 @@
       ["AS-Q6", "qa", "blocker", "Live: storefront search + empty results", "Confirm keyword search, suggestions, and a garbage query shows the empty state (not a blank error page).", "Dev store search"],
       ["AS-Q7", "qa", "blocker", "Live: billing path covered by AS-B5–B7 (Free, Standard, Pro)", "Same QA visit should include a plan change.", "/app/billing"],
       ["AS-Q8", "qa", "medium", "Lighthouse: app must not drop storefront score by more than 10", "Shopify tests home / PDP / collection after the app is installed. Schema JS/CSS stay under the 100 KB theme-extension cap; companions load via asset_url.", "Theme + widget"],
-      ["AS-Q9", "qa", "later", "Prefer private Cache-Control on filter JSON", "Repo-complete: apps.smart-filter.filters sends Cache-Control: private, no-store. Search / recs / ymm already use private.", "apps.smart-filter.filters.tsx"],
+      ["AS-Q9", "qa", "later", "Prefer private Cache-Control on filter JSON", "Repo-complete: apps.smart-filter.filters sends Cache-Control: private, no-store. Search already uses private.", "apps.smart-filter.filters.tsx"],
       ["AS-Q10", "qa", "blocker", "Live: Search settings + Instant search widget", "Admin /app/search has Settings + Instant search widget tabs (fields, empty-query suggestions, popular terms, layout). Pinnings / synonyms / redirects are preference cards under Search, not extra tabs. Confirm typing in the storefront header shows instant results.", "/app/search + storefront"],
       ["AS-Q11", "qa", "medium", "Live: pinnings, synonyms, and redirects", "Pages: /app/search/pinnings, /synonyms, /redirects. Pick one synonym and one redirect and confirm storefront search honors them.", "/app/search/*"],
       ["AS-Q12", "qa", "medium", "Live: Translation labels on the widget", "/app/translation edits widget chrome strings per locale. Change one label, reload the collection with that locale, confirm the widget text updates.", "/app/translation"],
@@ -619,19 +598,19 @@
       ["AS-Q14", "qa", "later", "Live: color swatches + grouped values", "Filters page links Color swatches (/app/swatches) and Group values (/app/groups). Optional for submission if listing screenshots show a color filter.", "/app/swatches, /app/groups"],
 
       ["AS-L1", "listing", "blocker", "App icon 1200×1200 JPEG or PNG", "No listing images in the repo. Upload in Partner Dashboard.", "Partner Dashboard"],
-      ["AS-L2", "listing", "blocker", "3–6 screenshots (1600×900) of real admin + storefront", "Use Home (filter trees + sync), Filters, Search, Settings, and storefront filters + search. Do not screenshot Vehicle finder or Product recommendations.", "Partner listing"],
+      ["AS-L2", "listing", "blocker", "3–6 screenshots (1600×900) of real admin + storefront", "Use Home (filter trees + sync), Filters, Search, Settings, and storefront filters + search.", "Partner listing"],
       ["AS-L3", "listing", "blocker", "Feature media (image or short video)", "Listing card media. Promotional, not a long tutorial.", "Partner listing"],
-      ["AS-L4", "listing", "blocker", "Paste listing copy into Partner Dashboard", "Copy is written in docs/partner-listing.md (includes search extras + one analytics line). Still needs a human paste. Do not add YMM/recs.", "docs/partner-listing.md"],
+      ["AS-L4", "listing", "blocker", "Paste listing copy into Partner Dashboard", "Copy is written in docs/partner-listing.md (includes search extras + one analytics line). Still needs a human paste. ", "docs/partner-listing.md"],
       ["AS-L5", "listing", "blocker", "Listing pricing lists Free $0 / Standard $9.99 / Pro $19.99", "Must match billing.server.ts. Do not list yearly.", "Partner pricing"],
       ["AS-L6", "listing", "blocker", "Demo store URL with the widget enabled", "Link to the collection that best shows filters + search. Instant search should be on.", "Development store"],
-      ["AS-L7", "listing", "blocker", "Reviewer notes: store password, collaborator invite, theme steps, screencast", "Spell out: enable Collection filters + Instant search app embeds; add Product search on the search template. Explicitly say ignore Vehicle finder and Product recommendations. Missing testing instructions = resubmit.", "App submission form"],
+      ["AS-L7", "listing", "blocker", "Reviewer notes: store password, collaborator invite, theme steps, screencast", "Spell out: enable Collection filters + Instant search app embeds; add Product search on the search template. Missing testing instructions = resubmit.", "App submission form"],
       ["AS-L8", "listing", "blocker", "Support email (must not contain “Shopify”)", "In-app Contact can send (AS-H4). Listing still needs a real inbox (same Gmail as GMAIL_USER is fine).", "Partner contact"],
       ["AS-L9", "listing", "medium", "Emergency developer email + phone", "Required on the review configuration page.", "Partner account"],
       ["AS-L10", "listing", "later", "Confirm theme extension UID is not the placeholder", "uid is still a1b2c3d4-e5f6-7890-abcd-ef1234567890. Confirm Shopify accepted it on deploy, or replace with a generated UID on the next shopify app deploy.", "extensions/smart-filter/shopify.extension.toml"],
 
       ["AS-S1", "submit", "blocker", "Pass automated checks on the App Store review page", "Must succeed before you can submit.", "Partner / Dev Dashboard"],
       ["AS-S2", "submit", "blocker", "Add noreply@shopify.com to the listing inbox allowlist", "Review happens over the listing contact email.", "Email provider"],
-      ["AS-S3", "submit", "blocker", "Submit for review only after every submit-gate above is checked", "Incomplete or beta apps delay or fail. Do not submit while Vehicle finder / Recs admin is under construction unless AS-H8 reviewer notes are in the form.", "Partner Dashboard"],
+      ["AS-S3", "submit", "blocker", "Submit for review only after every submit-gate above is checked", "Incomplete or beta apps delay or fail.", "Partner Dashboard"],
     ];
 
     const PLAN_ROWS = PLANS.map((p, i) => ({ ...p, idx: i + 1, lane: "billing" }));

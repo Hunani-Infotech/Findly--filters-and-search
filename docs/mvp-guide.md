@@ -15,7 +15,7 @@ Launch product = collection filters + storefront search + Theme App Extension, p
 - Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
 - Plans: Free / Standard / Pro (product + metafield caps)
 
-**Do not advertise as finished:** AI/ML semantic ranking, Vehicle Finder / YMM, product recommendations, drag-drop theme editor.
+**Do not advertise as finished:** AI/ML semantic ranking, drag-drop theme editor.
 
 ## 2. Tech Stack: The Shopify-Native Recommendation
 

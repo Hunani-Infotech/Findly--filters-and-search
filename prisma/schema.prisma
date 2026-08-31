@@ -136,7 +136,7 @@ model AppSettings {
   suggestionCollectionHandles String[] @default([])
   /// Instant search + Search Settings extras (fuzzy, popular terms, pinnings, synonyms, redirects)
   searchExtras      Json     @default("{}")
-  /// Admin extras (recommendations toggles, YMM form, locales) — not storefront engines
+  /// Admin extras (locales, contact draft)
   adminExtras       Json     @default("{}")
   /// D7: merchant CSS for the filter widget (stored raw-sanitized; scoped when serving storefront)
   customCss         String   @default("")

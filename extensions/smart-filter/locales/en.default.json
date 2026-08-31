@@ -18,12 +18,6 @@
       "search_placeholder": "Search products",
       "close": "Close filters"
     },
-    "vehicle_finder": {
-      "name": "Vehicle finder"
-    },
-    "product_recommendations": {
-      "name": "Product recommendations"
-    },
     "instant_search": {
       "name": "Instant search"
     },

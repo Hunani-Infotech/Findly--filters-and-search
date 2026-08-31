@@ -67,21 +67,6 @@ function assertStaticMarkers() {
     "extensions/smart-filter/assets/smart-filter.js",
   );
 
-  const vehicleJs = readRepo(
-    "extensions",
-    "smart-filter",
-    "assets",
-    "vehicle-finder.js",
-  );
-  requireAll(
-    vehicleJs,
-    [
-      "findlyFilterRenderCompleted",
-      "window.dispatchEvent",
-    ],
-    "extensions/smart-filter/assets/vehicle-finder.js",
-  );
-
   const partners = readRepo("app", "utils", "partner-integrations.ts");
   requireAll(
     partners,

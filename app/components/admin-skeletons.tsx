@@ -529,7 +529,6 @@ const I18N_TABS = [
   "Filter",
   "Sort",
   "Filter option labels",
-  "Vehicle Finder form",
   "Custom",
 ];
 
@@ -1180,12 +1179,5 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
   if (/\/options(\/|$)/.test(path)) return <FilterOptionSkeleton />;
   if (path.startsWith("/app/collections/")) return <CollectionFilterSkeleton />;
   if (path.startsWith("/app/filters/")) return <FilterEditorSkeleton />;
-  if (path === "/app/recommendations") {
-    return <UnderConstructionSkeleton title="Recommendations" />;
-  }
-  if (path === "/app/vehicle-finder") {
-    return <UnderConstructionSkeleton title="Vehicle Finder" />;
-  }
-
   return <SimplePageSkeleton />;
 }

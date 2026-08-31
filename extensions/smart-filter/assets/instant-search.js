@@ -102,9 +102,7 @@
           el.closest(".findly-instant") ||
           el.closest(".sf-search-host") ||
           el.closest(".sf-search") ||
-          el.closest(".sf-facet-search") ||
-          el.closest(".smart-filter-ymm") ||
-          el.closest(".sf-ymm")),
+          el.closest(".sf-facet-search")),
     );
   }
 

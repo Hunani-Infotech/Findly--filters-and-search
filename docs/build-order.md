@@ -11,8 +11,6 @@
 Do **not** advertise or treat as finished:
 
 - AI/ML semantic ranking, embeddings
-- Year-Make-Model / Vehicle Finder (admin Under construction; theme block exists — do not screenshot)
-- Product recommendations (same)
 - Custom theme editor / drag-drop widget builder beyond basic position (+ accent / counts)
 
 Live storefront clicks for filters, search, billing, and GDPR remain open jobs (AS-Q*, AS-B5–B7, AS-C6).

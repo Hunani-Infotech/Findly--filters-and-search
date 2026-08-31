@@ -5,12 +5,7 @@ import {
   parseWidgetI18nMap,
   type WidgetI18nMap,
 } from "../utils/widget-i18n";
-import type { VehicleFinderAdmin } from "../types/vehicle-finder";
-import { DEFAULT_YMM, parseVehicleFinderAdmin } from "../utils/vehicle-finder";
-import type { RecsConfig } from "../types/recommendations";
-import { DEFAULT_RECS, parseRecsConfig } from "../utils/recommendations";
 
-export type { VehicleFinderAdmin };
 
 export type AdminLocaleRow = {
   code: string;
@@ -32,9 +27,6 @@ export type TranslationCustomField = {
 };
 
 export type AdminNavExtras = {
-  recOn: Record<string, boolean>;
-  recs: RecsConfig;
-  ymm: VehicleFinderAdmin;
   langs: AdminLocaleRow[];
   i18n: WidgetI18nMap;
   translationCustom?: Record<string, TranslationCustomField[]>;
@@ -42,9 +34,6 @@ export type AdminNavExtras = {
 };
 
 const DEFAULT_ADMIN_EXTRAS: AdminNavExtras = {
-  recOn: {},
-  recs: DEFAULT_RECS,
-  ymm: DEFAULT_YMM,
   langs: [{ code: "en", name: "English", complete: true, isDefault: true }],
   i18n: {},
 };
@@ -71,9 +60,6 @@ function parseTranslationCustom(raw: unknown): Record<string, TranslationCustomF
 
 export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
   const o = asRecord(raw);
-  const recs = parseRecsConfig(o.recs, o.recOn);
-  const recOn = recs.on;
-  const ymm = parseVehicleFinderAdmin(o.ymm);
   let langs: AdminLocaleRow[] = DEFAULT_ADMIN_EXTRAS.langs;
   if (Array.isArray(o.langs) && o.langs.length > 0) {
     langs = o.langs
@@ -102,8 +88,8 @@ export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
   const i18n = parseWidgetI18nMap(o.i18n);
   const translationCustom = parseTranslationCustom(o.translationCustom);
   return contactDraft
-    ? { recOn, recs, ymm, langs, i18n, translationCustom, contactDraft }
-    : { recOn, recs, ymm, langs, i18n, translationCustom };
+    ? { langs, i18n, translationCustom, contactDraft }
+    : { langs, i18n, translationCustom };
 }
 
 const extrasCache = createTtlCache<AdminNavExtras>(30_000);
