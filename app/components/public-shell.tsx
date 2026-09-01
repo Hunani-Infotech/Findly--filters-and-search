@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
+
 import styles from "./public-shell.module.css";
 
 function Mark() {
@@ -159,6 +161,10 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <p>Legal</p>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
+          </nav>
+          <nav className={styles.footerCol} aria-label="Contact">
+            <p>Contact</p>
+            <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>
           </nav>
         </div>
         <p className={styles.footerMeta}>

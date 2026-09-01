@@ -16,7 +16,7 @@ Match `app/routes/app.tsx` NavMenu. Paste only the copy in this file.
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
 | Analytics | `/app/analytics` | Yes | Search and filter usage |
 | Pricing plans | `/app/billing` | Yes (pricing fields) | Free / Standard / Pro |
-| Contact | `/app/contact` | No | Same Gmail as listing support |
+| Contact | `/app/contact` | No | Listing support: `info@srhwebagency.com` |
 
 Catalog sync is on **Home**. `/app/sync` redirects there; it is not a NavMenu item.
 
@@ -105,7 +105,7 @@ https://deeppink-manatee-141983.hostingersite.com/terms
 **Support email** (listing contact only — must not contain “Shopify”)
 
 ```
-sohilhunani11@gmail.com
+info@srhwebagency.com
 ```
 
 ### Pricing (must match Billing API)

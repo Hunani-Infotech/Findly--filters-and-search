@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { log } from "../lib/log.server";
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
 
 const MAX_MESSAGE_CHARS = 10_000;
 const MAX_SUBJECT_CHARS = 200;
@@ -50,11 +51,11 @@ function smtpConfig() {
     const host = trimEnv("SMTP_HOST") || "smtp.gmail.com";
     const local = isLocalSmtpHost(host);
     const port = Number(trimEnv("SMTP_PORT") || (local ? "587" : "465"));
-    const to = trimEnv("SUPPORT_EMAIL") || gmailUser;
+    const to = trimEnv("SUPPORT_EMAIL") || FINDLY_SUPPORT_EMAIL;
     return { to, host, user: gmailUser, pass: gmailPass, port, from: gmailUser };
   }
 
-  const to = trimEnv("SUPPORT_EMAIL");
+  const to = trimEnv("SUPPORT_EMAIL") || FINDLY_SUPPORT_EMAIL;
   const host = trimEnv("SMTP_HOST");
   const user = trimEnv("SMTP_USER");
   const pass = trimEnv("SMTP_PASSWORD").replace(/\s+/g, "");

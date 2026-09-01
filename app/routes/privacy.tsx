@@ -339,8 +339,12 @@ export default function PrivacyPolicy() {
             above).
           </li>
           <li>
-            Contact us using <strong>Findly → Contact</strong> in the app.
-            Do not send privacy requests to Shopify about this app’s stored
+            Contact us using <strong>Findly → Contact</strong> in the app, or
+            email{" "}
+            <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+              {FINDLY_SUPPORT_EMAIL}
+            </a>
+            . Do not send privacy requests to Shopify about this app’s stored
             index; Shopify will forward mandatory GDPR topics to us.
           </li>
         </ul>

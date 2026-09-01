@@ -223,8 +223,12 @@ export default function TermsOfService() {
           the same Postgres database.
         </p>
         <p>
-          Support is offered through <strong>Findly → Contact</strong>. We
-          do not guarantee response times. Shopify cannot provide Findly
+          Support is offered through <strong>Findly → Contact</strong> and by
+          email at{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
+          </a>
+          . We do not guarantee response times. Shopify cannot provide Findly
           product support on our behalf.
         </p>
 

@@ -153,7 +153,7 @@ async function assertUnconfiguredFails(msg) {
 async function assertLocalSmtp(msg) {
   const snap = snapshotEnv();
   const inbox = await listenLocalSmtp();
-  process.env.GMAIL_USER = "findly.support@gmail.com";
+  process.env.GMAIL_USER = "info@srhwebagency.com";
   process.env.GMAIL_APP_PASSWORD = "test-app-password";
   process.env.SMTP_HOST = "127.0.0.1";
   process.env.SMTP_PORT = String(inbox.port);
@@ -178,8 +178,8 @@ async function assertLocalSmtp(msg) {
     if (!raw.includes(msg.email) || !raw.includes(msg.shopDomain)) {
       fail("SMTP message missing reply email or shop");
     }
-    if (!raw.includes("findly.support@gmail.com")) {
-      fail("SMTP message was not addressed to GMAIL_USER");
+    if (!raw.includes("info@srhwebagency.com")) {
+      fail("SMTP message was not addressed to the support inbox");
     }
     if (!raw.toLowerCase().includes("text/html")) {
       fail("SMTP message missing the HTML body");

@@ -5,6 +5,7 @@ import { redirect, Form, Link, useLoaderData, useNavigation } from "react-router
 import { PublicShell } from "../../components/public-shell";
 import shell from "../../components/public-shell.module.css";
 import { scrollToId } from "../../utils/public-scroll";
+import { FINDLY_SUPPORT_EMAIL } from "../../utils/public-origin";
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
@@ -307,6 +308,7 @@ export default function App() {
         <p className={styles.legalRow}>
           <Link to="/privacy">Privacy policy</Link>
           <Link to="/terms">Terms of service</Link>
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>
         </p>
       </section>
 
