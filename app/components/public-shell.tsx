@@ -147,7 +147,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </strong>
             <p>
               Collection filters and storefront search for Shopify. Built by
-              Hunani Infotech.
+              SRH Web Agency.
             </p>
           </div>
           <nav className={styles.footerCol} aria-label="Product">
@@ -162,7 +162,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
         <p className={styles.footerMeta}>
-          © {new Date().getFullYear()} Hunani Infotech. All rights reserved.
+          © {new Date().getFullYear()} SRH Web Agency. All rights reserved.
         </p>
       </footer>
     </div>

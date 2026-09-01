@@ -99,6 +99,30 @@ Only apps Findly actually re-inits after Ajax (`app/utils/partner-integrations.t
 4. Swym Wishlist Plus
 5. Weglot
 
+### Resources (AS-C1 / AS-C2)
+
+Paste these into the listing **Resources** fields. Both pages are live on the Hostinger host (verified HTTPS).
+
+**Privacy policy URL (required)**
+
+```
+https://deeppink-manatee-141983.hostingersite.com/privacy
+```
+
+**Terms of service URL**
+
+```
+https://deeppink-manatee-141983.hostingersite.com/terms
+```
+
+**Support email (AS-L8)** — Partner Dashboard contact field only. Do not add it to the listing body copy.
+
+```
+sohilhunani11@gmail.com
+```
+
+Do not use localhost, Google Docs, or a marketing homepage.
+
 ### Pricing (must match Billing API)
 
 Primary method: **Recurring charge**, with one plan marked **Free**. Monthly only. Do not enter yearly prices.
@@ -132,6 +156,123 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 
 ---
 
+## Listing media (AS-L1–L3)
+
+### App icon (AS-L1) — ready to upload
+
+Upload in Partner Dashboard → Distribution → Manage listing → App icon.
+
+| File | Size | Notes |
+|---|---|---|
+| `docs/listing-assets/app-icon-1200.jpg` | **1200×1200** JPEG | Prefer this for Partner upload (~145 KB) |
+| `docs/listing-assets/app-icon-1200.png` | **1200×1200** PNG | Same art if the form prefers PNG |
+
+Green funnel icon on a rounded light tile / darker green field. Matches Findly filters branding. Do not stretch or crop.
+
+### Screenshots (AS-L2) — later
+
+Add **3–6** images at **1600×900** of the real admin and storefront. Suggested set when you capture them:
+
+1. Home (SetupGuide + catalog sync)
+2. Filters (enabled filter set)
+3. Storefront collection with Findly filter panel
+4. Instant search in the header
+5. Search settings or Analytics (optional 5th/6th)
+
+Drop files into `docs/listing-assets/screenshots/` when ready, then upload in Partner.
+
+### Feature media (AS-L3) — later
+
+One promotional image or short video for the listing card. Prefer a clean storefront filter/search frame, not a long tutorial. Can reuse a strong 1600×900 screenshot until a dedicated feature image exists.
+
+---
+
+## Reviewer + contact (AS-L6–L9)
+
+Paste into **Distribution → Manage listing** (demo store, testing instructions, contact) and the **App Store review** configuration page (emergency contact). Findly has no separate login — Shopify OAuth is enough. Do not invent a third-party API key.
+
+Replace every `FILL:` line from the live demo store before you submit. Do not paste the word `FILL`.
+
+### Demo store (AS-L6)
+
+```
+https://findly-test-store.myshopify.com/collections/all
+```
+
+Admin (collaborator): `https://admin.shopify.com/store/findly-test-store`
+
+The storefront is password-protected. Instant search should already be on. If `/collections/all` is empty, pick the collection that shows filters and paste that URL instead.
+
+### Support email (AS-L8)
+
+Listing contact / App submission email. Must not contain “Shopify”. Same inbox as in-app Contact (`FINDLY_SUPPORT_EMAIL`).
+
+```
+sohilhunani11@gmail.com
+```
+
+Also add `noreply@shopify.com` to this inbox’s allowlist (AS-S2) so review mail is not spam-foldered.
+
+### Emergency developer (AS-L9)
+
+Review configuration page — not the public listing body.
+
+```
+Name: Hunani Infotech
+Email: sohilhunani11@gmail.com
+Phone: FILL: (country code + number that is answered during review)
+```
+
+### Testing instructions (AS-L7)
+
+Paste the block below into **Testing instructions**. Fill the three `FILL:` lines first.
+
+```
+Demo store: https://findly-test-store.myshopify.com
+Collection with filters: https://findly-test-store.myshopify.com/collections/all
+Storefront password: FILL: Online Store → Preferences → Password
+Collaborator request code: FILL: Settings → Users → Security (4-digit code). Please request Collaborator access with Apps + Online Store → Themes. We will approve promptly.
+Screencast: FILL: 60–120s English Loom/YouTube showing install → Collection filters on a collection → Instant search in the header
+
+Findly does not use a separate username/password. After install, the embedded admin is enough.
+
+What to add in the theme editor (only these three — AS-H8):
+1. Theme editor → App embeds → turn ON “Collection filters”. Save.
+2. Theme editor → App embeds → turn ON “Instant search”. Save.
+3. Theme editor → search template (or header) → Add block → “Product search”. Save.
+Do not add the Collection filters section block if the Collection filters app embed is already on (that duplicates the widget). There is no Vehicle Finder or Recommendations block.
+
+How to verify:
+1. Apps → Findly → Home. Catalog sync should be ready. Filters → confirm a filter set is enabled (price, availability, vendor, type, tags).
+2. Open the collection URL above. Use the Findly filter panel (price / vendor / chips). On mobile, open the filter drawer.
+3. Type in the theme header search. Instant suggestions should appear (Instant search embed).
+4. Open the storefront search page. Product search should return products; a garbage query shows “No products found”.
+5. Optional admin: Search (pins / synonyms / redirects), Settings (left / right / top), Translation, Analytics, Pricing plans.
+
+Billing on this development store:
+- Free $0 (no Shopify charge)
+- Standard $9.99 USD / 30 days, 7-day trial
+- Pro $19.99 USD / 30 days, 7-day trial
+No yearly plan. Do not require a 30-day money-back guarantee.
+
+Privacy: https://deeppink-manatee-141983.hostingersite.com/privacy
+Terms: https://deeppink-manatee-141983.hostingersite.com/terms
+Support: sohilhunani11@gmail.com
+```
+
+### Screencast checklist (AS-L7)
+
+Record 60–120 seconds, English or English subtitles. Upload to Loom or unlisted YouTube and paste the URL into the listing screencast field (and into the `FILL:` line above).
+
+1. Install / open Findly Home (catalog sync).
+2. Filters: a set enabled.
+3. Theme editor: the three enables above.
+4. Storefront collection: click a filter; grid updates.
+5. Header: type a product name; instant results.
+6. Stop. Do not tour Settings first.
+
+---
+
 ## Flagged — do not paste
 
 | Claim | Status | Action |
@@ -146,7 +287,11 @@ Do not claim a 30-day money-back guarantee (in-app billing copy says Findly does
 
 ## Still human after paste
 
-- AS-L4 is done for **copy**. Someone still has to paste this into the Partner listing form.
-- AS-L5: enter the same three prices. Do not type “draft”.
+- AS-L1 icon files are in `docs/listing-assets/` — upload `app-icon-1200.jpg` (or `.png`) in Partner. AS-L2 screenshots and AS-L3 feature media are still later.
+- AS-L4 copy, AS-L5 prices, L6 demo URL, L7 testing notes, L8 support email, and privacy/terms URLs are written above. Paste them into **Apps → Findly → Distribution → Manage listing**.
+- Pricing: Recurring charge, monthly only. Free $0.00 / Standard $9.99 / Pro $19.99. Do not type “draft”. Do not add yearly.
+- Resources: privacy `https://deeppink-manatee-141983.hostingersite.com/privacy` and terms `https://deeppink-manatee-141983.hostingersite.com/terms`.
+- Before submit, replace every `FILL:` in AS-L7 / AS-L9: storefront password, 4-digit collaborator code, screencast URL, emergency phone.
+- AS-L9 emergency contact is on the review configuration page, not the public listing.
 - App version `findly-smart-filters-8` deployed 31 Aug 2026 with Vehicle Finder and Recommendations removed.
 

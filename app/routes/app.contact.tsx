@@ -28,6 +28,7 @@ import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { deliverContactMessage } from "../services/contact.server";
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
@@ -154,9 +155,12 @@ export default function ContactNavPage() {
             <BlockStack gap="400">
               <Text as="p">
                 Don&apos;t hesitate to reach out if you have questions or need
-                help. Please send a staff admin invitation to Findly support
-                using the email you enter below, and include Apps and Online
-                Store → Themes permissions in that invitation.
+                help. Please send a staff admin invitation to{" "}
+                <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+                  {FINDLY_SUPPORT_EMAIL}
+                </a>
+                , and include Apps and Online Store → Themes permissions in
+                that invitation.
               </Text>
               {sendError ? (
                 <Banner tone="critical" title="Message was not sent">

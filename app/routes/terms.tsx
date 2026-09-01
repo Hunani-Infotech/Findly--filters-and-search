@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
-import { FINDLY_PUBLIC_ORIGIN } from "../utils/public-origin";
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
 
 export const meta: MetaFunction = () => [
   { title: "Terms of Service — Findly: Smart Filters & Search" },
@@ -44,7 +44,7 @@ export default function TermsOfService() {
       >
         <p>
           These Terms of Service (“Terms”) are a contract between you (the
-          Shopify merchant installing the app) and Hunani Infotech (“we”,
+          Shopify merchant installing the app) and SRH Web Agency (“we”,
           “us”, “Findly”) for the hosted Shopify application{" "}
           <strong>Findly: Smart Filters & Search</strong>.
         </p>
@@ -223,16 +223,15 @@ export default function TermsOfService() {
           the same Postgres database.
         </p>
         <p>
-          Support is offered through <strong>Findly → Contact</strong> and
-          the email on the Shopify App Store listing. We do not guarantee
-          response times. Shopify cannot provide Findly product support on
-          our behalf.
+          Support is offered through <strong>Findly → Contact</strong>. We
+          do not guarantee response times. Shopify cannot provide Findly
+          product support on our behalf.
         </p>
 
         <h2 id="ip">7. Intellectual property</h2>
         <p>
           Findly’s name, admin UI, Theme App Extension, and hosted service
-          are owned by Hunani Infotech or its licensors. Installing the app
+          are owned by SRH Web Agency or its licensors. Installing the app
           does not transfer ownership. Shopify trademarks belong to Shopify
           Inc.
         </p>
@@ -254,7 +253,7 @@ export default function TermsOfService() {
 
         <h2 id="liability">9. Limitation of liability</h2>
         <p>
-          To the fullest extent permitted by law, Hunani Infotech and its
+          To the fullest extent permitted by law, SRH Web Agency and its
           officers, employees, and contractors will not be liable for
           indirect, incidental, special, consequential, or punitive damages,
           or for lost profits, lost sales, lost data, theme breakage, SEO
@@ -275,7 +274,7 @@ export default function TermsOfService() {
 
         <h2 id="indemnity">10. Indemnity</h2>
         <p>
-          You will defend and indemnify Hunani Infotech against claims,
+          You will defend and indemnify SRH Web Agency against claims,
           damages, and reasonable legal fees arising from your storefront
           content, your product data, your misuse of Findly, or your
           violation of these Terms or third-party rights, except to the
@@ -311,7 +310,7 @@ export default function TermsOfService() {
           waiver.
         </p>
         <p>
-          Governing law is the law of the jurisdiction where Hunani Infotech
+          Governing law is the law of the jurisdiction where SRH Web Agency
           is established, excluding conflict-of-law rules, unless a
           mandatory consumer or merchant protection law in your country says
           otherwise. Shopify’s platform terms are between you and Shopify.
@@ -319,17 +318,12 @@ export default function TermsOfService() {
 
         <h2 id="contact">14. Contact</h2>
         <p>
-          Hunani Infotech — Findly: Smart Filters & Search
+          SRH Web Agency — Findly: Smart Filters & Search
           <br />
-          Terms:{" "}
-          <a href={`${FINDLY_PUBLIC_ORIGIN}/terms`}>
-            {FINDLY_PUBLIC_ORIGIN}/terms
+          Email:{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
           </a>
-          <br />
-          Privacy:{" "}
-          <Link to="/privacy">
-            {FINDLY_PUBLIC_ORIGIN}/privacy
-          </Link>
           <br />
           In-app: Findly → Contact
         </p>

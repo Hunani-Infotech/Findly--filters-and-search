@@ -1,9 +1,11 @@
 import type { HeadersFunction, MetaFunction } from "react-router";
-import { Link } from "react-router";
 
 import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
-import { FINDLY_PUBLIC_ORIGIN } from "../utils/public-origin";
+import {
+  FINDLY_PUBLIC_ORIGIN,
+  FINDLY_SUPPORT_EMAIL,
+} from "../utils/public-origin";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy — Findly: Smart Filters & Search" },
@@ -43,7 +45,7 @@ export default function PrivacyPolicy() {
         ]}
       >
         <p>
-          This policy describes how Hunani Infotech (“we”, “us”, “Findly”)
+          This policy describes how SRH Web Agency (“we”, “us”, “Findly”)
           handles information when merchants install and use the Shopify app
           <strong> Findly: Smart Filters & Search</strong> (collection filters,
           storefront search, and a Theme App Extension). It is written for
@@ -58,7 +60,7 @@ export default function PrivacyPolicy() {
 
         <h2 id="responsible">1. Who is responsible</h2>
         <p>
-          Hunani Infotech operates Findly and the production app at{" "}
+          SRH Web Agency operates Findly and the production app at{" "}
           <a href={FINDLY_PUBLIC_ORIGIN}>deeppink-manatee-141983.hostingersite.com</a>
           . Shopify remains responsible for the merchant’s store, Admin, and
           Checkout. Merchants remain responsible for their own storefront
@@ -337,10 +339,9 @@ export default function PrivacyPolicy() {
             above).
           </li>
           <li>
-            Contact us using <strong>Findly → Contact</strong> in the app, or
-            the support email published on the Findly Shopify App Store
-            listing. Do not send privacy requests to Shopify about this app’s
-            stored index; Shopify will forward mandatory GDPR topics to us.
+            Contact us using <strong>Findly → Contact</strong> in the app.
+            Do not send privacy requests to Shopify about this app’s stored
+            index; Shopify will forward mandatory GDPR topics to us.
           </li>
         </ul>
         <p>
@@ -365,15 +366,12 @@ export default function PrivacyPolicy() {
 
         <h2 id="contact">14. Contact</h2>
         <p>
-          Hunani Infotech — Findly: Smart Filters & Search
+          SRH Web Agency — Findly: Smart Filters & Search
           <br />
-          Privacy page:{" "}
-          <a href={`${FINDLY_PUBLIC_ORIGIN}/privacy`}>
-            {FINDLY_PUBLIC_ORIGIN}/privacy
+          Email:{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
           </a>
-          <br />
-          Terms:{" "}
-          <Link to="/terms">{FINDLY_PUBLIC_ORIGIN}/terms</Link>
           <br />
           In-app: Findly → Contact
         </p>
