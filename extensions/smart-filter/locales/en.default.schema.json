@@ -18,7 +18,7 @@
       }
     },
     "collection_filters_embed": {
-      "name": "Collection filters",
+      "name": "Collection filters (app embed)",
       "settings": {
         "position": {
           "label": "Filter tree style",

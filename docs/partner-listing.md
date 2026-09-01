@@ -152,6 +152,6 @@ Put real storefront password, collaborator code, screencast URL, and emergency p
 
 Theme steps for reviewers:
 
-1. App embeds → **Collection filters** ON  
+1. Collection template → add **Collection filters** (preferred). App embeds → **Collection filters (app embed)** is the fallback; it loads assets only on collection/search pages.  
 2. App embeds → **Instant search** ON  
 3. Search template / header → **Product search** block

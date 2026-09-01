@@ -179,6 +179,43 @@ function assertThemeSeoAndUi() {
   if (!collectionLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters.liquid must load smart-filter-theme.min.js");
   }
+  if (!collectionLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-privacy.min.js");
+  }
+  const privacyJs = read(
+    "extensions/smart-filter/assets/smart-filter-privacy.js",
+  );
+  if (
+    !privacyJs.includes("consent-tracking-api") ||
+    !privacyJs.includes("analyticsProcessingAllowed") ||
+    !privacyJs.includes("visitorConsentCollected")
+  ) {
+    fail("smart-filter-privacy.js must gate analytics on Customer Privacy API");
+  }
+  if (
+    !filterJs.includes("__FINDLY_PRIVACY") ||
+    !searchJs.includes("__FINDLY_PRIVACY")
+  ) {
+    fail("filter and search widgets must send analytics through __FINDLY_PRIVACY");
+  }
+  if (
+    /localStorage\.setItem\(\s*["']findly:vid["']/.test(filterJs) ||
+    /localStorage\.setItem\(\s*["']findly:vid["']/.test(searchJs)
+  ) {
+    fail("findly:vid must not be written outside the privacy helper");
+  }
+  if (!searchLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("product-search.liquid must load smart-filter-privacy.min.js");
+  }
+  if (
+    collectionLiquid.includes("instant-search.min.js") ||
+    collectionLiquid.includes("instant-search.css")
+  ) {
+    fail("collection-filters.liquid must not load instant-search (separate app embed)");
+  }
+  if (!collectionLiquid.includes('"stylesheet": "smart-filter.min.css"')) {
+    fail("collection-filters.liquid schema stylesheet must be smart-filter.min.css");
+  }
   const embedLiquid = read(
     "extensions/smart-filter/blocks/collection-filters-embed.liquid",
   );
@@ -187,6 +224,41 @@ function assertThemeSeoAndUi() {
   }
   if (!embedLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters-embed.liquid must load smart-filter-theme.min.js");
+  }
+  if (!embedLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-privacy.min.js");
+  }
+  if (!embedLiquid.includes("smart-filter.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter.min.js from Liquid");
+  }
+  if (
+    embedLiquid.includes("instant-search.min.js") ||
+    embedLiquid.includes("instant-search.css")
+  ) {
+    fail("collection-filters-embed.liquid must not load instant-search (separate app embed)");
+  }
+  const embedSchemaStart = embedLiquid.indexOf("{% schema %}");
+  const embedSchema = embedSchemaStart === -1 ? "" : embedLiquid.slice(embedSchemaStart);
+  if (
+    /"stylesheet"\s*:/.test(embedSchema) ||
+    /"javascript"\s*:/.test(embedSchema)
+  ) {
+    fail(
+      "collection-filters-embed.liquid must omit schema stylesheet/javascript so body target does not inject assets on every page",
+    );
+  }
+  const embedGuard = embedLiquid.indexOf(
+    "{% if request.page_type == 'collection' or request.page_type == 'search' %}",
+  );
+  const embedFirstLink = embedLiquid.indexOf("<link ");
+  const embedFirstScriptSrc = embedLiquid.indexOf("<script src=");
+  if (embedGuard === -1 || embedFirstLink === -1 || embedFirstScriptSrc === -1) {
+    fail("collection-filters-embed.liquid missing page_type guard or assets");
+  }
+  if (embedFirstLink < embedGuard || embedFirstScriptSrc < embedGuard) {
+    fail(
+      "collection-filters-embed.liquid must load <link> and <script src> inside the collection/search page_type guard",
+    );
   }
   const instantJs = read("extensions/smart-filter/assets/instant-search.js");
   if (
@@ -516,7 +588,7 @@ try {
   const { PLANS } = await import("../app/services/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
     await import("../app/services/compliance.server.ts");
-  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import("../app/services/webhooks.server.ts"
+  const { webhookGraphqlId, webhookInventoryItemGid } = await import("../app/services/webhooks.server.ts"
   );
   const { mapProductToFacet, productIsAvailable, variantsIncludeInventoryLevels } =
     await import("../app/sync/product-mapper.ts");
@@ -527,22 +599,14 @@ try {
   const syncPage = read("app/routes/app.sync.tsx");
   const syncModal = read("app/components/sync-details-modal.tsx");
   const proxy = read("app/services/proxy.server.ts");
-  const eventsRoute = read("app/routes/events.app.products.tsx");
-  const webhookAction = read("app/services/webhook-action.server.ts");
   const workerBoot = read("app/workers/ensure-running.server.ts");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
     );
   }
-  if (
-    !eventsRoute.includes("handleProductEvent") &&
-    !(
-      eventsRoute.includes("productEventWebhookAction") &&
-      webhookAction.includes("handleProductEvent")
-    )
-  ) {
-    fail("events.app.products must enqueue catalog sync via handleProductEvent");
+  if (toml.includes("[events]") || toml.includes('api_version = "unstable"')) {
+    fail("shopify.app.toml must not use Shopify Events or an unstable API version");
   }
   if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
     fail("ensureWorkerRunning must start an in-process postgres queue poller");
@@ -654,14 +718,6 @@ try {
   );
   if (collectionGid !== "gid://shopify/Collection/841564295") {
     fail(`2026-07 collection webhook GID parse failed: ${collectionGid}`);
-  }
-  const eventGid = catalogProductGid({
-    topic: "Product",
-    action: "update",
-    query_variables: { productId: "gid://shopify/Product/555" },
-  });
-  if (eventGid !== "gid://shopify/Product/555") {
-    fail(`product event GID parse failed: ${eventGid}`);
   }
   const taggedOos = mapProductToFacet("shop", {
     id: "gid://shopify/Product/oos",

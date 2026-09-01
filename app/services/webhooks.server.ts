@@ -20,42 +20,6 @@ export function webhookGraphqlId(
   return `gid://shopify/${resource}/${id}`;
 }
 
-/**
- * Product GID from REST webhooks, GraphQL-style payloads, or Shopify Events.
- */
-export function catalogProductGid(
-  payload: Record<string, unknown>,
-): string | null {
-  const vars = payload.query_variables;
-  if (vars && typeof vars === "object") {
-    const pid = (vars as Record<string, unknown>).productId;
-    if (typeof pid === "string" && pid.startsWith("gid://shopify/Product/")) {
-      return pid;
-    }
-  }
-
-  const data = payload.data;
-  const dataProduct =
-    data && typeof data === "object"
-      ? (data as Record<string, unknown>).product
-      : undefined;
-  const nestedProduct =
-    payload.product && typeof payload.product === "object"
-      ? payload.product
-      : dataProduct;
-
-  const candidates: unknown[] = [nestedProduct, payload];
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== "object") continue;
-    try {
-      return webhookGraphqlId(candidate as Record<string, unknown>, "Product");
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
 function inventoryItemGidFromLevelGid(gid: string): string | null {
   const marker = "inventory_item_id=";
   const idx = gid.indexOf(marker);
@@ -157,31 +121,6 @@ async function enqueueCatalogJob(
   await runSyncJobInline(name, data);
 }
 
-export async function handleProductEvent(
-  shop: string,
-  payload: Record<string, unknown>,
-) {
-  const action = String(payload.action ?? "").toLowerCase();
-  const productGid = catalogProductGid(payload);
-  if (!productGid) {
-    log.warn("product event missing product id");
-    return;
-  }
-  if (action === "delete") {
-    await enqueueCatalogJob(
-      "product.delete",
-      { shop, productGid },
-      { jobId: `${shop}:product.delete:${productGid}` },
-    );
-    return;
-  }
-  await enqueueCatalogJob(
-    "product.upsert",
-    { shop, productGid },
-    { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
-  );
-}
-
 export async function handleWebhookTopic(
   shop: string,
   topic: string,
@@ -190,9 +129,6 @@ export async function handleWebhookTopic(
   const normalized = topic.toUpperCase().replace(/\//g, "_");
 
   switch (normalized) {
-    case "PRODUCT":
-      await handleProductEvent(shop, payload);
-      break;
     case "PRODUCTS_CREATE":
     case "PRODUCTS_UPDATE": {
       const productGid = webhookGraphqlId(payload, "Product");

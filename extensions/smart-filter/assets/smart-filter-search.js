@@ -1,6 +1,18 @@
 (function () {
   "use strict";
 
+  if (!window.__FINDLY_PRIVACY) {
+    window.__FINDLY_PRIVACY = {
+      _q: [],
+      run: function (fn) {
+        this._q.push(fn);
+      },
+      visitorId: function () {
+        return "";
+      },
+    };
+  }
+
   var DEBOUNCE_MS = 300;
   var MSG_LOADING = "Searching…";
   var MSG_ERROR = "Search could not be loaded. Please try again.";
@@ -84,33 +96,25 @@
     return window.innerWidth < 750 ? "mobile" : "desktop";
   }
 
-  function uuidish() {
-    if (window.crypto && typeof window.crypto.randomUUID === "function") {
-      return window.crypto.randomUUID();
-    }
-    return (
-      String(Date.now()) +
-      "-" +
-      Math.random().toString(16).slice(2) +
-      "-" +
-      Math.random().toString(16).slice(2)
-    );
-  }
-
   function visitorId() {
-    var key = "findly:vid";
-    try {
-      var existing = window.localStorage.getItem(key);
-      if (existing) return existing;
-      var created = uuidish();
-      window.localStorage.setItem(key, created);
-      return created;
-    } catch (err) {
-      return uuidish();
+    var privacy = window.__FINDLY_PRIVACY;
+    if (privacy && typeof privacy.visitorId === "function") {
+      return privacy.visitorId() || "";
     }
+    return "";
   }
 
   function fireAnalytics(proxyBase, fields) {
+    var privacy = window.__FINDLY_PRIVACY;
+    if (!privacy || typeof privacy.run !== "function") return;
+    privacy.run(function () {
+      sendAnalytics(proxyBase, fields);
+    });
+  }
+
+  function sendAnalytics(proxyBase, fields) {
+    var vid = visitorId();
+    if (!vid) return;
     var url =
       String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
       "/analytics?kind=" +
@@ -125,7 +129,7 @@
     if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
     url +=
       "&v=" +
-      encodeURIComponent(visitorId()) +
+      encodeURIComponent(vid) +
       "&d=" +
       encodeURIComponent(deviceKind());
     try {

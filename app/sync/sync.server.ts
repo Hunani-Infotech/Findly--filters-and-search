@@ -21,6 +21,7 @@ import {
   VARIANT_PRODUCT_QUERY,
   completedBulkIsFresh,
   countBulkQueryConnections,
+  wrapAdminGraphqlWithThrottleRetry,
 } from "./admin-graphql";
 import {
   syncProductMarketPrices,
@@ -51,7 +52,8 @@ type GraphqlClient = {
 async function getAdminForShop(shopDomain: string): Promise<GraphqlClient> {
   const { unauthenticated } = await import("../shopify.server");
   const { admin } = await unauthenticated.admin(shopDomain);
-  return admin;
+  // THROTTLED / 429 / cost-limit: exponential backoff in adminGraphqlWithRetry.
+  return wrapAdminGraphqlWithThrottleRetry(admin);
 }
 
 async function syncProductMemberships(

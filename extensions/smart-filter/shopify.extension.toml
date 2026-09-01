@@ -1,3 +1,5 @@
 name = "smart-filter"
+# Stable theme-extension identity used since first deploy. Do not regenerate —
+# a new uid would register a second extension in the Partner Dashboard.
 uid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 type = "theme"

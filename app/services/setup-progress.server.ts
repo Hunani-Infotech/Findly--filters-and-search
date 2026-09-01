@@ -69,13 +69,13 @@ export function themeEditorUrls(
   const editor = `https://${shopDomain}/admin/themes/current/editor`;
   if (!apiKey) {
     return {
-      collectionFilters: `${editor}?context=apps`,
+      collectionFilters: `${editor}?template=collection`,
       productSearch: `${editor}?template=search`,
       instantSearch: `${editor}?context=apps`,
     };
   }
   return {
-    collectionFilters: `${editor}?context=apps&activateAppId=${apiKey}/collection-filters-embed`,
+    collectionFilters: `${editor}?template=collection&addAppBlockId=${apiKey}/collection-filters&target=newAppsSection`,
     productSearch: `${editor}?template=search&addAppBlockId=${apiKey}/product-search&target=newAppsSection`,
     instantSearch: `${editor}?context=apps&activateAppId=${apiKey}/instant-search`,
   };
@@ -191,10 +191,10 @@ async function loadSetupProgress(
       number: 3,
       title: "Enable Collection filters",
       description:
-        "In the theme editor, open App embeds and turn on Collection filters. Save the theme.",
+        "In the theme editor, add Collection filters to the collection template (and search, if you use it). Save the theme. Use Collection filters (app embed) only if your theme has no app-block slot.",
       href: editorUrls.collectionFilters,
       actionLabel: flags["collection-filters"]
-        ? "Open app embeds"
+        ? "Open collection editor"
         : "Open theme editor",
       status: themeStatus(flags["collection-filters"]),
       external: true,

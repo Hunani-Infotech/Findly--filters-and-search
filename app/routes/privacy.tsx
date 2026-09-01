@@ -138,8 +138,11 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Support drafts.</strong> If a merchant uses Contact in the
-            admin, the draft (email, collaborator code, subject, message) is
-            saved with shop settings until they send or we purge the shop.
+            admin, a draft of their email, subject, and message may be saved
+            with shop settings until they send or we purge the shop.
+            Collaborator request codes are not stored. They are emailed to
+            Findly support only when the merchant ticks Request store access
+            on that form.
           </li>
         </ul>
 
@@ -159,14 +162,22 @@ export default function PrivacyPolicy() {
             An anonymous visitor id stored in the shopper’s browser{" "}
             <code>localStorage</code> key <code>findly:vid</code>. It is a
             random identifier generated in the Theme App Extension, not a
-            Shopify customer id, email, or IP address.
+            Shopify customer id, email, or IP address. This id is written
+            only when Shopify’s Customer Privacy API reports that analytics
+            processing is allowed (the merchant’s cookie banner and the
+            shopper’s region/consent).
           </li>
         </ul>
         <p>
           Search boxes can contain whatever a shopper types. We treat those
-          strings as usage data, not as an identity record. Merchants should
-          mention Findly’s storefront widgets in their own privacy policy if
-          required by their region.
+          strings as usage data, not as an identity record. Storefront
+          analytics beacons (query, filter combination, clicked product
+          handle, visitor id, and device type) are sent only when Shopify’s
+          Customer Privacy API allows analytics processing for that shopper.
+          If the shopper declines analytics, we do not persist{" "}
+          <code>findly:vid</code> and we do not send those beacons. Merchants
+          should mention Findly’s storefront widgets in their own privacy
+          policy if required by their region.
         </p>
 
         <h2 id="use">5. How we use this data</h2>
@@ -313,10 +324,12 @@ export default function PrivacyPolicy() {
         <p>
           The embedded admin uses Shopify’s session cookies to keep the merchant
           logged in. The storefront Theme App Extension does not set a Findly
-          cookie; it may write the anonymous <code>findly:vid</code> value to{" "}
-          <code>localStorage</code> for analytics uniqueness. Filter state is
-          kept in the page URL hash (not sent to our servers as a shopper
-          identity).
+          cookie. When analytics consent is granted through Shopify’s Customer
+          Privacy API, it may write the anonymous <code>findly:vid</code> value
+          to <code>localStorage</code> for analytics uniqueness. If consent is
+          not granted, that key is not written (and is removed if it was
+          present). Filter state is kept in the page URL hash (not sent to our
+          servers as a shopper identity).
         </p>
 
         <h2 id="transfers">10. International transfers</h2>

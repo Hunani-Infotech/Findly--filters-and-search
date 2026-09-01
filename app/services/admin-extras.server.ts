@@ -16,7 +16,6 @@ export type AdminLocaleRow = {
 
 export type ContactDraft = {
   email: string;
-  collaboratorCode: string;
   subject: string;
   message: string;
 };
@@ -78,10 +77,6 @@ export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
       ? undefined
       : {
           email: typeof draftRaw.email === "string" ? draftRaw.email : "",
-          collaboratorCode:
-            typeof draftRaw.collaboratorCode === "string"
-              ? draftRaw.collaboratorCode
-              : "",
           subject: typeof draftRaw.subject === "string" ? draftRaw.subject : "",
           message: typeof draftRaw.message === "string" ? draftRaw.message : "",
         };
@@ -113,8 +108,18 @@ export async function saveAdminNavExtras(
     select: { adminExtras: true },
   });
   const existingSetup = asRecord(asRecord(current?.adminExtras).setup);
+  const { contactDraft, ...rest } = extras;
   const payload = {
-    ...extras,
+    ...rest,
+    ...(contactDraft
+      ? {
+          contactDraft: {
+            email: contactDraft.email,
+            subject: contactDraft.subject,
+            message: contactDraft.message,
+          },
+        }
+      : {}),
     ...(Object.keys(existingSetup).length > 0 ? { setup: existingSetup } : {}),
   } as Prisma.InputJsonValue;
   const row = await prisma.appSettings.upsert({

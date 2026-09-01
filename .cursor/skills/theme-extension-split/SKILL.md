@@ -14,7 +14,9 @@ description: >-
 Shopify caps only the file named in the app-block schema:
 
 - `"javascript": "smart-filter.min.js"` → **100000 B** (`AssetSizeAppBlockJavaScript`)
-- `"stylesheet": "smart-filter.css"` → **100000 B** (`AssetSizeAppBlockCSS`)
+- `"stylesheet": "smart-filter.min.css"` → **100000 B** (`AssetSizeAppBlockCSS`)
+
+The body embed (`collection-filters-embed.liquid`) must **omit** schema `javascript` / `stylesheet` and load assets from Liquid inside a collection/search `page_type` guard. Schema assets cannot be gated and would ship on every storefront page.
 
 Files loaded from Liquid with `asset_url` are **not** that cap. Minify still runs; it does not delete features.
 
@@ -22,13 +24,13 @@ Files loaded from Liquid with `asset_url` are **not** that cap. Minify still run
 
 **Never remove existing widget behavior to hit 100 KB.** Extract it (or new work) into a companion file.
 
-Do not hand-edit `*.min.js`. Those are generated.
+Do not hand-edit `*.min.js` or `*.min.css`. Those are generated.
 
 ## After any theme-extension change
 
-1. Keep source of truth in `extensions/smart-filter/assets/*.js` (not `.min.js`).
+1. Keep source of truth in `extensions/smart-filter/assets/*.js` / `*.css` (not `.min.*`).
 2. Run `npm run theme:minify`.
-3. If `smart-filter.min.js` is ≥ 100000 B, split — do not strip code.
+3. If `smart-filter.min.js` or `smart-filter.min.css` is ≥ 100000 B, split — do not strip code.
 4. Confirm companion scripts still load from every relevant Liquid block.
 
 ## Split workflow
@@ -40,6 +42,7 @@ Copy this checklist:
 - [ ] New/overflow code in extensions/smart-filter/assets/smart-filter-<feature>.js
 - [ ] Liquid loads {{ 'smart-filter-<feature>.min.js' | asset_url }}
 - [ ] Minify job added (no limitBytes on companions)
+- [ ] Unminified source listed in extensions/smart-filter/.shopifyignore
 - [ ] npm run theme:minify succeeds; schema JS < 100000 B
 ```
 
@@ -76,15 +79,18 @@ In `scripts/minify-theme-extension.mjs`, add a job **without** `limitBytes`:
 
 Only `smart-filter.min.js` (schema JS) uses `limitBytes: 100000`.
 
+Add the unminified path to `extensions/smart-filter/.shopifyignore` (CLI `ignore` has no `!` negation — list each source). Merchants must receive only `*.min.*`.
+
 ### 4. CSS overflow
 
-If `smart-filter.css` would exceed 100 KB, add `smart-filter-<feature>.css` and load with `{{ 'smart-filter-<feature>.css' | asset_url }}`. Do not delete existing rules to shrink the schema stylesheet.
+If `smart-filter.css` would exceed 100 KB after minify, add `smart-filter-<feature>.css` and load with `{{ 'smart-filter-<feature>.min.css' | asset_url }}`. Do not delete existing rules to shrink the schema stylesheet.
 
 ## Existing pattern (copy this)
 
 | Role | File | Cap? |
 |------|------|------|
 | Schema JS | `smart-filter.js` → `smart-filter.min.js` | Yes, 100 KB |
+| Schema CSS | `smart-filter.css` → `smart-filter.min.css` | Yes, 100 KB |
 | Companion | `smart-filter-grid.js` → `smart-filter-grid.min.js` | No (Liquid `asset_url`) |
 
 Grid extras already live in the companion so the schema file can stay under the cap.

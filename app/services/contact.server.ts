@@ -31,7 +31,8 @@ function allowContactSend(shopDomain: string): boolean {
 export type ContactMessage = {
   shopDomain: string;
   email: string;
-  collaboratorCode: string;
+  collaboratorCode?: string;
+  requestAccess?: boolean;
   subject: string;
   message: string;
 };
@@ -81,7 +82,11 @@ function escapeHtml(value: string) {
 }
 
 function collaboratorLabel(code: string) {
-  return code.trim() || "(none)";
+  return code.trim() || "(requested, no code provided)";
+}
+
+function includeCollaboratorCode(msg: ContactMessage) {
+  return Boolean(msg.requestAccess);
 }
 
 function shopAdminHref(shop: string) {
@@ -103,26 +108,31 @@ function linkedValue(href: string, label: string) {
 }
 
 export function formatContactPlainText(msg: ContactMessage) {
-  return [
+  const lines = [
     APP_NAME,
     "Support request",
     "",
     `Shop: ${msg.shopDomain}`,
     `From: ${msg.email}`,
-    `Collaborator code: ${collaboratorLabel(msg.collaboratorCode)}`,
-    `Subject: ${msg.subject}`,
-    "",
-    "Message",
-    msg.message,
-  ].join("\n");
+  ];
+  if (includeCollaboratorCode(msg)) {
+    lines.push(
+      `Collaborator code: ${collaboratorLabel(msg.collaboratorCode ?? "")}`,
+    );
+  }
+  lines.push(`Subject: ${msg.subject}`, "", "Message", msg.message);
+  return lines.join("\n");
 }
 
 export function formatContactHtml(msg: ContactMessage) {
   const shopHref = shopAdminHref(msg.shopDomain);
-  const code = msg.collaboratorCode.trim();
+  const code = (msg.collaboratorCode ?? "").trim();
   const codeHtml = code
     ? `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:0.02em;">${escapeHtml(code)}</span>`
-    : `<span style="color:#8a8a8a;">Not provided</span>`;
+    : `<span style="color:#8a8a8a;">Requested, no code provided</span>`;
+  const accessRow = includeCollaboratorCode(msg)
+    ? metaRow("Collaborator code", codeHtml)
+    : "";
   const messageHtml = escapeHtml(msg.message)
     .replace(/\r\n/g, "\n")
     .replace(/\n/g, "<br>");
@@ -152,8 +162,7 @@ export function formatContactHtml(msg: ContactMessage) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ececec;border-bottom:1px solid #ececec;">
 ${metaRow("Shop", linkedValue(shopHref, msg.shopDomain))}
 ${metaRow("From", linkedValue(`mailto:${msg.email}`, msg.email))}
-${metaRow("Collaborator code", codeHtml)}
-${metaRow("Subject", escapeHtml(msg.subject))}
+${accessRow}${metaRow("Subject", escapeHtml(msg.subject))}
 </table>
 <p style="margin:28px 0 10px;font-size:12px;line-height:1.4;letter-spacing:0.04em;font-weight:600;color:#71717a;text-transform:uppercase;">Message</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border:1px solid #ececec;border-radius:8px;">
@@ -229,10 +238,14 @@ export async function deliverContactMessage(
     };
   }
 
+  const requestAccess = includeCollaboratorCode(msg);
   const payload: ContactMessage = {
     shopDomain: sanitizeHeaderValue(msg.shopDomain).slice(0, 255),
     email: sanitizeHeaderValue(msg.email).slice(0, 254),
-    collaboratorCode: sanitizeHeaderValue(msg.collaboratorCode).slice(0, 32),
+    requestAccess,
+    collaboratorCode: requestAccess
+      ? sanitizeHeaderValue(msg.collaboratorCode ?? "").slice(0, 32)
+      : "",
     subject: sanitizeHeaderValue(msg.subject).slice(0, MAX_SUBJECT_CHARS),
     message,
   };

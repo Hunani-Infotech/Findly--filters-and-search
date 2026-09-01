@@ -26,19 +26,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
-  return {
-    showForm: Boolean(login),
-    defaultShop:
-      process.env.SHOPIFY_FLAG_STORE || "findly-test-store.myshopify.com",
-  };
+  return { showForm: Boolean(login) };
 };
 
+const SHOP_DOMAIN_EXAMPLE = "your-store.myshopify.com";
+
 function ShopLoginForm({
-  defaultShop,
   submitting,
   hintId,
 }: {
-  defaultShop: string;
   submitting: boolean;
   hintId: string;
 }) {
@@ -50,7 +46,8 @@ function ShopLoginForm({
           className={shell.input}
           type="text"
           name="shop"
-          defaultValue={defaultShop}
+          defaultValue=""
+          placeholder={SHOP_DOMAIN_EXAMPLE}
           disabled={submitting}
           autoComplete="off"
           spellCheck={false}
@@ -59,7 +56,7 @@ function ShopLoginForm({
         />
       </label>
       <p className={shell.hint} id={hintId}>
-        e.g. {defaultShop}
+        e.g. {SHOP_DOMAIN_EXAMPLE}
       </p>
       <button className={shell.button} type="submit" disabled={submitting}>
         {submitting ? "Logging in…" : "Continue to Shopify"}
@@ -69,7 +66,7 @@ function ShopLoginForm({
 }
 
 export default function App() {
-  const { showForm, defaultShop } = useLoaderData<typeof loader>();
+  const { showForm } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const submitting =
     navigation.state !== "idle" &&
@@ -110,7 +107,6 @@ export default function App() {
               domain to install Findly or open it if it is already installed.
             </p>
             <ShopLoginForm
-              defaultShop={defaultShop}
               submitting={submitting}
               hintId="shop-domain-hint"
             />
@@ -193,9 +189,9 @@ export default function App() {
             <span className={styles.stepNum}>3</span>
             <h3>Enable the theme blocks</h3>
             <p>
-              Turn on the collection filters app embed (and search, if you use
-              it) in the theme editor. Placement, accent, and counts are
-              configurable.
+              Add Collection filters to the collection template (and Instant
+              search as an app embed, if you use it) in the theme editor.
+              Placement, accent, and counts are configurable.
             </p>
           </li>
         </ol>
@@ -232,7 +228,7 @@ export default function App() {
           <article className={styles.feature}>
             <h3 className={styles.featureTitle}>Theme App Extension</h3>
             <p className={styles.featureCopy}>
-              Collection filters app embed, Product search block, and Instant
+              Collection filters app block, Product search block, and Instant
               search embed. Async-loaded widget, scoped CSS, and basic styling:
               position (left, right, or top), accent color, product counts, and
               collapse-by-default.
@@ -329,7 +325,6 @@ export default function App() {
               Development stores and production shops both use this form.
             </p>
             <ShopLoginForm
-              defaultShop={defaultShop}
               submitting={submitting}
               hintId="shop-domain-hint-cta"
             />

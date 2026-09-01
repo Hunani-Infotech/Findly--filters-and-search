@@ -4,13 +4,12 @@
  *
  * Single browser log to share: console → [FindlyUI] { … }
  * Also: window.__FINDLY_UI_LAST
- * Always on when cycle ≥250ms; force with ?findly_perf=1 or localStorage.findly_perf=1
+ * Console only when enabled: ?findly_perf=1, localStorage.findly_perf=1, or window.__FINDLY_PERF
  */
 (function () {
   "use strict";
 
   var TAG = "[FindlyUI]";
-  var SLOW_MS = 250;
   var STALE_FILTER_ERR = "FindlyStaleRequest";
 
   function now() {
@@ -200,7 +199,7 @@
       /* ignore */
     }
     markPerf("findly-filter-cycle-" + cycle.id + "-end");
-    if (enabled() || total >= SLOW_MS || themeMs >= SLOW_MS) {
+    if (enabled()) {
       emitUi(summary);
     }
     var s = session(widget);

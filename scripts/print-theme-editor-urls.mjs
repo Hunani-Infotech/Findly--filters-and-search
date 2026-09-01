@@ -2,8 +2,8 @@
  * Print Theme Editor deep links for the configured API key + shop.
  * Usage: node ./scripts/print-theme-editor-urls.mjs [shop.myshopify.com]
  *
- * Audit #13 — click the printed collectionFilters URL; App embeds should open
- * with Findly Collection filters embed highlighted / ready to enable.
+ * Audit #13 — click the printed collectionFilters URL; the collection template
+ * should open with Collection filters ready to add as an app block.
  */
 import "tsx/esm";
 import { readFileSync } from "node:fs";
@@ -59,14 +59,17 @@ log.info(`collectionFilters=${urls.collectionFilters}`);
 log.info(`productSearch=${urls.productSearch}`);
 log.info(`instantSearch=${urls.instantSearch}`);
 
-if (apiKey && !urls.collectionFilters.includes(`activateAppId=${apiKey}/`)) {
-  log.error("collectionFilters URL missing activateAppId — FAIL");
+if (
+  apiKey &&
+  !urls.collectionFilters.includes(`addAppBlockId=${apiKey}/collection-filters`)
+) {
+  log.error("collectionFilters URL missing addAppBlockId — FAIL");
   process.exitCode = 1;
 } else if (apiKey) {
   log.success(
-    "STEPTHEME_URL_OK template matches SHOPIFY_API_KEY + collection-filters-embed",
+    "STEPTHEME_URL_OK template matches SHOPIFY_API_KEY + collection-filters",
   );
   log.info(
-    "Manual click: open collectionFilters URL while logged into that shop admin. Pass if App embeds opens with Findly Collection filters.",
+    "Manual click: open collectionFilters URL while logged into that shop admin. Pass if the collection template offers Findly Collection filters.",
   );
 }

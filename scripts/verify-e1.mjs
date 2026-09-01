@@ -35,7 +35,7 @@ function assertStaticMarkers() {
   if (
     (!liquid.includes("instant-search.js") &&
       !liquid.includes("instant-search.min.js")) ||
-    !liquid.includes("instant-search.css")
+    !liquid.includes("instant-search.min.css")
   ) {
     fail("instant-search.liquid missing stylesheet/javascript assets");
   }
@@ -49,6 +49,12 @@ function assertStaticMarkers() {
   }
   if (!js.includes("AbortController") || !js.includes("maxProducts")) {
     fail("instant-search.js missing AbortController or maxProducts limit");
+  }
+  if (js.includes("ensureInstantRoot") || js.includes('className = "findly-instant"')) {
+    fail("instant-search.js must not create a .findly-instant root; only boot when the app embed is present");
+  }
+  if (!js.includes('if (!roots.length) return')) {
+    fail("instant-search.js must skip boot when .findly-instant is absent");
   }
 
   const searchBlock = readRepo(

@@ -132,6 +132,24 @@ function assertEmbedLiquid() {
     "liquid custom JS must set __findlyEmbedJsRan so widget does not double-run",
   );
   assert(
+    /type="text\/plain"[^>]*id="findly-embed-js"|id="findly-embed-js"[^>]*type="text\/plain"/.test(
+      liquid,
+    ),
+    "merchant custom JS must live in a type=text/plain holder, not an executable script",
+  );
+  assert(
+    liquid.includes("block.settings.custom_javascript | escape"),
+    "text/plain JS holder must HTML-escape so </SCRIPT> cannot break out of the tag",
+  );
+  assert(
+    !liquid.includes("replace: '</script'"),
+    "must not rely on case-sensitive Liquid replace to escape </script",
+  );
+  assert(
+    liquid.includes("new Function("),
+    "liquid must run merchant JS via new Function, not inline executable source",
+  );
+  assert(
     /"type":\s*"liquid"[\s\S]{0,80}"id":\s*"variables"/.test(liquid) ||
       /"id":\s*"variables"[\s\S]{0,80}"type":\s*"liquid"/.test(liquid),
     'variables setting must be type "liquid"',
@@ -230,6 +248,14 @@ function assertWidgetCallChains(widget) {
   assert(
     /if\s*\(\s*window\.__findlyEmbedJsRan\s*\)\s*return/.test(maybeJs),
     "maybeRunEmbedJs must return early when __findlyEmbedJsRan is set",
+  );
+  assert(
+    maybeJs.includes("new Function("),
+    "maybeRunEmbedJs must execute merchant JS via new Function, not a blob script tag",
+  );
+  assert(
+    !maybeJs.includes("createObjectURL"),
+    "maybeRunEmbedJs must not inject merchant JS through a Blob URL script",
   );
 
   const chrome = extractPrototypeMethod(widget, "applyEmbedChrome");

@@ -15,6 +15,7 @@ import {
   BlockStack,
   Button,
   Card,
+  Checkbox,
   FormLayout,
   Layout,
   Page,
@@ -37,9 +38,15 @@ import {
 export { ContactPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 const DEFAULT_SUBJECT = "[Findly Smart Filters & Search] I need support";
+const COLLABORATOR_CODE_PATTERN = /^\d{4}$/;
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isRequestAccess(form: FormData) {
+  const raw = String(form.get("requestAccess") ?? "").toLowerCase();
+  return raw === "1" || raw === "true" || raw === "on";
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -49,7 +56,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const draft = extras.contactDraft;
   return {
     email: draft?.email ?? "",
-    collaboratorCode: draft?.collaboratorCode ?? "",
     subject: draft?.subject || DEFAULT_SUBJECT,
     message: draft?.message ?? "",
   };
@@ -60,18 +66,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = await ensureShopAccess(session.shop);
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim();
-  const collaboratorCode = String(form.get("collaboratorCode") ?? "").trim();
+  const requestAccess = isRequestAccess(form);
+  const collaboratorCode = requestAccess
+    ? String(form.get("collaboratorCode") ?? "").trim()
+    : "";
   const subject = String(form.get("subject") ?? "").trim() || DEFAULT_SUBJECT;
   const message = String(form.get("message") ?? "").trim();
 
-  const errors: { email?: string; message?: string } = {};
+  const errors: { email?: string; message?: string; collaboratorCode?: string } =
+    {};
   if (!email || !isValidEmail(email)) {
     errors.email = "Enter a valid email address";
   }
   if (!message) {
     errors.message = "Enter a message";
   }
-  if (errors.email || errors.message) {
+  if (requestAccess && !COLLABORATOR_CODE_PATTERN.test(collaboratorCode)) {
+    errors.collaboratorCode = "Enter the 4-digit collaborator request code";
+  }
+  if (errors.email || errors.message || errors.collaboratorCode) {
     return { ok: false as const, errors };
   }
 
@@ -80,12 +93,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     langs: extras.langs,
     i18n: extras.i18n,
     translationCustom: extras.translationCustom,
-    contactDraft: { email, collaboratorCode, subject, message },
+    contactDraft: { email, subject, message },
   };
 
   const delivered = await deliverContactMessage({
     shopDomain: session.shop,
     email,
+    requestAccess,
     collaboratorCode,
     subject,
     message,
@@ -97,7 +111,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   await saveAdminNavExtras(shop.id, {
     ...draftExtras,
-    contactDraft: { email, collaboratorCode, subject, message: "" },
+    contactDraft: { email, subject, message: "" },
   });
 
   return { ok: true as const };
@@ -112,9 +126,8 @@ export default function ContactNavPage() {
   const submitting = isMutationBusy(navigation);
 
   const [email, setEmail] = useState(draft.email);
-  const [collaboratorCode, setCollaboratorCode] = useState(
-    draft.collaboratorCode,
-  );
+  const [requestAccess, setRequestAccess] = useState(false);
+  const [collaboratorCode, setCollaboratorCode] = useState("");
   const [subject, setSubject] = useState(draft.subject);
   const [message, setMessage] = useState(draft.message);
   const [seenAction, setSeenAction] = useState(actionData);
@@ -123,6 +136,8 @@ export default function ContactNavPage() {
     setSeenAction(actionData);
     if (actionData && "ok" in actionData && actionData.ok) {
       setMessage("");
+      setCollaboratorCode("");
+      setRequestAccess(false);
     }
   }
 
@@ -137,7 +152,11 @@ export default function ContactNavPage() {
     }
   }, [actionData, shopify]);
 
-  const fieldErrors: { email?: string; message?: string } =
+  const fieldErrors: {
+    email?: string;
+    message?: string;
+    collaboratorCode?: string;
+  } =
     actionData && "ok" in actionData && !actionData.ok ? actionData.errors : {};
   const sendError =
     actionData && "ok" in actionData && !actionData.ok
@@ -155,12 +174,13 @@ export default function ContactNavPage() {
             <BlockStack gap="400">
               <Text as="p">
                 Don&apos;t hesitate to reach out if you have questions or need
-                help. Please send a staff admin invitation to{" "}
+                help. Most issues can be solved from your message. If you want
+                Findly staff in your admin, tick Request store access below, or
+                send a staff invitation to{" "}
                 <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
                   {FINDLY_SUPPORT_EMAIL}
-                </a>
-                , and include Apps and Online Store → Themes permissions in
-                that invitation.
+                </a>{" "}
+                with Apps and Online Store → Themes permissions.
               </Text>
               {sendError ? (
                 <Banner tone="critical" title="Message was not sent">
@@ -172,8 +192,13 @@ export default function ContactNavPage() {
                   <input type="hidden" name="email" value={email} />
                   <input
                     type="hidden"
+                    name="requestAccess"
+                    value={requestAccess ? "1" : ""}
+                  />
+                  <input
+                    type="hidden"
                     name="collaboratorCode"
-                    value={collaboratorCode}
+                    value={requestAccess ? collaboratorCode : ""}
                   />
                   <input type="hidden" name="subject" value={subject} />
                   <input type="hidden" name="message" value={message} />
@@ -185,13 +210,22 @@ export default function ContactNavPage() {
                     onChange={setEmail}
                     error={fieldErrors.email}
                   />
-                  <TextField
-                    label="Collaborator request code"
-                    autoComplete="off"
-                    value={collaboratorCode}
-                    onChange={setCollaboratorCode}
-                    helpText="To find the 4-digit access code: Shopify admin > Settings > Users and permissions > Collaborators"
+                  <Checkbox
+                    label="Request store access"
+                    helpText="Only tick this if you want Findly staff to log into your Shopify admin. We email the 4-digit collaborator request code with this message and do not save it."
+                    checked={requestAccess}
+                    onChange={setRequestAccess}
                   />
+                  {requestAccess ? (
+                    <TextField
+                      label="Collaborator request code"
+                      autoComplete="off"
+                      value={collaboratorCode}
+                      onChange={setCollaboratorCode}
+                      error={fieldErrors.collaboratorCode}
+                      helpText="Shopify admin → Settings → Users and permissions → Collaborators. This code is sent with your message only; it is not stored."
+                    />
+                  ) : null}
                   <TextField
                     label="Subject"
                     autoComplete="off"

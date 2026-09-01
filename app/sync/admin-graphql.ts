@@ -1,3 +1,10 @@
+import {
+  GRAPHQL_THROTTLE_BASE_MS,
+  GRAPHQL_THROTTLE_MAX_MS,
+  GRAPHQL_THROTTLE_MAX_RETRIES,
+} from "../constants/limits";
+import { log } from "../lib/log.server";
+
 /** Admin GraphQL documents for product/collection sync (no REST). */
 
 export const PRODUCT_NODE_QUERY = `#graphql
@@ -439,3 +446,194 @@ export const VARIANT_PRODUCT_QUERY = `#graphql
     }
   }
 `;
+
+export type AdminGraphqlClient = {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<Response>;
+};
+
+const THROTTLE_CODES = new Set([
+  "THROTTLED",
+  "MAX_COST_EXCEEDED",
+  "COST_LIMIT",
+]);
+
+type GraphqlErrorShape = {
+  message?: string;
+  extensions?: { code?: string };
+};
+
+type GraphqlThrottlePayload = {
+  errors?: GraphqlErrorShape[];
+  extensions?: {
+    cost?: {
+      requestedQueryCost?: number;
+      throttleStatus?: {
+        currentlyAvailable?: number;
+        restoreRate?: number;
+      };
+    };
+  };
+};
+
+function parseJsonObject(body: string): GraphqlThrottlePayload | null {
+  const trimmed = body.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    return JSON.parse(trimmed) as GraphqlThrottlePayload;
+  } catch {
+    return null;
+  }
+}
+
+function errorLooksThrottled(err: GraphqlErrorShape | undefined): boolean {
+  if (!err) return false;
+  const code = String(err.extensions?.code || "").toUpperCase();
+  if (THROTTLE_CODES.has(code)) return true;
+  const message = String(err.message || "");
+  return /throttl|too many requests|429|cost limit|exceeds the (single query )?max cost|currently available/i.test(
+    message,
+  );
+}
+
+/** True for HTTP 429 and GraphQL THROTTLED / cost-limit errors. */
+export function isAdminGraphqlThrottled(input: {
+  status?: number;
+  body?: string;
+  error?: unknown;
+}): boolean {
+  if (input.status === 429) return true;
+  if (input.body) {
+    const json = parseJsonObject(input.body);
+    if (json?.errors?.some(errorLooksThrottled)) return true;
+  }
+  if (input.error == null) return false;
+  if (typeof input.error === "object") {
+    const err = input.error as {
+      status?: number;
+      response?: { status?: number };
+      message?: string;
+      body?: string;
+    };
+    if (err.status === 429 || err.response?.status === 429) return true;
+    if (typeof err.body === "string" && isAdminGraphqlThrottled({ body: err.body })) {
+      return true;
+    }
+    if (errorLooksThrottled({ message: err.message })) return true;
+  }
+  return errorLooksThrottled({ message: String(input.error) });
+}
+
+function retryAfterMs(headers: Headers): number | null {
+  const raw = headers.get("Retry-After");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, GRAPHQL_THROTTLE_MAX_MS);
+  }
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return null;
+  return Math.min(Math.max(0, at - Date.now()), GRAPHQL_THROTTLE_MAX_MS);
+}
+
+function costRestoreMs(body: string): number | null {
+  const json = parseJsonObject(body);
+  const cost = json?.extensions?.cost;
+  const requested = Number(cost?.requestedQueryCost);
+  const available = Number(cost?.throttleStatus?.currentlyAvailable);
+  const restore = Number(cost?.throttleStatus?.restoreRate);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isFinite(available) ||
+    !Number.isFinite(restore) ||
+    restore <= 0 ||
+    requested <= available
+  ) {
+    return null;
+  }
+  const waitSec = (requested - available) / restore;
+  return Math.min(Math.ceil(waitSec * 1000) + 100, GRAPHQL_THROTTLE_MAX_MS);
+}
+
+/** Exponential backoff, preferring Retry-After and GraphQL cost restore rate. */
+export function adminGraphqlThrottleDelayMs(
+  attempt: number,
+  headers?: Headers,
+  body?: string,
+): number {
+  const exp = Math.min(
+    GRAPHQL_THROTTLE_BASE_MS * 2 ** Math.max(0, attempt),
+    GRAPHQL_THROTTLE_MAX_MS,
+  );
+  const hinted =
+    (headers ? retryAfterMs(headers) : null) ??
+    (body ? costRestoreMs(body) : null);
+  const base = Math.max(exp, hinted ?? 0);
+  const jitter = 0.85 + Math.random() * 0.3;
+  return Math.min(Math.round(base * jitter), GRAPHQL_THROTTLE_MAX_MS);
+}
+
+function replayResponse(
+  status: number,
+  statusText: string,
+  headers: Headers,
+  body: string,
+): Response {
+  return new Response(body, { status, statusText, headers });
+}
+
+export async function adminGraphqlWithRetry(
+  graphql: AdminGraphqlClient["graphql"],
+  query: string,
+  options?: { variables?: Record<string, unknown> },
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<Response> {
+  const maxAttempts = GRAPHQL_THROTTLE_MAX_RETRIES + 1;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = await graphql(query, options);
+      const status = Number(response.status) || 200;
+      const headers = new Headers(response.headers);
+      const body = await response.text();
+      const throttled = isAdminGraphqlThrottled({ status, body });
+      if (!throttled || attempt === maxAttempts - 1) {
+        return replayResponse(status, response.statusText || "", headers, body);
+      }
+      const delay = adminGraphqlThrottleDelayMs(attempt, headers, body);
+      log.warn(
+        `[sync] Admin GraphQL THROTTLED / cost-limit; backoff ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`,
+      );
+      await sleep(delay);
+    } catch (error) {
+      lastError = error;
+      const throttled = isAdminGraphqlThrottled({ error });
+      if (!throttled || attempt === maxAttempts - 1) throw error;
+      const delay = adminGraphqlThrottleDelayMs(attempt);
+      log.warn(
+        `[sync] Admin GraphQL THROTTLED throw; backoff ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`,
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError ?? new Error("Admin GraphQL throttle retries exhausted");
+}
+
+/** Wrap an Admin GraphQL client so every call retries on THROTTLED / 429. */
+export function wrapAdminGraphqlWithThrottleRetry(
+  admin: AdminGraphqlClient,
+): AdminGraphqlClient {
+  return {
+    graphql: (query, options) =>
+      adminGraphqlWithRetry(
+        (q, o) => admin.graphql(q, o),
+        query,
+        options,
+      ),
+  };
+}

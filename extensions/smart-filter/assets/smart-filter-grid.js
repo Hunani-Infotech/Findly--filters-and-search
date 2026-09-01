@@ -5619,7 +5619,10 @@
       clear.type = "button";
       clear.className = "sf-search-clear";
       clear.setAttribute("data-collection-search-clear", "");
-      clear.setAttribute("aria-label", "Clear search");
+      clear.setAttribute(
+        "aria-label",
+        wrap.getAttribute("data-clear-search-label") || "Clear search",
+      );
       clear.hidden = true;
       field.appendChild(clear);
     }
@@ -5660,6 +5663,10 @@
       wrap = document.createElement("div");
       wrap.className = "sf-search";
       wrap.setAttribute("data-collection-search-wrap", "");
+      wrap.setAttribute(
+        "data-clear-search-label",
+        widget.root.getAttribute("data-i18n-clear-search") || "Clear search",
+      );
       wrap.hidden = true;
       var label = document.createElement("label");
       label.className = "sf-search-label";
@@ -5672,7 +5679,11 @@
       input.className = "sf-search-input";
       input.type = "search";
       input.setAttribute("data-collection-search", "");
-      input.setAttribute("placeholder", "Search products");
+      input.setAttribute(
+        "placeholder",
+        widget.root.getAttribute("data-i18n-search-placeholder") ||
+          "Search products",
+      );
       input.setAttribute("autocomplete", "off");
       input.setAttribute("enterkeyhint", "search");
       wrap.appendChild(label);

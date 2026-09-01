@@ -1,3 +1,4 @@
+<script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
 <div
   class="smart-filter-search"
@@ -11,7 +12,7 @@
 >
   <form class="sf-search-form" data-search-form role="search">
     <label class="sf-search-label vis-hidden" for="smart-filter-search-q-{{ block.id }}">
-      Search products
+      {{ "blocks.product_search.label" | t }}
     </label>
     <div class="sf-search-row">
       <input
@@ -25,7 +26,7 @@
         placeholder="{{ block.settings.placeholder | escape }}"
       >
       <button class="sf-search-submit" type="submit" data-search-submit>
-        Search
+        {{ "blocks.product_search.submit" | t }}
       </button>
     </div>
   </form>
@@ -36,13 +37,13 @@
     role="status"
     hidden
   >
-    <p class="sf-search-empty-heading">No products found</p>
-    <p class="sf-search-empty-text">Your search did not match any products.</p>
+    <p class="sf-search-empty-heading">{{ "blocks.product_search.empty" | t }}</p>
+    <p class="sf-search-empty-text">{{ "blocks.product_search.empty_copy" | t }}</p>
     <button type="button" class="sf-search-clear" data-clear-query>
-      Clear query
+      {{ "blocks.product_search.clear_query" | t }}
     </button>
   </div>
-  <p class="sf-search-suggest-heading" data-suggest-heading hidden>Suggested</p>
+  <p class="sf-search-suggest-heading" data-suggest-heading hidden>{{ "blocks.product_search.suggested" | t }}</p>
   <ul class="sf-search-results sf-search-suggestions" data-suggestions role="list" hidden></ul>
   <ul class="sf-search-results sf-search-collections" data-suggest-collections role="list" hidden></ul>
   <ul class="sf-search-results" data-results role="list"></ul>
@@ -56,7 +57,7 @@
     "templates": ["search"],
     "groups": ["header"]
   },
-  "stylesheet": "smart-filter-search.css",
+  "stylesheet": "smart-filter-search.min.css",
   "javascript": "smart-filter-search.min.js",
   "settings": [
     {

@@ -1,0 +1,20 @@
+# Unminified sources stay in git for theme:minify. Shopify CLI skips these on
+# app deploy / app dev so merchant CDN only receives *.min.js / *.min.css.
+# fast-glob ignore does not support !negation — list each source explicitly.
+
+assets/smart-filter.js
+assets/smart-filter-grid.js
+assets/smart-filter-pager.js
+assets/smart-filter-theme.js
+assets/smart-filter-fetch.js
+assets/smart-filter-boot.js
+assets/smart-filter-perf.js
+assets/smart-filter-dom.js
+assets/smart-filter-privacy.js
+assets/instant-search.js
+assets/smart-filter-search.js
+assets/smart-filter.css
+assets/smart-filter-check.css
+assets/smart-filter-ui.css
+assets/instant-search.css
+assets/smart-filter-search.css

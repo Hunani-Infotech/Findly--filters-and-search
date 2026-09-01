@@ -279,7 +279,7 @@ export default function Home() {
                   <BlockStack gap="200">
                     <InlineStack align="space-between" blockAlign="center" wrap gap="200">
                       <Text as="h2" variant="headingMd">
-                        App embed
+                        Collection filters
                       </Text>
                       <Badge tone={embedReady ? "success" : "attention"}>
                         {embedReady ? "Active" : "Inactive"}
@@ -288,7 +288,7 @@ export default function Home() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       {embedReady
                         ? "Collection filters is on for collection pages."
-                        : "Turn on Collection filters in theme App embeds."}
+                        : "Add Collection filters to the collection template in the theme editor."}
                     </Text>
                     <InlineStack>
                       <Button
@@ -296,7 +296,7 @@ export default function Home() {
                         target="_blank"
                         variant={embedReady ? "secondary" : "primary"}
                       >
-                        {embedReady ? "Open app embeds" : "Integrate theme"}
+                        {embedReady ? "Open theme editor" : "Integrate theme"}
                       </Button>
                     </InlineStack>
                   </BlockStack>

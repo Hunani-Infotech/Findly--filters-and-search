@@ -22,10 +22,13 @@ import {
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import { appUrl, authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { forgetShop } from "../lib/shop-cache.server";
-import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
+import {
+  embeddedAdminAppUrl,
+  withEmbeddedParamsFromRequest,
+} from "../utils/admin-path";
 import {
   PLANS,
   cancelSubscription,
@@ -49,7 +52,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let { shop } = await ensureShopAccess(session.shop);
 
   const lastSync = lastBillingSyncAt.get(shop.id) ?? 0;
-  if (Date.now() - lastSync > BILLING_SYNC_TTL_MS) {
+  const fromChargeReturn = new URL(request.url).searchParams.has("charge_id");
+  if (fromChargeReturn || Date.now() - lastSync > BILLING_SYNC_TTL_MS) {
     try {
       await syncActiveSubscriptions(admin, shop.id);
       lastBillingSyncAt.set(shop.id, Date.now());
@@ -79,7 +83,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session, admin, redirect: shopifyRedirect } =
+    await authenticate.admin(request);
   const { shop } = await ensureShopAccess(session.shop);
 
   const formData = await request.formData();
@@ -111,7 +116,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const plan = PLANS[requested];
   // Free plan: no AppSubscriptionCreate — Standard and Pro create a charge.
-  const returnUrl = `${process.env.SHOPIFY_APP_URL}/app/billing/callback?shop=${encodeURIComponent(session.shop)}`;
+  // Top window must stay on admin.shopify.com (not the Hostinger app origin).
+  const returnUrl =
+    embeddedAdminAppUrl(session.shop, "/app/billing") ??
+    `${appUrl.replace(/\/$/, "")}/app/billing?shop=${encodeURIComponent(session.shop)}`;
 
   const result = await createAppSubscription(admin, returnUrl, requested);
   const errors = result?.userErrors ?? [];
@@ -126,6 +134,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) {
     return { error: "Unexpected billing confirmation URL from Shopify." };
   }
+
+  lastBillingSyncAt.delete(shop.id);
 
   if (result.appSubscription?.id) {
     await prisma.subscription.upsert({
@@ -154,7 +164,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  return redirect(result.confirmationUrl);
+  return shopifyRedirect(result.confirmationUrl, { target: "_top" });
 };
 
 export default function BillingPage() {

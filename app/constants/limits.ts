@@ -15,6 +15,15 @@ export const QUEUE_BACKOFF_DELAY_MS = 2000;
 /** Cap for exponential backoff after repeated failures. */
 export const QUEUE_MAX_BACKOFF_MS = 15 * 60 * 1000;
 
+/** Admin GraphQL leaky-bucket: retries after THROTTLED / 429 / cost-limit. */
+export const GRAPHQL_THROTTLE_MAX_RETRIES = 6;
+
+/** First backoff after a throttle (doubles each retry). */
+export const GRAPHQL_THROTTLE_BASE_MS = 500;
+
+/** Cap for GraphQL throttle exponential backoff. */
+export const GRAPHQL_THROTTLE_MAX_MS = 16_000;
+
 /**
  * Requeue jobs stuck in `processing` longer than this (crashed worker).
  * Matches former BullMQ lockDuration (30m).

@@ -1,6 +1,18 @@
 (function () {
   "use strict";
 
+  if (!window.__FINDLY_PRIVACY) {
+    window.__FINDLY_PRIVACY = {
+      _q: [],
+      run: function (fn) {
+        this._q.push(fn);
+      },
+      visitorId: function () {
+        return "";
+      },
+    };
+  }
+
   var HASH_KEY = "sf";
   var DEBOUNCE_MS = 300;
   var MSG_LOADING = "Loading filters…";
@@ -87,36 +99,28 @@
     return window.innerWidth < 750 ? "mobile" : "desktop";
   }
 
-  function uuidish() {
-    if (window.crypto && typeof window.crypto.randomUUID === "function") {
-      return window.crypto.randomUUID();
-    }
-    return (
-      String(Date.now()) +
-      "-" +
-      Math.random().toString(16).slice(2) +
-      "-" +
-      Math.random().toString(16).slice(2)
-    );
-  }
-
   function visitorId() {
-    var key = "findly:vid";
-    try {
-      var existing = window.localStorage.getItem(key);
-      if (existing) return existing;
-      var created = uuidish();
-      window.localStorage.setItem(key, created);
-      return created;
-    } catch (err) {
-      return uuidish();
+    var privacy = window.__FINDLY_PRIVACY;
+    if (privacy && typeof privacy.visitorId === "function") {
+      return privacy.visitorId() || "";
     }
+    return "";
   }
 
   var lastAnalyticsStamp = "";
   var lastAnalyticsAt = 0;
 
   function fireAnalytics(proxyBase, fields) {
+    var privacy = window.__FINDLY_PRIVACY;
+    if (!privacy || typeof privacy.run !== "function") return;
+    privacy.run(function () {
+      sendAnalytics(proxyBase, fields);
+    });
+  }
+
+  function sendAnalytics(proxyBase, fields) {
+    var vid = visitorId();
+    if (!vid) return;
     var stamp =
       String(fields.kind || "") +
       "|" +
@@ -141,7 +145,7 @@
     if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
     url +=
       "&v=" +
-      encodeURIComponent(visitorId()) +
+      encodeURIComponent(vid) +
       "&d=" +
       encodeURIComponent(deviceKind());
     try {
@@ -2099,34 +2103,29 @@
     };
   }
 
+  function decodeEmbedJsHolder(holder) {
+    if (!holder) return "";
+    try {
+      var decode = document.createElement("textarea");
+      decode.innerHTML = holder.textContent || "";
+      return String(decode.value || "").trim();
+    } catch (errDecode) {
+      return String(holder.textContent || "").trim();
+    }
+  }
+
   function maybeRunEmbedJs(config) {
     try {
       if (window.__findlyEmbedJsRan) return;
-      if (
-        document.getElementById("findly-embed-js") ||
-        document.querySelector("script[data-findly-embed-js]")
-      ) {
-        window.__findlyEmbedJsRan = true;
-        return;
-      }
-      var code = config && String(config.customJavascript || "").trim();
-      if (!code) {
-        window.__findlyEmbedJsRan = true;
-        return;
-      }
       window.__findlyEmbedJsRan = true;
-      var blob = new Blob([code], { type: "text/javascript" });
-      var el = document.createElement("script");
-      el.setAttribute("data-findly-embed-js", "1");
-      el.src = URL.createObjectURL(blob);
-      el.onload = function () {
-        try {
-          URL.revokeObjectURL(el.src);
-        } catch (errRevoke) {
-          /* ignore */
-        }
-      };
-      (document.body || document.documentElement).appendChild(el);
+      var code = decodeEmbedJsHolder(
+        document.getElementById("findly-embed-js"),
+      );
+      if (!code) {
+        code = config && String(config.customJavascript || "").trim();
+      }
+      if (!code) return;
+      new Function(code)();
     } catch (err) {
       try {
         window.__findlyEmbedJsRan = true;
@@ -4596,7 +4595,10 @@
   Widget.prototype.syncClearAll = function () {
     var el = this.clearAllEl;
     if (!el) return;
-    el.textContent = this.t("clear", MSG_CLEAR);
+    el.textContent = this.t(
+      "clear",
+      (el.textContent || "").trim() || MSG_CLEAR,
+    );
     var active = this.hasActiveFilters();
     el.disabled = !active;
     el.hidden = !active;

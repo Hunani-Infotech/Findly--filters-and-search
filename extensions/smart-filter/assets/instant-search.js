@@ -1077,41 +1077,9 @@
     }
   }
 
-  function ensureInstantRoot() {
-    var existing = document.querySelector(".findly-instant");
-    if (existing) return existing;
-    var root = document.createElement("div");
-    root.className = "findly-instant";
-    root.setAttribute("hidden", "");
-    root.setAttribute("data-proxy-base", "/apps/smart-filter");
-    try {
-      if (window.Shopify && window.Shopify.locale) {
-        root.setAttribute("data-locale", String(window.Shopify.locale));
-      }
-      if (window.Shopify && window.Shopify.country) {
-        root.setAttribute("data-country", String(window.Shopify.country));
-      }
-      if (
-        window.Shopify &&
-        window.Shopify.currency &&
-        window.Shopify.currency.active
-      ) {
-        root.setAttribute("data-currency", String(window.Shopify.currency.active));
-      }
-    } catch (err) {
-      /* ignore */
-    }
-    (document.body || document.documentElement).appendChild(root);
-    return root;
-  }
-
   function boot() {
     var roots = document.querySelectorAll(".findly-instant");
-    if (!roots.length) {
-      var created = ensureInstantRoot();
-      if (!created) return;
-      roots = [created];
-    }
+    if (!roots.length) return;
     roots.forEach(function (root) {
       if (root.getAttribute("data-findly-instant-ready") === "true") return;
       root.setAttribute("data-findly-instant-ready", "true");

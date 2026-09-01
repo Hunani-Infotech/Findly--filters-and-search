@@ -1,11 +1,11 @@
-<link rel="stylesheet" href="{{ 'smart-filter-check.css' | asset_url }}" media="all">
-<link rel="stylesheet" href="{{ 'smart-filter-ui.css' | asset_url }}" media="all">
-<link rel="stylesheet" href="{{ 'instant-search.css' | asset_url }}" media="all">
+<link rel="stylesheet" href="{{ 'smart-filter-check.min.css' | asset_url }}" media="all">
+<link rel="stylesheet" href="{{ 'smart-filter-ui.min.css' | asset_url }}" media="all">
 {% # LCP-safe: leave Liquid products visible; do not preload filters API. %}
 <script>
   document.documentElement.classList.remove("sf-filter-loading");
   document.documentElement.classList.add("sf-filter-ready");
 </script>
+<script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-fetch.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
@@ -13,7 +13,6 @@
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
-<script src="{{ 'instant-search.min.js' | asset_url }}" defer></script>
 {% assign sf_page_size = 16 %}
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
@@ -34,6 +33,8 @@
   data-country="{{ localization.country.iso_code }}"
   data-currency="{{ cart.currency.iso_code }}"
   data-company-location="{% if customer.current_location %}{{ customer.current_location.id }}{% endif %}"
+  data-i18n-clear-search="{{ "blocks.collection_filters.clear_search" | t }}"
+  data-i18n-search-placeholder="{{ "blocks.collection_filters.search_placeholder" | t }}"
   {{ block.shopify_attributes }}
 >
   <button
@@ -59,7 +60,12 @@
       <select id="smart-filter-sort" class="sf-sort-select" data-sort></select>
     </div>
   </div>
-  <div class="sf-search" data-collection-search-wrap hidden>
+  <div
+    class="sf-search"
+    data-collection-search-wrap
+    data-clear-search-label="{{ "blocks.collection_filters.clear_search" | t | escape }}"
+    hidden
+  >
     <label class="sf-search-label" for="smart-filter-collection-q">
       {{ "blocks.collection_filters.search" | t }}
     </label>
@@ -84,7 +90,7 @@
         class="sf-search-clear"
         data-collection-search-clear
         hidden
-        aria-label="Clear search"
+        aria-label="{{ "blocks.collection_filters.clear_search" | t }}"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -102,9 +108,9 @@
     aria-labelledby="smart-filter-title"
   >
     <div class="sf-header">
-      <div class="sf-title" id="smart-filter-title" data-title>Filter</div>
+      <div class="sf-title" id="smart-filter-title" data-title>{{ "blocks.collection_filters.filter" | t }}</div>
       <button type="button" class="sf-clear-all" data-clear-all hidden disabled>
-        Clear All
+        {{ "blocks.collection_filters.clear_all" | t }}
       </button>
       <button
         type="button"
@@ -148,7 +154,7 @@
   "enabled_on": {
     "templates": ["collection", "search"]
   },
-  "stylesheet": "smart-filter.css",
+  "stylesheet": "smart-filter.min.css",
   "javascript": "smart-filter.min.js",
   "settings": [
     {

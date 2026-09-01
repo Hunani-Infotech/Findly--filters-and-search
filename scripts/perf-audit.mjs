@@ -452,12 +452,13 @@ async function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   const assets = [
     "smart-filter.min.js",
+    "smart-filter-privacy.min.js",
     "smart-filter-dom.min.js",
     "smart-filter-boot.min.js",
     "smart-filter-grid.min.js",
     "smart-filter-pager.min.js",
     "smart-filter-theme.min.js",
-    "smart-filter.css",
+    "smart-filter.min.css",
   ];
   log.info("");
   log.info("Theme extension asset sizes:");
