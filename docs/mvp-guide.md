@@ -43,7 +43,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Storefront widget | Theme App Extension | Only supported storefront injection method now; async, no page-speed penalty |
 | API layer | Admin GraphQL API (not REST) | Shopify is phasing out REST for new apps |
 | Database | Postgres (Supabase) | Hosted pooler + direct URLs; better fit than Mongo for relational filter-config/metafield-mapping data |
-| Queue/sync | Postgres `QueueJob` + poller | Product/metafield sync jobs; in-process worker on Hostinger by default |
+| Queue/sync | Postgres `QueueJob` + poller | Product/metafield sync jobs. Hostinger: web process + separate `npm run worker:prod`. In-process poller when `START_WORKER` is not `0` (local/dev). |
 | Billing | Shopify Billing API (`AppSubscriptionCreate`) | Free + Standard + Pro |
 | Hosting | Hostinger Node | Current production. Postgres on Supabase (queue + catalog). No `fly.toml`; add one later only if Fly.io is chosen again. |
 | Mandatory webhooks | `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request` | Required for App Store approval, not optional |

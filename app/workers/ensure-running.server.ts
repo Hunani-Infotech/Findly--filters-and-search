@@ -22,11 +22,12 @@ declare global {
 }
 
 /**
- * Hostinger Passenger starts `react-router-serve.cjs`, not `server.js`.
- * Poll Postgres QueueJob rows in-process so the web app can drain the queue
- * without Redis/BullMQ. Parallelism is WORKER_COUNT (claim batch + concurrent
- * handlers). Always start unless START_WORKER=0 (or this process is already
- * the dedicated worker child).
+ * In-process Postgres QueueJob poller for local/dev when START_WORKER is not 0.
+ * Production Hostinger: Node web process (`npm start` / server.js) runs with
+ * START_WORKER=0; a separate `npm run worker:prod` process drains the queue.
+ * Web entry (`app/entry.server.tsx`) must not call ensureWorkerRunning.
+ * Always start unless START_WORKER=0 (or this process is already the dedicated
+ * worker child). Parallelism is WORKER_COUNT (claim batch + concurrent handlers).
  */
 export function isSyncWorkerRunning() {
   return Boolean(globalThis.__findlySyncWorkerRunning);

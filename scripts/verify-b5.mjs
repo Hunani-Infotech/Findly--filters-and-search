@@ -600,6 +600,10 @@ try {
   const syncModal = read("app/components/sync-details-modal.tsx");
   const proxy = read("app/services/proxy.server.ts");
   const workerBoot = read("app/workers/ensure-running.server.ts");
+  const entryServer = read("app/entry.server.tsx");
+  const webhooksServer = read("app/services/webhooks.server.ts");
+  const pkgJson = JSON.parse(read("package.json"));
+  const startScript = String(pkgJson.scripts?.start ?? "");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
@@ -610,6 +614,21 @@ try {
   }
   if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
     fail("ensureWorkerRunning must start an in-process postgres queue poller");
+  }
+  if (entryServer.includes("ensureWorkerRunning")) {
+    fail(
+      "app/entry.server.tsx must not call ensureWorkerRunning (web process uses START_WORKER=0; worker:prod drains the queue)",
+    );
+  }
+  if (/await runSyncJobInline/.test(webhooksServer)) {
+    fail(
+      "webhooks.server.ts must not await runSyncJobInline (enqueue is fire-and-forget)",
+    );
+  }
+  if (!startScript.includes("worker:prod") && !startScript.includes("start-prod")) {
+    fail(
+      "package.json start must invoke worker:prod or start-prod (dedicated worker process), not only node server.js",
+    );
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");

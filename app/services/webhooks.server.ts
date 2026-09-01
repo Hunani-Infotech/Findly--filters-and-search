@@ -99,26 +99,23 @@ async function enqueueCatalogJob(
   } catch (error) {
     log.error(`[webhooks] enqueue ${name} failed; running inline`, error);
     const { runSyncJobInline } = await import("../workers/processors");
-    await runSyncJobInline(name, data);
-    return;
-  }
-
-  const { isSyncWorkerRunning } = await import("../workers/ensure-running.server");
-  if (isSyncWorkerRunning()) return;
-
-  log.warn(`[webhooks] worker not running; processing ${name} inline`);
-  const { runSyncJobInline } = await import("../workers/processors");
-  const heavy =
-    name === "shop.fullSync" ||
-    name === "shop.ingestBulk" ||
-    name === "shop.cleanup";
-  if (heavy) {
     void runSyncJobInline(name, data).catch((error) => {
       log.error(`[webhooks] inline ${name} failed`, error);
     });
     return;
   }
-  await runSyncJobInline(name, data);
+
+  const { isSyncWorkerRunning } = await import("../workers/ensure-running.server");
+  if (isSyncWorkerRunning()) return;
+  // Production web sets START_WORKER=0; worker:prod drains QueueJob. Do not
+  // also GraphQL from this process (duplicate work + idle-suspend risk).
+  if (process.env.START_WORKER === "0") return;
+
+  log.warn(`[webhooks] worker not running; processing ${name} inline`);
+  const { runSyncJobInline } = await import("../workers/processors");
+  void runSyncJobInline(name, data).catch((error) => {
+    log.error(`[webhooks] inline ${name} failed`, error);
+  });
 }
 
 export async function handleWebhookTopic(

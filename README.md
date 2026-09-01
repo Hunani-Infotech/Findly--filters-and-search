@@ -13,8 +13,8 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 - Theme App Extension (storefront widget)
 - Admin GraphQL only
 - PostgreSQL (Supabase) + Prisma (`DATABASE_URL` pooler + `DIRECT_URL` direct)
-- Postgres-backed job queue (`QueueJob` table + in-process / nohup worker)
-- Hostinger Node (web + in-process worker)
+- Postgres-backed job queue (`QueueJob` table + poller). Production: dedicated `npm run worker:prod` process. Local/dev: in-process poller when `START_WORKER` is not `0`.
+- Hostinger Node web process (`npm start` / `server.js`) plus a separate `npm run worker:prod` process (Postgres `QueueJob` poller)
 - Shopify Billing API (`appSubscriptionCreate`) — Free + Standard + Pro
 
 ## Quick start

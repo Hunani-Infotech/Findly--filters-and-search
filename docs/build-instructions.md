@@ -19,8 +19,8 @@ Target merchants: stores with 200–5,000+ products, especially fashion, beauty,
 - API: Shopify Admin GraphQL API only — no REST
 - Database: PostgreSQL
 - ORM: Prisma
-- Queue/jobs: Postgres `QueueJob` table + in-process / nohup poller
-- Hosting target: Hostinger Node (web + in-process worker). Postgres is Supabase. There is no `fly.toml`; add one later only if Fly.io is chosen again.
+- Queue/jobs: Postgres `QueueJob` table + poller. Production: separate `npm run worker:prod` process. Local/dev: in-process poller when `START_WORKER` is not `0`.
+- Hosting target: Hostinger Node web process (`npm start` / `server.js`) plus a separate `npm run worker:prod` process (Postgres `QueueJob` poller). Postgres is Supabase. There is no `fly.toml`; add one later only if Fly.io is chosen again.
 - Billing: Shopify Billing API (`AppSubscriptionCreate` GraphQL mutation)
 
 Do not introduce Next.js, Express, MongoDB, or REST Admin API calls anywhere in this project, even as a "quick" solution. If a package or pattern conflicts with this stack, stop and ask before proceeding.

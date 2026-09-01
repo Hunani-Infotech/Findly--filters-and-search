@@ -7,11 +7,9 @@ import { isbot } from "isbot";
 import { ensureDatabaseReady } from "./db.server";
 import { log } from "./lib/log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
-import { ensureWorkerRunning } from "./workers/ensure-running.server";
 
-// Warm Postgres + start Postgres queue poller before serving shopper/admin traffic.
+// Warm Postgres before serving shopper/admin traffic.
 void ensureDatabaseReady();
-ensureWorkerRunning();
 
 export const streamTimeout = 5000;
 

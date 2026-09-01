@@ -14,7 +14,7 @@
     "deploy": "shopify app deploy",
     "config:use": "shopify app config use",
     "env": "shopify app env",
-    "start": "node server.js",
+    "start": "node ./scripts/start-prod.mjs",
     "worker": "node --watch --watch-path=app --import tsx app/workers/index.ts",
     "worker:prod": "node --import tsx app/workers/index.ts",
     "setup": "node ./node_modules/prisma/build/index.js generate && node ./node_modules/prisma/build/index.js migrate deploy",

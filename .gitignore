@@ -38,8 +38,6 @@ pnpm-lock.yaml
 # Local Postgres dumps (never commit)
 *.dump
 
-# Local research dumps (never commit)
-.local-globo-research/
 npmdev.log
 
 # Perf audit / LCP fixture outputs (regenerate locally)
@@ -54,11 +52,6 @@ scripts/_tmp-*
 # Shared: 100 KB Theme App Extension split workflow
 !.cursor/skills/theme-extension-split/
 !.cursor/skills/theme-extension-split/**
-
-# Local comparison / step prompts — local only
-GLOBO-MATCH-STEP-PROMPTS.txt
-docs/findly-vs-globo-comparison.html
-docs/agent-prompts/
 
 # Private App Store submit checklist (local only — never push)
 APP-STORE-REVIEW.local.md
