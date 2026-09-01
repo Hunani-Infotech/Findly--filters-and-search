@@ -11,7 +11,6 @@ import {
   BlockStack,
   Button,
   Card,
-  ChoiceList,
   InlineGrid,
   InlineStack,
   Layout,
@@ -292,21 +291,6 @@ export default function BillingPage() {
                 </BlockStack>
               </Card>
             </InlineGrid>
-
-            <ChoiceList
-              title="Billing cycle"
-              choices={[
-                { label: "Pay monthly", value: "monthly" },
-                {
-                  label: "Pay yearly",
-                  value: "yearly",
-                  disabled: true,
-                  helpText: "Yearly billing is not on Findly yet",
-                },
-              ]}
-              selected={["monthly"]}
-              onChange={() => undefined}
-            />
 
             <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
               <Card>

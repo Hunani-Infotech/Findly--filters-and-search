@@ -106,8 +106,8 @@ export default function TermsOfService() {
         <h2 id="billing">3. Billing plans</h2>
         <p>
           All charges go through the Shopify Billing API. Listing prices must
-          match in-app prices. There is no yearly plan at launch. Currency is
-          USD. Billing interval for paid plans is every 30 days.
+          match in-app prices. Currency is USD. Billing interval for paid
+          plans is every 30 days.
         </p>
         <ul>
           <li>

@@ -2,7 +2,7 @@
 
 Paste-ready text for **Apps → Findly → Distribution → Manage listing**.
 
-Cross-checked against `app/routes/app.tsx` NavMenu. Vehicle Finder and Recommendations are not in the product. Do not invent extras in the Partner form.
+Match `app/routes/app.tsx` NavMenu. Paste only the copy in this file.
 
 ## NavMenu vs listing
 
@@ -10,16 +10,17 @@ Cross-checked against `app/routes/app.tsx` NavMenu. Vehicle Finder and Recommend
 |---|---|---|---|
 | Home | `/app` | Yes | Onboarding, catalog sync popup, performance |
 | Filters | `/app/filters` | Yes | Filter sets, color swatches, value groups |
-| Collections | `/app/collections` | Yes | Synced catalog list → per-collection filter config |
 | Search | `/app/search` | Yes | Search fields, instant widget, pinnings, synonyms, redirects |
 | Settings | `/app/settings` | Yes | Panel position, metafields |
 | Translation | `/app/translation` | Yes | Widget label locales |
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
-| Analytics | `/app/analytics` | Yes — one feature line only | Finished dashboard, visible in nav |
+| Analytics | `/app/analytics` | Yes | Search and filter usage |
 | Pricing plans | `/app/billing` | Yes (pricing fields) | Free / Standard / Pro |
-| Contact | `/app/contact` | No | Use the same Gmail in listing support |
+| Contact | `/app/contact` | No | Same Gmail as listing support |
 
 Catalog sync is on **Home**. `/app/sync` redirects there; it is not a NavMenu item.
+
+Per-collection filter config lives at `/app/collections*` (linked from Home and filter “applies to”). It is not a top-level NavMenu item.
 
 ---
 
@@ -109,7 +110,7 @@ sohilhunani11@gmail.com
 
 ### Pricing (must match Billing API)
 
-Primary method: **Recurring charge**, with one plan marked **Free**. Monthly only. Do not enter yearly prices.
+Primary method: **Recurring charge**, with one plan marked **Free**. Monthly billing: Free / Standard / Pro.
 
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
@@ -123,8 +124,6 @@ Primary method: **Recurring charge**, with one plan marked **Free**. Monthly onl
 
 **Pro** — Everything in Standard, up to 5,000 products and 25 metafield filters, 7-day trial then billed every 30 days.
 
-Do not claim a 30-day money-back guarantee.
-
 ---
 
 ## Listing media
@@ -135,7 +134,7 @@ Do not claim a 30-day money-back guarantee.
 | Screenshots | Capture from admin + storefront | 3–6 images, 1600×900 |
 | Feature media | Strong storefront frame or short video | Listing card |
 
-Suggested screenshots: Home, Filters, storefront collection filters, Instant search header; optional Search/Analytics.
+Suggested screenshots: Home, Filters, storefront collection filters, Instant search header, Search, Analytics.
 
 ---
 
@@ -151,22 +150,8 @@ Admin: `https://admin.shopify.com/store/findly-test-store`
 
 Put real storefront password, collaborator code, screencast URL, and emergency phone into Partner — never placeholder text.
 
-Theme steps for reviewers (only these three):
+Theme steps for reviewers:
 
 1. App embeds → **Collection filters** ON  
 2. App embeds → **Instant search** ON  
-3. Search template / header → **Product search** block  
-
----
-
-## Do not paste
-
-| Claim | Action |
-|---|---|
-| AI / semantic search / typo-tolerance engine | Not shipped |
-| Vehicle Finder / Year-Make-Model / fitment | Removed |
-| Product recommendations / FBT / trending | Removed |
-| Unlimited products or filters | Use plan caps |
-| Yearly billing | Disabled |
-| Live chat / ticket support | Contact is Gmail only |
-| Analytics as the card tagline | One feature line in details is enough |
+3. Search template / header → **Product search** block
