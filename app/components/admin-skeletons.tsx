@@ -1110,27 +1110,6 @@ export function SwatchesPageSkeleton() {
   );
 }
 
-export function UnderConstructionSkeleton({ title }: { title: string }) {
-  return (
-    <SkeletonPage title={title} backAction>
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300" inlineAlign="center">
-              <span className="findly-under-construction-icon">
-                <Skel kind="circle" />
-              </span>
-              <Skel kind="title" width="11rem" />
-              <Skel kind="text" width="70%" />
-              <Skel kind="text" width="54%" />
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-      </Layout>
-    </SkeletonPage>
-  );
-}
-
 function SimplePageSkeleton({ title = "Loading" }: { title?: string }) {
   return (
     <SkeletonPage title={title} backAction>

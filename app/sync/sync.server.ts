@@ -930,6 +930,17 @@ async function ingestCompletedBulkOperation(
     errorLog,
     bulkOperationId: op.id,
   });
+  /* Drop invented Unspecified leftovers from older builds. */
+  await prisma.productFacet.updateMany({
+    where: {
+      shopId: shop.id,
+      OR: [
+        { productType: "__unspecified__" },
+        { productType: "Unspecified" },
+      ],
+    },
+    data: { productType: "" },
+  });
   await bumpCatalogGeneration(shopDomain);
 
   await queueFinalizeFullSync(shopDomain);

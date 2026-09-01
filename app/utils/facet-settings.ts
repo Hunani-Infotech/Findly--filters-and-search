@@ -133,6 +133,15 @@ export function parseFacetSettings(raw: unknown): FacetSettingsMap {
     if (Array.isArray(rec.selectedValues)) {
       setting.selectedValues = rec.selectedValues
         .filter((item): item is string => typeof item === "string" && item.length > 0)
+        .filter((item) => {
+          if (key !== "productType") return true;
+          const trimmed = item.trim();
+          return (
+            trimmed !== "" &&
+            trimmed !== "__unspecified__" &&
+            trimmed.toLowerCase() !== "unspecified"
+          );
+        })
         .slice(0, SAMPLE_TEXT_MAX);
     }
     if (typeof rec.urlHandle === "string" && rec.urlHandle.trim()) {

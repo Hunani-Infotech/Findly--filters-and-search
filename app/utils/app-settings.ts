@@ -174,11 +174,6 @@ export const PAGING_STYLE_KEYS = ["pagination"] as const;
 
 export type PaginationStyle = (typeof PAGING_STYLE_KEYS)[number];
 
-export const PAGING_STYLE_OPTIONS: {
-  label: string;
-  value: PaginationStyle;
-}[] = [{ label: "Pagination", value: "pagination" }];
-
 /** Coerce legacy load_more / infinite (and any other value) to pagination. */
 export function parsePaginationStyle(value?: unknown): PaginationStyle {
   void value;

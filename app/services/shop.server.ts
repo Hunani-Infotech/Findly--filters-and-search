@@ -1,4 +1,5 @@
-import { findShopCached, rememberShop } from "../lib/shop-cache.server";
+import { findShopCached, findShopByIdCached, rememberShop } from "../lib/shop-cache.server";
+import { getCatalogGeneration } from "../lib/catalog-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { Prisma, type MetafieldFilterType, type MetafieldMapping } from "@prisma/client";
 import prisma from "../db.server";
@@ -246,7 +247,9 @@ export async function getListFacetValueCatalog(
   shopId: string,
   collectionGid = "",
 ) {
-  return facetCatalogCache.wrap(`${shopId}:${collectionGid}`, () =>
+  const shop = await findShopByIdCached(shopId);
+  const gen = shop ? await getCatalogGeneration(shop.domain) : "0";
+  return facetCatalogCache.wrap(`${gen}:${shopId}:${collectionGid}`, () =>
     loadListFacetValueCatalog(shopId, collectionGid),
   );
 }

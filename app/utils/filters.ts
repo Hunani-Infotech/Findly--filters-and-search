@@ -74,6 +74,22 @@ export type FacetDef = {
 
 export const UNSPECIFIED_VALUE = "__unspecified__";
 export const UNSPECIFIED_LABEL = "Unspecified";
+
+/** True for the synthetic empty-bucket sentinel (never a real Shopify product type). */
+export function isUnspecifiedFacetValue(value: string | null | undefined): boolean {
+  const trimmed = String(value ?? "").trim();
+  return (
+    !trimmed ||
+    trimmed === UNSPECIFIED_VALUE ||
+    trimmed.toLowerCase() === UNSPECIFIED_LABEL.toLowerCase()
+  );
+}
+
+/** Normalize productType for storage/facets — drop invented Unspecified values. */
+export function normalizeProductTypeValue(value: string | null | undefined): string {
+  const trimmed = String(value ?? "").trim();
+  return isUnspecifiedFacetValue(trimmed) ? "" : trimmed;
+}
 export const BOOLEAN_TRUE = "true";
 export const BOOLEAN_FALSE = "false";
 export const BOOLEAN_TRUE_LABEL = "Yes";
@@ -1520,9 +1536,11 @@ export function buildFacetAggregations(
         case "vendor":
           vals = [product.vendor || UNSPECIFIED_VALUE];
           break;
-        case "productType":
-          vals = [product.productType || UNSPECIFIED_VALUE];
+        case "productType": {
+          const typeValue = normalizeProductTypeValue(product.productType);
+          vals = typeValue ? [typeValue] : [];
           break;
+        }
         case "tag":
           vals = product.tags;
           break;
@@ -1618,6 +1636,11 @@ export function listFacetValueCatalog(
     .map((facet) => ({
       key: facet.key,
       label: facet.label,
-      values: (facet.values ?? []).map((item) => item.value),
-    }));
+      values: (facet.values ?? [])
+        .map((item) => item.value)
+        .filter((value) =>
+          facet.source === "productType" ? !isUnspecifiedFacetValue(value) : true,
+        ),
+    }))
+    .filter((facet) => facet.values.length > 0);
 }

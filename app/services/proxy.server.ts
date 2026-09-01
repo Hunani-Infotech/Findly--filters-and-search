@@ -6,6 +6,7 @@ import {
   excludeHiddenTaggedProducts,
   expandFacetsWithOptions,
   facetsFromConfig,
+  isUnspecifiedFacetValue,
   matchingVariantImageUrl,
   parseRangeBounds,
   parseValueSort,
@@ -723,6 +724,13 @@ async function buildFacetPayload(input: {
           item.value,
         ),
       )
+      .filter((item) => {
+        if (facet.source !== "productType") return true;
+        return (
+          !isUnspecifiedFacetValue(item.value) &&
+          !isUnspecifiedFacetValue(item.label)
+        );
+      })
       .map((item) => {
         const labeled = {
           ...item,

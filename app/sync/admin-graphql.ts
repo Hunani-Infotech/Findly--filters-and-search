@@ -8,6 +8,10 @@ export const PRODUCT_NODE_QUERY = `#graphql
       title
       vendor
       productType
+      category {
+        name
+        fullName
+      }
       tags
       status
       createdAt
@@ -209,6 +213,10 @@ export const BULK_PRODUCTS_QUERY = `
         title
         vendor
         productType
+        category {
+          name
+          fullName
+        }
         tags
         status
         createdAt

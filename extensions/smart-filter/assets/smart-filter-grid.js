@@ -2782,18 +2782,43 @@
     }
   }
 
+  function productLookupFromWidget(widget) {
+    var products = (widget && widget._lastProducts) || [];
+    if (
+      widget &&
+      widget._lastFilterData &&
+      widget._lastFilterData.products &&
+      widget._lastFilterData.products.length > products.length
+    ) {
+      products = widget._lastFilterData.products;
+    }
+    var byKey = {};
+    var p;
+    for (p = 0; p < products.length; p++) {
+      var item = products[p];
+      if (!item) continue;
+      if (item.cardKey) byKey[String(item.cardKey).toLowerCase()] = item;
+      if (item.handle) byKey[String(item.handle).toLowerCase()] = item;
+    }
+    return byKey;
+  }
+
   function mountCachedCards(widget, handles, parent) {
     if (!widget || !widget._cardCache || !parent || !handles) return 0;
+    var byKey = productLookupFromWidget(widget);
     var n = 0;
     var i;
     for (i = 0; i < handles.length; i++) {
       var key = String(handles[i] || "").toLowerCase();
       if (!key) continue;
+      var base = key.split("::")[0];
       var card =
-        widget._cardCache[key] || widget._cardCache[key.split("::")[0]];
+        widget._cardCache[key] || (base && widget._cardCache[base]);
       if (!card || card.nodeType !== 1) continue;
       card = resolveOuterThemeCard(card);
       if (!card) continue;
+      var product = byKey[key] || (base && byKey[base]);
+      if (product) applyProductDataToThemeCard(card, product, widget);
       widget._cardCache[key] = card;
       if (
         card.parentNode === parent &&
@@ -2973,21 +2998,151 @@
     return null;
   }
 
-  function cloneThemeProductCard(sample, product) {
-    if (!sample || !product) return null;
-    var clone;
-    try {
-      clone = sample.cloneNode(true);
-    } catch (err) {
-      return null;
+  function normalizeCardTitleText(text) {
+    return String(text || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function extractThemeCardTitle(card) {
+    if (!card || !card.querySelector) return "";
+    var nodes = card.querySelectorAll(
+      ".card__heading a, .card__heading, .card__title a, .card__title, .product-card-title, .product-card__title, .product__title, a.full-unstyled-link, .sf-fill-card-title, h3 a, h3, h2 a, h2, h4 a, h4",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (node.closest && node.closest(".price, .badge, .card__badge, .product-badges")) {
+        continue;
+      }
+      if (
+        node.querySelector &&
+        node.querySelector("img") &&
+        !normalizeCardTitleText(node.textContent)
+      ) {
+        continue;
+      }
+      var text = normalizeCardTitleText(node.textContent);
+      if (text) return text;
     }
+    return "";
+  }
+
+  function replaceThemeCardTitleText(card, fromTitle, toTitle) {
+    if (!card || !fromTitle || !toTitle || fromTitle === toTitle) return false;
+    if (!card.ownerDocument || !card.ownerDocument.createTreeWalker) return false;
+    var changed = false;
+    var walker = card.ownerDocument.createTreeWalker(
+      card,
+      NodeFilter.SHOW_TEXT,
+      null,
+    );
+    var node;
+    while ((node = walker.nextNode())) {
+      var value = node.nodeValue;
+      if (!value || value.indexOf(fromTitle) === -1) continue;
+      if (node.parentElement && node.parentElement.closest) {
+        if (node.parentElement.closest(".price, .badge, .card__badge")) continue;
+      }
+      node.nodeValue = value.split(fromTitle).join(toTitle);
+      changed = true;
+    }
+    return changed;
+  }
+
+  function setThemeCardTitle(card, title) {
+    if (!card || !card.querySelector || !title) return false;
+    var prevTitle =
+      card.getAttribute("data-sf-card-title") || extractThemeCardTitle(card);
+    var updated = false;
+    var selectors = [
+      ".card__heading a",
+      ".card__title a",
+      "a.full-unstyled-link",
+      ".product-card-title",
+      ".product-card__title",
+      ".product__title",
+      ".sf-fill-card-title",
+      ".card__heading",
+      ".card__title",
+      "h3 a",
+      "h2 a",
+      "h4 a",
+      "h3",
+      "h2",
+      "h4",
+    ];
+    var s;
+    for (s = 0; s < selectors.length; s++) {
+      var nodes = card.querySelectorAll(selectors[s]);
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (node.closest && node.closest(".price, .badge, .card__badge")) continue;
+        if (
+          node.querySelector &&
+          node.querySelector("img") &&
+          !normalizeCardTitleText(node.textContent)
+        ) {
+          continue;
+        }
+        /* Prefer leaf title links; skip wrappers that still contain a child title link. */
+        if (
+          node.querySelector &&
+          node.querySelector("a") &&
+          String(node.tagName || "").toLowerCase() !== "a"
+        ) {
+          continue;
+        }
+        var text = normalizeCardTitleText(node.textContent);
+        if (!text && String(node.tagName || "").toLowerCase() !== "a") continue;
+        node.textContent = title;
+        updated = true;
+      }
+      if (updated) break;
+    }
+    if (prevTitle) replaceThemeCardTitleText(card, prevTitle, title);
+    card.setAttribute("data-sf-card-title", title);
+    return updated || Boolean(prevTitle);
+  }
+
+  function setThemeCardPrice(card, product, widget) {
+    if (!card || !card.querySelector || !product) return;
+    var priceText = formatFillPrice(product, widget);
+    if (!priceText) return;
+    var nodes = card.querySelectorAll(
+      ".price-item--sale, .price-item--regular, .price-item, .price .money, [data-product-price], .sf-fill-card-price, .price__regular .price-item, .price__sale .price-item",
+    );
+    var i;
+    if (!nodes.length) {
+      var priceRoot = card.querySelector(".price, .product-price, .card-information .price");
+      if (priceRoot) priceRoot.textContent = priceText;
+      return;
+    }
+    for (i = 0; i < nodes.length; i++) nodes[i].textContent = priceText;
+    var compare = card.querySelectorAll(
+      "s.price-item, .price__compare, .price-item--compare, .price--compare",
+    );
+    for (i = 0; i < compare.length; i++) {
+      compare[i].setAttribute("hidden", "");
+      if (compare[i].style) compare[i].style.display = "none";
+    }
+  }
+
+  function applyProductDataToThemeCard(card, product, widget) {
+    if (!card || !product) return card;
     var handle = String(product.handle || "").toLowerCase();
     var key = String(product.cardKey || handle).toLowerCase();
-    if (key) clone.setAttribute("data-sf-card-key", key);
-    if (handle) clone.setAttribute("data-product-handle", handle);
-    clone.removeAttribute("data-smart-filter-hidden");
-    clone.hidden = false;
-    if (clone.style) clone.style.removeProperty("display");
+    /* Capture sample/old title BEFORE href/image changes so we can replace every copy. */
+    if (!card.getAttribute("data-sf-card-title")) {
+      var existingTitle = extractThemeCardTitle(card);
+      if (existingTitle) card.setAttribute("data-sf-card-title", existingTitle);
+    }
+    if (key) card.setAttribute("data-sf-card-key", key);
+    if (handle) card.setAttribute("data-product-handle", handle);
+    card.removeAttribute("data-smart-filter-hidden");
+    card.hidden = false;
+    if (card.style) card.style.removeProperty("display");
     var url =
       product.url ||
       (handle
@@ -2996,37 +3151,47 @@
           (product.variantId ? "?variant=" + product.variantId : "")
         : "");
     var i;
-    if (url) {
-      var links = clone.querySelectorAll('a[href*="/products/"]');
+    if (url && card.querySelectorAll) {
+      var links = card.querySelectorAll('a[href*="/products/"]');
       for (i = 0; i < links.length; i++) links[i].setAttribute("href", url);
     }
-    paintThemeCardImage(
-      clone.querySelector("img"),
-      product.variantImageUrl || product.imageUrl || "",
-    );
-    var imgs = clone.querySelectorAll("img");
-    for (i = 0; i < imgs.length; i++) {
-      if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
-      if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
+    var imgUrl = product.variantImageUrl || product.imageUrl || "";
+    if (card.querySelector) {
+      paintThemeCardImage(card.querySelector("img"), imgUrl);
+      var imgs = card.querySelectorAll("img");
+      for (i = 0; i < imgs.length; i++) {
+        if (imgUrl && i > 0) paintThemeCardImage(imgs[i], imgUrl);
+        if (product.title) imgs[i].setAttribute("alt", product.title);
+        if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
+        if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
+      }
     }
-    var heading = clone.querySelector(
-      ".card__heading, .card__title, .product-card-title, h3, h2, h4",
-    );
-    if (heading && product.title) {
-      var titleLink = heading.querySelector && heading.querySelector("a");
-      if (titleLink) titleLink.textContent = product.title;
-      else heading.textContent = product.title;
+    var title = product.title || handle;
+    if (title) setThemeCardTitle(card, title);
+    setThemeCardPrice(card, product, widget);
+    if (card.querySelectorAll) {
+      var slides = card.querySelectorAll("slideshow-slide");
+      for (i = 1; i < slides.length; i++) {
+        slides[i].setAttribute("hidden", "");
+        slides[i].setAttribute("aria-hidden", "true");
+      }
+      var badges = card.querySelectorAll(
+        ".badge, .product-badge, .card__badge, .product-badges",
+      );
+      for (i = 0; i < badges.length; i++) badges[i].setAttribute("hidden", "");
     }
-    var slides = clone.querySelectorAll("slideshow-slide");
-    for (i = 1; i < slides.length; i++) {
-      slides[i].setAttribute("hidden", "");
-      slides[i].setAttribute("aria-hidden", "true");
+    return card;
+  }
+
+  function cloneThemeProductCard(sample, product, widget) {
+    if (!sample || !product) return null;
+    var clone;
+    try {
+      clone = sample.cloneNode(true);
+    } catch (err) {
+      return null;
     }
-    var badges = clone.querySelectorAll(
-      ".badge, .product-badge, .card__badge, .product-badges",
-    );
-    for (i = 0; i < badges.length; i++) badges[i].setAttribute("hidden", "");
-    return clone;
+    return applyProductDataToThemeCard(clone, product, widget);
   }
 
   function isFragileThemeCard(el) {
@@ -3136,36 +3301,26 @@
     if (widget.cacheNativeCards) widget.cacheNativeCards();
     var cache = widget._cardCache || {};
     widget._cardCache = cache;
-    var products = widget._lastProducts || [];
-    if (
-      widget._lastFilterData &&
-      widget._lastFilterData.products &&
-      widget._lastFilterData.products.length > products.length
-    ) {
-      products = widget._lastFilterData.products;
-    }
-    var byKey = {};
-    var p;
-    for (p = 0; p < products.length; p++) {
-      var item = products[p];
-      if (!item) continue;
-      if (item.cardKey) byKey[String(item.cardKey).toLowerCase()] = item;
-      if (item.handle) byKey[String(item.handle).toLowerCase()] = item;
-    }
+    var byKey = productLookupFromWidget(widget);
     var sample = firstThemeCardSample(widget, parent);
     var i;
     for (i = 0; i < handles.length; i++) {
       var key = String(handles[i] || "").toLowerCase();
       if (!key) continue;
       var base = key.split("::")[0];
+      var product = byKey[key] || byKey[base];
+      /* Never clone a sample card without API product data — that leaves the sample title/price. */
+      if (!product || !(product.title || product.handle)) continue;
       var cached = cache[key] || (base && cache[base]);
       var existing = cached ? resolveOuterThemeCard(cached) || cached : null;
       if (existing && !cardIsInHost(existing, parent)) {
+        applyProductDataToThemeCard(existing, product, widget);
         placeCardInGrid(parent, existing);
         showCardTree(existing);
         continue;
       }
       if (existing && cardIsInHost(existing, parent) && !isFragileThemeCard(existing)) {
+        applyProductDataToThemeCard(existing, product, widget);
         showCardTree(existing);
         continue;
       }
@@ -3175,6 +3330,7 @@
         existing.getAttribute &&
         existing.getAttribute("data-sf-fill-card") === "1"
       ) {
+        applyProductDataToThemeCard(existing, product, widget);
         showCardTree(existing);
         continue;
       }
@@ -3182,17 +3338,18 @@
       if (existing && cardIsInHost(existing, parent) && isFragileThemeCard(existing)) {
         hideEl(existing);
       }
-      var product = byKey[key] || byKey[base] || { handle: base, cardKey: key };
       var clone = null;
       if (sample && !isFragileThemeCard(sample)) {
-        clone = cloneThemeProductCard(sample, product);
+        clone = cloneThemeProductCard(sample, product, widget);
       }
       if (!clone || isFragileThemeCard(clone) || !cardHasVisibleMedia(clone)) {
         clone = buildThemeListCard(parent, product, sample, widget) || clone;
       }
       if (!clone) continue;
+      applyProductDataToThemeCard(clone, product, widget);
       cache[key] = clone;
-      if (base && !cache[base]) cache[base] = clone;
+      /* Do not alias cache[base] to a variant card — that remounts the wrong product. */
+      if (base && key === base && !cache[base]) cache[base] = clone;
       placeCardInGrid(parent, clone);
       showCardTree(clone);
     }

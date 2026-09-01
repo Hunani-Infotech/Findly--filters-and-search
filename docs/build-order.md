@@ -1,6 +1,6 @@
 # Build order — verification gate
 
-**Do not treat App Store submit as done until live Hostinger + storefront QA pass** (see `docs/app-store-approval-jobs.html`). Compiling / `tsc` alone is not enough.
+**Do not treat App Store submit as done until live Hostinger + storefront QA pass**, then finish Partner listing from `docs/partner-listing.md`. Compiling / `tsc` alone is not enough.
 
 ## Product scope (current)
 
@@ -13,7 +13,7 @@ Do **not** advertise or treat as finished:
 - AI/ML semantic ranking, embeddings
 - Custom theme editor / drag-drop widget builder beyond basic position (+ accent / counts)
 
-Live Hostinger health, storefront QA, and Partner Dashboard submission are the remaining gates — see `docs/app-store-approval-jobs.html`.
+Live Hostinger health and storefront QA are verified. Remaining gate: Partner Dashboard listing + submit (`docs/partner-listing.md`).
 
 | Step | Description | Status |
 |------|-------------|--------|
@@ -39,12 +39,7 @@ Pick one:
    - `DATABASE_URL` — pooled (port 6543) with `pgbouncer=true&sslmode=require`
    - `DIRECT_URL` — direct (port 5432) with `sslmode=require`
    `npm run dev` may also start unused local Postgres on `5432` if that port is free; Prisma ignores it while `.env` points at Supabase. Catalog was copied from local `smart_filter` — do not drop the local DB until the app is confirmed.
-2. **No Docker (local rollback):** comment the Supabase URLs, restore `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_filter?schema=public`, and `npm run dev`. Data stays in gitignored `.local/`.
-3. Install Docker Desktop, then:
-   ```powershell
-   docker compose up -d
-   npm run setup
-   ```
+2. **Local Postgres rollback:** comment the Supabase URLs, restore `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smart_filter?schema=public`, and `npm run dev`. Data stays in gitignored `.local/`.
 
 Verify (uses whatever `DATABASE_URL` / `DIRECT_URL` are in `.env`):
 ```powershell
@@ -62,4 +57,4 @@ node .\scripts\verify-step1.mjs
 
 ## After code-complete steps
 
-Repo product code for filters + search + billing + compliance is in place. Next gate is **production health + live QA** (`docs/app-store-approval-jobs.html`), not re-implementing step 10.
+Repo product code for filters + search + billing + compliance is in place. Production + live QA are signed off. Next gate is **Partner listing + App Store submit** (`docs/partner-listing.md`), not re-implementing step 10.

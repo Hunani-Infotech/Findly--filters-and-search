@@ -1,9 +1,10 @@
 # Findly: Smart Filters & Search
 
-Shopify embedded app for **collection filters + storefront search** via Theme App Extension (launch MVP). AI, analytics, and advanced extras come later. Built on Shopify’s official React Router 7 template.
+Shopify embedded app for **collection filters + storefront search** via Theme App Extension. Analytics, search extras, translation, and integrations are included; AI ranking and advanced merchandising stay out of scope. Built on Shopify’s official React Router 7 template.
 
-**Full architecture, flows, and setup checklist:** [docs/app-flow-and-setup.md](docs/app-flow-and-setup.md)  
-**Launch scope and capabilities:** [docs/launch-scope.md](docs/launch-scope.md)
+**Build order / verification gate:** [docs/build-order.md](docs/build-order.md)  
+**MVP guide + build notes:** [docs/mvp-guide.md](docs/mvp-guide.md) · [docs/build-instructions.md](docs/build-instructions.md)  
+**Partner listing paste kit:** [docs/partner-listing.md](docs/partner-listing.md)
 
 ## Stack
 
@@ -14,7 +15,7 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 - PostgreSQL (Supabase) + Prisma (`DATABASE_URL` pooler + `DIRECT_URL` direct)
 - Postgres-backed job queue (`QueueJob` table + in-process / nohup worker)
 - Hostinger Node (web + in-process worker)
-- Shopify Billing API (`appSubscriptionCreate`) — Free + Pro
+- Shopify Billing API (`appSubscriptionCreate`) — Free + Standard + Pro
 
 ## Quick start
 
@@ -30,7 +31,7 @@ Shopify embedded app for **collection filters + storefront search** via Theme Ap
 
 To share **this machine's local Postgres** (not Supabase) with a teammate over Cloudflare (host only): point `.env` back at localhost, keep `npm run dev` running, create a **new** Cloudflare Tunnel + subdomain (TCP → `tcp://localhost:5432`, do not change `hunaniinfotech.com` root DNS), install `cloudflared` as a Windows service, then `npm run share:db`. The teammate runs `npm run share:db:connect` and uses the printed localhost `DATABASE_URL`. Never commit a tunnel token.
 
-Optional: `docker compose up -d` if you prefer Docker. Split terminals: `npm run dev:shopify` and `npm run worker`.
+Split terminals: `npm run dev:shopify` and `npm run worker`.
 
 ## Production
 

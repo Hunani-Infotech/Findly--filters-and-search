@@ -1,5 +1,5 @@
 /**
- * Local Postgres without Docker.
+ * Local embedded Postgres.
  * Data and downloaded binaries stay in gitignored `.local/`.
  *
  * Started by `npm run dev`. Keep this process running while you develop.

@@ -730,7 +730,13 @@ function buildPreviewItems(input: {
         value,
         label: input.labels[value] || value,
       }))
-      .filter((item) => !item.label.startsWith("gid://"));
+      .filter((item) => !item.label.startsWith("gid://"))
+      .filter((item) => {
+        if (input.sourceKey !== "productType") return true;
+        const value = String(item.value || "").trim();
+        const label = String(item.label || "").trim().toLowerCase();
+        return value !== "__unspecified__" && label !== "unspecified" && value !== "";
+      });
   let items: PreviewItem[] = [];
   if (input.valueMode === "manual" && input.selectedValues.length) {
     items = labeled(input.selectedValues);

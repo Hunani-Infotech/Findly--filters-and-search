@@ -1,7 +1,7 @@
 /**
  * `npm run dev` — one terminal for local development.
  *
- * Starts Postgres (no Docker required), Prisma migrate,
+ * Starts local embedded Postgres, Prisma migrate,
  * the sync worker, and the Shopify app.
  *
  * Extra Shopify CLI flags pass through:
@@ -144,7 +144,7 @@ async function ensureInfra() {
     throw new Error("Missing embedded-postgres. Run npm install and retry.");
   }
 
-  log.info("[dev] Starting local Postgres (no Docker)…");
+  log.info("[dev] Starting local Postgres…");
   const infra = spawnTracked(process.execPath, [localInfra], {
     tag: "infra",
   });
