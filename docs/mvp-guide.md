@@ -66,7 +66,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Plan | Price | Caps | Includes |
 |---|---|---|---|
 | **Free** | $0 | 200 products · 5 metafield filters | Filters, search (+ extras), analytics, translation, integrations, Theme Extension |
-| **Standard** | $9.99 / 30 days · 7-day trial | 1,000 products · 12 metafield filters | Same product, higher caps |
+| **Standard** | $11.99 / 30 days · 7-day trial | 1,000 products · 12 metafield filters | Same product, higher caps |
 | **Pro** | $19.99 / 30 days · 7-day trial | 5,000 products · 25 metafield filters | Same product, highest caps |
 
 Search extras and analytics are **not** separate SKUs — they ship on every plan. Caps differentiate plans.

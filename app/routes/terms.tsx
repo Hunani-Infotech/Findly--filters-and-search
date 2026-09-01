@@ -116,7 +116,7 @@ export default function TermsOfService() {
             filter mappings. No trial (the plan is already free).
           </li>
           <li>
-            <strong>Standard</strong> — $9.99 USD every 30 days after a
+            <strong>Standard</strong> — $11.99 USD every 30 days after a
             7-day trial. Up to 1,000 products and 12 metafield filter
             mappings.
           </li>

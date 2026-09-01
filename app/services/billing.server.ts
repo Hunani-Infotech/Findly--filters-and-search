@@ -16,7 +16,7 @@ export const PLANS = {
   standard: {
     key: "standard",
     name: "Findly Standard",
-    amount: 9.99,
+    amount: 11.99,
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
     productLimit: 1000,

@@ -287,8 +287,8 @@ function assertThemeSeoAndUi() {
   if (!billing.includes("appSubscriptionCreate") || !billing.includes("productLimit: 200")) {
     fail("billing.server.ts missing Shopify Billing API / Free caps");
   }
-  if (!billing.includes("productLimit: 5000") || !billing.includes("19.99")) {
-    fail("billing.server.ts missing Pro caps / price");
+  if (!billing.includes("productLimit: 5000") || !billing.includes("19.99") || !billing.includes("11.99")) {
+    fail("billing.server.ts missing Standard 11.99 / Pro 19.99 caps / price");
   }
 }
 
@@ -750,6 +750,9 @@ try {
   }
   if (PLANS.pro.amount !== 19.99) {
     fail("Pro price drifted");
+  }
+  if (PLANS.standard.amount !== 11.99) {
+    fail("Standard price drifted");
   }
 
   const collectionA = await getCollectionFilterPayload({

@@ -115,7 +115,7 @@ Primary method: **Recurring charge**, with one plan marked **Free**. Monthly bil
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
 | Free | $0.00 — no Shopify charge | — | 200 | 5 |
-| Standard | $9.99 USD | 7 days | 1,000 | 12 |
+| Standard | $11.99 USD | 7 days | 1,000 | 12 |
 | Pro | $19.99 USD | 7 days | 5,000 | 25 |
 
 **Free** — Collection filters, storefront search, Theme App Extension, up to 5 metafield filters, up to 200 products.
