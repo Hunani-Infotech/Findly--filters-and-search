@@ -221,7 +221,8 @@ export default function PrivacyPolicy() {
           <li>
             <strong>Email</strong> — if the merchant submits Contact, the
             message is sent to Findly’s support inbox over SMTP. Reply-To is
-            the merchant’s email so we can answer from that inbox.
+            the merchant’s email so we can answer from that inbox. The merchant
+            also receives an automated confirmation with a reference number.
           </li>
         </ul>
         <p>

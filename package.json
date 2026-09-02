@@ -31,7 +31,7 @@
     "verify:b3": "node ./scripts/verify-b3.mjs",
     "verify:b4": "node ./scripts/verify-b4.mjs",
     "verify:b5": "node ./scripts/verify-b5.mjs",
-    "verify:contact": "node ./scripts/verify-contact.mjs",
+    "verify:contact": "node --import tsx ./scripts/verify-contact.mjs",
     "verify:c1": "node ./scripts/verify-c1.mjs",
     "verify:c2": "node ./scripts/verify-c2.mjs",
     "verify:c3": "node ./scripts/verify-c3.mjs",

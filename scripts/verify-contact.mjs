@@ -1,8 +1,8 @@
 /**
  * Contact form must email Gmail (app password SMTP), not only save a draft.
  * Usage: npm run verify:contact
+ * (package.json runs this with: node --import tsx)
  */
-import "tsx/esm";
 import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -174,34 +174,55 @@ async function assertLocalSmtp(msg) {
     if (!result.channels.includes("smtp")) {
       fail("Expected smtp channel on local delivery");
     }
-    if (inbox.received.length !== 1) {
-      fail(`Expected 1 SMTP message, got ${inbox.received.length}`);
+    if (!result.ticketNumber || !/^FINDLY-[A-Z0-9]+$/i.test(result.ticketNumber)) {
+      fail("Delivery must return a FINDLY reference / ticket number");
     }
-    const raw = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
-    const text = formatContactPlainText(msg);
-    const html = formatContactHtml(msg);
-    if (!raw.includes(MARKER) || !raw.includes(msg.message)) {
+    if (!result.ackSent) {
+      fail("Merchant confirmation email must be sent after support delivery");
+    }
+    if (inbox.received.length !== 2) {
+      fail(`Expected 2 SMTP messages (support + ack), got ${inbox.received.length}`);
+    }
+    const rawSupport = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
+    const rawAck = inbox.received[1].replace(/=\r\n/g, "").replace(/=\n/g, "");
+    const withTicket = { ...msg, ticketNumber: result.ticketNumber };
+    const text = formatContactPlainText(withTicket);
+    const html = formatContactHtml(withTicket);
+    if (!rawSupport.includes(MARKER) || !rawSupport.includes(msg.message)) {
       fail("SMTP message missing the merchant body");
     }
-    if (!raw.includes(msg.email) || !raw.includes(msg.shopDomain)) {
+    if (!rawSupport.includes(msg.email) || !rawSupport.includes(msg.shopDomain)) {
       fail("SMTP message missing reply email or shop");
     }
-    if (!raw.includes("info@srhwebagency.com")) {
+    if (!rawSupport.includes("info@srhwebagency.com")) {
       fail("SMTP message was not addressed to the support inbox");
     }
-    if (!raw.toLowerCase().includes("text/html")) {
+    if (!rawSupport.includes(result.ticketNumber)) {
+      fail("Support SMTP message missing the ticket reference");
+    }
+    if (!rawSupport.toLowerCase().includes("text/html")) {
       fail("SMTP message missing the HTML body");
+    }
+    if (!rawAck.includes(msg.email) || !rawAck.includes(result.ticketNumber)) {
+      fail("Merchant ack missing recipient address or ticket reference");
+    }
+    if (!rawAck.toLowerCase().includes("we received")) {
+      fail("Merchant ack missing confirmation copy");
     }
     if (!text.includes(msg.collaboratorCode) || !text.includes("Support request")) {
       fail("Plain-text body missing collaborator code or app heading");
+    }
+    if (!text.includes(result.ticketNumber)) {
+      fail("Plain-text body missing ticket reference");
     }
     if (
       !html.includes("Findly Smart Filters &amp; Search") ||
       !html.includes("Support request") ||
       !html.includes(msg.shopDomain) ||
-      !html.includes(msg.collaboratorCode)
+      !html.includes(msg.collaboratorCode) ||
+      !html.includes(result.ticketNumber)
     ) {
-      fail("HTML body missing app name, heading, shop, or collaborator code");
+      fail("HTML body missing app name, heading, shop, collaborator code, or ticket");
     }
     const withheld = formatContactPlainText(
       sampleMessage({ requestAccess: false, collaboratorCode: "4821" }),

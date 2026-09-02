@@ -114,7 +114,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     contactDraft: { email, subject, message: "" },
   });
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    ticketNumber: delivered.ticketNumber,
+    ackSent: delivered.ackSent,
+  };
 };
 
 export default function ContactNavPage() {
@@ -144,7 +148,11 @@ export default function ContactNavPage() {
   useEffect(() => {
     if (!actionData || !("ok" in actionData)) return;
     if (actionData.ok) {
-      shopify.toast.show("Message sent to Findly support");
+      shopify.toast.show(
+        actionData.ticketNumber
+          ? `Message sent · ${actionData.ticketNumber}`
+          : "Message sent to Findly support",
+      );
       return;
     }
     if (actionData.sendError) {
@@ -161,6 +169,14 @@ export default function ContactNavPage() {
   const sendError =
     actionData && "ok" in actionData && !actionData.ok
       ? actionData.sendError
+      : undefined;
+  const successTicket =
+    actionData && "ok" in actionData && actionData.ok
+      ? actionData.ticketNumber
+      : undefined;
+  const successAckSent =
+    actionData && "ok" in actionData && actionData.ok
+      ? actionData.ackSent
       : undefined;
 
   return (
@@ -185,6 +201,16 @@ export default function ContactNavPage() {
               {sendError ? (
                 <Banner tone="critical" title="Message was not sent">
                   <p>{sendError}</p>
+                </Banner>
+              ) : null}
+              {successTicket ? (
+                <Banner tone="success" title="Message sent to Findly support">
+                  <p>
+                    Reference: <strong>{successTicket}</strong>
+                    {successAckSent
+                      ? " A confirmation email with this reference was sent to your email."
+                      : " Save this reference for follow-ups. A confirmation email could not be sent just now."}
+                  </p>
                 </Banner>
               ) : null}
               <Form method="post">
