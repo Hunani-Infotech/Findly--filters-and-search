@@ -204,8 +204,13 @@ ${accessRow}${metaRow("Subject", escapeHtml(msg.subject))}
 </html>`;
 }
 
+function supportInboxAddress() {
+  return trimEnv("SUPPORT_EMAIL") || FINDLY_SUPPORT_EMAIL;
+}
+
 export function formatMerchantAckPlainText(msg: ContactMessage) {
   const ticket = ticketLabel(msg) || "pending";
+  const support = supportInboxAddress();
   return [
     APP_NAME,
     "We received your support request",
@@ -215,7 +220,8 @@ export function formatMerchantAckPlainText(msg: ContactMessage) {
     `Subject: ${msg.subject}`,
     "",
     "Keep this reference when you follow up with Findly support.",
-    "Our team will reply to this email address.",
+    `Support: ${support}`,
+    "Our team will reply to the email address you used on the contact form.",
     "",
     "Your message",
     msg.message,
@@ -226,6 +232,7 @@ export function formatMerchantAckPlainText(msg: ContactMessage) {
 
 export function formatMerchantAckHtml(msg: ContactMessage) {
   const ticket = ticketLabel(msg) || "pending";
+  const support = supportInboxAddress();
   const messageHtml = escapeHtml(msg.message)
     .replace(/\r\n/g, "\n")
     .replace(/\n/g, "<br>");
@@ -246,7 +253,7 @@ export function formatMerchantAckHtml(msg: ContactMessage) {
 <p style="margin:0 0 4px;font-size:11px;line-height:1.3;letter-spacing:0.16em;font-weight:600;color:#111111;">FINDLY</p>
 <p style="margin:0 0 28px;font-size:13px;line-height:1.4;color:#71717a;">${escapeHtml(APP_NAME)}</p>
 <h1 style="margin:0 0 8px;font-size:22px;line-height:1.25;font-weight:600;color:#111111;">We received your request</h1>
-<p style="margin:0 0 28px;font-size:14px;line-height:1.5;color:#52525b;">Thanks for contacting Findly. Keep the reference below when you follow up. Our team will reply to this email address.</p>
+<p style="margin:0 0 28px;font-size:14px;line-height:1.5;color:#52525b;">Thanks for contacting Findly. Keep the reference below when you follow up. Our team will reply to the email address you used on the contact form. Support: <a href="mailto:${escapeHtml(support)}" style="color:#111111;text-decoration:underline;">${escapeHtml(support)}</a></p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ececec;border-bottom:1px solid #ececec;">
 ${metaRow(
   "Reference",
@@ -322,15 +329,21 @@ async function deliverMerchantAck(msg: ContactMessage) {
   const ticket = ticketLabel(msg);
   const transport = createSmtpTransport(cfg);
   try {
+    // Keep Reply-To on the authenticated From address. A different Reply-To
+    // domain (e.g. info@…) while sending via Gmail often lands in Spam.
     await transport.sendMail({
       from: { name: APP_NAME, address: cfg.from },
       to: msg.email,
-      replyTo: cfg.to,
+      replyTo: cfg.from,
       subject: ticket
         ? `[${ticket}] We received your Findly support request`
         : "We received your Findly support request",
       text: formatMerchantAckPlainText(msg),
       html: formatMerchantAckHtml(msg),
+      headers: {
+        "Auto-Submitted": "auto-replied",
+        "X-Auto-Response-Suppress": "OOF, AutoReply",
+      },
     });
     return true;
   } finally {
