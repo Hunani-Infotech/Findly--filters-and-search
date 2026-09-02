@@ -72,6 +72,15 @@ function assertRouteWiresDelivery() {
   if (!route.includes("Request store access") || !route.includes("requestAccess")) {
     fail("Contact form must require an explicit request-access opt-in");
   }
+  if (!route.includes("ticketNumber: delivered.ticketNumber")) {
+    fail("Contact success response must include delivered.ticketNumber");
+  }
+  if (!route.includes("ackSent: delivered.ackSent")) {
+    fail("Contact success response must include delivered.ackSent");
+  }
+  if (!route.includes("Reference:")) {
+    fail("Contact success UI must show the reference / ticket number");
+  }
   log.info("Contact route waits for outbound delivery before success");
 }
 
