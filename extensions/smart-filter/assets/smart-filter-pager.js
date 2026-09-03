@@ -117,11 +117,9 @@
 
   function shouldDriveThemePager(widget) {
     if (!widget) return false;
-    /* After any Findly page jump (including back to page 1), keep driving
-       theme chrome from filtered totals — Liquid only knows page 1. */
-    if (widget._sfPaged || Math.max(1, Number(widget.page) || 1) > 1) {
-      return true;
-    }
+    /* Page 2+ needs rewritten theme chrome. Page 1 default browse uses the
+       original Liquid pager + product cards so order matches first paint. */
+    if (Math.max(1, Number(widget.page) || 1) > 1) return true;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
     if (widget.collectionQuery) return true;
     if (widget.searchQuery) return true;

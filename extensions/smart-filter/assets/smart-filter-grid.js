@@ -3367,9 +3367,6 @@
   function isNativeThemeGridState(widget) {
     if (!widget) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
-    /* After any Findly page jump, stay on handle-driven paint — otherwise
-       returning to page 1 re-shows imported page 2/3 cards. */
-    if (widget._sfPaged) return false;
     /* Page 2+ must use Findly handles — Liquid only rendered page 1 cards. */
     if (Math.max(1, Number(widget.page) || 1) > 1) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
@@ -3471,7 +3468,9 @@
       delete widget._keepThemeCards;
       return false;
     }
-    if (widget._sfPaged || Math.max(1, Number(widget.page) || 1) > 1) {
+    /* Only page 2+ forces takeover. Page 1 default browse restores Liquid
+       cards so Product A matches the first paint after reload. */
+    if (Math.max(1, Number(widget.page) || 1) > 1) {
       markGridTakeover(widget);
       return true;
     }
@@ -6241,11 +6240,10 @@
     proto.shouldInterceptPaging = function () {
       if (this.isAppGridMode && this.isAppGridMode()) return true;
       if (this._pagingFallback) return false;
-      if (this._sfPaged || Math.max(1, Number(this.page) || 1) > 1) {
-        return true;
-      }
-      /* Clear All on a default collection view — use native Liquid grid, not card import. */
+      if (Math.max(1, Number(this.page) || 1) > 1) return true;
+      /* Clear All / page 1 default browse — use native Liquid grid, not API order. */
       if (this._sfNativeListing && isNativeThemeGridState(this)) return false;
+      if (isNativeThemeGridState(this)) return false;
       return shouldTakeOverThemeCards(this);
     };
 
@@ -6632,11 +6630,10 @@
           this._sfPaged = true;
           this._sfNativeListing = false;
           markGridTakeover(this);
-        } else if (this._sfPaged) {
-          /* Back on page 1 after 2/3/… — keep handle-driven paint. */
-          this._sfNativeListing = false;
-          markGridTakeover(this);
         } else if (isNativeThemeGridState(this)) {
+          /* Back on page 1 (or first load): restore Liquid Product A order.
+             applyNativeFilterGrid(null) hides page 2/3 clones via snapshot. */
+          this._sfPaged = false;
           prepareNativeListingRestore(this);
         } else {
           this._sfNativeListing = false;
