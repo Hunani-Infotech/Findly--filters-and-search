@@ -117,6 +117,9 @@
 
   function shouldDriveThemePager(widget) {
     if (!widget) return false;
+    /* Unfiltered page 2+ still needs rewritten theme chrome — Liquid pager
+       only knows the first server-rendered page. */
+    if (Math.max(1, Number(widget.page) || 1) > 1) return true;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
     if (widget.collectionQuery) return true;
     if (widget.searchQuery) return true;
@@ -269,8 +272,25 @@
     var href = String(ctrl.getAttribute("href") || "");
     var hrefMatch = href.match(/[?&]page=(\d+)/);
     var hrefPage = hrefMatch ? Number(hrefMatch[1]) : 0;
-    if (rel === "prev" || label.indexOf("previous") !== -1) return "prev";
-    if (rel === "next" || (/\bnext\b/.test(label) && !/^\d+$/.test(text))) {
+    var cls = String(
+      (item && item.className) ||
+        (ctrl && ctrl.className) ||
+        "",
+    ).toLowerCase();
+    if (
+      rel === "prev" ||
+      label.indexOf("previous") !== -1 ||
+      cls.indexOf("pagination__item--prev") !== -1 ||
+      cls.indexOf("pagination-prev") !== -1
+    ) {
+      return "prev";
+    }
+    if (
+      rel === "next" ||
+      (/\bnext\b/.test(label) && !/^\d+$/.test(text)) ||
+      cls.indexOf("pagination__item--next") !== -1 ||
+      cls.indexOf("pagination-next") !== -1
+    ) {
       return "next";
     }
     if (text === "…" || text === "..." || text === "…") return "ellipsis";
@@ -360,9 +380,61 @@
     }
   }
 
+  function ensurePagerLink(node, page) {
+    if (!node || node.nodeType !== 1) return node;
+    if (node.closest && node.closest("a, button") && node.tagName !== "A") {
+      return node;
+    }
+    var tag = String(node.tagName || "").toUpperCase();
+    if (tag === "A") {
+      node.setAttribute("href", pageHref(page));
+      return node;
+    }
+    if (tag === "BUTTON") {
+      node.setAttribute("type", "button");
+      node.setAttribute("data-sf-page", String(page));
+      return node;
+    }
+    /* Dawn current-page controls are often <span> — upgrade clones so page
+       numbers stay clickable after rewrite. */
+    if (tag === "SPAN" || node.getAttribute("role") === "link") {
+      var link = document.createElement("a");
+      link.href = pageHref(page);
+      link.className = node.className || "";
+      var attrs = node.attributes;
+      var a;
+      for (a = 0; a < attrs.length; a++) {
+        var name = attrs[a].name;
+        if (
+          name === "class" ||
+          name === "aria-current" ||
+          name === "aria-disabled"
+        ) {
+          continue;
+        }
+        link.setAttribute(name, attrs[a].value);
+      }
+      while (node.firstChild) link.appendChild(node.firstChild);
+      if (node.parentNode) node.parentNode.replaceChild(link, node);
+      return link;
+    }
+    return node;
+  }
+
   function setItemPage(item, page, isCurrent) {
     if (!item) return;
     item.setAttribute("data-sf-page", String(page));
+    var primary =
+      (item.matches && item.matches("a, button, span, [role='link']")
+        ? item
+        : null) ||
+      (item.querySelector &&
+        item.querySelector("a, button, span[aria-current], [role='link'], span"));
+    if (primary && !isCurrent) {
+      primary = ensurePagerLink(primary, page) || primary;
+    } else if (primary && primary.tagName === "A") {
+      primary.setAttribute("href", pageHref(page));
+    }
     var nodes = [item];
     if (item.querySelectorAll) {
       nodes = nodes.concat(
@@ -372,6 +444,7 @@
     var i;
     for (i = 0; i < nodes.length; i++) {
       var node = nodes[i];
+      if (!node || !node.setAttribute) continue;
       node.setAttribute("data-sf-page", String(page));
       if (node.tagName === "A") node.setAttribute("href", pageHref(page));
       if (isCurrent) {
@@ -589,18 +662,23 @@
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
         if (root.closest && root.closest(PAGER_CHROME_SKIP)) return;
-        var ctrl = target.closest("a, button");
-        if (!ctrl) return;
+        var ctrl =
+          target.closest("a, button, [data-sf-page], [role='link']") ||
+          target.closest("li");
+        if (!ctrl || (root !== ctrl && !root.contains(ctrl))) return;
         var page = pageFromControl(ctrl);
         if (!page) {
           var role = itemRole(ctrl.closest("li") || ctrl);
-          var current = Math.max(1, widget.page || 1);
+          var current = Math.max(1, Number(widget.page) || 1);
           if (role === "prev") page = current - 1;
           else if (role === "next") page = current + 1;
         }
         if (!page || page < 1) return;
         event.preventDefault();
         event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") {
+          event.stopImmediatePropagation();
+        }
         if (widget.goToPage) widget.goToPage(page);
       },
       true,
@@ -643,13 +721,15 @@
     var origGoToPage = proto.goToPage;
     proto.goToPage = function (page) {
       var next = Math.max(1, Math.floor(Number(page) || 1));
-      if (next !== this.page) {
+      var current = Math.max(1, Number(this.page) || 1);
+      if (next !== current) {
         this._loadingPage = false;
         this._keepThemeCards = false;
+        this._sfNativeListing = false;
       } else if (this._loadingPage && !this._inflight) {
         this._loadingPage = false;
       }
-      if (origGoToPage) return origGoToPage.apply(this, arguments);
+      if (origGoToPage) return origGoToPage.call(this, next);
     };
 
     proto.syncThemePager = function () {

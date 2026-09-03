@@ -137,6 +137,11 @@
     ".findly-grid-is-busy .sf-toolbar,.findly-grid-is-busy .sf-page-chips," +
     ".findly-grid-is-busy .sf-sort-host," +
     ".findly-grid-is-busy .sf-search-host,.findly-grid-is-busy .sf-pager," +
+    ".findly-grid-is-busy nav.pagination,.findly-grid-is-busy .pagination," +
+    ".findly-grid-is-busy .pagination-wrapper,.findly-grid-is-busy [data-pagination]," +
+    ".findly-grid-is-busy .paginate,.findly-grid-is-busy #pagination," +
+    ".findly-grid-is-busy .Pagination,.findly-grid-is-busy #AjaxinatePagination," +
+    ".findly-grid-is-busy .ajaxinate-pagination," +
     ".findly-grid-is-busy .sf-sort{pointer-events:auto}" +
     ".findly-grid-is-busy>" +
     GRID_RESULT_HIDE +
@@ -3362,6 +3367,8 @@
   function isNativeThemeGridState(widget) {
     if (!widget) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    /* Page 2+ must use Findly handles — Liquid only rendered page 1 cards. */
+    if (Math.max(1, Number(widget.page) || 1) > 1) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
     if (widget.collectionQuery) return false;
     if (widget.searchQuery) return false;
@@ -3439,6 +3446,10 @@
     if (isNativeThemeGridState(widget)) {
       delete widget._keepThemeCards;
       return false;
+    }
+    if (Math.max(1, Number(widget.page) || 1) > 1) {
+      markGridTakeover(widget);
+      return true;
     }
     if (widget.hasActiveFilters && widget.hasActiveFilters()) {
       markGridTakeover(widget);
@@ -6199,6 +6210,7 @@
     proto.shouldInterceptPaging = function () {
       if (this.isAppGridMode && this.isAppGridMode()) return true;
       if (this._pagingFallback) return false;
+      if (Math.max(1, Number(this.page) || 1) > 1) return true;
       /* Clear All on a default collection view — use native Liquid grid, not card import. */
       if (this._sfNativeListing && isNativeThemeGridState(this)) return false;
       return shouldTakeOverThemeCards(this);
@@ -6577,7 +6589,16 @@
         this._importingCards = false;
         this._sfPaintedReq = -1;
         this._sfChromeHiddenReq = -1;
-        if (isNativeThemeGridState(this)) {
+        /* opts.page is applied inside origFetch — peek so page 2+ is not
+           treated as a native Liquid restore before this.page updates. */
+        var requestedPage =
+          opts.page != null
+            ? Math.max(1, Math.floor(Number(opts.page) || 1))
+            : Math.max(1, Number(this.page) || 1);
+        if (requestedPage > 1) {
+          this._sfNativeListing = false;
+          markGridTakeover(this);
+        } else if (isNativeThemeGridState(this)) {
           prepareNativeListingRestore(this);
         } else {
           this._sfNativeListing = false;

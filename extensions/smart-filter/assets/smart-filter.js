@@ -4001,8 +4001,12 @@
 
   Widget.prototype.goToPage = function (page) {
     var next = Math.max(1, Math.floor(Number(page) || 1));
-    if (next === this.page || this._loadingPage) return;
+    var current = Math.max(1, Number(this.page) || 1);
+    if (next === current) return;
+    if (this._loadingPage && this._inflight) return;
     this._loadingPage = true;
+    this._keepThemeCards = false;
+    this.page = next;
     this.renderPager();
     this.fetchFilters({ page: next });
   };
@@ -4327,9 +4331,13 @@
           }
           if (append) {
             this.page = Math.max(1, (this.page || 1) - 1);
-            this._loadingPage = false;
-            this.renderPager();
+          } else if (opts.page != null) {
+            /* Failed page jump — snap back so the next click is not a no-op. */
+            this.page = 1;
           }
+          this._loadingPage = false;
+          this.setGridBusy(false);
+          this.renderPager();
           return Promise.reject(err);
         }.bind(this),
       );
