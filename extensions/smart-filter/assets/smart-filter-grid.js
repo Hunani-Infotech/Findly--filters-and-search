@@ -3384,12 +3384,25 @@
   }
 
   function pageHandlesForGrid(widget, handles, append) {
+    if (widget && widget.ensurePageSize) widget.ensurePageSize();
+    var size = (widget && widget.pageSize) || 16;
+    if (handles && handles.length && handles.length <= size) {
+      return handles;
+    }
     var source = handles;
     if (
       widget &&
       widget._allFilterHandles &&
       widget._allFilterHandles.length >
         (handles && handles.length ? handles.length : 0)
+    ) {
+      source = widget._allFilterHandles;
+    }
+    if (
+      (!source || !source.length) &&
+      widget &&
+      widget._allFilterHandles &&
+      widget._allFilterHandles.length
     ) {
       source = widget._allFilterHandles;
     }
@@ -5448,6 +5461,7 @@
     if (items.length <= size) return items;
     if (append) return items.slice(0, size);
     var start = (Math.max(1, widget.page || 1) - 1) * size;
+    if (start >= items.length) return items;
     return items.slice(start, start + size);
   }
 
@@ -6608,13 +6622,19 @@
         );
         if (!parent || !productsForSeed().length) return false;
         var missing = self.missingHandles(handles);
-        if (!missing.length) return true;
+        if (!missing.length) {
+          mountCachedCards(self, handles, parent);
+          return countAllowedInHost(parent, handles) > 0;
+        }
         mountCachedCards(self, missing, parent);
         missing = self.missingHandles(handles);
-        if (!missing.length) return true;
+        if (!missing.length) {
+          return countAllowedInHost(parent, handles) > 0;
+        }
         /* Only clone gaps — same end state, less DOM work. */
         fillGapsWithThemeClones(self, missing, parent);
-        return missingLeft() === 0;
+        if (missingLeft() !== 0) return false;
+        return countAllowedInHost(parent, handles) > 0;
       }
 
       /* Clone-first: skip theme crawl when API products cover the page slice. */
@@ -6623,9 +6643,14 @@
         return Promise.resolve(true);
       }
 
+      var wantPage = Math.max(1, Math.floor(Number(self.page) || 1));
       var pageCap = productsForSeed().length
         ? THEME_PAGE_FETCH_CAP_WITH_PRODUCTS
         : THEME_PAGE_FETCH_MAX_GRID;
+      if (wantPage > 1) {
+        pageCap = Math.max(pageCap, wantPage, THEME_PAGE_FETCH_MAX_GRID);
+      }
+      var wrapToFirst = wantPage > 1;
 
       function fetchBatch(startPage) {
         var jobs = [];
@@ -6657,6 +6682,10 @@
           return Promise.resolve(true);
         }
         if (startPage > pageCap) {
+          if (wrapToFirst) {
+            wrapToFirst = false;
+            return step(1);
+          }
           seedFromProductPayload();
           clearEnsureHandles();
           return Promise.resolve(hasAnyRequested() || !missingLeft());
@@ -6689,6 +6718,14 @@
             return true;
           }
           if (!anyOk(results)) {
+            if (productsForSeed().length && seedFromProductPayload()) {
+              clearEnsureHandles();
+              return true;
+            }
+            if (wrapToFirst && startPage >= wantPage) {
+              wrapToFirst = false;
+              return step(1);
+            }
             seedFromProductPayload();
             clearEnsureHandles();
             return hasAnyRequested() || !missingLeft();
@@ -6697,7 +6734,7 @@
         });
       }
 
-      return step(1);
+      return step(wantPage > 1 ? wantPage : 1);
     };
 
     var origImport = proto.importCardsFromDocument;
@@ -6749,7 +6786,6 @@
     };
 
     proto.applyInterceptGrid = function (handles, append) {
-      var next = pageSlice(this, handles, append);
       var host = preferProductCardGrid(
         resolveCardHost(
           this._gridParent ||
@@ -6762,6 +6798,20 @@
         markGridPainted(this);
         return true;
       }
+      var size = this.pageSize || 16;
+      var source = Array.isArray(handles) ? handles : [];
+      if (
+        !source.length &&
+        this._allFilterHandles &&
+        this._allFilterHandles.length
+      ) {
+        source = this._allFilterHandles;
+      }
+      var next =
+        source.length && source.length <= size
+          ? source
+          : pageSlice(this, source, append);
+      if ((!next || !next.length) && source.length) next = source;
       mountCachedCards(this, next, host);
       applyNativeFilterGrid(next, host);
       var shown = countAllowedInHost(host, next);
@@ -6769,6 +6819,10 @@
       if (needed > shown) {
         fillGapsWithThemeClones(this, next, host);
         shown = countAllowedInHost(host, next);
+      }
+      if (needed > 0 && shown === 0) {
+        this._shownHandles = [];
+        return false;
       }
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
       markGridPainted(this);
@@ -6780,7 +6834,7 @@
       ) {
         this.setGridBusy(false);
       }
-      return needed === 0 || shown > 0;
+      return shown > 0 || needed === 0;
     };
 
     var origFetch = proto.fetchFilters;

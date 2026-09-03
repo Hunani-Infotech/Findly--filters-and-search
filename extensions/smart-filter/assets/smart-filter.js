@@ -3953,7 +3953,7 @@
     for (i = 0; i < next.length; i++) {
       var handle = next[i];
       var card = this._cardCache[handle];
-      if (!card) continue;
+      if (!card || (card.isConnected === false && card._sfMounted)) continue;
       shown.push(handle);
       if (card.parentNode !== parent) {
         parent.appendChild(card);
@@ -4210,6 +4210,8 @@
               (Math.max(1, this.page) - 1) * pageSize;
             if (fromProducts.length && fromProducts.length <= pageSize) {
               handles = fromProducts;
+            } else if (allHandles.length <= pageSize) {
+              handles = allHandles;
             } else {
               handles = allHandles.slice(sliceStart, sliceStart + pageSize);
             }
