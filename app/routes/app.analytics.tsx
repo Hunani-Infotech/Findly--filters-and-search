@@ -20,6 +20,7 @@ import {
   type AnalyticsRange,
 } from "../services/analytics.server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
@@ -133,10 +134,33 @@ function InsightCard({ title, rows }: { title: string; rows: CountRow[] }) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop, plan } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const url = new URL(request.url);
   const range = parseRange(url.searchParams.get("range"));
+  if (auth.bot) {
+    return {
+      retentionDays: 90,
+      range,
+      from: new Date(0).toISOString(),
+      metrics: {
+        uniqueVisitors: 0,
+        ctr: 0,
+        noResultRate: 0,
+        uniqueDesktop: 0,
+        uniqueMobile: 0,
+        searchCount: 0,
+        filterCount: 0,
+      },
+      sessions: [],
+      topQueries: [],
+      noResultQueries: [],
+      topFilterValues: [],
+      filterCombos: [],
+      mostVisited: [],
+    };
+  }
+  const { session } = auth;
+  const { shop, plan } = await ensureShopAccess(session.shop);
   const dashboard = await loadAnalyticsDashboard(shop.id, range, plan);
   return dashboard;
 };

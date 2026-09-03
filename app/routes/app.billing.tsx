@@ -23,6 +23,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { appUrl, authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import prisma from "../db.server";
 import { forgetShop } from "../lib/shop-cache.server";
 import {
@@ -48,7 +49,25 @@ const BILLING_SYNC_TTL_MS = 120_000;
 const lastBillingSyncAt = new Map<string, number>();
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      plans: PLANS,
+      currentPlan: "free" as const,
+      testMode: false,
+      devUnlockLimits: false,
+      subscription: null,
+      usage: {
+        productCount: 0,
+        productLimit: PLANS.free.productLimit,
+        filterCount: 0,
+        filterLimit: PLANS.free.filterLimit,
+        withinLimits: true,
+      },
+    };
+  }
+
+  const { session, admin } = auth;
   let { shop } = await ensureShopAccess(session.shop);
 
   const lastSync = lastBillingSyncAt.get(shop.id) ?? 0;

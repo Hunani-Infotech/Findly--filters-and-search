@@ -165,72 +165,82 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const { session } = auth;
-  const { shop, plan } = await ensureShopAccess(session.shop);
 
-  // Unstick admin "Syncing…" if the bulk finish webhook was missed.
   try {
-    await recoverStuckSyncIfNeeded(session.shop);
-  } catch (error) {
-    log.warn(
-      `[home] recoverStuckSync skipped: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
+    const { shop, plan } = await ensureShopAccess(session.shop);
 
-  const [setup, syncJob, dashboard, caps] = await Promise.all([
-    getSetupProgress(shop.id, session.shop),
-    prisma.syncJob.findUnique({
-      where: { shopId: shop.id },
-      select: {
-        status: true,
-        lastFullSyncAt: true,
-        lastIncrementalSyncAt: true,
-        errorLog: true,
-      },
-    }),
-    loadAnalyticsDashboard(shop.id, "last_30", plan).catch((error) => {
+    // Unstick admin "Syncing…" if the bulk finish webhook was missed.
+    try {
+      await recoverStuckSyncIfNeeded(session.shop);
+    } catch (error) {
       log.warn(
-        `[home] analytics skipped: ${
+        `[home] recoverStuckSync skipped: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      return {
-        metrics: EMPTY_PERFORMANCE,
-        from: new Date(Date.now() - 30 * MS_PER_DAY).toISOString(),
-      };
-    }),
-    resolvePlanCaps(shop.id),
-  ]);
+    }
 
-  const trialEndsAt = shop.subscription?.trialEndsAt ?? null;
-  const trialDaysLeft =
-    trialEndsAt && trialEndsAt > new Date()
-      ? Math.max(
-          1,
-          Math.ceil((trialEndsAt.getTime() - Date.now()) / MS_PER_DAY),
-        )
-      : null;
+    const [setup, syncJob, dashboard, caps] = await Promise.all([
+      getSetupProgress(shop.id, session.shop),
+      prisma.syncJob.findUnique({
+        where: { shopId: shop.id },
+        select: {
+          status: true,
+          lastFullSyncAt: true,
+          lastIncrementalSyncAt: true,
+          errorLog: true,
+        },
+      }),
+      loadAnalyticsDashboard(shop.id, "last_30", plan).catch((error) => {
+        log.warn(
+          `[home] analytics skipped: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return {
+          metrics: EMPTY_PERFORMANCE,
+          from: new Date(Date.now() - 30 * MS_PER_DAY).toISOString(),
+        };
+      }),
+      resolvePlanCaps(shop.id),
+    ]);
 
-  return {
-    setup,
-    plan,
-    planName: PLANS[plan].name,
-    trialDaysLeft,
-    sync: {
-      status: syncJob?.status ?? "PENDING",
-      lastFullSyncAt: syncJob?.lastFullSyncAt?.toISOString() ?? null,
-      lastIncrementalSyncAt:
-        syncJob?.lastIncrementalSyncAt?.toISOString() ?? null,
-      errorLog: syncJob?.errorLog ?? null,
-      productCount: setup.productCount,
-      collectionCount: setup.collectionCount,
-      productLimit: caps.productLimit,
-      overProductLimit: setup.productCount > caps.productLimit,
-    },
-    performance: dashboard.metrics,
-    performanceFrom: dashboard.from,
-  };
+    const trialEndsAt = shop.subscription?.trialEndsAt ?? null;
+    const trialDaysLeft =
+      trialEndsAt && trialEndsAt > new Date()
+        ? Math.max(
+            1,
+            Math.ceil((trialEndsAt.getTime() - Date.now()) / MS_PER_DAY),
+          )
+        : null;
+
+    return {
+      setup,
+      plan,
+      planName: PLANS[plan].name,
+      trialDaysLeft,
+      sync: {
+        status: syncJob?.status ?? "PENDING",
+        lastFullSyncAt: syncJob?.lastFullSyncAt?.toISOString() ?? null,
+        lastIncrementalSyncAt:
+          syncJob?.lastIncrementalSyncAt?.toISOString() ?? null,
+        errorLog: syncJob?.errorLog ?? null,
+        productCount: setup.productCount,
+        collectionCount: setup.collectionCount,
+        productLimit: caps.productLimit,
+        overProductLimit: setup.productCount > caps.productLimit,
+      },
+      performance: dashboard.metrics,
+      performanceFrom: dashboard.from,
+    };
+  } catch (error) {
+    log.error(
+      `[home] loader degraded shop=${session.shop}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return reviewBotHomeData(session.shop);
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {

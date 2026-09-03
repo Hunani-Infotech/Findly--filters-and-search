@@ -29,6 +29,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
@@ -251,13 +252,28 @@ function toSettingsState(settings: {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
+  if (auth.bot) {
+    return {
+      tab,
+      metafields: {
+        rows: [],
+        filterCount: 0,
+        filterLimit: 5,
+        plan: "free" as const,
+        overFilterLimit: false,
+      },
+      settings: toSettingsState({ ...DEFAULT_APP_SETTINGS }),
+    };
+  }
+
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const [settings, metafields] = await Promise.all([
     getAppSettings(shop.id),
     loadSettingsMetafields(shop.id),
   ]);
-  const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
 
   return {
     tab,

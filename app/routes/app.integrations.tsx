@@ -14,6 +14,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import {
   FINDLY_FILTER_RENDER_COMPLETED,
@@ -54,7 +55,11 @@ function statusTone(status: PartnerIntegration["status"]) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return null;
+  }
+  const { session } = auth;
   await ensureShopAccess(session.shop);
   return null;
 };

@@ -54,12 +54,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await ensureShop(auth.session.shop);
   } catch (error) {
+    // Keep the App Bridge shell on HTTP 200. Child loaders call
+    // ensureShopAccess again; do not turn a DB blip into a dead 500 surface.
     log.error(
       `[app] ensureShop failed shop=${auth.session.shop}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
-    throw error;
   }
 
   return { apiKey: adminApiKey(), bot: false as const };

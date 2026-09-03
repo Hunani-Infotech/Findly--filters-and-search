@@ -31,7 +31,9 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
+import { DEFAULT_SEARCH_EXTRAS } from "../utils/instant-search";
 import { isMutationBusy } from "../components/admin-loading";
 import { CheckboxOrderList } from "../components/checkbox-order-list";
 import { InstantLayoutPicker } from "../components/instant-layout-picker";
@@ -125,11 +127,29 @@ type SearchPageState = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const tab = parseSearchTab(new URL(request.url).searchParams.get("tab"));
+  if (auth.bot) {
+    const searchFields = normalizeSearchFields(undefined);
+    return {
+      tab,
+      shopDomain: new URL(request.url).searchParams.get("shop") || "",
+      settings: {
+        searchFields,
+        fieldOrder: orderedFieldKeys(searchFields),
+        showSuggestionsOnEmptyQuery: false,
+        showSuggestionsOnNoResults: false,
+        suggestionProductHandles: [],
+        suggestionCollectionHandles: [],
+        searchExtras: { ...DEFAULT_SEARCH_EXTRAS },
+      } satisfies SearchPageState,
+    };
+  }
+
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const settings = await getAppSettings(shop.id);
   const searchFields = normalizeSearchFields(settings.searchFields);
-  const tab = parseSearchTab(new URL(request.url).searchParams.get("tab"));
 
   return {
     tab,

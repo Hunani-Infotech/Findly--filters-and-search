@@ -41,6 +41,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
@@ -129,7 +130,11 @@ function appliesToMarkup(tree: FilterListTree) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return { trees: [] };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
 
   const trees = await listFilterTrees(shop.id);

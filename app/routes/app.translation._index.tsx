@@ -33,6 +33,7 @@ import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import {
   DEFAULT_WIDGET_I18N,
@@ -185,7 +186,14 @@ function normalizeImportLocale(raw: string, fallback: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      langs: [{ code: "en", name: "English", complete: true, isDefault: true }],
+      i18n: {},
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
   return { langs: extras.langs, i18n: extras.i18n };
