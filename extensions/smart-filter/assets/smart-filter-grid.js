@@ -3367,6 +3367,9 @@
   function isNativeThemeGridState(widget) {
     if (!widget) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
+    /* After any Findly page jump, stay on handle-driven paint — otherwise
+       returning to page 1 re-shows imported page 2/3 cards. */
+    if (widget._sfPaged) return false;
     /* Page 2+ must use Findly handles — Liquid only rendered page 1 cards. */
     if (Math.max(1, Number(widget.page) || 1) > 1) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
@@ -3390,6 +3393,23 @@
     restoreNativeGridOrder(widget);
   }
 
+  function isNativeSnapshotCard(widget, el) {
+    var list = widget && widget._nativeGridOrder;
+    if (!list || !list.length || !el) return false;
+    var outer = resolveOuterThemeCard(el) || el;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      var snap = list[i];
+      if (!snap) continue;
+      if (snap === el || snap === outer) return true;
+      if (snap.contains && (snap.contains(el) || snap.contains(outer))) {
+        return true;
+      }
+      if (outer.contains && outer.contains(snap)) return true;
+    }
+    return false;
+  }
+
   function resetWidgetFilterState(widget) {
     if (!widget) return;
     widget.selected = {};
@@ -3401,7 +3421,11 @@
   }
 
   function prepareNativeListingRestore(widget) {
-    if (!widget || !isNativeThemeGridState(widget)) return;
+    if (!widget) return;
+    /* Explicit restore (Clear All / empty hash) ends a paging session. */
+    widget._sfPaged = false;
+    widget.page = 1;
+    if (!isNativeThemeGridState(widget)) return;
     widget._sfNativeListing = true;
     restoreNativeThemeGridState(widget);
   }
@@ -3447,7 +3471,7 @@
       delete widget._keepThemeCards;
       return false;
     }
-    if (Math.max(1, Number(widget.page) || 1) > 1) {
+    if (widget._sfPaged || Math.max(1, Number(widget.page) || 1) > 1) {
       markGridTakeover(widget);
       return true;
     }
@@ -3605,8 +3629,11 @@
     }
     lockThemeGridTracks(parent);
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
+    var restrictNative = false;
     if (!allowed && widget && widget._nativeGridOrder) {
       restoreNativeGridOrder(widget);
+      /* Native restore must not leave page 2/3 clones visible. */
+      restrictNative = true;
     }
     var cards = collectTrayAndGridCards(parent);
     var tray = cardTray();
@@ -3616,7 +3643,11 @@
     for (i = 0; i < cards.length; i++) {
       var item = cards[i];
       if (!allowed) {
-        shown.push(item);
+        if (restrictNative && !isNativeSnapshotCard(widget, item.el)) {
+          hidden.push(item);
+        } else {
+          shown.push(item);
+        }
         continue;
       }
       if (item.handle && allowed[item.handle]) shown.push(item);
@@ -6210,7 +6241,9 @@
     proto.shouldInterceptPaging = function () {
       if (this.isAppGridMode && this.isAppGridMode()) return true;
       if (this._pagingFallback) return false;
-      if (Math.max(1, Number(this.page) || 1) > 1) return true;
+      if (this._sfPaged || Math.max(1, Number(this.page) || 1) > 1) {
+        return true;
+      }
       /* Clear All on a default collection view — use native Liquid grid, not card import. */
       if (this._sfNativeListing && isNativeThemeGridState(this)) return false;
       return shouldTakeOverThemeCards(this);
@@ -6596,6 +6629,11 @@
             ? Math.max(1, Math.floor(Number(opts.page) || 1))
             : Math.max(1, Number(this.page) || 1);
         if (requestedPage > 1) {
+          this._sfPaged = true;
+          this._sfNativeListing = false;
+          markGridTakeover(this);
+        } else if (this._sfPaged) {
+          /* Back on page 1 after 2/3/… — keep handle-driven paint. */
           this._sfNativeListing = false;
           markGridTakeover(this);
         } else if (isNativeThemeGridState(this)) {
@@ -6653,6 +6691,8 @@
     var origClear = proto.clearFilters;
     proto.clearFilters = function () {
       this._importingCards = false;
+      this._sfPaged = false;
+      this.page = 1;
       if (origClear) origClear.apply(this, arguments);
     };
 

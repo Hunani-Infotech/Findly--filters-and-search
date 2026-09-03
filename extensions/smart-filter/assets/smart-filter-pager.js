@@ -117,9 +117,11 @@
 
   function shouldDriveThemePager(widget) {
     if (!widget) return false;
-    /* Unfiltered page 2+ still needs rewritten theme chrome — Liquid pager
-       only knows the first server-rendered page. */
-    if (Math.max(1, Number(widget.page) || 1) > 1) return true;
+    /* After any Findly page jump (including back to page 1), keep driving
+       theme chrome from filtered totals — Liquid only knows page 1. */
+    if (widget._sfPaged || Math.max(1, Number(widget.page) || 1) > 1) {
+      return true;
+    }
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
     if (widget.collectionQuery) return true;
     if (widget.searchQuery) return true;
