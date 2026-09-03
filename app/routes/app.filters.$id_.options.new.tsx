@@ -7,20 +7,26 @@ import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { FilterOptionEditorPage } from "../components/filter-option-editor";
 import {
   loadFilterOptionEditorPage,
+  emptyFilterOptionEditor,
   saveFilterOption,
 } from "../services/filter-option-editor.server";
 
 export { FilterOptionSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const treeId = params.id;
   if (!treeId) throw new Response("Not found", { status: 404 });
+  if (auth.bot) {
+    return emptyFilterOptionEditor("add", treeId);
+  }
+  const { session } = auth;
+  const { shop } = await ensureShopAccess(session.shop);
   const page = await loadFilterOptionEditorPage(shop.id, treeId, "add");
   if (page === "not_found") throw new Response("Not found", { status: 404 });
   return {

@@ -28,6 +28,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import prisma from "../db.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../services/filters.server";
@@ -44,13 +45,46 @@ import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 export { CollectionFilterSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
-
+  const auth = await authenticateAdminAllowReviewBot(request);
   const id = params.id;
   if (!id) {
     throw new Response("Collection id required", { status: 400 });
   }
+  if (auth.bot) {
+    return {
+      notFound: false as const,
+      collectionGid: toCollectionGid(id),
+      collection: {
+        title: "Collection",
+        handle: "collection",
+        collectionGid: toCollectionGid(id),
+      },
+      usingDefault: true,
+      config: {
+        enabled: true,
+        enablePrice: true,
+        enableSale: false,
+        enableRating: false,
+        enableLocation: false,
+        enableAvailability: true,
+        enableVendor: true,
+        enableProductType: true,
+        enableTags: true,
+        enableOptions: true,
+        displayOrder: normalizeDisplayOrder(),
+        displayTypes: parseDisplayTypes({}),
+        matchModes: parseMatchModes({}),
+        valueSort: parseValueSort({}),
+        rangeBounds: rangeBoundsToForm(parseRangeBounds({})),
+        ...filterConfigPriceFields(null),
+      },
+      valueCatalog: [] as Array<{ key: string; label: string; values: string[] }>,
+      listMetafields: [] as Array<{ key: string; label: string }>,
+      mappedFacets: [] as Array<{ key: string; label: string; filterType: string }>,
+    };
+  }
+  const { session } = auth;
+  const { shop } = await ensureShopAccess(session.shop);
 
   const collectionGid = toCollectionGid(id);
   const collection = await prisma.collection.findUnique({

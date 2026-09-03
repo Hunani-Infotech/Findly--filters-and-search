@@ -6,12 +6,13 @@ import type {
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { queueFullSync } from "../sync/queue-full-sync";
 import { log } from "../lib/log.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  await authenticateAdminAllowReviewBot(request);
   throw redirect(withEmbeddedParamsFromRequest(request, "/app?sync=1"));
 };
 

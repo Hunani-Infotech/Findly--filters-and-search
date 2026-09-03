@@ -1,10 +1,26 @@
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
+import { runMigrateDeploy } from "./scripts/run-migrate-deploy.mjs";
 
 // `npm start` is the production entry. Unset NODE_ENV must not look like dev
 // (HMAC bypass, detailed /health, debug Shopify logs).
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "production";
+}
+
+// Session storage can reject during boot; attach listeners before loading the app.
+if (!globalThis.__FINDLY_PROCESS_GUARDS__) {
+  globalThis.__FINDLY_PROCESS_GUARDS__ = true;
+  process.on("unhandledRejection", (reason) => {
+    console.error("[process] unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (error) => {
+    console.error("[process] uncaughtException", error);
+  });
+}
+
+if (process.env.FINDLY_MIGRATIONS_RAN !== "1") {
+  runMigrateDeploy({ attempts: 3, retryMs: 3000 });
 }
 
 const app = express();

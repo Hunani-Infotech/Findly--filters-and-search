@@ -1,13 +1,13 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 /** Old /app/swatches/:option links keep working without dropping Shopify query params. */
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  await authenticateAdminAllowReviewBot(request);
   const url = new URL(request.url);
   const option = String(params.option || "").trim();
   if (option) url.searchParams.set("option", option);

@@ -104,6 +104,64 @@ export type FilterOptionEditorData = {
 
 const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
 
+export function emptyFilterOptionEditor(
+  mode: FilterOptionEditorMode,
+  treeId: string,
+  optionKey = "",
+  shopDomain = FALLBACK_SHOP_DOMAIN,
+): FilterOptionEditorData {
+  const key = optionKey.trim() || "vendor";
+  return {
+    mode,
+    treeId,
+    optionKey: mode === "add" ? "" : key,
+    sourceLabel: "Vendor",
+    sourceDisabled: mode === "edit",
+    sources: [
+      {
+        value: "vendor",
+        label: "Vendor",
+        defaultLabel: "Vendor",
+        displayType: "checkbox",
+        displayTypeChoices: [{ value: "checkbox", label: FACET_DISPLAY_TYPE_LABELS.checkbox }],
+        showValues: true,
+      },
+    ],
+    label: "Vendor",
+    displayType: "checkbox",
+    displayTypeChoices: [{ value: "checkbox", label: FACET_DISPLAY_TYPE_LABELS.checkbox }],
+    valueMode: "all",
+    prefix: "",
+    removePrefix: false,
+    selectedValues: [],
+    catalog: {
+      sourceKey: key,
+      values: [],
+      labels: {},
+      total: 0,
+      page: 0,
+      pageCount: 1,
+      showingFrom: 0,
+      showingTo: 0,
+      query: "",
+      collectionTreeItems: [],
+    },
+    showValues: true,
+    shopDomain,
+    urlHandle: defaultUrlHandle("Vendor", key),
+    collectionTree: false,
+    collectionParents: {},
+    valueSortMode: "az",
+    collapseByDefault: true,
+    enableValueSearch: false,
+    showMore: "scrollbar",
+    textTransform: "capitalize",
+    autoRemovePrefixes: "",
+    tooltip: "",
+    matchMode: "or",
+  };
+}
+
 function editorExtras(
   key: string,
   label: string,

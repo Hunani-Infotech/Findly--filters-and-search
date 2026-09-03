@@ -30,6 +30,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
@@ -119,7 +120,30 @@ function swatchesHref(
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      optionKey: "",
+      label: "",
+      options: [] as Array<{
+        optionKey: string;
+        label: string;
+        valueCount: number;
+        missing: number;
+      }>,
+      rows: [] as SwatchRow[],
+      total: 0,
+      page: 0,
+      pageCount: 1,
+      showingFrom: 0,
+      showingTo: 0,
+      query: "",
+      status: "all" as SwatchListStatus,
+      shopFiles: [] as Awaited<ReturnType<typeof listShopImages>>,
+      filesError: "",
+    };
+  }
+  const { admin, session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const url = new URL(request.url);
   const data = await loadSwatchesAdmin(

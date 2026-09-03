@@ -9,6 +9,82 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import prisma from "./db.server";
 import { log } from "./lib/log.server";
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __FINDLY_PROCESS_GUARDS__: boolean | undefined;
+}
+
+function installProcessGuards() {
+  if (globalThis.__FINDLY_PROCESS_GUARDS__) return;
+  globalThis.__FINDLY_PROCESS_GUARDS__ = true;
+  process.on("unhandledRejection", (reason) => {
+    log.error("[process] unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (error) => {
+    log.error("[process] uncaughtException", error);
+  });
+}
+
+installProcessGuards();
+
+/** Library default is ~10s; paused Postgres often needs longer. */
+const SESSION_STORAGE_CONNECTION_RETRIES = 20;
+const SESSION_STORAGE_RETRY_INTERVAL_MS = 3000;
+
+function createPrismaSessionStorage() {
+  const sessionStorage = new PrismaSessionStorage(prisma, {
+    connectionRetries: SESSION_STORAGE_CONNECTION_RETRIES,
+    connectionRetryIntervalMs: SESSION_STORAGE_RETRY_INTERVAL_MS,
+  });
+
+  // `ready` rejects with no listener and kills Node. Catch it and keep polling.
+  const pending = (
+    sessionStorage as unknown as { ready?: Promise<unknown> }
+  ).ready;
+  if (pending && typeof pending.then === "function") {
+    void pending.catch((error: unknown) => {
+      log.error(
+        "[shopify] session storage not ready after boot poll",
+        error,
+      );
+      void recoverSessionStorage(sessionStorage);
+    });
+  }
+
+  return sessionStorage;
+}
+
+async function recoverSessionStorage(
+  sessionStorage: PrismaSessionStorage<typeof prisma>,
+) {
+  let attempt = 0;
+  for (;;) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, SESSION_STORAGE_RETRY_INTERVAL_MS),
+    );
+    attempt += 1;
+    try {
+      if (await sessionStorage.isReady()) {
+        log.success(
+          `[shopify] session storage recovered after ${attempt} extra poll(s)`,
+        );
+        return;
+      }
+    } catch (error) {
+      log.warn(
+        `[shopify] session storage recover failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    if (attempt === 1 || attempt % 10 === 0) {
+      log.warn(
+        `[shopify] session table still unreachable (recover attempt ${attempt})`,
+      );
+    }
+  }
+}
+
 function resolveAppUrl() {
   const candidates = [process.env.SHOPIFY_APP_URL, process.env.HOST];
   for (const value of candidates) {
@@ -66,7 +142,7 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(","),
   appUrl,
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: createPrismaSessionStorage(),
   distribution: AppDistribution.AppStore,
   logger: {
     level:

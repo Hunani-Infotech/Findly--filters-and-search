@@ -61,7 +61,8 @@ const EMPTY_PERFORMANCE = {
   filterCount: 0,
 };
 
-function reviewBotHomeData(shopDomain: string) {
+/** Empty home payload when auth is skipped or the shop query fails. */
+function emptyHomeData(shopDomain: string) {
   const editorUrls = themeEditorUrls(shopDomain || "example.myshopify.com");
   const steps: SetupProgress["steps"] = [
     {
@@ -161,7 +162,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const auth = await authenticateAdminAllowReviewBot(request);
   if (auth.bot) {
     const shop = new URL(request.url).searchParams.get("shop") || "";
-    return reviewBotHomeData(shop);
+    return emptyHomeData(shop);
   }
 
   const { session } = auth;
@@ -239,7 +240,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         error instanceof Error ? error.message : String(error)
       }`,
     );
-    return reviewBotHomeData(session.shop);
+    return emptyHomeData(session.shop);
   }
 };
 

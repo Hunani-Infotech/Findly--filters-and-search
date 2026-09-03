@@ -4,6 +4,11 @@ import { getWorkerCount } from "./concurrency.server";
 import { QUEUE_POLL_INTERVAL_MS } from "../constants/limits";
 import { pruneTerminalJobs } from "../lib/queues.server";
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __FINDLY_PROCESS_GUARDS__: boolean | undefined;
+}
+
 /**
  * Dedicated worker process (`npm run worker` / nohup / Hostinger cron).
  * Polls Postgres QueueJob rows — no Redis/BullMQ.
@@ -12,6 +17,16 @@ import { pruneTerminalJobs } from "../lib/queues.server";
  * Otherwise loop until SIGINT/SIGTERM.
  */
 process.env.FINDLY_WORKER_CHILD = "1";
+
+if (!globalThis.__FINDLY_PROCESS_GUARDS__) {
+  globalThis.__FINDLY_PROCESS_GUARDS__ = true;
+  process.on("unhandledRejection", (reason) => {
+    log.error("[process] unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (error) => {
+    log.error("[process] uncaughtException", error);
+  });
+}
 
 const concurrency = getWorkerCount();
 let stopping = false;

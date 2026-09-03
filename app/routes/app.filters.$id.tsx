@@ -30,6 +30,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../services/filters.server";
 import {
@@ -98,10 +99,57 @@ type ConfigState = {
   excludeCollectionGids: string[];
 };
 
+function emptyFilterEditor(treeId: string) {
+  const isNew = treeId === "new" || !treeId;
+  return {
+    treeId: isNew ? "" : treeId,
+    isNew,
+    collections: [],
+    knownCollections: [],
+    collectionTotal: 0,
+    collectionHasNext: false,
+    collectionPageSize: COLLECTION_PICKER_PAGE_SIZE,
+    usedElsewhere: {} as Record<string, boolean>,
+    allCollectionsUsedElsewhere: false,
+    catalogOptions: [],
+    mappedFacets: [],
+    facetSettings: parseFacetSettings({}),
+    config: {
+      name: "",
+      appliesToSearch: false,
+      appliesToAllProducts: false,
+      collectionGids: [] as string[],
+      excludeCollectionGids: [] as string[],
+      enabled: true,
+      enablePrice: true,
+      enableSale: true,
+      enableRating: false,
+      enableLocation: false,
+      enableAvailability: true,
+      enableVendor: true,
+      enableProductType: true,
+      enableTags: true,
+      enableOptions: true,
+      enableVariantsAsProducts: false,
+      variantAsProductOptions: "",
+      displayOrder: defaultFilterTreeDisplayOrder(),
+      displayTypes: parseDisplayTypes({}),
+      matchModes: parseMatchModes({}),
+      valueSort: parseValueSort({}),
+      rangeBounds: rangeBoundsToForm(parseRangeBounds({})),
+      ...filterConfigPriceFields(null),
+    },
+  };
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const treeId = params.id;
+  if (auth.bot) {
+    return emptyFilterEditor(String(treeId || "new"));
+  }
+  const { session } = auth;
+  const { shop } = await ensureShopAccess(session.shop);
   if (!treeId) {
     throw new Response("Not found", { status: 404 });
   }

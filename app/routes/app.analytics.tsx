@@ -19,7 +19,6 @@ import {
   loadAnalyticsDashboard,
   type AnalyticsRange,
 } from "../services/analytics.server";
-import { authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";

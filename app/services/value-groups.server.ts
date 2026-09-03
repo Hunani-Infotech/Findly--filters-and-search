@@ -55,6 +55,23 @@ export type CatalogValuesPage = {
   query: string;
 };
 
+export function emptyCatalogValuesPage(
+  sourceKey = "vendor",
+): CatalogValuesPage {
+  const key = sourceKey.trim() || "vendor";
+  return {
+    sources: [{ key: "vendor", label: "Vendor" }],
+    sourceKey: key,
+    values: [],
+    total: 0,
+    page: 0,
+    pageCount: 1,
+    showingFrom: 0,
+    showingTo: 0,
+    query: "",
+  };
+}
+
 export async function getCatalogValuesPage(
   shopId: string,
   requestedSource: string,

@@ -1,6 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import prisma from "../db.server";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 
@@ -9,7 +9,17 @@ import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
  * Avoids reloading analytics / setup on every tick while status is SYNCING.
  */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      status: "PENDING",
+      lastFullSyncAt: null,
+      lastIncrementalSyncAt: null,
+      errorLog: null,
+      updatedAt: null,
+    };
+  }
+  const { session } = auth;
   const syncJob = await recoverStuckSyncIfNeeded(session.shop);
   const shop = await prisma.shop.findUnique({
     where: { domain: session.shop },

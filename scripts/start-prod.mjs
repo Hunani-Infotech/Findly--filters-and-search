@@ -7,6 +7,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { runMigrateDeploy } from "./run-migrate-deploy.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const isWin = process.platform === "win32";
@@ -20,7 +21,11 @@ let workerRestarted = false;
 function spawnWeb() {
   return spawn(node, ["server.js"], {
     cwd: root,
-    env: { ...process.env, START_WORKER: "0" },
+    env: {
+      ...process.env,
+      START_WORKER: "0",
+      FINDLY_MIGRATIONS_RAN: "1",
+    },
     stdio: "inherit",
     windowsHide: false,
   });
@@ -76,6 +81,8 @@ function attachWorker(child) {
     );
   });
 }
+
+runMigrateDeploy();
 
 web = spawnWeb();
 attachWorker(spawnWorker());

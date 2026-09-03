@@ -54,8 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await ensureShop(auth.session.shop);
   } catch (error) {
-    // Keep the App Bridge shell on HTTP 200. Child loaders call
-    // ensureShopAccess again; do not turn a DB blip into a dead 500 surface.
+    // Stay on 200. Child loaders call ensureShopAccess again.
     log.error(
       `[app] ensureShop failed shop=${auth.session.shop}: ${
         error instanceof Error ? error.message : String(error)
@@ -129,17 +128,26 @@ export function HydrateFallback() {
 }
 
 /**
- * Shopify auth Responses (incl. session-token bounce) must use boundary.error.
- * Any other thrown Error used to rethrow into root → marketing "public page
- * failed" UI inside Admin. Keep merchants on an admin-safe surface instead.
+ * App Bridge reauth needs boundary.error. Other errors get a Polaris page —
+ * boundary.error also swallows 410/404/500 with no Shopify HTML.
  */
+function isShopifyHtmlAuthResponse(error: unknown) {
+  if (!isRouteErrorResponse(error)) return false;
+  if (error.status === 401 || error.status === 302 || error.status === 303) {
+    return true;
+  }
+  return typeof error.data === "string" && /<\s*(script|html|body)/i.test(error.data);
+}
+
 export function ErrorBoundary() {
   const error = useRouteError();
 
-  try {
-    return boundary.error(error);
-  } catch {
-    /* non-Response errors fall through */
+  if (isShopifyHtmlAuthResponse(error)) {
+    try {
+      return boundary.error(error);
+    } catch {
+      /* non-HTML Responses fall through */
+    }
   }
 
   const detail = isRouteErrorResponse(error)

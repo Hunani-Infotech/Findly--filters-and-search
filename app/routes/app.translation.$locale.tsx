@@ -9,6 +9,7 @@ import { Card, Layout, Page } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import {
   getAdminNavExtras,
@@ -84,10 +85,25 @@ function mapForLocale<T>(
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const decoded = decodeLocaleParam(params.locale);
+  if (auth.bot) {
+    const lang = {
+      code: decoded || "en",
+      name: "English",
+      complete: true,
+      isDefault: true,
+    };
+    return {
+      lang,
+      strings: mergeLocaleStrings(undefined),
+      labelFields: [...BUILTIN_LABEL_FIELDS],
+      customFields: [] as Array<{ id: string; reference: string }>,
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
-  const decoded = decodeLocaleParam(params.locale);
   const lang = resolveLang(extras.langs, decoded);
   if (!lang) return redirect("/app/translation");
 

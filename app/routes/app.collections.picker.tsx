@@ -1,6 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import {
   COLLECTION_PICKER_PAGE_SIZE,
@@ -12,9 +12,27 @@ import { listCollectionsForPicker } from "../services/collections-picker.server"
 
 /** JSON page of shop collections for the filter Applies to / Exclude pickers. */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const url = new URL(request.url);
+  if (auth.bot) {
+    const query = normalizeCollectionPickerQuery(url.searchParams.get("q"));
+    const page = normalizeCollectionPickerPage(url.searchParams.get("page"));
+    const pageSize = normalizeCollectionPickerPageSize(
+      url.searchParams.get("pageSize"),
+      COLLECTION_PICKER_PAGE_SIZE,
+    );
+    return {
+      collections: [],
+      page,
+      pageSize,
+      total: 0,
+      hasNext: false,
+      query,
+      requestId: String(url.searchParams.get("r") || ""),
+    };
+  }
+  const { session } = auth;
+  const { shop } = await ensureShopAccess(session.shop);
   const page = await listCollectionsForPicker(shop.id, {
     query: normalizeCollectionPickerQuery(url.searchParams.get("q")),
     page: normalizeCollectionPickerPage(url.searchParams.get("page")),

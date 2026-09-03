@@ -2,12 +2,10 @@ import { authenticate } from "../shopify.server";
 import { log } from "./log.server";
 
 /**
- * Shopify's authenticate.admin rejects self-identified bots with HTTP 410
- * (`isbot` → HeadlessChrome). App Store automated checks use HeadlessChrome,
- * so a bare 410 looks like a dead app surface. Soft-handle that case and still
- * return a 200 App Bridge shell for review crawlers.
+ * authenticate.admin returns 410 for bot UAs (isbot). Catch that so loaders
+ * can render an empty admin page instead of Gone.
  *
- * Real merchants (normal browsers) never hit this path.
+ * Loaders only. Actions and auth.$.tsx keep authenticate.admin.
  */
 export function isBotGoneResponse(error: unknown): error is Response {
   return error instanceof Response && error.status === 410;
