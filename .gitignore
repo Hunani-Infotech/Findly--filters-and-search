@@ -40,6 +40,10 @@ pnpm-lock.yaml
 
 npmdev.log
 
+# Local Hostinger deploy archives (never commit)
+.tmp-findly-deploy.zip
+.tmp-*-deploy.zip
+
 # Perf audit / LCP fixture outputs (regenerate locally)
 scripts/perf-audit-*.json
 scripts/perf-audit-*-log*.txt
