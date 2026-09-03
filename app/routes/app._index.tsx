@@ -27,6 +27,8 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { log } from "../lib/log.server";
 import { PLANS, ensureShopAccess, resolvePlanCaps } from "../services/billing.server";
 import prisma from "../db.server";
 import { queueFullSync } from "../sync/queue-full-sync";
@@ -39,7 +41,9 @@ import {
   getSetupProgress,
   isSetupMarkId,
   setSetupMark,
+  themeEditorUrls,
 } from "../services/setup-progress.server";
+import type { SetupProgress } from "../utils/setup-progress";
 import { useEmbeddedHref } from "../hooks/use-embedded-navigate";
 import { withEmbeddedParams } from "../utils/admin-path";
 
@@ -47,11 +51,133 @@ export { HomePageSkeleton as HydrateFallback } from "../components/admin-skeleto
 
 const SYNC_STATUS_POLL_MS = 8000;
 
+const EMPTY_PERFORMANCE = {
+  uniqueVisitors: 0,
+  ctr: 0,
+  noResultRate: 0,
+  uniqueDesktop: 0,
+  uniqueMobile: 0,
+  searchCount: 0,
+  filterCount: 0,
+};
+
+function reviewBotHomeData(shopDomain: string) {
+  const editorUrls = themeEditorUrls(shopDomain || "example.myshopify.com");
+  const steps: SetupProgress["steps"] = [
+    {
+      id: "sync",
+      number: 1,
+      title: "Sync your catalog",
+      description: "Index products and collections so filters and search stay fast.",
+      href: "/app",
+      actionLabel: "Sync catalog",
+      status: "todo",
+    },
+    {
+      id: "filters",
+      number: 2,
+      title: "Configure filters",
+      description:
+        "Keep the default filter, or add one, so collection pages can use Price, Vendor, Type, and Tags.",
+      href: "/app/filters",
+      actionLabel: "Open filters",
+      status: "todo",
+    },
+    {
+      id: "collection-filters",
+      number: 3,
+      title: "Enable Collection filters",
+      description:
+        "In the theme editor, add Collection filters to the collection template.",
+      href: editorUrls.collectionFilters,
+      actionLabel: "Open theme editor",
+      status: "todo",
+      external: true,
+    },
+    {
+      id: "product-search",
+      number: 4,
+      title: "Add Product search",
+      description:
+        "In the theme editor, add Product search to the search template (or header), then save.",
+      href: editorUrls.productSearch,
+      actionLabel: "Open theme editor",
+      status: "todo",
+      external: true,
+    },
+    {
+      id: "performance",
+      number: 5,
+      title: "Check performance",
+      description:
+        "See how shoppers use search and filters. Counts stay at zero until the widgets are live.",
+      href: "/app/analytics",
+      actionLabel: "View performance",
+      status: "todo",
+    },
+  ];
+  const themeSteps = steps.filter(
+    (step) => step.id === "collection-filters" || step.id === "product-search",
+  );
+  const setup: SetupProgress = {
+    shopDomain: shopDomain || "example.myshopify.com",
+    collectionCount: 0,
+    productCount: 0,
+    mappedFilterCount: 0,
+    discoveredMetafieldCount: 0,
+    syncStatus: "PENDING",
+    filterConfigured: false,
+    steps,
+    themeSteps,
+    nextStep: steps[0] ?? null,
+    completeCount: 0,
+    themeComplete: false,
+    allComplete: false,
+    showGuide: true,
+    editorUrls,
+  };
+
+  return {
+    setup,
+    plan: "free" as const,
+    planName: PLANS.free.name,
+    trialDaysLeft: null,
+    sync: {
+      status: "PENDING",
+      lastFullSyncAt: null,
+      lastIncrementalSyncAt: null,
+      errorLog: null,
+      productCount: 0,
+      collectionCount: 0,
+      productLimit: PLANS.free.productLimit,
+      overProductLimit: false,
+    },
+    performance: EMPTY_PERFORMANCE,
+    performanceFrom: new Date(0).toISOString(),
+  };
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    const shop = new URL(request.url).searchParams.get("shop") || "";
+    return reviewBotHomeData(shop);
+  }
+
+  const { session } = auth;
   const { shop, plan } = await ensureShopAccess(session.shop);
-  // Unstick admin "Syncing�?�" if the bulk finish webhook was missed.
-  await recoverStuckSyncIfNeeded(session.shop);
+
+  // Unstick admin "Syncing…" if the bulk finish webhook was missed.
+  try {
+    await recoverStuckSyncIfNeeded(session.shop);
+  } catch (error) {
+    log.warn(
+      `[home] recoverStuckSync skipped: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
   const [setup, syncJob, dashboard, caps] = await Promise.all([
     getSetupProgress(shop.id, session.shop),
     prisma.syncJob.findUnique({
@@ -63,7 +189,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         errorLog: true,
       },
     }),
-    loadAnalyticsDashboard(shop.id, "last_30", plan),
+    loadAnalyticsDashboard(shop.id, "last_30", plan).catch((error) => {
+      log.warn(
+        `[home] analytics skipped: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return {
+        metrics: EMPTY_PERFORMANCE,
+        from: new Date(Date.now() - 30 * MS_PER_DAY).toISOString(),
+      };
+    }),
     resolvePlanCaps(shop.id),
   ]);
 

@@ -4,9 +4,21 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { lazy, Suspense } from "react";
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import {
+  isRouteErrorResponse,
+  Outlet,
+  useLoaderData,
+  useRouteError,
+} from "react-router";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
+import {
+  AppProvider as PolarisAppProvider,
+  Banner,
+  BlockStack,
+  Card,
+  Page,
+  Text,
+} from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
@@ -14,7 +26,11 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "../styles/admin.css?url";
 
 import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
-import { authenticate } from "../shopify.server";
+import {
+  adminApiKey,
+  authenticateAdminAllowReviewBot,
+} from "../lib/admin-auth.server";
+import { log } from "../lib/log.server";
 import { ensureShop } from "../services/shop.server";
 
 const LazyAdminRouteSkeleton = lazy(() =>
@@ -30,11 +46,23 @@ export const links: LinksFunction = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  await ensureShop(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return { apiKey: adminApiKey(), bot: true as const };
+  }
 
-  // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  try {
+    await ensureShop(auth.session.shop);
+  } catch (error) {
+    log.error(
+      `[app] ensureShop failed shop=${auth.session.shop}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    throw error;
+  }
+
+  return { apiKey: adminApiKey(), bot: false as const };
 };
 
 export function shouldRevalidate({
@@ -99,8 +127,49 @@ export function HydrateFallback() {
   );
 }
 
+/**
+ * Shopify auth Responses (incl. session-token bounce) must use boundary.error.
+ * Any other thrown Error used to rethrow into root → marketing "public page
+ * failed" UI inside Admin. Keep merchants on an admin-safe surface instead.
+ */
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+
+  try {
+    return boundary.error(error);
+  } catch {
+    /* non-Response errors fall through */
+  }
+
+  const detail = isRouteErrorResponse(error)
+    ? `${error.status} ${error.statusText}`.trim()
+    : error instanceof Error
+      ? error.message
+      : null;
+
+  return (
+    <PolarisAppProvider i18n={enTranslations}>
+      <div className="findly-admin-shell">
+        <Page title="Something went wrong">
+          <Card>
+            <BlockStack gap="300">
+              <Banner tone="critical" title="Findly could not load this page">
+                <p>
+                  Try again, or reopen Findly from Shopify Admin. If this keeps
+                  happening, contact support.
+                </p>
+              </Banner>
+              {detail ? (
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {detail}
+                </Text>
+              ) : null}
+            </BlockStack>
+          </Card>
+        </Page>
+      </div>
+    </PolarisAppProvider>
+  );
 }
 
 export const headers: HeadersFunction = (headersArgs) => {

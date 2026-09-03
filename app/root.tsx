@@ -81,8 +81,8 @@ export function ErrorBoundary() {
         <PublicMessage title="Page not found" actionLabel="Go back" minimal />
       ) : (
         <PublicMessage title="Something went wrong">
-          The public page failed to load. Try again, or open Findly from Shopify
-          Admin.
+          Findly could not load this page. Try again, or open the app from
+          Shopify Admin.
         </PublicMessage>
       )}
     </Document>
