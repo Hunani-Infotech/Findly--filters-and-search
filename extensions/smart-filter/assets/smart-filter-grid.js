@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v35";
+  var STYLE_ID = "findly-grid-takeover-v36";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -125,11 +125,25 @@
     }
     return parts.join(",") + "{position:relative;min-height:22rem}";
   }
+  var BUSY_NESTED_CARD =
+    ":is(product-card,product-item,grid-item,li.grid__item,.product-card,.product-grid__item,.product-item,.grid-product,.grid-view-item,.product-block,.productitem,article.card,.sf-app-card,.card-wrapper,.card--product,.card-product,[data-product-card],.collection-product-card,.product-card-wrapper):not([" +
+    SKEL_ATTR +
+    "='1'])";
+  function gridBusyNestedHideCss() {
+    var i;
+    var parts = [".findly-grid-is-busy " + BUSY_NESTED_CARD];
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      parts.push(
+        "html.sf-filter-loading " + GRID_BUSY_HOSTS[i] + " " + BUSY_NESTED_CARD,
+      );
+    }
+    return parts.join(",") + "{display:none!important}";
+  }
   var GRID_BUSY_CSS =
     "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
     "@keyframes sf-skeleton-pulse{50%{opacity:.55}}" +
     "#findly-grid-busy-overlay{position:fixed;z-index:80;box-sizing:border-box;pointer-events:auto;" +
-    "background:rgb(255 255 255 / .28)}" +
+    "background:rgb(255 255 255 / .96)}" +
     "#findly-grid-busy-overlay::after{content:\"\";position:absolute;top:50%;left:50%;width:2rem;height:2rem;" +
     "margin:-1rem 0 0 -1rem;border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);" +
     "border-radius:50%;animation:sf-grid-spin .7s linear infinite}" +
@@ -146,6 +160,14 @@
     ".findly-grid-is-busy>" +
     GRID_RESULT_HIDE +
     "{display:none!important}" +
+    gridBusyNestedHideCss() +
+    ".findly-grid-is-busy[" +
+    SKEL_ATTR +
+    "='1'],.findly-grid-is-busy [" +
+    SKEL_ATTR +
+    "='1'],html.sf-filter-loading [" +
+    SKEL_ATTR +
+    "='1']{opacity:1!important;visibility:visible!important;position:relative;z-index:81}" +
     gridLoadingHideCss("html.sf-filter-loading") +
     gridLoadingMinCss("html.sf-filter-loading") +
     GRID_COUNT_HIDE +
@@ -708,6 +730,14 @@
     node.style.setProperty("display", "none", "important");
   }
 
+  function forceCardVisible(node) {
+    if (!node || !node.style) return;
+    node.style.removeProperty("opacity");
+    node.style.removeProperty("visibility");
+    node.style.setProperty("opacity", "1");
+    node.style.setProperty("visibility", "visible");
+  }
+
   function showEl(node) {
     if (!node || node.nodeType !== 1) return;
     if (
@@ -716,13 +746,17 @@
       !(node.classList && node.classList.contains("hidden"))
     ) {
       /* Still clear display:none if we set it earlier. */
-      if (!node.style || !node.style.getPropertyValue("display")) return;
+      if (!node.style || !node.style.getPropertyValue("display")) {
+        forceCardVisible(node);
+        return;
+      }
     }
     node.hidden = false;
     node.removeAttribute("hidden");
     node.removeAttribute("data-smart-filter-hidden");
     if (node.classList) node.classList.remove("hidden");
     node.style.removeProperty("display");
+    forceCardVisible(node);
   }
 
   function restoreThemeHidden(node) {
@@ -1566,6 +1600,9 @@
       try {
         paintGridBusy(null, false);
       } catch (err) {
+        try {
+          removeBusyOverlay();
+        } catch (overlayErr) {}
         setFilterLoading(false);
       }
     }, 2500);
@@ -2122,6 +2159,7 @@
       card.getAttribute("data-findly-theme-hidden") !== "1";
     showEl(card);
     restoreThemeHidden(card);
+    forceCardVisible(card);
     if (!card.querySelectorAll) return;
     /* Skip descendant walk when the card was already visible and has no Findly hides. */
     if (
@@ -2708,11 +2746,34 @@
     syncToolbarLoading(on);
   }
 
+  function restoreVisibleCardsOpaque(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var cards = scope.querySelectorAll(
+      "product-card, product-item, grid-item, li.grid__item, .product-card, .product-grid__item, .product-item, .grid-product, .grid-view-item, .product-block, .sf-app-card, .card-wrapper, [data-product-card]",
+    );
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      var el = cards[i];
+      if (!el || el.getAttribute("data-smart-filter-hidden") === "true") continue;
+      if (el.getAttribute(SKEL_ATTR) === "1") continue;
+      if (el.hidden || (el.classList && el.classList.contains("hidden"))) continue;
+      forceCardVisible(el);
+    }
+  }
+
   function paintGridBusy(host, on) {
-    host = skeletonMountHost(host || discoverBusyHost());
     if (!on) {
-      clearGridSkeletons(host);
-      if (!host) clearGridSkeletons(document);
+      removeBusyOverlay();
+      setFilterLoading(false);
+      try {
+        host = skeletonMountHost(host || discoverBusyHost());
+      } catch (err) {
+        host = host || null;
+      }
+      try {
+        clearGridSkeletons(host);
+        if (!host) clearGridSkeletons(document);
+      } catch (skelErr) {}
       var busyHosts = document.querySelectorAll(".findly-grid-is-busy");
       var b;
       for (b = 0; b < busyHosts.length; b++) {
@@ -2724,10 +2785,13 @@
       for (b = 0; b < marked.length; b++) {
         marked[b].removeAttribute("data-findly-skel-host");
       }
-      setFilterLoading(false);
       removeBusyOverlay();
+      try {
+        restoreVisibleCardsOpaque(host || document);
+      } catch (visErr) {}
       return;
     }
+    host = skeletonMountHost(host || discoverBusyHost());
     if (!host) return;
     var stale = document.querySelectorAll(".findly-grid-is-busy");
     var s;

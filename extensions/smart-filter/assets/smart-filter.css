@@ -1258,7 +1258,7 @@
   z-index: 80;
   box-sizing: border-box;
   pointer-events: auto;
-  background: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.96);
 }
 
 #findly-grid-busy-overlay::after {
@@ -1306,6 +1306,68 @@ html.sf-filter-loading ol.product-grid > :not([data-findly-skel="1"]):not([data-
 html.sf-filter-loading .product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty),
 html.sf-filter-loading .sf-app-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty) {
   display: none !important;
+}
+
+.findly-grid-is-busy :is(
+  product-card,
+  product-item,
+  grid-item,
+  li.grid__item,
+  .product-card,
+  .product-grid__item,
+  .product-item,
+  .grid-product,
+  .grid-view-item,
+  .product-block,
+  .productitem,
+  article.card,
+  .sf-app-card,
+  .card-wrapper,
+  .card--product,
+  .card-product,
+  [data-product-card],
+  .collection-product-card,
+  .product-card-wrapper
+):not([data-findly-skel="1"]),
+html.sf-filter-loading :is(
+  .main-collection-grid,
+  #product-grid,
+  #ProductGrid,
+  ul.product-grid,
+  ol.product-grid,
+  .product-grid,
+  .sf-app-grid
+) :is(
+  product-card,
+  product-item,
+  grid-item,
+  li.grid__item,
+  .product-card,
+  .product-grid__item,
+  .product-item,
+  .grid-product,
+  .grid-view-item,
+  .product-block,
+  .productitem,
+  article.card,
+  .sf-app-card,
+  .card-wrapper,
+  .card--product,
+  .card-product,
+  [data-product-card],
+  .collection-product-card,
+  .product-card-wrapper
+):not([data-findly-skel="1"]) {
+  display: none !important;
+}
+
+.findly-grid-is-busy[data-findly-skel="1"],
+.findly-grid-is-busy [data-findly-skel="1"],
+html.sf-filter-loading [data-findly-skel="1"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative;
+  z-index: 81;
 }
 
 html.sf-filter-loading nav.pagination,
