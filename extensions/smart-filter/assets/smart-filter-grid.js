@@ -2863,6 +2863,14 @@
     }
   }
 
+  function cardCacheUsable(card) {
+    return Boolean(
+      card &&
+        card.nodeType === 1 &&
+        !(card.isConnected === false && card._sfMounted),
+    );
+  }
+
   function productLookupFromWidget(widget) {
     var products = (widget && widget._lastProducts) || [];
     if (
@@ -2895,22 +2903,38 @@
       var base = key.split("::")[0];
       var card =
         widget._cardCache[key] || (base && widget._cardCache[base]);
-      if (!card || card.nodeType !== 1) continue;
+      if (!cardCacheUsable(card)) {
+        if (widget._cardCache[key] && !cardCacheUsable(widget._cardCache[key])) {
+          delete widget._cardCache[key];
+        }
+        continue;
+      }
       card = resolveOuterThemeCard(card);
       if (!card) continue;
+      if (!cardCacheUsable(card)) {
+        delete widget._cardCache[key];
+        continue;
+      }
       var product = byKey[key] || (base && byKey[base]);
       if (product) applyProductDataToThemeCard(card, product, widget);
       widget._cardCache[key] = card;
       if (
+        card.isConnected &&
         card.parentNode === parent &&
         !card.hidden &&
         card.getAttribute("data-smart-filter-hidden") !== "true"
       ) {
+        card._sfMounted = true;
         n += 1;
         continue;
       }
       placeCardInGrid(parent, card);
       showCardTree(card);
+      card._sfMounted = true;
+      if (card.isConnected === false) {
+        delete widget._cardCache[key];
+        continue;
+      }
       n += 1;
     }
     return n;
@@ -3393,16 +3417,25 @@
       /* Never clone a sample card without API product data — that leaves the sample title/price. */
       if (!product || !(product.title || product.handle)) continue;
       var cached = cache[key] || (base && cache[base]);
+      if (cached && !cardCacheUsable(cached)) {
+        if (cache[key] && !cardCacheUsable(cache[key])) delete cache[key];
+        cached = null;
+      }
       var existing = cached ? resolveOuterThemeCard(cached) || cached : null;
+      if (existing && !cardCacheUsable(existing)) {
+        existing = null;
+      }
       if (existing && !cardIsInHost(existing, parent)) {
         applyProductDataToThemeCard(existing, product, widget);
         placeCardInGrid(parent, existing);
         showCardTree(existing);
+        existing._sfMounted = true;
         continue;
       }
       if (existing && cardIsInHost(existing, parent) && !isFragileThemeCard(existing)) {
         applyProductDataToThemeCard(existing, product, widget);
         showCardTree(existing);
+        existing._sfMounted = true;
         continue;
       }
       if (
@@ -3413,6 +3446,7 @@
       ) {
         applyProductDataToThemeCard(existing, product, widget);
         showCardTree(existing);
+        existing._sfMounted = true;
         continue;
       }
       /* Avoid sync layout (offsetHeight) per card — use structural fragility only. */
@@ -3433,6 +3467,7 @@
       if (base && key === base && !cache[base]) cache[base] = clone;
       placeCardInGrid(parent, clone);
       showCardTree(clone);
+      clone._sfMounted = true;
     }
   }
 
@@ -6437,6 +6472,24 @@
       return ok;
     };
 
+    var origRemoveImported = proto.removeImportedCards;
+    proto.removeImportedCards = function () {
+      if (origRemoveImported) origRemoveImported.call(this);
+      var native = this._nativeHandles || {};
+      var cache = this._cardCache || {};
+      Object.keys(cache).forEach(function (handle) {
+        if (native[handle]) return;
+        var card = cache[handle];
+        if (card && card.parentNode) {
+          card.parentNode.removeChild(card);
+        }
+        delete cache[handle];
+      });
+      this._importedHandles = {};
+      this._themePagesCached = {};
+      this._themeNoMore = false;
+    };
+
     var origMissing = proto.missingHandles;
     proto.missingHandles = function (handles) {
       var cache = this._cardCache || {};
@@ -6449,7 +6502,9 @@
         if (!key || seen[key]) continue;
         seen[key] = true;
         var base = key.split("::")[0];
-        if (cache[key] || (base && cache[base])) continue;
+        var cachedCard = cache[key] || (base && cache[base]);
+        if (cardCacheUsable(cachedCard)) continue;
+        if (cache[key] && !cardCacheUsable(cache[key])) delete cache[key];
         out.push(base || key);
       }
       if (out.length || !origMissing) return out;
@@ -6460,12 +6515,22 @@
     proto.fetchThemePage = function (page) {
       var self = this;
       if (!origThemePage) return Promise.resolve(false);
+      var pending =
+        self._ensureHandles ||
+        self._visibleHandles ||
+        self._shownHandles;
+      if (
+        self._themePagesCached &&
+        self._themePagesCached[page] &&
+        Number(page) > 1 &&
+        pending &&
+        pending.length &&
+        self.missingHandles(pending).length
+      ) {
+        delete self._themePagesCached[page];
+      }
       return origThemePage.call(this, page).then(function (ok) {
         if (!self._themeNoMore) return ok;
-        var pending =
-          self._ensureHandles ||
-          self._visibleHandles ||
-          self._shownHandles;
         if (pending && pending.length && self.missingHandles(pending).length) {
           self._themeNoMore = false;
         }
@@ -6510,7 +6575,9 @@
           if (!key) continue;
           var base = key.split("::")[0];
           var cache = self._cardCache || {};
-          if (cache[key] || (base && cache[base])) return true;
+          if (cardCacheUsable(cache[key]) || (base && cardCacheUsable(cache[base]))) {
+            return true;
+          }
         }
         return false;
       }
@@ -6645,7 +6712,7 @@
       for (i = 0; i < nodes.length; i++) {
         var node = nodes[i];
         var handle = handleFromCard(node);
-        if (!handle || cache[handle]) continue;
+        if (!handle || cardCacheUsable(cache[handle])) continue;
         try {
           var imported = document.importNode(node, true);
           cache[handle] = imported;

@@ -729,6 +729,7 @@
         if (next > 1) {
           this._keepThemeCards = false;
           this._sfNativeListing = false;
+          this._sfPaintedReq = -1;
         } else {
           delete this._keepThemeCards;
         }

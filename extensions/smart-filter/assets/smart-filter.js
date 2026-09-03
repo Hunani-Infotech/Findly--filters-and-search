@@ -3896,12 +3896,16 @@
 
   Widget.prototype.removeImportedCards = function () {
     var self = this;
-    Object.keys(this._importedHandles).forEach(function (handle) {
+    Object.keys(this._importedHandles || {}).forEach(function (handle) {
       var card = self._cardCache[handle];
       if (card && card.parentNode) {
         card.parentNode.removeChild(card);
       }
+      delete self._cardCache[handle];
     });
+    this._importedHandles = {};
+    this._themePagesCached = {};
+    this._themeNoMore = false;
   };
 
   Widget.prototype.restoreThemePaging = function () {
@@ -4006,8 +4010,13 @@
     if (this._loadingPage && this._inflight) return;
     this._loadingPage = true;
     /* Page 2+ takeover only — page 1 default browse must restore Liquid. */
-    if (next > 1) this._keepThemeCards = false;
-    else delete this._keepThemeCards;
+    if (next > 1) {
+      this._keepThemeCards = false;
+      this._sfNativeListing = false;
+      this._sfPaintedReq = -1;
+    } else {
+      delete this._keepThemeCards;
+    }
     this.page = next;
     this.renderPager();
     this.fetchFilters({ page: next });
