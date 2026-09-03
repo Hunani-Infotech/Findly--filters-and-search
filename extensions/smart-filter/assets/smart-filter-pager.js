@@ -277,21 +277,23 @@
         (ctrl && ctrl.className) ||
         "",
     ).toLowerCase();
-    if (
-      rel === "prev" ||
-      label.indexOf("previous") !== -1 ||
-      cls.indexOf("pagination__item--prev") !== -1 ||
-      cls.indexOf("pagination-prev") !== -1
-    ) {
-      return "prev";
+    /* Dawn reuses pagination__item--prev on the rotated "Next" caret — prefer
+       aria-label / rel over class names. */
+    if (rel === "prev" || label.indexOf("previous") !== -1) return "prev";
+    if (rel === "next" || (/\bnext\b/.test(label) && !/^\d+$/.test(text))) {
+      return "next";
     }
     if (
-      rel === "next" ||
-      (/\bnext\b/.test(label) && !/^\d+$/.test(text)) ||
       cls.indexOf("pagination__item--next") !== -1 ||
       cls.indexOf("pagination-next") !== -1
     ) {
       return "next";
+    }
+    if (
+      cls.indexOf("pagination__item--prev") !== -1 ||
+      cls.indexOf("pagination-prev") !== -1
+    ) {
+      return "prev";
     }
     if (text === "…" || text === "..." || text === "…") return "ellipsis";
     if (ctrl.getAttribute("aria-current") === "page") return "current";
