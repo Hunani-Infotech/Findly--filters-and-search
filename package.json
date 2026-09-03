@@ -2,7 +2,7 @@
   "name": "findly-smart-filters-search",
   "private": true,
   "scripts": {
-    "build": "prisma generate && react-router build",
+    "build": "prisma generate && node ./scripts/run-migrate-deploy.mjs && react-router build",
     "dev": "node ./scripts/dev.mjs",
     "dev:shopify": "node ./scripts/minify-theme-extension.mjs && node ./node_modules/@shopify/cli/bin/run.js app dev",
     "theme:minify": "node ./scripts/minify-theme-extension.mjs",

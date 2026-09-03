@@ -1,6 +1,5 @@
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
-import { runMigrateDeploy } from "./scripts/run-migrate-deploy.mjs";
 
 // `npm start` is the production entry. Unset NODE_ENV must not look like dev
 // (HMAC bypass, detailed /health, debug Shopify logs).
@@ -19,9 +18,8 @@ if (!globalThis.__FINDLY_PROCESS_GUARDS__) {
   });
 }
 
-if (process.env.FINDLY_MIGRATIONS_RAN !== "1") {
-  runMigrateDeploy({ attempts: 3, retryMs: 3000 });
-}
+// Migrations: `npm run build` (Hostinger) or `scripts/start-prod.mjs` — not here.
+// Passenger boots this file per worker; sync migrate/spawn causes gateway 503s.
 
 const app = express();
 app.disable("x-powered-by");
