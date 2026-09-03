@@ -4005,7 +4005,9 @@
     if (next === current) return;
     if (this._loadingPage && this._inflight) return;
     this._loadingPage = true;
-    this._keepThemeCards = false;
+    /* Page 2+ takeover only — page 1 default browse must restore Liquid. */
+    if (next > 1) this._keepThemeCards = false;
+    else delete this._keepThemeCards;
     this.page = next;
     this.renderPager();
     this.fetchFilters({ page: next });

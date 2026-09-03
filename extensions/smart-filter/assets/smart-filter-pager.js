@@ -726,8 +726,12 @@
       var current = Math.max(1, Number(this.page) || 1);
       if (next !== current) {
         this._loadingPage = false;
-        this._keepThemeCards = false;
-        this._sfNativeListing = false;
+        if (next > 1) {
+          this._keepThemeCards = false;
+          this._sfNativeListing = false;
+        } else {
+          delete this._keepThemeCards;
+        }
       } else if (this._loadingPage && !this._inflight) {
         this._loadingPage = false;
       }

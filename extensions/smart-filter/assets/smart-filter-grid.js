@@ -41,7 +41,8 @@
     ":not([" +
     SKEL_ATTR +
     "='1']):not([data-findly-skel-host='1']):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count)" +
-    ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)";
+    ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)" +
+    ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)";
   var GRID_BUSY_HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -126,7 +127,7 @@
     return parts.join(",") + "{position:relative;min-height:22rem}";
   }
   var BUSY_NESTED_CARD =
-    ":is(product-card,product-item,grid-item,li.grid__item,.product-card,.product-grid__item,.product-item,.grid-product,.grid-view-item,.product-block,.productitem,article.card,.sf-app-card,.card-wrapper,.card--product,.card-product,[data-product-card],.collection-product-card,.product-card-wrapper):not([" +
+    ":is(product-card,product-item,grid-item,li.grid__item,.grid__item,.product-card,.product-grid__item,.product-item,.grid-product,.grid-view-item,.product-block,.productitem,article.card,.sf-app-card,.card-wrapper,.card--product,.card-product,[data-product-card],.collection-product-card,.product-card-wrapper):not([" +
     SKEL_ATTR +
     "='1'])";
   function gridBusyNestedHideCss() {
@@ -143,7 +144,7 @@
     "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
     "@keyframes sf-skeleton-pulse{50%{opacity:.55}}" +
     "#findly-grid-busy-overlay{position:fixed;z-index:80;box-sizing:border-box;pointer-events:auto;" +
-    "background:rgb(255 255 255 / .96)}" +
+    "background:#fff}" +
     "#findly-grid-busy-overlay::after{content:\"\";position:absolute;top:50%;left:50%;width:2rem;height:2rem;" +
     "margin:-1rem 0 0 -1rem;border:2px solid rgb(0 0 0 / .12);border-top-color:var(--sf-accent,#111);" +
     "border-radius:50%;animation:sf-grid-spin .7s linear infinite}" +
@@ -1598,12 +1599,17 @@
     window.__findlyReadyFailsafe = window.setTimeout(function () {
       window.__findlyReadyFailsafe = 0;
       try {
+        removeBusyOverlay();
+      } catch (overlayErr) {}
+      try {
         paintGridBusy(null, false);
       } catch (err) {
         try {
           removeBusyOverlay();
-        } catch (overlayErr) {}
-        setFilterLoading(false);
+        } catch (overlayErr2) {}
+        try {
+          setFilterLoading(false);
+        } catch (loadErr) {}
       }
     }, 2500);
   }
@@ -2546,7 +2552,9 @@
       if (!node || isTooWideBusyHost(node)) break;
       if (matchesBusyHost(node)) found = node;
     }
-    return found || el;
+    if (found) return found;
+    if (el && !isTooWideBusyHost(el)) return el;
+    return null;
   }
 
   function isBusyPainted() {
@@ -2755,6 +2763,7 @@
     for (i = 0; i < cards.length; i++) {
       var el = cards[i];
       if (!el || el.getAttribute("data-smart-filter-hidden") === "true") continue;
+      if (el.getAttribute("data-findly-theme-hidden") === "1") continue;
       if (el.getAttribute(SKEL_ATTR) === "1") continue;
       if (el.hidden || (el.classList && el.classList.contains("hidden"))) continue;
       forceCardVisible(el);
@@ -2792,7 +2801,10 @@
       return;
     }
     host = skeletonMountHost(host || discoverBusyHost());
-    if (!host) return;
+    if (!host) {
+      setFilterLoading(true);
+      return;
+    }
     var stale = document.querySelectorAll(".findly-grid-is-busy");
     var s;
     for (s = 0; s < stale.length; s++) {
@@ -3428,11 +3440,10 @@
     if (widget) widget._keepThemeCards = false;
   }
 
-  function isNativeThemeGridState(widget) {
+  /** Idle default browse (ignores page / variant payload). */
+  function isIdleUnfilteredListing(widget) {
     if (!widget) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
-    /* Page 2+ must use Findly handles — Liquid only rendered page 1 cards. */
-    if (Math.max(1, Number(widget.page) || 1) > 1) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
     if (widget.collectionQuery) return false;
     if (widget.searchQuery) return false;
@@ -3443,14 +3454,23 @@
     ) {
       return false;
     }
-    if (widget.hasVariantCards && widget.hasVariantCards()) return false;
     return true;
+  }
+
+  function isNativeThemeGridState(widget) {
+    if (!widget) return false;
+    /* Page 2+ must use Findly handles — Liquid only rendered page 1 cards.
+       Do not treat API variantId rows as non-native: that blocked Liquid
+       restore after paging and re-painted API page-1 order. */
+    if (Math.max(1, Number(widget.page) || 1) > 1) return false;
+    return isIdleUnfilteredListing(widget);
   }
 
   function restoreNativeThemeGridState(widget) {
     if (!widget) return;
     delete widget._keepThemeCards;
     if (widget.restoreThemePaging) widget.restoreThemePaging();
+    if (widget.removeImportedCards) widget.removeImportedCards();
     restoreNativeGridOrder(widget);
   }
 
@@ -3621,7 +3641,25 @@
     }
     widget._importingCards = true;
     widget._reapplyingGrid = true;
+    /* If card import hangs, never leave busy overlay / dead pager forever. */
+    if (widget._importBusyTimer) {
+      window.clearTimeout(widget._importBusyTimer);
+      widget._importBusyTimer = 0;
+    }
+    widget._importBusyTimer = window.setTimeout(function () {
+      widget._importBusyTimer = 0;
+      if (widget._reqId !== reqId) return;
+      widget._importingCards = false;
+      widget._reapplyingGrid = false;
+      widget._loadingPage = false;
+      if (widget.setGridBusy) widget.setGridBusy(false);
+      if (widget.renderPager) widget.renderPager();
+    }, 12000);
     var done = function () {
+      if (widget._importBusyTimer) {
+        window.clearTimeout(widget._importBusyTimer);
+        widget._importBusyTimer = 0;
+      }
       if (widget._reqId === reqId) widget._importingCards = false;
       try {
         finish();
@@ -3697,6 +3735,7 @@
       restoreNativeGridOrder(widget);
       /* Native restore must not leave page 2/3 clones visible. */
       restrictNative = true;
+      if (widget.removeImportedCards) widget.removeImportedCards();
     }
     var cards = collectTrayAndGridCards(parent);
     var tray = cardTray();
@@ -6694,10 +6733,12 @@
           this._sfPaged = true;
           this._sfNativeListing = false;
           markGridTakeover(this);
-        } else if (isNativeThemeGridState(this)) {
-          /* Back on page 1 (or first load): restore Liquid Product A order.
-             applyNativeFilterGrid(null) hides page 2/3 clones via snapshot. */
+        } else if (isIdleUnfilteredListing(this)) {
+          /* Back on page 1 (or first load): restore Liquid Product A order
+             even if this.page was still 2 and _lastProducts had variantIds. */
           this._sfPaged = false;
+          delete this._keepThemeCards;
+          this.page = 1;
           prepareNativeListingRestore(this);
         } else {
           this._sfNativeListing = false;
@@ -6740,6 +6781,9 @@
           function (err) {
             if (!opts.append) {
               self._sfNativeListing = false;
+              self._importingCards = false;
+              self._loadingPage = false;
+              if (self.setGridBusy) self.setGridBusy(false);
               publishListingSuggestions(self);
             }
             return Promise.reject(err);
@@ -6754,7 +6798,10 @@
       this._importingCards = false;
       this._sfPaged = false;
       this.page = 1;
+      delete this._keepThemeCards;
       if (origClear) origClear.apply(this, arguments);
+      /* After facets reset — restore Liquid page 1 before/with the refetch. */
+      prepareNativeListingRestore(this);
     };
 
     var origRestoreHash = proto.restoreFromHash;
