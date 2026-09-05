@@ -7,9 +7,16 @@ import styles from "./public-shell.module.css";
 
 function Mark() {
   return (
-    <span className={styles.mark} aria-hidden="true">
-      F
-    </span>
+    <svg className={styles.mark} viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="6" fill="currentColor" />
+      <path
+        d="M7.5 9.2h13M7.5 14h9.2M7.5 18.8h5.4"
+        fill="none"
+        stroke="#fbf6ee"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
@@ -80,6 +87,7 @@ export function PublicMessage({
   const body = (
     <div className={styles.narrow}>
       <div className={styles.card}>
+        <p className={styles.kicker}>Findly</p>
         <h1 className={styles.cardTitle}>{title}</h1>
         {children ? <p className={styles.cardCopy}>{children}</p> : null}
         <Link className={styles.button} to={actionTo}>
@@ -90,7 +98,11 @@ export function PublicMessage({
   );
 
   if (minimal) {
-    return <div className={`${styles.page} ${styles.messageOnly}`}>{body}</div>;
+    return (
+      <div className={`${styles.page} ${styles.messageOnly}`}>
+        {body}
+      </div>
+    );
   }
 
   return <PublicShell>{body}</PublicShell>;
@@ -158,8 +170,8 @@ export function PublicShell({ children }: { children: ReactNode }) {
               Findly
             </strong>
             <p>
-              Collection filters and storefront search for Shopify. Built by
-              SRH Web Agency.
+              Collection filters and storefront search that live in your
+              Shopify theme — not a bolted-on storefront.
             </p>
           </div>
           <nav className={styles.footerCol} aria-label="Product">
@@ -174,12 +186,14 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link to="/terms">Terms</Link>
           </nav>
           <nav className={styles.footerCol} aria-label="Contact">
-            <p>Contact</p>
+            <p>Studio</p>
+            <span className={styles.footerNote}>SRH Web Agency</span>
             <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>
           </nav>
         </div>
         <p className={styles.footerMeta}>
-          © {new Date().getFullYear()} SRH Web Agency. All rights reserved.
+          © {new Date().getFullYear()} SRH Web Agency. Shopify is a trademark of
+          Shopify Inc.
         </p>
       </footer>
     </div>

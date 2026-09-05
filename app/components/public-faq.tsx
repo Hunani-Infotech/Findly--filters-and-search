@@ -192,7 +192,7 @@ export function PublicFaq() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        <p className={styles.pill}>FAQs</p>
+        <p className={styles.kicker}>Answers</p>
         <h1>Frequently asked questions</h1>
         <p className={styles.lede}>
           Search by topic or keyword — install, filters, search, billing, and

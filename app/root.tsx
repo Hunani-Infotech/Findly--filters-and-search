@@ -21,6 +21,12 @@ export const links: LinksFunction = () => [
     rel: "stylesheet",
     href: "https://cdn.shopify.com/static/fonts/inter/v4/styles.css",
   },
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap",
+  },
 ];
 
 function Document({ children }: { children: ReactNode }) {
@@ -78,7 +84,10 @@ export function ErrorBoundary() {
   return (
     <Document>
       {notFound ? (
-        <PublicMessage title="Page not found" actionLabel="Go back" minimal />
+        <PublicMessage title="Page not found" actionLabel="Go back" minimal>
+          That address isn’t a Findly page. Head home, or open the app from
+          Shopify Admin.
+        </PublicMessage>
       ) : (
         <PublicMessage title="Something went wrong">
           Findly could not load this page. Try again, or open the app from

@@ -15,5 +15,10 @@ export const loader = () => {
 };
 
 export default function NotFound() {
-  return <PublicMessage title="Page not found" actionLabel="Go back" minimal />;
+  return (
+    <PublicMessage title="Page not found" actionLabel="Go back" minimal>
+      That address isn’t a Findly page. Head home, or open the app from Shopify
+      Admin.
+    </PublicMessage>
+  );
 }

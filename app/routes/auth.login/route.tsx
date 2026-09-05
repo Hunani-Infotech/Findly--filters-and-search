@@ -48,6 +48,7 @@ export default function Auth() {
     <PublicShell>
       <div className={shell.loginLayout}>
         <div className={shell.loginCopy}>
+          <p className={shell.kicker}>Merchant access</p>
           <h1>Open Findly in Shopify Admin</h1>
           <p>
             Use the shop domain you install apps with. Shopify will ask you to
