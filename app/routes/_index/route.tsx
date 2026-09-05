@@ -276,6 +276,35 @@ export default function App() {
         </div>
       </section>
 
+      <section className={styles.helpBand} aria-labelledby="help-heading">
+        <div>
+          <p className={styles.eyebrow}>Help</p>
+          <h2 className={styles.sectionTitle} id="help-heading">
+            Search answers before you write in
+          </h2>
+          <p className={styles.sectionLede}>
+            Install, filters, search extras, plans, and data handling — jump
+            straight to a matching FAQ.
+          </p>
+        </div>
+        <form className={styles.helpSearch} action="/faq" method="get" role="search">
+          <label className={styles.helpLabel} htmlFor="home-faq-q">
+            Search the FAQ
+          </label>
+          <input
+            id="home-faq-q"
+            className={styles.helpInput}
+            type="search"
+            name="q"
+            placeholder="e.g. metafield filters, refund, theme block"
+            autoComplete="off"
+          />
+          <button className={styles.helpSubmit} type="submit">
+            Search FAQ
+          </button>
+        </form>
+      </section>
+
       <section className={styles.band} aria-labelledby="trust-heading">
         <div className={styles.sectionHead}>
           <p className={styles.eyebrow}>Built for Shopify</p>
@@ -302,6 +331,7 @@ export default function App() {
           </li>
         </ul>
         <p className={styles.legalRow}>
+          <Link to="/faq">FAQ</Link>
           <Link to="/privacy">Privacy policy</Link>
           <Link to="/terms">Terms of service</Link>
           <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>

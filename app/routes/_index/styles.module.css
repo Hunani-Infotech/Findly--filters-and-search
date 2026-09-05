@@ -300,6 +300,71 @@
   color: #57534e;
 }
 
+.helpBand {
+  display: grid;
+  gap: 1.15rem;
+  margin: 0 0 1.5rem;
+  padding: 1.5rem 1.25rem 1.65rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 16px;
+  background:
+    radial-gradient(420px 160px at 100% 0%, rgb(59 183 94 / 12%), transparent 70%),
+    #fff;
+}
+
+.helpSearch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.helpLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.helpInput {
+  flex: 1 1 14rem;
+  min-height: 2.85rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  background: #fafaf9;
+  color: #1c1917;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.helpInput:focus,
+.helpInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.helpSubmit {
+  flex: none;
+  min-height: 2.85rem;
+  padding: 0 1.05rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.helpSubmit:hover {
+  background: var(--accent-hover);
+}
+
 .band {
   margin: 0 0 2.5rem;
   padding: 1.5rem 1.25rem 1.65rem;
@@ -408,6 +473,12 @@
     grid-template-columns: 1.1fr 0.9fr;
     align-items: center;
     gap: 2.5rem;
+  }
+
+  .helpBand {
+    grid-template-columns: 1.1fr 0.9fr;
+    align-items: center;
+    gap: 2rem;
   }
 }
 

@@ -15,10 +15,12 @@ function Mark() {
 
 function NavLinks({
   pathname,
+  onFaq,
   onPrivacy,
   onTerms,
 }: {
   pathname: string;
+  onFaq: boolean;
   onPrivacy: boolean;
   onTerms: boolean;
 }) {
@@ -29,6 +31,13 @@ function NavLinks({
     <>
       <Link className={linkClass(false)} to={{ pathname: "/", hash: "features" }}>
         Features
+      </Link>
+      <Link
+        className={linkClass(onFaq)}
+        to="/faq"
+        aria-current={onFaq ? "page" : undefined}
+      >
+        FAQ
       </Link>
       <Link
         className={linkClass(onPrivacy)}
@@ -111,9 +120,10 @@ export function PublicPending() {
 
 export function PublicShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const onFaq = pathname === "/faq";
   const onPrivacy = pathname === "/privacy";
   const onTerms = pathname === "/terms";
-  const navProps = { pathname, onPrivacy, onTerms };
+  const navProps = { pathname, onFaq, onPrivacy, onTerms };
 
   return (
     <div className={styles.page}>
@@ -155,6 +165,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           <nav className={styles.footerCol} aria-label="Product">
             <p>Product</p>
             <Link to={{ pathname: "/", hash: "features" }}>Features</Link>
+            <Link to="/faq">FAQ</Link>
             <Link to="/auth/login">Log in</Link>
           </nav>
           <nav className={styles.footerCol} aria-label="Legal">

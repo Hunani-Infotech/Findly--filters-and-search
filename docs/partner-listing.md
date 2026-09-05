@@ -124,6 +124,71 @@ Primary method: **Recurring charge**, with one plan marked **Free**. Monthly bil
 
 **Pro** — Everything in Standard, up to 5,000 products and 25 metafield filters, 7-day trial then billed every 30 days.
 
+### Pricing details (listing form)
+
+Paste on **Manage listing → Edit language → Pricing details**. Display name max **18** characters. Do **not** put product/metafield limits in the display name — Shopify already shows the price on the card. Match each block to the plan key (`free` / `standard` / `pro`), not to the order on the page (Pro and Standard can appear swapped).
+
+**Optional pricing URL**
+
+```
+https://deeppink-manatee-141983.hostingersite.com/terms#billing
+```
+
+#### Plan: free
+
+Display name:
+
+```
+Free
+```
+
+Top features (add one per line):
+
+```
+Collection filters in your theme
+Storefront product search
+Instant search suggestions
+Theme app block, no theme code
+Up to 200 indexed products
+Up to 5 metafield filters
+```
+
+#### Plan: standard ($11.99/month, 7-day trial — 1,000 products / 12 metafields)
+
+Display name:
+
+```
+Standard
+```
+
+Top features:
+
+```
+Everything in the Free plan
+Up to 1,000 indexed products
+Up to 12 metafield filters
+7-day free trial included
+More catalog and filter capacity
+```
+
+#### Plan: pro ($19.99/month, 7-day trial — 5,000 products / 25 metafields)
+
+Display name:
+
+```
+Pro
+```
+
+Top features:
+
+```
+Everything in the Standard plan
+Up to 5,000 indexed products
+Up to 25 metafield filters
+7-day free trial included
+Best for larger catalogs
+```
+
 ---
 
 ## Listing media
