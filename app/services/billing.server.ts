@@ -21,7 +21,7 @@ export const PLANS = {
     interval: "EVERY_30_DAYS" as const,
     productLimit: 1000,
     filterLimit: 12,
-    trialDays: 7,
+    trialDays: 0,
   },
   pro: {
     key: "pro",
@@ -31,7 +31,7 @@ export const PLANS = {
     interval: "EVERY_30_DAYS" as const,
     productLimit: 5000,
     filterLimit: 25,
-    trialDays: 7,
+    trialDays: 0,
   },
 } as const;
 

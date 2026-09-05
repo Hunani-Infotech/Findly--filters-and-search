@@ -296,9 +296,9 @@ export default function BillingPage() {
                     </Text>
                   ) : (
                     <Text as="p" tone="subdued">
-                      Status: {subStatus}. {currentPlan.trialDays}-day trial,
-                      then ${currentPlan.amount.toFixed(2)}{" "}
-                      {currentPlan.currencyCode} every 30 days.
+                      Status: {subStatus}. $
+                      {currentPlan.amount.toFixed(2)}{" "}
+                      {currentPlan.currencyCode} every 30 days. No trial.
                     </Text>
                   )}
                 </BlockStack>
@@ -374,9 +374,7 @@ export default function BillingPage() {
                       Up to {standard.productLimit} products and{" "}
                       {standard.filterLimit} metafield filters
                     </List.Item>
-                    <List.Item>
-                      {standard.trialDays}-day trial, then billed every 30 days
-                    </List.Item>
+                    <List.Item>Billed every 30 days. No trial.</List.Item>
                   </List>
                   <Button
                     loading={upgradingPlan === "standard"}
@@ -416,9 +414,7 @@ export default function BillingPage() {
                       Up to {pro.productLimit} products and {pro.filterLimit}{" "}
                       metafield filters
                     </List.Item>
-                    <List.Item>
-                      {pro.trialDays}-day trial, then billed every 30 days
-                    </List.Item>
+                    <List.Item>Billed every 30 days. No trial.</List.Item>
                   </List>
                   <Button
                     variant="primary"
@@ -440,9 +436,9 @@ export default function BillingPage() {
 
             <Banner tone="info">
               <p>
-                Compare plans in the three cards above. Standard and Pro include
-                a {standard.trialDays}-day trial. There is no 30-day money-back
-                guarantee in Findly billing.
+                Compare plans in the three cards above. Paid plans bill
+                immediately through Shopify — there is no trial and no 30-day
+                money-back guarantee in Findly billing.
               </p>
             </Banner>
           </BlockStack>

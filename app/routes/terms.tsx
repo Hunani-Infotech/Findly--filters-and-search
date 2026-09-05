@@ -113,16 +113,15 @@ export default function TermsOfService() {
           <li>
             <strong>Free</strong> — $0.00. No Shopify App Subscription
             charge. Up to 200 products in the Findly index and 5 metafield
-            filter mappings. No trial (the plan is already free).
+            filter mappings. No trial.
           </li>
           <li>
-            <strong>Standard</strong> — $11.99 USD every 30 days after a
-            7-day trial. Up to 1,000 products and 12 metafield filter
-            mappings.
+            <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
+            Up to 1,000 products and 12 metafield filter mappings.
           </li>
           <li>
-            <strong>Pro</strong> — $19.99 USD every 30 days after a 7-day
-            trial. Up to 5,000 products and 25 metafield filter mappings.
+            <strong>Pro</strong> — $19.99 USD every 30 days. No trial. Up to
+            5,000 products and 25 metafield filter mappings.
           </li>
         </ul>
         <p>
@@ -140,10 +139,10 @@ export default function TermsOfService() {
           entitled plan (typically Free if no paid subscription is active).
         </p>
         <p>
-          Trials apply only when Shopify starts a paid Standard or Pro
-          subscription. There is <strong>no 30-day money-back
-          guarantee</strong>. Refunds, if any, are handled through Shopify’s
-          billing tools and policies, not as a separate Findly cash refund.
+          There is <strong>no free trial</strong> on any plan and{" "}
+          <strong>no 30-day money-back guarantee</strong>. Refunds, if any,
+          are handled through Shopify’s billing tools and policies, not as a
+          separate Findly cash refund.
         </p>
         <p>
           If you exceed plan limits, Findly may stop indexing additional

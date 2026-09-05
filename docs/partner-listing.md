@@ -114,15 +114,15 @@ Primary method: **Recurring charge**, with one plan marked **Free**. Monthly bil
 
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
-| Free | $0.00 — no Shopify charge | — | 200 | 5 |
-| Standard | $11.99 USD | 7 days | 1,000 | 12 |
-| Pro | $19.99 USD | 7 days | 5,000 | 25 |
+| Free | $0.00 — no Shopify charge | None | 200 | 5 |
+| Standard | $11.99 USD | None | 1,000 | 12 |
+| Pro | $19.99 USD | None | 5,000 | 25 |
 
 **Free** — Collection filters, storefront search, Theme App Extension, up to 5 metafield filters, up to 200 products.
 
-**Standard** — Everything in Free, up to 1,000 products and 12 metafield filters, 7-day trial then billed every 30 days.
+**Standard** — Everything in Free, up to 1,000 products and 12 metafield filters, billed every 30 days with no trial.
 
-**Pro** — Everything in Standard, up to 5,000 products and 25 metafield filters, 7-day trial then billed every 30 days.
+**Pro** — Everything in Standard, up to 5,000 products and 25 metafield filters, billed every 30 days with no trial.
 
 ### Pricing details (listing form)
 
@@ -153,7 +153,7 @@ Up to 200 indexed products
 Up to 5 metafield filters
 ```
 
-#### Plan: standard ($11.99/month, 7-day trial — 1,000 products / 12 metafields)
+#### Plan: standard ($11.99/month, no trial — 1,000 products / 12 metafields)
 
 Display name:
 
@@ -167,11 +167,11 @@ Top features:
 Everything in the Free plan
 Up to 1,000 indexed products
 Up to 12 metafield filters
-7-day free trial included
+Billed every 30 days, no trial
 More catalog and filter capacity
 ```
 
-#### Plan: pro ($19.99/month, 7-day trial — 5,000 products / 25 metafields)
+#### Plan: pro ($19.99/month, no trial — 5,000 products / 25 metafields)
 
 Display name:
 
@@ -185,7 +185,7 @@ Top features:
 Everything in the Standard plan
 Up to 5,000 indexed products
 Up to 25 metafield filters
-7-day free trial included
+Billed every 30 days, no trial
 Best for larger catalogs
 ```
 

@@ -100,7 +100,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "billing",
     question: "What plans are available?",
     answer:
-      "Free ($0, 200 indexed products, 5 metafield filters), Standard ($11.99 USD every 30 days after a 7-day trial, 1,000 products, 12 metafield filters), and Pro ($19.99 USD every 30 days after a 7-day trial, 5,000 products, 25 metafield filters). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
+      "Free ($0, 200 indexed products, 5 metafield filters), Standard ($11.99 USD every 30 days, 1,000 products, 12 metafield filters), and Pro ($19.99 USD every 30 days, 5,000 products, 25 metafield filters). There is no free trial on any plan. Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
   },
   {
     id: "change-plan",
