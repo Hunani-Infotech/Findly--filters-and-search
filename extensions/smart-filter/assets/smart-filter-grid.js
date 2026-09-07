@@ -326,6 +326,7 @@
       var raw = String(window.location.hash || "").replace(/^#/, "");
       if (!raw) {
         resetWidgetFilterState(widget);
+        widget._sfPaged = false;
         prepareNativeListingRestore(widget);
         widget.fetchFilters();
         return;
@@ -3551,8 +3552,8 @@
 
   function prepareNativeListingRestore(widget) {
     if (!widget) return;
-    /* Explicit restore (Clear All / empty hash) ends a paging session. */
-    widget._sfPaged = false;
+    /* Keep _sfPaged so the numbered pager stays Findly-driven after
+       returning to Liquid page 1. Clear All / empty hash still clear it. */
     widget.page = 1;
     if (!isNativeThemeGridState(widget)) return;
     widget._sfNativeListing = true;
@@ -3985,6 +3986,7 @@
   function applyNativeAfterGrid(self) {
     if (!self) return;
     if (self._importingCards) return;
+    if (self._loadingPage || self._inflight) return;
     /* Same filter cycle already painted — skip a second full hide/show/reorder pass. */
     if (alreadyPaintedGrid(self) && shouldTakeOverThemeCards(self)) return;
     if (self.isAppGridMode && self.isAppGridMode()) {
@@ -5254,6 +5256,7 @@
       debounceTimer = setTimeout(function () {
         debounceTimer = null;
         if (repairingLayout || self._reapplyingGrid) return;
+        if (self._loadingPage || self._inflight) return;
         self._findlyObserverCount = (self._findlyObserverCount || 0) + 1;
         if (self._findlyObserverCount > 8) {
           try {
@@ -6427,7 +6430,11 @@
 
     var origLegacy = proto.applyThemeGridLegacy;
     proto.applyThemeGridLegacy = function (data, handles) {
-      if (!shouldTakeOverThemeCards(this)) {
+      if (
+        !shouldTakeOverThemeCards(this) &&
+        Math.max(1, Number(this.page) || 1) <= 1 &&
+        !this._loadingPage
+      ) {
         applyNativeFilterGrid(null, this._gridParent);
         return;
       }
@@ -6455,7 +6462,7 @@
       if (parent && !isPageShellHost(parent)) this._gridParent = parent;
       if (!(this.isAppGridMode && this.isAppGridMode())) {
         mountCachedCards(this, sliced.handles, parent);
-        if (shouldTakeOverThemeCards(this)) {
+        if (shouldTakeOverThemeCards(this) || Math.max(1, Number(this.page) || 1) > 1) {
           applyNativeFilterGrid(sliced.handles, parent);
         } else {
           applyNativeFilterGrid(null, parent);
@@ -6570,7 +6577,7 @@
           ? origEnsureCards.apply(this, arguments)
           : Promise.resolve(false);
       }
-      if (this._sfNativeListing && isNativeThemeGridState(this)) {
+      if (this._sfNativeListing && isNativeThemeGridState(this) && !this._loadingPage) {
         return Promise.resolve(true);
       }
       if (!this.missingHandles(handles).length) return Promise.resolve(true);
@@ -6793,7 +6800,11 @@
         ) || this._gridParent,
       );
       if (host && !isPageShellHost(host)) this._gridParent = host;
-      if (!shouldTakeOverThemeCards(this)) {
+      if (
+        !shouldTakeOverThemeCards(this) &&
+        Math.max(1, Number(this.page) || 1) <= 1 &&
+        !this._loadingPage
+      ) {
         applyNativeFilterGrid(null, host);
         markGridPainted(this);
         return true;
@@ -6855,9 +6866,8 @@
           this._sfNativeListing = false;
           markGridTakeover(this);
         } else if (isIdleUnfilteredListing(this)) {
-          /* Back on page 1 (or first load): restore Liquid Product A order
-             even if this.page was still 2 and _lastProducts had variantIds. */
-          this._sfPaged = false;
+          /* Back on page 1 (or first load): restore Liquid Product A order.
+             Keep _sfPaged so numbered pager clicks stay on Findly. */
           delete this._keepThemeCards;
           this.page = 1;
           prepareNativeListingRestore(this);
@@ -6868,9 +6878,11 @@
       }
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
+      var reqId = this._reqId;
       if (result && typeof result.then === "function") {
         return result.then(
           function (value) {
+            if (self._reqId !== reqId) return value;
             var host = preferProductCardGrid(resolveCardHost(self._gridParent));
             var handles = self._visibleHandles || self._shownHandles;
             if (
@@ -6900,6 +6912,7 @@
             return value;
           },
           function (err) {
+            if (self._reqId !== reqId) return Promise.reject(err);
             if (!opts.append) {
               self._sfNativeListing = false;
               self._importingCards = false;
@@ -7078,7 +7091,11 @@
           (this.ensureGridParent && this.ensureGridParent()),
       );
       if (parent) this._gridParent = parent;
-      if (!shouldTakeOverThemeCards(this)) {
+      if (
+        !shouldTakeOverThemeCards(this) &&
+        Math.max(1, Number(this.page) || 1) <= 1 &&
+        !this._loadingPage
+      ) {
         applyNativeFilterGrid(null, parent);
         markGridPainted(this);
         syncGridEmptyState(this, parent, null, 0);

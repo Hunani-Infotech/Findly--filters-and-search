@@ -4006,9 +4006,11 @@
   Widget.prototype.goToPage = function (page) {
     var next = Math.max(1, Math.floor(Number(page) || 1));
     var current = Math.max(1, Number(this.page) || 1);
-    if (next === current) return;
-    if (this._loadingPage && this._inflight) return;
+    if (next === 1 && current === 1 && !this._inflight && !this._loadingPage) {
+      return;
+    }
     this._loadingPage = true;
+    this._sfPaged = true;
     /* Page 2+ takeover only — page 1 default browse must restore Liquid. */
     if (next > 1) {
       this._keepThemeCards = false;

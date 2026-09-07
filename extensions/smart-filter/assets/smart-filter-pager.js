@@ -117,6 +117,9 @@
 
   function shouldDriveThemePager(widget) {
     if (!widget) return false;
+    /* Keep rewritten page numbers (data-sf-page) after returning to page 1
+       so clicks stay on Findly AJAX instead of theme section reloads. */
+    if (widget._sfPaged) return true;
     /* Page 2+ needs rewritten theme chrome. Page 1 default browse uses the
        original Liquid pager + product cards so order matches first paint. */
     if (Math.max(1, Number(widget.page) || 1) > 1) return true;
@@ -674,6 +677,7 @@
           var current = Math.max(1, Number(widget.page) || 1);
           if (role === "prev") page = current - 1;
           else if (role === "next") page = current + 1;
+          else if (role === "current") page = current;
         }
         if (!page || page < 1) return;
         event.preventDefault();
@@ -724,7 +728,8 @@
     proto.goToPage = function (page) {
       var next = Math.max(1, Math.floor(Number(page) || 1));
       var current = Math.max(1, Number(this.page) || 1);
-      if (next !== current) {
+      this._sfPaged = true;
+      if (next !== current || this._inflight || this._loadingPage) {
         this._loadingPage = false;
         if (next > 1) {
           this._keepThemeCards = false;
@@ -733,8 +738,6 @@
         } else {
           delete this._keepThemeCards;
         }
-      } else if (this._loadingPage && !this._inflight) {
-        this._loadingPage = false;
       }
       if (origGoToPage) return origGoToPage.call(this, next);
     };
