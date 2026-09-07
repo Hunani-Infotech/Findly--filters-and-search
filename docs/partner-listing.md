@@ -15,7 +15,7 @@ Match `app/routes/app.tsx` NavMenu. Paste only the copy in this file.
 | Translation | `/app/translation` | Yes | Widget label locales |
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
 | Analytics | `/app/analytics` | Yes | Search and filter usage |
-| Pricing plans | `/app/billing` | Yes (pricing fields) | Free / Standard / Pro |
+| Pricing plans | `/app/billing` | Yes (pricing fields) | Development / Standard / Pro |
 | Contact | `/app/contact` | No | Listing support: `info@srhwebagency.com` |
 
 Catalog sync is on **Home**. `/app/sync` redirects there; it is not a NavMenu item.
@@ -110,19 +110,19 @@ info@srhwebagency.com
 
 ### Pricing (must match Billing API)
 
-Primary method: **Recurring charge**, with one plan marked **Free**. Monthly billing: Free / Standard / Pro.
+Primary method: **Recurring charge**, with one plan marked **Free** (display name **Development**). Monthly billing: Development / Standard / Pro. **No trial.** Live shops start Standard at install.
 
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
-| Free | $0.00 — no Shopify charge | None | 200 | 5 |
-| Standard | $11.99 USD | None | 1,000 | 12 |
-| Pro | $19.99 USD | None | 5,000 | 25 |
+| Development | $0.00 — no Shopify charge | None | Live: 0. Development stores: full catalog | Live: 0 |
+| Standard | $11.99 USD | None | 200 | 5 |
+| Pro | $19.99 USD | None | 1,000 | 12 |
 
-**Free** — Collection filters, storefront search, Theme App Extension, up to 5 metafield filters, up to 200 products.
+**Development** — $0 for Shopify development / partner stores only. All features included. Not a live-store plan.
 
-**Standard** — Everything in Free, up to 1,000 products and 12 metafield filters, billed every 30 days with no trial.
+**Standard** — Live catalogs: up to 200 products and 5 metafield filters. Charge starts at install (no trial).
 
-**Pro** — Everything in Standard, up to 5,000 products and 25 metafield filters, billed every 30 days with no trial.
+**Pro** — Up to 1,000 products and 12 metafield filters. No trial.
 
 ### Pricing details (listing form)
 
@@ -139,21 +139,20 @@ https://deeppink-manatee-141983.hostingersite.com/terms#billing
 Display name:
 
 ```
-Free
+Development
 ```
 
 Top features (add one per line):
 
 ```
-Collection filters in your theme
-Storefront product search
-Instant search suggestions
-Theme app block, no theme code
-Up to 200 indexed products
-Up to 5 metafield filters
+All features in development
+Configure filters and search UI
+Validate before going live
+For development and partner stores
+Not for live shops
 ```
 
-#### Plan: standard ($11.99/month, no trial — 1,000 products / 12 metafields)
+#### Plan: standard ($11.99/month, no trial — 200 products / 5 metafields)
 
 Display name:
 
@@ -164,14 +163,14 @@ Standard
 Top features:
 
 ```
-Everything in the Free plan
-Up to 1,000 indexed products
-Up to 12 metafield filters
-Billed every 30 days, no trial
-More catalog and filter capacity
+Live catalog indexing
+Up to 200 indexed products
+Up to 5 metafield filters
+Starts at install, no trial
+Collection filters and search
 ```
 
-#### Plan: pro ($19.99/month, no trial — 5,000 products / 25 metafields)
+#### Plan: pro ($19.99/month, no trial — 1,000 products / 12 metafields)
 
 Display name:
 
@@ -182,11 +181,11 @@ Pro
 Top features:
 
 ```
-Everything in the Standard plan
-Up to 5,000 indexed products
-Up to 25 metafield filters
+Everything in Standard
+Up to 1,000 indexed products
+Up to 12 metafield filters
 Billed every 30 days, no trial
-Best for larger catalogs
+For growing catalogs
 ```
 
 ---

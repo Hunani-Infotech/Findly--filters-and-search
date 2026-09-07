@@ -13,7 +13,7 @@ Launch product = collection filters + storefront search + Theme App Extension, p
 - Search extras: pinnings, synonyms, redirects
 - Analytics dashboard (filter + search usage)
 - Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
-- Plans: Free / Standard / Pro (product + metafield caps)
+- Plans: Development (dev-only) / Standard / Pro
 
 **Do not advertise as finished:** AI/ML semantic ranking, drag-drop theme editor.
 
@@ -65,9 +65,9 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 | Plan | Price | Caps | Includes |
 |---|---|---|---|
-| **Free** | $0 | 200 products · 5 metafield filters | Filters, search (+ extras), analytics, translation, integrations, Theme Extension |
-| **Standard** | $11.99 / 30 days · no trial | 1,000 products · 12 metafield filters | Same product, higher caps |
-| **Pro** | $19.99 / 30 days · no trial | 5,000 products · 25 metafield filters | Same product, highest caps |
+| **Development** | $0 | Live: 0 products. Development stores: full catalog | All features, development stores only |
+| **Standard** | $11.99 / 30 days · no trial | 200 products · 5 metafield filters | Live plan (previous Free caps), billed from install |
+| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 12 metafield filters | Previous Standard caps |
 
 Search extras and analytics are **not** separate SKUs — they ship on every plan. Caps differentiate plans.
 
@@ -75,5 +75,5 @@ Search extras and analytics are **not** separate SKUs — they ship on every pla
 
 - Tech decision locked: React Router 7 official template, not Next.js/Express
 - Product = filters + search (+ extras) + analytics + Theme App Extension
-- Plans = Free / Standard / Pro by product and metafield caps
+- Plans = Development (dev stores only) / Standard / Pro
 - Remaining risk is **live Hostinger + storefront QA**, not re-building search from scratch

@@ -40,6 +40,7 @@ import {
   isBillingTestMode,
   isDevUnlockLimits,
   isPaidPlanKey,
+  refreshPartnerDevelopment,
   syncActiveSubscriptions,
 } from "../services/billing.server";
 
@@ -56,6 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       currentPlan: "free" as const,
       testMode: false,
       devUnlockLimits: false,
+      partnerDevelopment: false,
       subscription: null,
       usage: {
         productCount: 0,
@@ -83,6 +85,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  try {
+    await refreshPartnerDevelopment(admin, shop.id);
+    shop = (await ensureShopAccess(session.shop)).shop;
+  } catch {
+    // keep last persisted partnerDevelopment
+  }
+
   const limits = await enforcePlanLimits(shop.id);
 
   return {
@@ -90,6 +99,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     currentPlan: limits.plan,
     testMode: isBillingTestMode(),
     devUnlockLimits: isDevUnlockLimits(),
+    partnerDevelopment: shop.partnerDevelopment,
     subscription: shop.subscription,
     usage: {
       productCount: limits.productCount,
@@ -209,7 +219,7 @@ export default function BillingPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("notice") === "downgraded") {
-      shopify.toast.show("You are on the Free plan.");
+      shopify.toast.show("You are on the Development plan.");
     }
   }, [shopify]);
 
@@ -264,12 +274,37 @@ export default function BillingPage() {
             {data.devUnlockLimits && (
               <Banner tone="info">
                 <p>
-                  Dev unlock is on: Free plan uses Pro product/filter caps for
+                  Dev unlock is on: Development uses full catalog caps for
                   local testing ({data.usage.productLimit} products /{" "}
                   {data.usage.filterLimit} metafield filters).
                 </p>
               </Banner>
             )}
+
+            {data.partnerDevelopment &&
+              data.currentPlan === "free" &&
+              !data.devUnlockLimits && (
+                <Banner tone="info">
+                  <p>
+                    This is a Shopify development store. All Findly features are
+                    free here so you can configure filters and search before
+                    going live.
+                  </p>
+                </Banner>
+              )}
+
+            {data.currentPlan === "free" &&
+              !data.partnerDevelopment &&
+              !data.devUnlockLimits && (
+                <Banner tone="warning">
+                  <p>
+                    Development is not a live-store plan. Approve the Standard
+                    charge ($
+                    {standard.amount.toFixed(2)} every 30 days, no trial) to
+                    index your catalog.
+                  </p>
+                </Banner>
+              )}
 
             {!data.usage.withinLimits && (
               <Banner tone="warning">
@@ -328,19 +363,16 @@ export default function BillingPage() {
                     {free.name}
                   </Text>
                   <Text as="p" variant="headingLg">
-                    ${free.amount.toFixed(2)}/month
+                    Free
                   </Text>
                   <Text as="p" tone="subdued">
-                    Ideal for individuals &amp; small teams
+                    Development stores only — nothing for live shops
                   </Text>
                   <List>
-                    <List.Item>Collection filters (price, availability, vendor, type, tags)</List.Item>
-                    <List.Item>Storefront search via Theme App Extension</List.Item>
-                    <List.Item>Theme App Extension widget (left, right, or top)</List.Item>
-                    <List.Item>
-                      Metafield filters up to {free.filterLimit} mappings
-                    </List.Item>
-                    <List.Item>Up to {free.productLimit} products</List.Item>
+                    <List.Item>All features included in development</List.Item>
+                    <List.Item>Configure filters and search before going live</List.Item>
+                    <List.Item>For development and partner test stores</List.Item>
+                    <List.Item>Live shops start Standard on install</List.Item>
                   </List>
                   {data.currentPlan === "free" ? (
                     <Button disabled>Current plan</Button>
@@ -351,7 +383,7 @@ export default function BillingPage() {
                       disabled={Boolean(upgradingPlan) || cancelling}
                       onClick={() => setDowngradeOpen(true)}
                     >
-                      Downgrade to Free
+                      Downgrade to Development
                     </Button>
                   )}
                 </BlockStack>
@@ -366,15 +398,17 @@ export default function BillingPage() {
                     ${standard.amount.toFixed(2)} / 30 days
                   </Text>
                   <Text as="p" tone="subdued">
-                    More products and metafield filters
+                    Live store plan — billed from install
                   </Text>
                   <List>
-                    <List.Item>Everything in {free.name}</List.Item>
+                    <List.Item>
+                      Collection filters, storefront search, theme app block
+                    </List.Item>
                     <List.Item>
                       Up to {standard.productLimit} products and{" "}
                       {standard.filterLimit} metafield filters
                     </List.Item>
-                    <List.Item>Billed every 30 days. No trial.</List.Item>
+                    <List.Item>Starts on install. No trial.</List.Item>
                   </List>
                   <Button
                     loading={upgradingPlan === "standard"}
@@ -406,7 +440,7 @@ export default function BillingPage() {
                     ${pro.amount.toFixed(2)} / 30 days
                   </Text>
                   <Text as="p" tone="subdued">
-                    Best value for larger catalogs
+                    Larger live catalogs
                   </Text>
                   <List>
                     <List.Item>Everything in Standard</List.Item>
@@ -448,9 +482,9 @@ export default function BillingPage() {
       <Modal
         open={downgradeOpen}
         onClose={() => setDowngradeOpen(false)}
-        title="Downgrade to Free?"
+        title="Downgrade to Development?"
         primaryAction={{
-          content: "Downgrade to Free",
+          content: "Downgrade to Development",
           destructive: true,
           loading: cancelling,
           onAction: () =>
@@ -469,8 +503,8 @@ export default function BillingPage() {
         <Modal.Section>
           <BlockStack gap="200">
             <Text as="p">
-              This cancels your Shopify app subscription and moves the shop to
-              Free immediately.
+              This cancels your Shopify app subscription. Live stores are not
+              included on Development.
             </Text>
             {onPaid ? (
               <Text as="p">

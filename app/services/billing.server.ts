@@ -5,12 +5,12 @@ import { createTtlCache } from "../lib/read-cache.server";
 export const PLANS = {
   free: {
     key: "free",
-    name: "Free",
+    name: "Development",
     amount: 0,
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
-    productLimit: 200,
-    filterLimit: 5,
+    productLimit: 0,
+    filterLimit: 0,
     trialDays: 0,
   },
   standard: {
@@ -19,8 +19,8 @@ export const PLANS = {
     amount: 11.99,
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
-    productLimit: 1000,
-    filterLimit: 12,
+    productLimit: 200,
+    filterLimit: 5,
     trialDays: 0,
   },
   pro: {
@@ -29,8 +29,8 @@ export const PLANS = {
     amount: 19.99,
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
-    productLimit: 5000,
-    filterLimit: 25,
+    productLimit: 1000,
+    filterLimit: 12,
     trialDays: 0,
   },
 } as const;
@@ -53,6 +53,9 @@ export function planKeyFromName(name: string | null | undefined): PlanKey {
     }
   }
   if (normalized.includes("standard")) return "standard";
+  if (normalized === "free" || normalized.includes("development")) {
+    return "free";
+  }
   if (
     normalized === "professional" ||
     normalized.includes("findly pro") ||
@@ -85,9 +88,44 @@ export function isAllowedShopifyConfirmationUrl(url: string): boolean {
   }
 }
 
-/** Local/dev only: Free plan uses Pro product/filter caps without a paid subscription. */
+/** Local/dev only: Development plan uses full catalog caps without a paid subscription. */
 export function isDevUnlockLimits() {
   return (process.env.DEV_UNLOCK_LIMITS ?? "false").toLowerCase() === "true";
+}
+
+/** Development stores get the full product, not live Standard/Pro caps. */
+const DEVELOPMENT_STORE_CAPS = {
+  productLimit: 5000,
+  filterLimit: 25,
+} as const;
+
+function resolveNumericCaps(
+  shop: {
+    partnerDevelopment?: boolean;
+    subscription?: {
+      productLimit?: number | null;
+      filterLimit?: number | null;
+    } | null;
+  } | null,
+  planKey: PlanKey,
+): { productLimit: number; filterLimit: number; unlocked: boolean } {
+  if (isDevUnlockLimits() || (planKey === "free" && shop?.partnerDevelopment)) {
+    return {
+      productLimit: DEVELOPMENT_STORE_CAPS.productLimit,
+      filterLimit: DEVELOPMENT_STORE_CAPS.filterLimit,
+      unlocked: true,
+    };
+  }
+  const plan = PLANS[planKey];
+  const productLimit =
+    planKey !== "free" && shop?.subscription?.productLimit
+      ? shop.subscription.productLimit
+      : plan.productLimit;
+  const filterLimit =
+    planKey !== "free" && shop?.subscription?.filterLimit
+      ? shop.subscription.filterLimit
+      : plan.filterLimit;
+  return { productLimit, filterLimit, unlocked: false };
 }
 
 async function getOrCreateShop(domain: string) {
@@ -149,19 +187,12 @@ export async function resolvePlanCaps(shopId: string): Promise<{
     };
   }
   const planKey = getShopPlan(shop);
-  const unlocked = isDevUnlockLimits();
-  const plan = unlocked ? PLANS.pro : PLANS[planKey];
-  const productLimit = unlocked
-    ? PLANS.pro.productLimit
-    : planKey !== "free" && shop.subscription?.productLimit
-      ? shop.subscription.productLimit
-      : plan.productLimit;
-  const filterLimit = unlocked
-    ? PLANS.pro.filterLimit
-    : planKey !== "free" && shop.subscription?.filterLimit
-      ? shop.subscription.filterLimit
-      : plan.filterLimit;
-  return { plan: planKey, filterLimit, productLimit };
+  const caps = resolveNumericCaps(shop, planKey);
+  return {
+    plan: planKey,
+    filterLimit: caps.filterLimit,
+    productLimit: caps.productLimit,
+  };
 }
 
 export async function resolveFilterLimit(shopId: string): Promise<number> {
@@ -175,18 +206,11 @@ async function loadPlanLimits(shopId: string) {
   }
 
   const planKey = getShopPlan(shop);
-  const unlocked = isDevUnlockLimits();
-  const plan = unlocked ? PLANS.pro : PLANS[planKey];
-  const productLimit = unlocked
-    ? PLANS.pro.productLimit
-    : planKey !== "free" && shop.subscription?.productLimit
-      ? shop.subscription.productLimit
-      : plan.productLimit;
-  const filterLimit = unlocked
-    ? PLANS.pro.filterLimit
-    : planKey !== "free" && shop.subscription?.filterLimit
-      ? shop.subscription.filterLimit
-      : plan.filterLimit;
+  const caps = resolveNumericCaps(shop, planKey);
+  const productLimit = caps.productLimit;
+  const filterLimit = caps.filterLimit;
+  const unlocked = caps.unlocked;
+  const plan = PLANS[planKey];
 
   const [productCount, filterCount] = await Promise.all([
     prisma.productFacet.count({ where: { shopId } }),
@@ -251,6 +275,99 @@ type GraphqlAdmin = {
     options?: { variables?: Record<string, unknown> },
   ) => Promise<Response>;
 };
+
+const SHOP_PARTNER_DEVELOPMENT_QUERY = `#graphql
+query ShopPartnerDevelopment {
+  shop {
+    plan {
+      partnerDevelopment
+    }
+  }
+}`;
+
+export async function refreshPartnerDevelopment(
+  admin: GraphqlAdmin,
+  shopId: string,
+) {
+  try {
+    const response = await admin.graphql(SHOP_PARTNER_DEVELOPMENT_QUERY);
+    const json = (await response.json()) as {
+      data?: { shop?: { plan?: { partnerDevelopment?: boolean } } };
+    };
+    const partnerDevelopment = Boolean(
+      json.data?.shop?.plan?.partnerDevelopment,
+    );
+    const current = await findShopByIdCached(shopId);
+    if (current?.partnerDevelopment === partnerDevelopment) {
+      return partnerDevelopment;
+    }
+    const shop = await prisma.shop.update({
+      where: { id: shopId },
+      data: { partnerDevelopment },
+      include: { subscription: true },
+    });
+    rememberShop(shop);
+    planUsageCache.del(shopId);
+    return partnerDevelopment;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Live shops must start Standard immediately (no trial). Development stores stay free.
+ * Returns a Shopify confirmation URL once; PENDING shops are not billed again here.
+ */
+export async function startStandardSubscriptionIfLive(
+  admin: GraphqlAdmin,
+  shopDomain: string,
+  returnUrl: string,
+): Promise<{ confirmationUrl: string } | null> {
+  const { shop } = await ensureShopAccess(shopDomain);
+  await refreshPartnerDevelopment(admin, shop.id);
+  const latest = await findShopByIdCached(shop.id);
+  if (!latest) return null;
+  if (latest.partnerDevelopment || isDevUnlockLimits()) return null;
+  if (hasActivePaidSubscription(latest.subscription)) return null;
+  const status = (latest.subscription?.status ?? "").toUpperCase();
+  if (status === "PENDING" || status === "ACCEPTED") return null;
+
+  const plan = PLANS.standard;
+  const result = await createAppSubscription(admin, returnUrl, "standard");
+  const errors = result?.userErrors ?? [];
+  if (errors.length || !result?.confirmationUrl) return null;
+  if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) return null;
+
+  if (result.appSubscription?.id) {
+    await prisma.subscription.upsert({
+      where: { shopId: latest.id },
+      create: {
+        shopId: latest.id,
+        shopifySubscriptionId: result.appSubscription.id,
+        planName: plan.name,
+        status: result.appSubscription.status || "PENDING",
+        test: isBillingTestMode(),
+        productLimit: plan.productLimit,
+        filterLimit: plan.filterLimit,
+      },
+      update: {
+        shopifySubscriptionId: result.appSubscription.id,
+        planName: plan.name,
+        status: result.appSubscription.status || "PENDING",
+        test: isBillingTestMode(),
+        productLimit: plan.productLimit,
+        filterLimit: plan.filterLimit,
+      },
+    });
+    await prisma.shop.update({
+      where: { id: latest.id },
+      data: { plan: plan.key },
+    });
+    planUsageCache.del(latest.id);
+  }
+
+  return { confirmationUrl: result.confirmationUrl };
+}
 
 export async function createAppSubscription(
   admin: GraphqlAdmin,

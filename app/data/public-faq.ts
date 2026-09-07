@@ -100,14 +100,14 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "billing",
     question: "What plans are available?",
     answer:
-      "Free ($0, 200 indexed products, 5 metafield filters), Standard ($11.99 USD every 30 days, 1,000 products, 12 metafield filters), and Pro ($19.99 USD every 30 days, 5,000 products, 25 metafield filters). There is no free trial on any plan. Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
+      "Development ($0, Shopify development / partner stores only, all features included). Live shops are not on Development. Standard ($11.99 USD every 30 days, 200 products, 5 metafield filters) starts at install with no trial. Pro ($19.99 USD every 30 days, 1,000 products, 12 metafield filters). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
   },
   {
     id: "change-plan",
     category: "billing",
     question: "How do I change or cancel a plan?",
     answer:
-      "Switch plans in Findly → Pricing plans without reinstalling. Paid upgrades create or replace a Shopify charge you must approve in Admin. Uninstalling cancels the Shopify subscription according to Shopify’s billing rules. If you decline a new charge, you stay on your current entitled plan (typically Free if no paid subscription is active).",
+      "Switch plans in Findly → Pricing plans without reinstalling. Paid upgrades create or replace a Shopify charge you must approve in Admin. Uninstalling cancels the Shopify subscription according to Shopify’s billing rules. If you decline a new charge, you stay on Development (no live catalog) until you approve Standard or Pro.",
   },
   {
     id: "refunds",

@@ -60,6 +60,8 @@ model Shop {
   uninstalledAt DateTime?
   /// Denormalized plan label (kept in sync with Subscription / PLANS)
   plan          String    @default("free")
+  /// Shopify Admin `shop.plan.partnerDevelopment` — Development is fully unlocked
+  partnerDevelopment Boolean @default(false)
 
   filterConfigs         FilterConfig[]
   metafieldMappings     MetafieldMapping[]

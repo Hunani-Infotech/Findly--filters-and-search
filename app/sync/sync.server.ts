@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { enforcePlanLimits } from "../services/billing.server";
+import { enforcePlanLimits, refreshPartnerDevelopment } from "../services/billing.server";
 import { bumpCatalogGeneration } from "../lib/catalog-cache.server";
 import { COLLECTION_REBUILD_DELAY_MS, SAMPLE_TEXT_MAX } from "../constants/limits";
 import { log } from "../lib/log.server";
@@ -647,6 +647,7 @@ export async function startFullSync(shopDomain: string) {
 
   try {
     const admin = await getAdminForShop(shopDomain);
+    await refreshPartnerDevelopment(admin, shop.id);
 
     await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
 

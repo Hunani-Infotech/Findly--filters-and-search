@@ -32,6 +32,12 @@ import {
 } from "../lib/admin-auth.server";
 import { log } from "../lib/log.server";
 import { ensureShop } from "../services/shop.server";
+import {
+  isAllowedShopifyConfirmationUrl,
+  startStandardSubscriptionIfLive,
+} from "../services/billing.server";
+import { appUrl } from "../shopify.server";
+import { embeddedAdminAppUrl } from "../utils/admin-path";
 
 const LazyAdminRouteSkeleton = lazy(() =>
   import("../components/admin-skeletons").then((m) => ({
@@ -53,7 +59,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     await ensureShop(auth.session.shop);
+    const path = new URL(request.url).pathname;
+    const skipBillingKickoff =
+      path.includes("/billing") ||
+      new URL(request.url).searchParams.has("charge_id");
+    if (!skipBillingKickoff) {
+      const returnUrl =
+        embeddedAdminAppUrl(auth.session.shop, "/app/billing") ??
+        `${appUrl.replace(/\/$/, "")}/app/billing?shop=${encodeURIComponent(auth.session.shop)}`;
+      const started = await startStandardSubscriptionIfLive(
+        auth.admin,
+        auth.session.shop,
+        returnUrl,
+      );
+      if (
+        started?.confirmationUrl &&
+        isAllowedShopifyConfirmationUrl(started.confirmationUrl)
+      ) {
+        return auth.redirect(started.confirmationUrl, { target: "_top" });
+      }
+    }
   } catch (error) {
+    if (error instanceof Response) throw error;
     // Stay on 200. Child loaders call ensureShopAccess again.
     log.error(
       `[app] ensureShop failed shop=${auth.session.shop}: ${

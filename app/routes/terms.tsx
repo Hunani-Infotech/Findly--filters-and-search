@@ -111,17 +111,18 @@ export default function TermsOfService() {
         </p>
         <ul>
           <li>
-            <strong>Free</strong> — $0.00. No Shopify App Subscription
-            charge. Up to 200 products in the Findly index and 5 metafield
-            filter mappings. No trial.
+            <strong>Development</strong> — $0.00. No Shopify App Subscription
+            charge. For Shopify development and partner stores only; all
+            features are included there. Live stores are not included.
           </li>
           <li>
             <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
-            Up to 1,000 products and 12 metafield filter mappings.
+            Billing starts when you approve the charge at install. Up to 200
+            products and 5 metafield filter mappings.
           </li>
           <li>
             <strong>Pro</strong> — $19.99 USD every 30 days. No trial. Up to
-            5,000 products and 25 metafield filter mappings.
+            1,000 products and 12 metafield filter mappings.
           </li>
         </ul>
         <p>
@@ -132,11 +133,12 @@ export default function TermsOfService() {
           product cap.
         </p>
         <p>
-          You can move between Free, Standard, and Pro in{" "}
+          You can move between Development, Standard, and Pro in{" "}
           <strong>Findly → Pricing plans</strong> without reinstalling. Paid
           upgrades create or replace a Shopify charge that you must approve
-          in Admin. If you decline the charge, you stay on your current
-          entitled plan (typically Free if no paid subscription is active).
+          in Admin. Live shops are asked to start Standard when the app is
+          installed. If you decline the charge, you stay on Development (no
+          live catalog).
         </p>
         <p>
           There is <strong>no free trial</strong> on any plan and{" "}

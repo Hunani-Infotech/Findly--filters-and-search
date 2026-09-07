@@ -357,10 +357,13 @@ function assertThemeSeoAndUi() {
     fail("compliance.server.ts missing purgeShopData");
   }
   if (!billing.includes("appSubscriptionCreate") || !billing.includes("productLimit: 200")) {
-    fail("billing.server.ts missing Shopify Billing API / Free caps");
+    fail("billing.server.ts missing Shopify Billing API / Standard caps");
   }
-  if (!billing.includes("productLimit: 5000") || !billing.includes("19.99") || !billing.includes("11.99")) {
+  if (!billing.includes("productLimit: 1000") || !billing.includes("19.99") || !billing.includes("11.99")) {
     fail("billing.server.ts missing Standard 11.99 / Pro 19.99 caps / price");
+  }
+  if (!billing.includes("startStandardSubscriptionIfLive") || !billing.includes("partnerDevelopment")) {
+    fail("billing.server.ts missing live-install Standard charge or development unlock");
   }
 }
 
@@ -817,10 +820,13 @@ try {
   }
   log.info("2026-07 webhook payload parse (product/collection/GDPR) ok");
 
-  if (PLANS.free.productLimit !== 200 || PLANS.free.filterLimit !== 5) {
-    fail("Free plan caps drifted");
+  if (PLANS.free.productLimit !== 0 || PLANS.free.filterLimit !== 0) {
+    fail("Development plan caps drifted");
   }
-  if (PLANS.pro.productLimit !== 5000 || PLANS.pro.filterLimit !== 25) {
+  if (PLANS.standard.productLimit !== 200 || PLANS.standard.filterLimit !== 5) {
+    fail("Standard plan caps drifted");
+  }
+  if (PLANS.pro.productLimit !== 1000 || PLANS.pro.filterLimit !== 12) {
     fail("Pro plan caps drifted");
   }
   if (PLANS.pro.amount !== 19.99) {
@@ -828,6 +834,9 @@ try {
   }
   if (PLANS.standard.amount !== 11.99) {
     fail("Standard price drifted");
+  }
+  if (PLANS.standard.trialDays !== 0 || PLANS.pro.trialDays !== 0) {
+    fail("Paid plans must have no trial");
   }
 
   const collectionA = await getCollectionFilterPayload({
