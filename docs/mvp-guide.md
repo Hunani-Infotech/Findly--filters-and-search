@@ -66,8 +66,8 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Plan | Price | Caps | Includes |
 |---|---|---|---|
 | **Development** | $0 | Live: 0 products. Development stores: full catalog | All features, development stores only |
-| **Standard** | $11.99 / 30 days · no trial | 200 products · 5 metafield filters | Live plan (previous Free caps), billed from install |
-| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 12 metafield filters | Previous Standard caps |
+| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | Live plan (previous Free caps), billed from install |
+| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | Previous Standard caps |
 
 Search extras and analytics are **not** separate SKUs — they ship on every plan. Caps differentiate plans.
 

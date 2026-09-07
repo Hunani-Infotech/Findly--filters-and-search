@@ -34,13 +34,13 @@ async function seedShopData() {
       planName: "Findly Standard",
       status: "ACTIVE",
       productLimit: 200,
-      filterLimit: 5,
+      filterLimit: 6,
     },
     update: {
       planName: "Findly Standard",
       status: "ACTIVE",
       productLimit: 200,
-      filterLimit: 5,
+      filterLimit: 6,
     },
   });
 
@@ -247,11 +247,11 @@ try {
   const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import("../app/services/billing.server.ts"
   );
 
-  if (PLANS.standard.filterLimit !== 5) {
-    fail(`PLANS.standard.filterLimit expected 5, got ${PLANS.standard.filterLimit}`);
+  if (PLANS.standard.filterLimit !== 6) {
+    fail(`PLANS.standard.filterLimit expected 6, got ${PLANS.standard.filterLimit}`);
   }
-  if (PLANS.pro.filterLimit !== 12) {
-    fail(`PLANS.pro.filterLimit expected 12, got ${PLANS.pro.filterLimit}`);
+  if (PLANS.pro.filterLimit !== 15) {
+    fail(`PLANS.pro.filterLimit expected 15, got ${PLANS.pro.filterLimit}`);
   }
 
   const limitsWithThree = await enforcePlanLimits(shop.id);
@@ -261,9 +261,9 @@ try {
     log.info(
       `DEV_UNLOCK_LIMITS=true — runtime filterLimit=${limitsWithThree.filterLimit} (PLANS.standard.filterLimit still ${PLANS.standard.filterLimit})`,
     );
-  } else if (limitsWithThree.filterLimit !== 5) {
+  } else if (limitsWithThree.filterLimit !== 6) {
     fail(
-      `standard plan filterLimit expected 5, got ${limitsWithThree.filterLimit}`,
+      `standard plan filterLimit expected 6, got ${limitsWithThree.filterLimit}`,
     );
   }
 
@@ -271,15 +271,15 @@ try {
     fail(`expected 3 metafield mappings, got ${limitsWithThree.filterCount}`);
   }
 
-  const sixEnabledWouldExceed = 6 > PLANS.standard.filterLimit;
-  if (!sixEnabledWouldExceed) {
-    fail("6 enabled mappings should exceed standard plan cap of 5");
+  const sevenEnabledWouldExceed = 7 > PLANS.standard.filterLimit;
+  if (!sevenEnabledWouldExceed) {
+    fail("7 enabled mappings should exceed standard plan cap of 6");
   }
   log.info(
-    `plan cap check: 6 enabled mappings > standard filterLimit ${PLANS.standard.filterLimit}`,
+    `plan cap check: 7 enabled mappings > standard filterLimit ${PLANS.standard.filterLimit}`,
   );
 
-  const extraKeys = ["extra_a", "extra_b", "extra_c"];
+  const extraKeys = ["extra_a", "extra_b", "extra_c", "extra_d"];
   await prisma.productFacet.update({
     where: {
       shopId_productGid: { shopId: shop.id, productGid: PRODUCT_GID },
@@ -292,6 +292,7 @@ try {
         "custom.extra_a": "a",
         "custom.extra_b": "b",
         "custom.extra_c": "c",
+        "custom.extra_d": "d",
       },
     },
   });
@@ -309,23 +310,23 @@ try {
     });
   }
 
-  const limitsWithSix = await enforcePlanLimits(shop.id);
-  if (limitsWithSix.filterCount !== 6) {
-    fail(`expected 6 metafield mappings after seed, got ${limitsWithSix.filterCount}`);
+  const limitsWithSeven = await enforcePlanLimits(shop.id);
+  if (limitsWithSeven.filterCount !== 7) {
+    fail(`expected 7 metafield mappings after seed, got ${limitsWithSeven.filterCount}`);
   }
 
   if (devUnlocked) {
-    if (limitsWithSix.overFilterLimit) {
+    if (limitsWithSeven.overFilterLimit) {
       fail(
-        "DEV_UNLOCK_LIMITS should not mark 6 mappings as over development unlock cap",
+        "DEV_UNLOCK_LIMITS should not mark 7 mappings as over development unlock cap",
       );
     }
   } else {
-    if (!limitsWithSix.overFilterLimit) {
-      fail("6 enabled mappings should exceed standard plan filterLimit of 5");
+    if (!limitsWithSeven.overFilterLimit) {
+      fail("7 enabled mappings should exceed standard plan filterLimit of 6");
     }
     log.info(
-      `enforcePlanLimits rejects 6 mappings on standard: filterCount=${limitsWithSix.filterCount} filterLimit=${limitsWithSix.filterLimit} overFilterLimit=${limitsWithSix.overFilterLimit}`,
+      `enforcePlanLimits rejects 7 mappings on standard: filterCount=${limitsWithSeven.filterCount} filterLimit=${limitsWithSeven.filterLimit} overFilterLimit=${limitsWithSeven.overFilterLimit}`,
     );
   }
 
@@ -337,9 +338,9 @@ try {
   const cappedFacets = (cappedPayload.data?.facets ?? []).filter(
     (facet) => facet.source === "metafield",
   );
-  if (cappedFacets.length > limitsWithSix.filterLimit) {
+  if (cappedFacets.length > limitsWithSeven.filterLimit) {
     fail(
-      `storefront payload returned ${cappedFacets.length} metafield facets; cap is ${limitsWithSix.filterLimit}`,
+      `storefront payload returned ${cappedFacets.length} metafield facets; cap is ${limitsWithSeven.filterLimit}`,
     );
   }
   if (!devUnlocked && cappedFacets.length !== PLANS.standard.filterLimit) {
@@ -348,14 +349,14 @@ try {
     );
   }
   log.info(
-    `storefront payload capped metafield facets=${cappedFacets.length} (limit=${limitsWithSix.filterLimit})`,
+    `storefront payload capped metafield facets=${cappedFacets.length} (limit=${limitsWithSeven.filterLimit})`,
   );
   if (!devUnlocked) {
-    if (findMetafieldFacet(cappedFacets, "extra_c")) {
-      fail("standard plan payload should drop the 6th mapping custom.extra_c");
+    if (findMetafieldFacet(cappedFacets, "extra_d")) {
+      fail("standard plan payload should drop the 7th mapping custom.extra_d");
     }
-    if (!findMetafieldFacet(cappedFacets, "extra_a")) {
-      fail("standard plan payload should still include the 4th mapping custom.extra_a");
+    if (!findMetafieldFacet(cappedFacets, "extra_c")) {
+      fail("standard plan payload should still include the 6th mapping custom.extra_c");
     }
   }
 

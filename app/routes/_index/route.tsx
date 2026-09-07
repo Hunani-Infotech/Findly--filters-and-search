@@ -285,9 +285,9 @@ export default function App() {
           <article>
             <h3 className={styles.featureTitle}>Shopify Billing</h3>
             <p className={styles.featureCopy}>
-              Free, Standard, and Pro through the Shopify Billing API. Product
-              index and metafield-mapping caps differ by plan; you approve
-              charges in Admin.
+              Development (Shopify development stores only), Standard, and Pro
+              through the Shopify Billing API. Product index and metafield
+              caps differ by plan; live shops approve Standard at install.
             </p>
           </article>
           <article>

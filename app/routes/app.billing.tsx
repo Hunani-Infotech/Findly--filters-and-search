@@ -144,7 +144,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const plan = PLANS[requested];
-  // Free plan: no AppSubscriptionCreate — Standard and Pro create a charge.
+  // Development: no AppSubscriptionCreate — Standard and Pro create a charge.
   // Top window must stay on admin.shopify.com (not the Hostinger app origin).
   const returnUrl =
     embeddedAdminAppUrl(session.shop, "/app/billing") ??
@@ -508,13 +508,13 @@ export default function BillingPage() {
             </Text>
             {onPaid ? (
               <Text as="p">
-                Free caps are {free.productLimit} products and{" "}
-                {free.filterLimit} metafield filters. You currently have{" "}
-                {data.usage.productCount} products and {data.usage.filterCount}{" "}
-                metafield filters on {currentPlan.name} (limits{" "}
-                {data.usage.productLimit} / {data.usage.filterLimit}). Features
-                stay available; anything over Free caps is limited until you
-                upgrade again or reduce usage.
+                Development caps are {free.productLimit} products and{" "}
+                {free.filterLimit} metafield filters on live shops. You
+                currently have {data.usage.productCount} products and{" "}
+                {data.usage.filterCount} metafield filters on {currentPlan.name}{" "}
+                (limits {data.usage.productLimit} / {data.usage.filterLimit}).
+                Features stay available; anything over Development caps is
+                limited until you upgrade again or reduce usage.
               </Text>
             ) : null}
           </BlockStack>

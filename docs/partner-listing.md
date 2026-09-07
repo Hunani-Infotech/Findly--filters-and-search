@@ -49,7 +49,7 @@ Shoppers filter collections and search products in your theme. Add the widget as
 ### App details (≤500)
 
 ```
-Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword search, instant suggestions, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Free, Standard, and Pro.
+Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword search, instant suggestions, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Development, Standard, and Pro.
 ```
 
 ### Feature list (≤80 each)
@@ -115,14 +115,14 @@ Primary method: **Recurring charge**, with one plan marked **Free** (display nam
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
 | Development | $0.00 — no Shopify charge | None | Live: 0. Development stores: full catalog | Live: 0 |
-| Standard | $11.99 USD | None | 200 | 5 |
-| Pro | $19.99 USD | None | 1,000 | 12 |
+| Standard | $11.99 USD | None | 200 | 6 |
+| Pro | $19.99 USD | None | 1,000 | 15 |
 
 **Development** — $0 for Shopify development / partner stores only. All features included. Not a live-store plan.
 
-**Standard** — Live catalogs: up to 200 products and 5 metafield filters. Charge starts at install (no trial).
+**Standard** — Live catalogs: up to 200 products and 6 metafield filters. Charge starts at install (no trial).
 
-**Pro** — Up to 1,000 products and 12 metafield filters. No trial.
+**Pro** — Up to 1,000 products and 15 metafield filters. No trial.
 
 ### Pricing details (listing form)
 
@@ -145,14 +145,17 @@ Development
 Top features (add one per line):
 
 ```
-All features in development
-Configure filters and search UI
-Validate before going live
-For development and partner stores
+Collection filters via theme app block
+Filter price, vendor, type, tags, options
+Instant search as shoppers type
+Storefront product search block
+Color swatches and grouped values
+Left, right, or top filter panel
+All features on development stores
 Not for live shops
 ```
 
-#### Plan: standard ($11.99/month, no trial — 200 products / 5 metafields)
+#### Plan: standard ($11.99/month, no trial — 200 products / 6 metafields)
 
 Display name:
 
@@ -163,14 +166,17 @@ Standard
 Top features:
 
 ```
-Live catalog indexing
-Up to 200 indexed products
-Up to 5 metafield filters
-Starts at install, no trial
-Collection filters and search
+Collection filters via theme app block
+Filter price, vendor, type, tags, options
+Instant search as shoppers type
+Storefront product search block
+Color swatches and grouped values
+Left, right, or top filter panel
+Up to 200 synced products
+6 metafield filters, 180-day analytics
 ```
 
-#### Plan: pro ($19.99/month, no trial — 1,000 products / 12 metafields)
+#### Plan: pro ($19.99/month, no trial — 1,000 products / 15 metafields)
 
 Display name:
 
@@ -181,11 +187,14 @@ Pro
 Top features:
 
 ```
-Everything in Standard
-Up to 1,000 indexed products
-Up to 12 metafield filters
-Billed every 30 days, no trial
-For growing catalogs
+Collection filters via theme app block
+Instant search and product search
+Pin products, synonyms, and redirects
+Per-collection metafield filter maps
+Reviews and wishlists stay after Ajax
+Translate storefront widget labels
+Up to 1,000 synced products
+15 metafield filters, 180-day analytics
 ```
 
 ---

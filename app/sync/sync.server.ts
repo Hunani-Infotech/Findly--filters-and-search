@@ -922,7 +922,7 @@ async function ingestCompletedBulkOperation(
   }
 
   const errorLog = truncated
-    ? `Product limit reached (${productLimit} for ${limits.plan} plan). Indexed first ${productLimit} of ${products.length} products; upgrade to Pro for a higher limit.`
+    ? `Product limit reached (${productLimit} for ${limits.plan} plan). Indexed first ${productLimit} of ${products.length} products; upgrade on Pricing plans for a higher limit.`
     : null;
 
   // Products + memberships from bulk are enough for filters. Mark READY now —

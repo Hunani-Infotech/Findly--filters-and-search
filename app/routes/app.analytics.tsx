@@ -210,8 +210,8 @@ export default function AnalyticsPage() {
           <BlockStack gap="400">
             <Banner tone="info">
               <p>
-                Events are retained for {dashboard.retentionDays} days. Free
-                keeps 90 days; Pro keeps 180 days.
+                Events are retained for {dashboard.retentionDays} days.
+                Development keeps 90 days; Standard and Pro keep 180 days.
               </p>
             </Banner>
 

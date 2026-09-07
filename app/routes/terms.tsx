@@ -118,11 +118,11 @@ export default function TermsOfService() {
           <li>
             <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
             Billing starts when you approve the charge at install. Up to 200
-            products and 5 metafield filter mappings.
+            products and 6 metafield filter mappings.
           </li>
           <li>
             <strong>Pro</strong> — $19.99 USD every 30 days. No trial. Up to
-            1,000 products and 12 metafield filter mappings.
+            1,000 products and 15 metafield filter mappings.
           </li>
         </ul>
         <p>

@@ -823,10 +823,10 @@ try {
   if (PLANS.free.productLimit !== 0 || PLANS.free.filterLimit !== 0) {
     fail("Development plan caps drifted");
   }
-  if (PLANS.standard.productLimit !== 200 || PLANS.standard.filterLimit !== 5) {
+  if (PLANS.standard.productLimit !== 200 || PLANS.standard.filterLimit !== 6) {
     fail("Standard plan caps drifted");
   }
-  if (PLANS.pro.productLimit !== 1000 || PLANS.pro.filterLimit !== 12) {
+  if (PLANS.pro.productLimit !== 1000 || PLANS.pro.filterLimit !== 15) {
     fail("Pro plan caps drifted");
   }
   if (PLANS.pro.amount !== 19.99) {

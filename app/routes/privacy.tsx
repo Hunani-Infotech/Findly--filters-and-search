@@ -297,7 +297,7 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Storefront analytics:</strong> pruned automatically —
-            90 days on the Free plan, 180 days on paid plans.
+            90 days on Development, 180 days on Standard and Pro.
           </li>
           <li>
             <strong>After uninstall:</strong> we queue deletion of sessions and

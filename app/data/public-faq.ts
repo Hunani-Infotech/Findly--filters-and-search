@@ -51,7 +51,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "filters",
     question: "How do metafield filters work?",
     answer:
-      "Map product metafields in Settings → Metafields, then include them in a filter set. Plan limits apply to metafield mappings (5 on Free, 12 on Standard, 25 on Pro). Other filter types are included on every plan, subject to the product index cap.",
+      "Map product metafields in Settings → Metafields, then include them in a filter set. Plan limits apply to metafield mappings (0 on Development for live shops, 6 on Standard, 15 on Pro). Development stores get the full catalog. Other filter types are included on every plan, subject to the product index cap.",
   },
   {
     id: "filters-not-showing",
@@ -100,7 +100,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "billing",
     question: "What plans are available?",
     answer:
-      "Development ($0, Shopify development / partner stores only, all features included). Live shops are not on Development. Standard ($11.99 USD every 30 days, 200 products, 5 metafield filters) starts at install with no trial. Pro ($19.99 USD every 30 days, 1,000 products, 12 metafield filters). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
+      "Development ($0, Shopify development / partner stores only, all features included). Live shops are not on Development. Standard ($11.99 USD every 30 days, 200 products, 6 metafield filters) starts at install with no trial. Pro ($19.99 USD every 30 days, 1,000 products, 15 metafield filters). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
   },
   {
     id: "change-plan",

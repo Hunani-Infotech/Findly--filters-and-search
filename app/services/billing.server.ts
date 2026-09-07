@@ -20,7 +20,7 @@ export const PLANS = {
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
     productLimit: 200,
-    filterLimit: 5,
+    filterLimit: 6,
     trialDays: 0,
   },
   pro: {
@@ -30,7 +30,7 @@ export const PLANS = {
     currencyCode: "USD",
     interval: "EVERY_30_DAYS" as const,
     productLimit: 1000,
-    filterLimit: 12,
+    filterLimit: 15,
     trialDays: 0,
   },
 } as const;
@@ -117,15 +117,20 @@ function resolveNumericCaps(
     };
   }
   const plan = PLANS[planKey];
-  const productLimit =
-    planKey !== "free" && shop?.subscription?.productLimit
-      ? shop.subscription.productLimit
-      : plan.productLimit;
-  const filterLimit =
-    planKey !== "free" && shop?.subscription?.filterLimit
-      ? shop.subscription.filterLimit
-      : plan.filterLimit;
-  return { productLimit, filterLimit, unlocked: false };
+  if (planKey === "free") {
+    return {
+      productLimit: plan.productLimit,
+      filterLimit: plan.filterLimit,
+      unlocked: false,
+    };
+  }
+  const storedProducts = shop?.subscription?.productLimit ?? 0;
+  const storedFilters = shop?.subscription?.filterLimit ?? 0;
+  return {
+    productLimit: Math.max(storedProducts, plan.productLimit),
+    filterLimit: Math.max(storedFilters, plan.filterLimit),
+    unlocked: false,
+  };
 }
 
 async function getOrCreateShop(domain: string) {
@@ -251,7 +256,7 @@ export async function enforcePlanLimits(shopId: string) {
 }
 
 /**
- * Free plan always has access; paid Standard/Pro unlock higher limits.
+ * Development always has access; paid Standard/Pro unlock live catalog limits.
  * App use is never hard-blocked for billing — limits are enforced elsewhere.
  */
 export async function ensureShopAccess(shopDomain: string) {

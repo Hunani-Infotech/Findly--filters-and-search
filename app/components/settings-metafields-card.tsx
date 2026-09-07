@@ -31,6 +31,12 @@ import type { MetafieldFilterType } from "@prisma/client";
 
 import { ADMIN_TABLE_PAGE_SIZE, lastPageIndex, slicePage } from "../utils/admin-list-page";
 
+const PLAN_LABELS: Record<string, string> = {
+  free: "Development",
+  standard: "Standard",
+  pro: "Pro",
+};
+
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },
   { label: "Variant", value: "VARIANT" },
@@ -421,7 +427,7 @@ export function SettingsMetafieldsCard({
             <InlineStack gap="300" blockAlign="center" wrap>
               <Text as="span" variant="bodySm" tone="subdued">
                 {`Showing ${showingFrom}–${showingTo} of ${rows.length}`}
-                {` · Filter metafields: ${filterCount}/${filterLimit} on ${plan}`}
+                {` · Filter metafields: ${filterCount}/${filterLimit} on ${PLAN_LABELS[plan] ?? plan}`}
               </Text>
               {rows.length > ADMIN_TABLE_PAGE_SIZE ? (
                 <div className="findly-meta-pager">
