@@ -21,10 +21,13 @@ export function useThemeExtensionStatus(
   const [live, setLive] = useState<ThemeSetupFlags | null>(null);
   const fetcher = useFetcher<SyncResult>();
   const persistedRef = useRef(persisted);
-  persistedRef.current = persisted;
   const submitRef = useRef(fetcher.submit);
-  submitRef.current = fetcher.submit;
   const syncingRef = useRef(false);
+
+  useEffect(() => {
+    persistedRef.current = persisted;
+    submitRef.current = fetcher.submit;
+  });
 
   useEffect(() => {
     let cancelled = false;
