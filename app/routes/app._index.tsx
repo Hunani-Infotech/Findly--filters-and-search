@@ -360,6 +360,7 @@ export default function Home() {
   }, [syncFetcher.data, syncFetcher.state, shopify]);
 
   const startSync = () => {
+    if (syncBusy) return;
     const formData = new FormData();
     formData.set("intent", "sync");
     syncFetcher.submit(formData, { method: "POST" });
@@ -508,9 +509,12 @@ export default function Home() {
                     <Button
                       variant="primary"
                       loading={syncFetcher.state !== "idle"}
+                      disabled={syncBusy}
                       onClick={startSync}
                     >
-                      Sync now
+                      {syncBusy && syncFetcher.state === "idle"
+                        ? "Syncing…"
+                        : "Sync now"}
                     </Button>
                   </InlineStack>
                 </InlineStack>

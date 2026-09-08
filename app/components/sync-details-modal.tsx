@@ -72,9 +72,9 @@ export function SyncDetailsModal({
       onClose={onClose}
       title="Catalog sync"
       primaryAction={{
-        content: submitting ? "Queueing…" : "Sync now",
+        content: submitting ? "Queueing…" : syncing ? "Syncing…" : "Sync now",
         loading: submitting,
-        disabled: submitting,
+        disabled: submitting || syncing,
         onAction: onSync,
       }}
       secondaryActions={[{ content: "Close", onAction: onClose }]}
