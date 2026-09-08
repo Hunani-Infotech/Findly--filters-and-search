@@ -26,7 +26,7 @@ const required = [
 try {
   await prisma.$queryRaw`SELECT 1 AS ok`;
   const rows = await prisma.$queryRaw`
-    SELECT tablename FROM pg_tables
+    SELECT tablename::text AS tablename FROM pg_tables
     WHERE schemaname = 'public'
     ORDER BY tablename
   `;

@@ -65,8 +65,14 @@ function pgConnectionString(raw: string | undefined): string | undefined {
     url.searchParams.delete("pgbouncer");
     url.searchParams.delete("connection_limit");
     url.searchParams.delete("connect_timeout");
-    if (!url.searchParams.get("sslmode")) {
-      url.searchParams.set("sslmode", "require");
+    const host = url.hostname;
+    const local = host === "localhost" || host === "127.0.0.1";
+    if (!local) {
+      if (!url.searchParams.get("sslmode")) {
+        url.searchParams.set("sslmode", "require");
+      }
+      // pg 8.23 treats sslmode=require as verify-full; keep libpq require.
+      url.searchParams.set("uselibpqcompat", "true");
     }
     return toPostgresUrl(url);
   } catch {

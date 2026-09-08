@@ -12,8 +12,13 @@ function pgConnectionString(raw) {
     url.searchParams.delete("pgbouncer");
     url.searchParams.delete("connection_limit");
     url.searchParams.delete("connect_timeout");
-    if (!url.searchParams.get("sslmode")) {
-      url.searchParams.set("sslmode", "require");
+    const host = url.hostname;
+    const local = host === "localhost" || host === "127.0.0.1";
+    if (!local) {
+      if (!url.searchParams.get("sslmode")) {
+        url.searchParams.set("sslmode", "require");
+      }
+      url.searchParams.set("uselibpqcompat", "true");
     }
     return url.toString().replace(/^http:/i, "postgresql:");
   } catch {
