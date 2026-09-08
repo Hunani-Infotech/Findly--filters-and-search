@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -17,7 +17,7 @@ const PRODUCT_JACKET = "gid://shopify/Product/9303001";
 const PRODUCT_TEE = "gid://shopify/Product/9303002";
 const PRODUCT_TRUTHY = "gid://shopify/Product/9303003";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);

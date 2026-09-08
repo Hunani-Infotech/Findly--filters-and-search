@@ -12,7 +12,7 @@
  */
 import "tsx/esm";
 import { createServer } from "node:http";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -36,7 +36,7 @@ const SPARSE_SAMPLES = Number(
   process.argv.find((a) => a.startsWith("--samples="))?.slice(10) || 8,
 );
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const phase = process.argv.find((a) => a.startsWith("--phase="))?.slice(8) || "1";
 const label =
   process.argv.find((a) => a.startsWith("--label="))?.slice(8) ||

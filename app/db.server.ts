@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { log } from "./lib/log.server";
 
 declare global {
@@ -9,14 +10,16 @@ declare global {
 }
 
 /**
- * Normalize Supabase / Hostinger Postgres URLs for Prisma.
- * - Transaction pooler (:6543) needs pgbouncer=true (no prepared statements)
+ * Normalize Supabase / Hostinger Postgres URLs.
  * - sslmode=require for hosted Postgres
- * - connect_timeout high enough for Hostinger → distant regions (e.g. Tokyo)
+ * - Strip Prisma-engine-only params (`pgbouncer`, `connection_limit`) before
+ *   handing the URL to node-pg
+ * - Transaction pooler (:6543) uses a small pg.Pool instead of Prisma's
+ *   connection_limit query param
  */
-const CONNECT_TIMEOUT_SEC = "30";
-const POOLER_CONNECTION_LIMIT = "5";
-const DIRECT_CONNECTION_LIMIT = "3";
+const CONNECT_TIMEOUT_MS = 30_000;
+const POOLER_MAX = 5;
+const DIRECT_MAX = 3;
 const ERROR_MESSAGE_MAX = 180;
 const DB_READY_ATTEMPTS = 4;
 
@@ -35,45 +38,45 @@ function isTransactionPoolerPort(port: string): boolean {
   return port === "6543";
 }
 
-function withPrismaDbParams(
-  raw: string | undefined,
-  { pgbouncer }: { pgbouncer: boolean },
-): string | undefined {
+function toPostgresUrl(url: URL): string {
+  return url.toString().replace(/^http:/i, "postgresql:");
+}
+
+function withHostedSsl(raw: string | undefined): string | undefined {
   if (!raw?.trim()) return raw;
   const url = parsePgUrl(raw);
   if (!url) return raw;
   try {
-    if (pgbouncer && isTransactionPoolerPort(url.port)) {
-      url.searchParams.set("pgbouncer", "true");
-    }
     if (!url.searchParams.get("sslmode")) {
       url.searchParams.set("sslmode", "require");
     }
-    if (!url.searchParams.get("connect_timeout")) {
-      url.searchParams.set("connect_timeout", CONNECT_TIMEOUT_SEC);
+    return toPostgresUrl(url);
+  } catch {
+    return raw;
+  }
+}
+
+/** node-pg connection string: drop Prisma-engine query params. */
+function pgConnectionString(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) return raw;
+  const url = parsePgUrl(raw);
+  if (!url) return raw;
+  try {
+    url.searchParams.delete("pgbouncer");
+    url.searchParams.delete("connection_limit");
+    url.searchParams.delete("connect_timeout");
+    if (!url.searchParams.get("sslmode")) {
+      url.searchParams.set("sslmode", "require");
     }
-    // Keep Hostinger pool small; Passenger may spawn multiple processes.
-    if (!url.searchParams.get("connection_limit")) {
-      url.searchParams.set(
-        "connection_limit",
-        pgbouncer ? POOLER_CONNECTION_LIMIT : DIRECT_CONNECTION_LIMIT,
-      );
-    }
-    return url.toString().replace(/^http:/i, "postgresql:");
+    return toPostgresUrl(url);
   } catch {
     return raw;
   }
 }
 
 function applyDatabaseEnv() {
-  const databaseUrl = withPrismaDbParams(process.env.DATABASE_URL, {
-    pgbouncer: isTransactionPoolerPort(
-      parsePgUrl(process.env.DATABASE_URL)?.port ?? "",
-    ),
-  });
-  const directUrl = withPrismaDbParams(process.env.DIRECT_URL, {
-    pgbouncer: false,
-  });
+  const databaseUrl = withHostedSsl(process.env.DATABASE_URL);
+  const directUrl = withHostedSsl(process.env.DIRECT_URL);
   if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
   if (directUrl) process.env.DIRECT_URL = directUrl;
 
@@ -88,18 +91,27 @@ function applyDatabaseEnv() {
 applyDatabaseEnv();
 
 function createPrismaClient() {
+  const connectionString = pgConnectionString(process.env.DATABASE_URL);
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required");
+  }
+  const port = parsePgUrl(connectionString)?.port ?? "";
+  const adapter = new PrismaPg({
+    connectionString,
+    max: isTransactionPoolerPort(port) ? POOLER_MAX : DIRECT_MAX,
+    connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+  });
   return new PrismaClient({
+    adapter,
     log: ["error", "warn"],
   });
 }
 
-if (process.env.NODE_ENV !== "production") {
-  if (!global.prismaGlobal) {
-    global.prismaGlobal = createPrismaClient();
-  }
+if (!global.prismaGlobal) {
+  global.prismaGlobal = createPrismaClient();
 }
 
-const prisma = global.prismaGlobal ?? createPrismaClient();
+const prisma = global.prismaGlobal;
 
 /** Safe diagnostic for /health — never includes credentials or full URLs. */
 export function summarizeDatabaseError(error: unknown): string {
@@ -116,15 +128,19 @@ export function summarizeDatabaseError(error: unknown): string {
     "[redacted-url]",
   );
   if (code) return `${code}: ${message.slice(0, ERROR_MESSAGE_MAX)}`;
-  if (/timeout|timed out|ECONNREFUSED|ENOTFOUND|P1001|P1017/i.test(message)) {
+  if (
+    /timeout|timed out|ECONNREFUSED|ENOTFOUND|P1001|P1017|timer has gone away/i.test(
+      message,
+    )
+  ) {
     return message.slice(0, ERROR_MESSAGE_MAX);
   }
   return message.slice(0, ERROR_MESSAGE_MAX);
 }
 
 /**
- * Warm the Prisma engine + one round-trip so the first shopper request
- * does not pay cold TLS to Supabase. Retries briefly on Hostinger boot.
+ * Warm one round-trip so the first shopper request does not pay cold TLS
+ * to Supabase. Retries briefly on Hostinger boot.
  */
 export function ensureDatabaseReady(): Promise<void> {
   if (global.__findlyDbReady) return global.__findlyDbReady;

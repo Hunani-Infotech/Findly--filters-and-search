@@ -3,7 +3,7 @@
  * Usage: npm run verify:a7
  */
 import "tsx/esm";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -11,7 +11,7 @@ const SHOP_DOMAIN = "a7-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9007001";
 const PRODUCT_GID = "gid://shopify/Product/9007001";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);

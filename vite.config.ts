@@ -82,7 +82,7 @@ export default defineConfig({
   },
   ssr: {
     // Chalk uses package imports (#ansi-styles) that Vite should not bundle.
-    external: ["chalk"],
+    external: ["chalk", "pg", "pg-native", "@prisma/adapter-pg"],
     // Bundle ESM for these dual packages so a partial Windows extract of CJS
     // cannot crash the Vite overlay (missing dist/cjs/lib or NUL-padded .svg.js).
     noExternal: ["@shopify/shopify-api", "@shopify/polaris-icons"],

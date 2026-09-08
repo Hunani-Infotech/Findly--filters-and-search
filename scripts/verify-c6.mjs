@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -17,7 +17,7 @@ const FEATURED_IMAGE = "https://cdn.example.com/default.jpg";
 const RED_PREFIX = "https://cdn.example.com/red";
 const BLUE_S_IMAGE = "https://cdn.example.com/blue-s.jpg";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
