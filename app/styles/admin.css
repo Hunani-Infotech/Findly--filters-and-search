@@ -624,8 +624,7 @@
   accent-color: var(--findly-green-strong);
 }
 
-.findly-swatch-pager button svg,
-.findly-meta-pager button svg {
+.findly-swatch-pager button svg {
   display: block;
   fill: currentColor;
 }
@@ -929,8 +928,7 @@
   cursor: default;
 }
 
-.findly-swatch-pager,
-.findly-meta-pager {
+.findly-swatch-pager {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -945,13 +943,8 @@
   color: #6d7175;
 }
 
-.findly-meta-pager {
-  margin-top: 0;
-}
-
 .findly-swatch-pager button,
-.findly-swatch-pager a,
-.findly-meta-pager button {
+.findly-swatch-pager a {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -970,13 +963,11 @@
 }
 
 .findly-swatch-pager button:hover,
-.findly-swatch-pager a:hover,
-.findly-meta-pager button:hover {
+.findly-swatch-pager a:hover {
   background: #ebebeb;
 }
 
-.findly-swatch-pager button:disabled,
-.findly-meta-pager button:disabled {
+.findly-swatch-pager button:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -1649,144 +1640,6 @@
   line-height: 1;
 }
 
-.findly-meta-card {
-  background: #fff;
-  border: 1px solid #e3e3e3;
-  border-radius: 12px;
-  padding: 16px 16px 20px;
-}
-
-.findly-meta-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.findly-meta-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 32px 16px 24px;
-}
-
-.findly-meta-empty-art {
-  width: 88px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.findly-meta-empty-bar {
-  display: block;
-  height: 18px;
-  border-radius: 6px;
-}
-
-.findly-meta-empty-bar-teal {
-  width: 100%;
-  background: var(--findly-green);
-}
-
-.findly-meta-empty-bar-orange {
-  width: 82%;
-  background: #f97316;
-}
-
-.findly-meta-empty-bar-red {
-  width: 64%;
-  background: #ef4444;
-}
-
-.findly-meta-table {
-  display: grid;
-  gap: 10px;
-}
-
-.findly-meta-table-head,
-.findly-meta-table-row {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 118px minmax(160px, 1.2fr) 36px;
-  gap: 8px;
-  align-items: center;
-}
-
-.findly-meta-table.is-view .findly-meta-table-head,
-.findly-meta-table.is-view .findly-meta-table-row {
-  grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 118px minmax(160px, 1.2fr);
-}
-
-.findly-meta-table-cell {
-  display: block;
-  min-width: 0;
-  min-height: 36px;
-  padding: 8px 2px;
-  overflow: hidden;
-  color: #202223;
-  font-size: 13px;
-  line-height: 20px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.findly-meta-table-head {
-  color: #616161;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.findly-meta-table-remove {
-  appearance: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: #8c9196;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-.findly-meta-table-remove:hover:not(:disabled) {
-  background: #f1f2f4;
-  color: #202223;
-}
-
-.findly-meta-table-remove:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.findly-meta-applies {
-  appearance: none;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid #8c9196;
-  border-radius: 8px;
-  background: #fff;
-  text-align: left;
-  font: 13px/20px inherit;
-  color: #202223;
-  cursor: pointer;
-}
-
-.findly-meta-applies:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.findly-meta-applies-menu {
-  padding: 12px;
-  min-width: 180px;
-}
-
 .findly-plain-btn {
   display: inline-flex;
   align-items: center;
@@ -2152,16 +2005,4 @@
   box-shadow: 0 0 0 4px rgb(var(--findly-green-rgb) / 16%);
 }
 
-@media (max-width: 720px) {
-  .findly-meta-table-head {
-    display: none;
-  }
-
-  .findly-meta-table-row,
-  .findly-meta-table.is-view .findly-meta-table-row {
-    grid-template-columns: 1fr;
-    padding: 8px 0 12px;
-    border-bottom: 1px solid #e3e3e3;
-  }
-}
 
