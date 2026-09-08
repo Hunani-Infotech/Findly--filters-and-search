@@ -18,7 +18,6 @@ import {
   Button,
   Card,
   Page,
-  Text,
 } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -30,6 +29,7 @@ import {
   AdminLoadRetry,
   AdminPendingScreen,
   clearAdminLoadRetry,
+  hardRefreshAdmin,
   ShopifyLoadingBar,
 } from "../components/admin-loading";
 import {
@@ -186,11 +186,6 @@ export function ErrorBoundary() {
     }
   }
 
-  const detail = isRouteErrorResponse(error)
-    ? `${error.status} ${error.statusText}`.trim()
-    : error instanceof Error
-      ? error.message
-      : null;
   const retry =
     !isRouteErrorResponse(error) ||
     error.status >= 500 ||
@@ -203,28 +198,16 @@ export function ErrorBoundary() {
         enabled={retry}
         fallback={
           <div className="findly-admin-shell">
-            <Page title="Something went wrong">
+            <Page title="Server under maintenance">
               <Card>
                 <BlockStack gap="300">
-                  <Banner tone="critical" title="Findly could not load this page">
+                  <Banner tone="warning" title="Findly is temporarily unavailable">
                     <p>
-                      Try again, or reopen Findly from Shopify Admin. If this keeps
-                      happening, contact support.
+                      Our server is under maintenance. Please try again in a few
+                      minutes, or reopen Findly from Shopify Admin.
                     </p>
                   </Banner>
-                  {detail ? (
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      {detail}
-                    </Text>
-                  ) : null}
-                  <Button
-                    onClick={() => {
-                      clearAdminLoadRetry();
-                      window.location.reload();
-                    }}
-                  >
-                    Try again
-                  </Button>
+                  <Button onClick={hardRefreshAdmin}>Try again</Button>
                 </BlockStack>
               </Card>
             </Page>

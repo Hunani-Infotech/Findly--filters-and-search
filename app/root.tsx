@@ -89,9 +89,9 @@ export function ErrorBoundary() {
           Shopify Admin.
         </PublicMessage>
       ) : (
-        <PublicMessage title="Something went wrong">
-          Findly could not load this page. Try again, or open the app from
-          Shopify Admin.
+        <PublicMessage title="Server under maintenance">
+          Findly is temporarily unavailable while we perform server maintenance.
+          Please try again in a few minutes, or open the app from Shopify Admin.
         </PublicMessage>
       )}
     </Document>

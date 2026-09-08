@@ -120,7 +120,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent") || "upgrade");
 
   if (intent === "cancel_to_free") {
-    const subId = shop.subscription?.shopifySubscriptionId;
+    await refreshPartnerDevelopment(admin, shop.id);
+    const { shop: latest } = await ensureShopAccess(session.shop);
+    if (!latest.partnerDevelopment) {
+      return {
+        error:
+          "Live stores cannot switch to the Development plan. Choose Standard or Pro.",
+      };
+    }
+    const subId = latest.subscription?.shopifySubscriptionId;
     if (!subId) {
       return {
         error:
@@ -236,9 +244,13 @@ export default function BillingPage() {
   const pro = data.plans.pro;
   const currentPlan = data.plans[data.currentPlan];
   const onPaid = data.currentPlan !== "free";
+  const showFreePlan = data.partnerDevelopment;
+  const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
   const subStatus = data.subscription?.status
     ? data.subscription.status
-    : "None (Free)";
+    : liveUnpaid
+      ? "Choose Standard or Pro"
+      : "None (Free)";
   const productPct =
     data.usage.productLimit > 0
       ? Math.min(
@@ -282,15 +294,13 @@ export default function BillingPage() {
                 </Banner>
               )}
 
-            {data.currentPlan === "free" &&
-              !data.partnerDevelopment &&
-              !data.devUnlockLimits && (
+            {liveUnpaid && !data.devUnlockLimits && (
                 <Banner tone="warning">
                   <p>
-                    Development is not a live-store plan. Approve the Standard
-                    charge ($
-                    {standard.amount.toFixed(2)} every 30 days, no trial) to
-                    index your catalog.
+                    Live stores use Standard or Pro. Choose a plan below to
+                    index your catalog. Standard is $
+                    {standard.amount.toFixed(2)} every 30 days; Pro is $
+                    {pro.amount.toFixed(2)} every 30 days. No trial.
                   </p>
                 </Banner>
               )}
@@ -312,8 +322,14 @@ export default function BillingPage() {
                   <Text as="h2" variant="headingMd">
                     Plan details
                   </Text>
-                  <Text as="p">{currentPlan.name}</Text>
-                  {data.currentPlan === "free" ? (
+                  <Text as="p">
+                    {liveUnpaid ? "No paid plan yet" : currentPlan.name}
+                  </Text>
+                  {liveUnpaid ? (
+                    <Text as="p" tone="subdued">
+                      Status: {subStatus}. There is no free plan on live stores.
+                    </Text>
+                  ) : data.currentPlan === "free" ? (
                     <Text as="p" tone="subdued">
                       Status: {subStatus}. ${free.amount.toFixed(2)}/month — no
                       Shopify charge.
@@ -345,7 +361,8 @@ export default function BillingPage() {
               </Card>
             </InlineGrid>
 
-            <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+            <InlineGrid columns={{ xs: 1, md: showFreePlan ? 3 : 2 }} gap="400">
+              {showFreePlan ? (
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
@@ -377,6 +394,7 @@ export default function BillingPage() {
                   )}
                 </BlockStack>
               </Card>
+              ) : null}
 
               <Card>
                 <BlockStack gap="300">
@@ -412,7 +430,9 @@ export default function BillingPage() {
                         ? "Manage / resubscribe"
                         : data.currentPlan === "pro"
                           ? "Switch to Standard"
-                          : "Upgrade to Standard"}
+                          : liveUnpaid
+                            ? "Choose Standard"
+                            : "Upgrade to Standard"}
                   </Button>
                 </BlockStack>
               </Card>
@@ -451,7 +471,9 @@ export default function BillingPage() {
                       ? "Redirecting to Shopify…"
                       : data.currentPlan === "pro"
                         ? "Manage / resubscribe"
-                        : "Upgrade to Pro"}
+                        : liveUnpaid
+                          ? "Choose Pro"
+                          : "Upgrade to Pro"}
                   </Button>
                 </BlockStack>
               </Card>
@@ -459,9 +481,11 @@ export default function BillingPage() {
 
             <Banner tone="info">
               <p>
-                Compare plans in the three cards above. Paid plans bill
-                immediately through Shopify — there is no trial and no 30-day
-                money-back guarantee in Findly billing.
+                {showFreePlan
+                  ? "Compare plans in the three cards above. "
+                  : "Choose Standard or Pro above. "}
+                Paid plans bill immediately through Shopify — there is no trial
+                and no 30-day money-back guarantee in Findly billing.
               </p>
             </Banner>
           </BlockStack>
@@ -469,7 +493,7 @@ export default function BillingPage() {
       </Layout>
 
       <Modal
-        open={downgradeOpen}
+        open={showFreePlan && downgradeOpen}
         onClose={() => setDowngradeOpen(false)}
         title="Downgrade to Development?"
         primaryAction={{

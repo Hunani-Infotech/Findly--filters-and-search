@@ -1601,16 +1601,22 @@
       window.__findlyReadyFailsafe = 0;
       try {
         removeBusyOverlay();
-      } catch (overlayErr) {}
+      } catch (overlayErr) {
+        /* overlay may already be gone */
+      }
       try {
         paintGridBusy(null, false);
       } catch (err) {
         try {
           removeBusyOverlay();
-        } catch (overlayErr2) {}
+        } catch (overlayErr2) {
+          /* overlay may already be gone */
+        }
         try {
           setFilterLoading(false);
-        } catch (loadErr) {}
+        } catch (loadErr) {
+          /* loading flag is best-effort */
+        }
       }
     }, 2500);
   }
@@ -2783,7 +2789,9 @@
       try {
         clearGridSkeletons(host);
         if (!host) clearGridSkeletons(document);
-      } catch (skelErr) {}
+      } catch (skelErr) {
+        /* skeleton nodes may already be gone */
+      }
       var busyHosts = document.querySelectorAll(".findly-grid-is-busy");
       var b;
       for (b = 0; b < busyHosts.length; b++) {
@@ -2798,7 +2806,9 @@
       removeBusyOverlay();
       try {
         restoreVisibleCardsOpaque(host || document);
-      } catch (visErr) {}
+      } catch (visErr) {
+        /* cards may already be restored */
+      }
       return;
     }
     host = skeletonMountHost(host || discoverBusyHost());

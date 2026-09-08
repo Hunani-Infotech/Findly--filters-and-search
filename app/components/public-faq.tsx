@@ -119,17 +119,25 @@ export function PublicFaq() {
     [query, topic],
   );
 
+  const autoOpenKey =
+    query.trim().length < 2 ? "" : visible.map((item) => item.id).join("\0");
+  const [appliedAutoOpenKey, setAppliedAutoOpenKey] = useState("");
+  if (autoOpenKey !== appliedAutoOpenKey) {
+    setAppliedAutoOpenKey(autoOpenKey);
+    if (autoOpenKey) {
+      setOpenIds(new Set(visible.map((item) => item.id)));
+    }
+  }
+
   useEffect(() => {
     const id = window.location.hash.replace(/^#/, "");
     if (!id) return;
-    setOpenIds((prev) => new Set(prev).add(id));
-    window.requestAnimationFrame(() => scrollToId(id));
+    const frame = window.requestAnimationFrame(() => {
+      setOpenIds((prev) => new Set(prev).add(id));
+      scrollToId(id);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
-
-  useEffect(() => {
-    if (query.trim().length < 2) return;
-    setOpenIds(new Set(visible.map((item) => item.id)));
-  }, [query, visible]);
 
   useEffect(() => {
     function onScroll() {

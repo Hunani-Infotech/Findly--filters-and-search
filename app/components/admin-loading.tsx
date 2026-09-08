@@ -142,6 +142,14 @@ export function clearAdminLoadRetry() {
   }
 }
 
+/** Full iframe reload with a cache-busting query param (hard refresh). */
+export function hardRefreshAdmin() {
+  clearAdminLoadRetry();
+  const url = new URL(window.location.href);
+  url.searchParams.set("_r", String(Date.now()));
+  window.location.replace(url.toString());
+}
+
 /**
  * Transient loader/auth blips show the page skeleton and reload instead of the
  * error card. After a couple of failed reloads, `fallback` is shown.
