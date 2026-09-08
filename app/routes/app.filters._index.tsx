@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type DragEvent,
 } from "react";
 import {
@@ -36,7 +35,6 @@ import {
   LayoutSidebarLeftIcon,
   MergeIcon,
   SearchIcon,
-  XSmallIcon,
 } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -62,8 +60,6 @@ import {
 } from "../services/filter-trees.server";
 
 export { FiltersListSkeleton as HydrateFallback } from "../components/admin-skeletons";
-
-const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
 const PREFERENCES = [
   {
@@ -243,16 +239,6 @@ export default function FiltersIndex() {
     setSelectedIds((current) => current.filter((id) => treeIds.includes(id)));
   }
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const storedPromoOpen = useSyncExternalStore(
-    (onChange) => {
-      window.addEventListener("storage", onChange);
-      return () => window.removeEventListener("storage", onChange);
-    },
-    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
-    () => false,
-  );
-  const [promoHidden, setPromoHidden] = useState(false);
-  const promoOpen = !promoHidden && storedPromoOpen;
   const lastExportKey = useRef<string | null>(null);
   const lastBulkKey = useRef<unknown>(null);
   const [clearedBulkResult, setClearedBulkResult] = useState<unknown>(null);
@@ -625,31 +611,6 @@ export default function FiltersIndex() {
                 noun="filter"
               />
             </Card>
-            {promoOpen ? (
-              <div className="findly-swatch-promo">
-                <span className="findly-swatch-promo-icon" aria-hidden />
-                <p className="findly-swatch-promo-body">
-                  Make separate products feel like real variants. Connect colors,
-                  styles, and related products in one product experience.
-                </p>
-                <div className="findly-swatch-promo-actions">
-                  <button type="button" onClick={() => navigate("/app/swatches")}>
-                    Start for free
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="findly-swatch-promo-close"
-                  aria-label="Dismiss"
-                  onClick={() => {
-                    setPromoHidden(true);
-                    window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
-                  }}
-                >
-                  <XSmallIcon width={16} height={16} />
-                </button>
-              </div>
-            ) : null}
             <Card padding="0">
               <div className="findly-pref-heading">
                 <Text as="h2" variant="headingMd">

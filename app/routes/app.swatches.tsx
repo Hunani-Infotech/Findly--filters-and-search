@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -25,7 +20,6 @@ import {
   ImportIcon,
   MagicIcon,
   SearchIcon,
-  XSmallIcon,
 } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -56,7 +50,6 @@ import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
-const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;
 
@@ -400,16 +393,6 @@ export default function SwatchesPage() {
   const [drafts, setDrafts] = useState(rows);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
   const [imageValue, setImageValue] = useState<string | null>(null);
-  const storedPromoOpen = useSyncExternalStore(
-    (onChange) => {
-      window.addEventListener("storage", onChange);
-      return () => window.removeEventListener("storage", onChange);
-    },
-    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
-    () => false,
-  );
-  const [promoHidden, setPromoHidden] = useState(false);
-  const promoOpen = storedPromoOpen && !promoHidden;
   const [seenRows, setSeenRows] = useState(rows);
   const [seenOption, setSeenOption] = useState(optionKey);
   const [seenUpload, setSeenUpload] = useState<string | null>(null);
@@ -582,11 +565,6 @@ export default function SwatchesPage() {
     fetcher.submit({ intent: "autofill", optionKey }, { method: "post" });
   };
 
-  const dismissPromo = () => {
-    setPromoHidden(true);
-    window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
-  };
-
   const imageRow = drafts.find((row) => row.value === imageValue) || null;
 
   if (options.length === 0) {
@@ -666,28 +644,6 @@ export default function SwatchesPage() {
         }}
       />
       <BlockStack gap="400">
-      {promoOpen ? (
-        <div className="findly-swatch-promo">
-          <span className="findly-swatch-promo-icon" aria-hidden />
-          <p className="findly-swatch-promo-body">
-            Make separate products feel like real variants. Connect colors,
-            styles, and related products in one product experience.
-          </p>
-          <div className="findly-swatch-promo-actions">
-            <button type="button" onClick={dismissPromo}>
-              Start for free
-            </button>
-          </div>
-          <button
-            type="button"
-            className="findly-swatch-promo-close"
-            aria-label="Dismiss"
-            onClick={dismissPromo}
-          >
-            <XSmallIcon width={16} height={16} />
-          </button>
-        </div>
-      ) : null}
       <div className="findly-swatch-workspace">
         <div className="findly-swatch-options">
           {options.map((option) => {
