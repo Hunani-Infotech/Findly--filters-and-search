@@ -66,11 +66,11 @@ function assertRouteWiresDelivery() {
   if (afterSave.includes("return { ok: true") && !route.includes("delivered.ok")) {
     fail("app.contact.tsx still returns ok after saving a draft only");
   }
-  if (/contactDraft:\s*\{[^}]*collaboratorCode/.test(route)) {
-    fail("Contact drafts must not persist collaborator codes");
+  if (route.includes("Request store access") || route.includes("requestAccess")) {
+    fail("Contact form must not include request store access");
   }
-  if (!route.includes("Request store access") || !route.includes("requestAccess")) {
-    fail("Contact form must require an explicit request-access opt-in");
+  if (route.includes("collaboratorCode")) {
+    fail("Contact form must not collect collaborator codes");
   }
   if (!route.includes("ticketNumber: delivered.ticketNumber")) {
     fail("Contact success response must include delivered.ticketNumber");
@@ -88,8 +88,6 @@ function sampleMessage(overrides = {}) {
   return {
     shopDomain: "findly-test-store.myshopify.com",
     email: "merchant@example.com",
-    requestAccess: true,
-    collaboratorCode: "4821",
     subject: "[Findly Smart Filters & Search] contact e2e",
     message: `Please help with collection filters. Marker: ${MARKER}`,
     ...overrides,
@@ -218,35 +216,22 @@ async function assertLocalSmtp(msg) {
     if (!rawAck.toLowerCase().includes("we received")) {
       fail("Merchant ack missing confirmation copy");
     }
-    if (!text.includes(msg.collaboratorCode) || !text.includes("Support request")) {
-      fail("Plain-text body missing collaborator code or app heading");
+    if (!text.includes("Support request") || !text.includes(result.ticketNumber)) {
+      fail("Plain-text body missing app heading or ticket reference");
     }
-    if (!text.includes(result.ticketNumber)) {
-      fail("Plain-text body missing ticket reference");
+    if (text.toLowerCase().includes("collaborator")) {
+      fail("Plain-text body must not include collaborator codes");
     }
     if (
       !html.includes("Findly Smart Filters &amp; Search") ||
       !html.includes("Support request") ||
       !html.includes(msg.shopDomain) ||
-      !html.includes(msg.collaboratorCode) ||
       !html.includes(result.ticketNumber)
     ) {
-      fail("HTML body missing app name, heading, shop, collaborator code, or ticket");
+      fail("HTML body missing app name, heading, shop, or ticket");
     }
-    const withheld = formatContactPlainText(
-      sampleMessage({ requestAccess: false, collaboratorCode: "4821" }),
-    );
-    const withheldHtml = formatContactHtml(
-      sampleMessage({ requestAccess: false, collaboratorCode: "4821" }),
-    );
-    if (withheld.includes("4821") || withheld.toLowerCase().includes("collaborator")) {
-      fail("Plain-text must omit collaborator codes unless access is requested");
-    }
-    if (
-      withheldHtml.includes("4821") ||
-      withheldHtml.toLowerCase().includes("collaborator")
-    ) {
-      fail("HTML must omit collaborator codes unless access is requested");
+    if (html.toLowerCase().includes("collaborator")) {
+      fail("HTML body must not include collaborator codes");
     }
     const injected = formatContactHtml({
       ...msg,

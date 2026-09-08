@@ -51,7 +51,7 @@ import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { DragHandle } from "../components/drag-handle";
 import { slicePage, reorderWithinSubset } from "../utils/admin-list-page";
-import { downloadJson } from "../utils/download-json";
+import { downloadCsv, recordsToCsv } from "../utils/csv";
 import {
   deleteFilterTrees,
   duplicateFilterTrees,
@@ -270,7 +270,39 @@ export default function FiltersIndex() {
         : JSON.stringify(result.payload);
     if (lastExportKey.current === key) return;
     lastExportKey.current = key;
-    downloadJson("findly-filters.json", result.payload);
+    const trees =
+      typeof result.payload === "object" &&
+      result.payload &&
+      "trees" in result.payload &&
+      Array.isArray(result.payload.trees)
+        ? (result.payload.trees as Array<Record<string, unknown>>)
+        : [];
+    downloadCsv(
+      "findly-filters.csv",
+      recordsToCsv(trees, [
+        "name",
+        "enabled",
+        "appliesToSearch",
+        "collectionGids",
+        "enablePrice",
+        "enableSale",
+        "enableRating",
+        "enableLocation",
+        "enableAvailability",
+        "enableVendor",
+        "enableProductType",
+        "enableTags",
+        "enableOptions",
+        "enableVariantsAsProducts",
+        "variantAsProductOptions",
+        "displayOrder",
+        "displayTypes",
+        "matchModes",
+        "valueSort",
+        "rangeBounds",
+        "sortOrder",
+      ]),
+    );
   }, [exportFetcher.data]);
 
   const bulkResult =

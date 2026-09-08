@@ -23,6 +23,7 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { ADDABLE_LOCALES } from "../utils/admin-locales";
+import { csvCell, downloadCsv, parseCsv } from "../utils/csv";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   getAdminNavExtras,
@@ -47,12 +48,6 @@ import {
 export { TranslationListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 const WIDGET_KEY_SET = new Set<string>(WIDGET_I18N_KEYS);
-
-function csvCell(value: string | number) {
-  const raw = String(value);
-  if (/[",\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
-  return raw;
-}
 
 function widgetCsvRows(
   locale: string,
@@ -90,56 +85,6 @@ function exportCsv(langs: AdminLocaleRow[], i18n: WidgetI18nMap) {
     rows.push(...widgetCsvRows(lang.code, chrome, true));
   }
   return [header, ...rows].join("\n");
-}
-
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let inQuotes = false;
-  const src = text.replace(/^\uFEFF/, "");
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i]!;
-    if (inQuotes) {
-      if (ch === '"') {
-        if (src[i + 1] === '"') {
-          cell += '"';
-          i += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (ch === "\n") {
-      row.push(cell);
-      if (row.some((part) => part.trim())) rows.push(row);
-      row = [];
-      cell = "";
-    } else if (ch !== "\r") {
-      cell += ch;
-    }
-  }
-  row.push(cell);
-  if (row.some((part) => part.trim())) rows.push(row);
-  return rows;
 }
 
 function isWidgetKey(value: string): value is WidgetI18nKey {

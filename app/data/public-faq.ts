@@ -37,7 +37,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "setup",
     question: "Do I need to edit my theme’s code?",
     answer:
-      "No. Findly ships as a Theme App Extension. Add the blocks in the theme editor. After Ajax filtering, review and wishlist widgets (and Weglot) can re-init from Integrations so they stay in sync with the filtered grid.",
+      "No. Findly ships as a Theme App Extension. Add the blocks in the theme editor. After Ajax filtering, review and wishlist widgets (and Weglot) re-init automatically so they stay in sync with the filtered grid.",
   },
   {
     id: "which-filters",

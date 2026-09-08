@@ -140,9 +140,6 @@ export default function PrivacyPolicy() {
             <strong>Support drafts.</strong> If a merchant uses Contact in the
             admin, a draft of their email, subject, and message may be saved
             with shop settings until they send or we purge the shop.
-            Collaborator request codes are not stored. They are emailed to
-            Findly support only when the merchant ticks Request store access
-            on that form.
           </li>
         </ul>
 

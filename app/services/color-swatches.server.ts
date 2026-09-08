@@ -293,7 +293,7 @@ export async function importSwatches(
         Array.isArray((payload as { rows?: unknown }).rows)
       ? (payload as { rows: unknown[] }).rows
       : null;
-  if (!rows) return { error: "JSON must be an array of swatches." as const };
+  if (!rows) return { error: "File must be a CSV or JSON list of swatches." as const };
   let imported = 0;
   for (const item of rows) {
     if (!item || typeof item !== "object") continue;

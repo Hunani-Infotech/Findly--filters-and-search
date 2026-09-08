@@ -13,6 +13,7 @@ import {
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  EditIcon,
   PlusIcon,
   RefreshIcon,
   XSmallIcon,
@@ -77,6 +78,25 @@ function newDraftRow(): SettingsMetafieldRow {
     filterType: "LIST",
     appliesTo: [...DEFAULT_NEW_APPLIES],
   };
+}
+
+function resourceLabel(ownerType: MetafieldOwnerTypeValue) {
+  return (
+    RESOURCE_OPTIONS.find((option) => option.value === ownerType)?.label ??
+    ownerType
+  );
+}
+
+function typeLabel(filterType: MetafieldFilterType) {
+  return (
+    FILTER_TYPE_OPTIONS.find((option) => option.value === filterType)?.label ??
+    filterType
+  );
+}
+
+function appliesSummary(value: MetafieldApplyKey[]) {
+  if (value.length === 0) return "—";
+  return value.map((key) => APPLY_LABELS[key].toLowerCase()).join(", ");
 }
 
 function AppliesToField({
@@ -155,11 +175,13 @@ export function SettingsMetafieldsCard({
   const [savedRows, setSavedRows] = useState(initialRows);
   const [seenInitial, setSeenInitial] = useState(initialRows);
   const [page, setPage] = useState(0);
+  const [editing, setEditing] = useState(false);
   if (initialRows !== seenInitial) {
     setSeenInitial(initialRows);
     setSavedRows(initialRows);
     setRows(initialRows);
     setPage(0);
+    setEditing(false);
   }
 
   const [appliedFetcher, setAppliedFetcher] = useState<FetcherData | undefined>(
@@ -173,6 +195,7 @@ export function SettingsMetafieldsCard({
         setRows(saved);
         setSavedRows(saved);
         setPage((current) => Math.min(current, lastPageIndex(saved.length)));
+        setEditing(false);
       }
       if (fetcher.data.intent === "sync-metafields") {
         if (fetcher.data.rows) {
@@ -184,6 +207,7 @@ export function SettingsMetafieldsCard({
           const nextCount = rows.length + extras.length;
           setRows((current) => [...current, ...extras]);
           setPage(lastPageIndex(nextCount));
+          setEditing(true);
         }
       }
     }
@@ -264,6 +288,12 @@ export function SettingsMetafieldsCard({
     fetcher.submit(formData, { method: "POST" });
   };
 
+  const cancelEdit = () => {
+    setRows(savedRows);
+    setPage((current) => Math.min(current, lastPageIndex(savedRows.length)));
+    setEditing(false);
+  };
+
   return (
     <div className="findly-meta-card">
       <div className="findly-meta-card-head">
@@ -277,13 +307,28 @@ export function SettingsMetafieldsCard({
             enabled on Search → Search fields, to query those values.
           </Text>
         </div>
-        <Button
-          icon={RefreshIcon}
-          disabled={busy}
-          onClick={syncDefinitions}
-        >
-          Sync metafields
-        </Button>
+        <InlineStack gap="200" wrap={false}>
+          <Button
+            icon={RefreshIcon}
+            disabled={busy}
+            onClick={syncDefinitions}
+          >
+            Sync metafields
+          </Button>
+          {empty && !editing ? null : editing ? (
+            <Button disabled={busy} onClick={cancelEdit}>
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              icon={EditIcon}
+              disabled={busy}
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </Button>
+          )}
+        </InlineStack>
       </div>
 
       {empty ? (
@@ -308,7 +353,10 @@ export function SettingsMetafieldsCard({
               variant={pendingClear ? "secondary" : "primary"}
               icon={PlusIcon}
               disabled={busy}
-              onClick={() => setRows([newDraftRow()])}
+              onClick={() => {
+                setEditing(true);
+                setRows([newDraftRow()]);
+              }}
             >
               Add Metafield
             </Button>
@@ -325,105 +373,141 @@ export function SettingsMetafieldsCard({
         </div>
       ) : (
         <BlockStack gap="300">
-          <div className="findly-meta-table">
+          <div className={`findly-meta-table${editing ? "" : " is-view"}`}>
             <div className="findly-meta-table-head">
               <span>Resource</span>
               <span>Namespace</span>
               <span>Key</span>
               <span>Type</span>
               <span>Applies to</span>
-              <span />
+              {editing ? <span /> : null}
             </div>
             {paged.map((row) => (
               <div className="findly-meta-table-row" key={row.clientId}>
-                <Select
-                  label="Resource"
-                  labelHidden
-                  options={RESOURCE_OPTIONS}
-                  value={row.ownerType}
-                  disabled={busy}
-                  onChange={(value) =>
-                    patchRow(row.clientId, {
-                      ownerType: value as MetafieldOwnerTypeValue,
-                    })
-                  }
-                />
-                <TextField
-                  label="Namespace"
-                  labelHidden
-                  placeholder="Namespace"
-                  value={row.namespace}
-                  autoComplete="off"
-                  disabled={busy}
-                  onChange={(namespace) => patchRow(row.clientId, { namespace })}
-                />
-                <TextField
-                  label="Key"
-                  labelHidden
-                  placeholder="Key"
-                  value={row.key}
-                  autoComplete="off"
-                  disabled={busy}
-                  onChange={(key) =>
-                    patchRow(row.clientId, {
-                      key,
-                      displayLabel: row.displayLabel || key,
-                    })
-                  }
-                />
-                <Select
-                  label="Type"
-                  labelHidden
-                  options={FILTER_TYPE_OPTIONS}
-                  value={row.filterType}
-                  disabled={busy}
-                  onChange={(value) =>
-                    patchRow(row.clientId, {
-                      filterType: value as MetafieldFilterType,
-                    })
-                  }
-                />
-                <AppliesToField
-                  value={row.appliesTo}
-                  disabled={busy}
-                  onChange={(appliesTo) => patchRow(row.clientId, { appliesTo })}
-                />
-                <button
-                  type="button"
-                  className="findly-meta-table-remove"
-                  aria-label="Remove metafield"
-                  disabled={busy}
-                  onClick={async () => {
-                    const ok = await ask({
-                      title: "Remove this metafield?",
-                      message: "It will be dropped from search, filter, and display when you save.",
-                      confirmLabel: "Remove",
-                    });
-                    if (!ok) return;
-                    setRows((current) =>
-                      current.filter((item) => item.clientId !== row.clientId),
-                    );
-                    setPage((currentPage) =>
-                      Math.min(currentPage, lastPageIndex(rows.length - 1)),
-                    );
-                  }}
-                >
-                  <XSmallIcon />
-                </button>
+                {editing ? (
+                  <>
+                    <Select
+                      label="Resource"
+                      labelHidden
+                      options={RESOURCE_OPTIONS}
+                      value={row.ownerType}
+                      disabled={busy}
+                      onChange={(value) =>
+                        patchRow(row.clientId, {
+                          ownerType: value as MetafieldOwnerTypeValue,
+                        })
+                      }
+                    />
+                    <TextField
+                      label="Namespace"
+                      labelHidden
+                      placeholder="Namespace"
+                      value={row.namespace}
+                      autoComplete="off"
+                      disabled={busy}
+                      onChange={(namespace) =>
+                        patchRow(row.clientId, { namespace })
+                      }
+                    />
+                    <TextField
+                      label="Key"
+                      labelHidden
+                      placeholder="Key"
+                      value={row.key}
+                      autoComplete="off"
+                      disabled={busy}
+                      onChange={(key) =>
+                        patchRow(row.clientId, {
+                          key,
+                          displayLabel: row.displayLabel || key,
+                        })
+                      }
+                    />
+                    <Select
+                      label="Type"
+                      labelHidden
+                      options={FILTER_TYPE_OPTIONS}
+                      value={row.filterType}
+                      disabled={busy}
+                      onChange={(value) =>
+                        patchRow(row.clientId, {
+                          filterType: value as MetafieldFilterType,
+                        })
+                      }
+                    />
+                    <AppliesToField
+                      value={row.appliesTo}
+                      disabled={busy}
+                      onChange={(appliesTo) =>
+                        patchRow(row.clientId, { appliesTo })
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="findly-meta-table-remove"
+                      aria-label="Remove metafield"
+                      disabled={busy}
+                      onClick={async () => {
+                        const ok = await ask({
+                          title: "Remove this metafield?",
+                          message:
+                            "It will be dropped from search, filter, and display when you save.",
+                          confirmLabel: "Remove",
+                        });
+                        if (!ok) return;
+                        setRows((current) =>
+                          current.filter(
+                            (item) => item.clientId !== row.clientId,
+                          ),
+                        );
+                        setPage((currentPage) =>
+                          Math.min(
+                            currentPage,
+                            lastPageIndex(rows.length - 1),
+                          ),
+                        );
+                      }}
+                    >
+                      <XSmallIcon />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="findly-meta-table-cell">
+                      {resourceLabel(row.ownerType)}
+                    </span>
+                    <span className="findly-meta-table-cell">
+                      {row.namespace || "—"}
+                    </span>
+                    <span className="findly-meta-table-cell">
+                      {row.key || "—"}
+                    </span>
+                    <span className="findly-meta-table-cell">
+                      {typeLabel(row.filterType)}
+                    </span>
+                    <span className="findly-meta-table-cell">
+                      {appliesSummary(row.appliesTo)}
+                    </span>
+                  </>
+                )}
               </div>
             ))}
           </div>
           <InlineStack align="space-between" blockAlign="center" wrap>
-            <Button
-              icon={PlusIcon}
-              disabled={busy}
-              onClick={() => {
-                setRows((current) => [...current, newDraftRow()]);
-                setPage(lastPageIndex(rows.length + 1));
-              }}
-            >
-              Add metafield
-            </Button>
+            {editing ? (
+              <Button
+                icon={PlusIcon}
+                disabled={busy}
+                onClick={() => {
+                  setRows((current) => [...current, newDraftRow()]);
+                  setPage(lastPageIndex(rows.length + 1));
+                }}
+              >
+                Add metafield
+              </Button>
+            ) : (
+              <span />
+            )}
             <InlineStack gap="300" blockAlign="center" wrap>
               <Text as="span" variant="bodySm" tone="subdued">
                 {`Showing ${showingFrom}–${showingTo} of ${rows.length}`}
@@ -451,13 +535,15 @@ export function SettingsMetafieldsCard({
                   </button>
                 </div>
               ) : null}
-              <Button
-                variant="primary"
-                loading={busy}
-                onClick={() => saveRows()}
-              >
-                Save
-              </Button>
+              {editing ? (
+                <Button
+                  variant="primary"
+                  loading={busy}
+                  onClick={() => saveRows()}
+                >
+                  Save
+                </Button>
+              ) : null}
             </InlineStack>
           </InlineStack>
         </BlockStack>

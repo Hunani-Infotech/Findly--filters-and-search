@@ -103,3 +103,75 @@ export function AdminPendingScreen({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+const LOAD_RETRY_KEY = "findly-admin-load-retry";
+const LOAD_RETRY_WINDOW_MS = 20_000;
+const LOAD_RETRY_MAX = 2;
+
+function readLoadRetryCount() {
+  try {
+    const raw = sessionStorage.getItem(LOAD_RETRY_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { count?: number; at?: number };
+    if (Date.now() - (parsed.at ?? 0) > LOAD_RETRY_WINDOW_MS) return 0;
+    return Number(parsed.count) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function bumpLoadRetryCount() {
+  const count = readLoadRetryCount() + 1;
+  try {
+    sessionStorage.setItem(
+      LOAD_RETRY_KEY,
+      JSON.stringify({ count, at: Date.now() }),
+    );
+  } catch {
+    /* private mode */
+  }
+  return count;
+}
+
+/** Clear after a successful admin render so a later blip can retry again. */
+export function clearAdminLoadRetry() {
+  try {
+    sessionStorage.removeItem(LOAD_RETRY_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+/**
+ * Transient loader/auth blips show the page skeleton and reload instead of the
+ * error card. After a couple of failed reloads, `fallback` is shown.
+ */
+export function AdminLoadRetry({
+  fallback,
+  enabled = true,
+}: {
+  fallback: ReactNode;
+  enabled?: boolean;
+}) {
+  const location = useLocation();
+  const gaveUp = !enabled || readLoadRetryCount() >= LOAD_RETRY_MAX;
+
+  useEffect(() => {
+    if (!enabled || gaveUp) return;
+    const timer = window.setTimeout(() => {
+      bumpLoadRetryCount();
+      window.location.reload();
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [enabled, gaveUp]);
+
+  if (gaveUp) return <>{fallback}</>;
+
+  return (
+    <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
+      <Suspense fallback={null}>
+        <LazyAdminRouteSkeleton pathname={location.pathname} />
+      </Suspense>
+    </div>
+  );
+}

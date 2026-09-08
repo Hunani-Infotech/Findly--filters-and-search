@@ -229,8 +229,8 @@ export default function App() {
           </h2>
           <p className={styles.sectionLede}>
             Collection filters, storefront search, and the Theme App Extension
-            — plus search extras, translation, integrations, and usage
-            analytics — configured per shop in Admin.
+            — plus search extras, translation, and usage analytics —
+            configured per shop in Admin.
           </p>
         </div>
         <div className={styles.lead}>
@@ -291,7 +291,7 @@ export default function App() {
             </p>
           </article>
           <article>
-            <h3 className={styles.featureTitle}>Translation &amp; integrations</h3>
+            <h3 className={styles.featureTitle}>Translation</h3>
             <p className={styles.featureCopy}>
               Edit widget labels per locale. After Ajax filtering, review and
               wishlist widgets (and Weglot) can re-init so they stay in sync

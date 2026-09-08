@@ -32,7 +32,7 @@ import {
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
-import { downloadJson } from "../utils/download-json";
+import { downloadCsv, parseJsonOrCsvRecords, recordsToCsv } from "../utils/csv";
 
 export { GroupsListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -79,9 +79,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const raw = String(form.get("json") || "");
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = parseJsonOrCsvRecords(raw);
   } catch {
-    return { error: "Invalid JSON." };
+    return { error: "Invalid CSV or JSON file." };
   }
 
   const result = await importValueGroups(shop.id, parsed);
@@ -156,13 +156,16 @@ export default function ValueGroupsPage() {
   if (page !== slice.safePage) setPage(slice.safePage);
 
   const exportGroups = () => {
-    downloadJson(
-      "findly-groups.json",
-      groups.map(({ name, sourceKey, values }) => ({
-        name,
-        sourceKey,
-        values,
-      })),
+    downloadCsv(
+      "findly-groups.csv",
+      recordsToCsv(
+        groups.map(({ name, sourceKey, values }) => ({
+          name,
+          sourceKey,
+          values,
+        })),
+        ["name", "sourceKey", "values"],
+      ),
     );
   };
 
@@ -216,7 +219,7 @@ export default function ValueGroupsPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/json"
+        accept=".csv,.json,text/csv,application/json"
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];

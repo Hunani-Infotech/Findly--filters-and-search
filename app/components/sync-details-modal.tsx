@@ -1,13 +1,14 @@
 import {
   Banner,
   BlockStack,
+  Button,
   InlineStack,
   List,
   Modal,
   Spinner,
   Text,
 } from "@shopify/polaris";
-import { Link } from "react-router";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export type SyncModalData = {
   status: string;
@@ -57,7 +58,13 @@ export function SyncDetailsModal({
   onClose: () => void;
   onSync: () => void;
 }) {
+  const navigate = useEmbeddedNavigate();
   const syncing = data.status === "SYNCING" || busy;
+
+  const go = (to: string) => {
+    onClose();
+    navigate(to);
+  };
 
   return (
     <Modal
@@ -79,7 +86,10 @@ export function SyncDetailsModal({
               <p>
                 Product limit reached ({data.productCount}/{data.productLimit} on{" "}
                 {data.planName}).{" "}
-                <Link to={billingHref}>Upgrade your plan</Link> for a higher cap.
+                <Button variant="plain" onClick={() => go(billingHref)}>
+                  Upgrade your plan
+                </Button>{" "}
+                for a higher cap.
               </p>
             </Banner>
           ) : null}
@@ -87,10 +97,9 @@ export function SyncDetailsModal({
           {data.status === "READY" && !data.overProductLimit ? (
             <Banner tone="success">
               <p>
-                Everyday product and inventory edits sync automatically in
-                about 1–3 seconds. Sync now indexes the catalog first so filters become
-                Ready quickly; collection order and extras finish in the
-                background.
+                Product and inventory changes update automatically in a few
+                seconds. Filters become ready first; collection order and prices
+                finish in the background.
               </p>
             </Banner>
           ) : null}
@@ -131,16 +140,15 @@ export function SyncDetailsModal({
               Automatic updates
             </Text>
             <Text as="p" tone="subdued">
-              Automatic updates are incremental and fast (about 1–3 seconds). Sync now
-              indexes products first so filters are Ready quickly; collection
-              sort order and market prices finish in the background.
+              Store changes update in a few seconds. Filters go live first;
+              collection order and prices catch up in the background.
             </Text>
             <List>
-              <List.Item>Product or variant created, edited, or deleted</List.Item>
-              <List.Item>Inventory / availability changes</List.Item>
-              <List.Item>Collection membership changes</List.Item>
+              <List.Item>Products or variants added, edited, or removed</List.Item>
+              <List.Item>Stock or availability changes</List.Item>
+              <List.Item>Products added to or removed from collections</List.Item>
               <List.Item>Product or variant metafield changes</List.Item>
-              <List.Item>Full re-sync still runs on app install</List.Item>
+              <List.Item>A full sync still runs when you install the app</List.Item>
             </List>
           </BlockStack>
 
@@ -150,13 +158,23 @@ export function SyncDetailsModal({
             </Text>
             <List type="number">
               <List.Item>
-                <Link to={metafieldsHref}>Map metafields</Link> if you use custom
-                attributes
+                <Button variant="plain" onClick={() => go(metafieldsHref)}>
+                  Map metafields
+                </Button>{" "}
+                if you use custom attributes
               </List.Item>
               <List.Item>
-                <Link to={defaultFiltersHref}>Set shop-wide default filters</Link>
-                , then open <Link to={settingsHref}>Settings</Link> for layout,
-                search, and sort
+                <Button
+                  variant="plain"
+                  onClick={() => go(defaultFiltersHref)}
+                >
+                  Set shop-wide default filters
+                </Button>
+                , then open{" "}
+                <Button variant="plain" onClick={() => go(settingsHref)}>
+                  Settings
+                </Button>{" "}
+                for layout, search, and sort
               </List.Item>
               <List.Item>
                 Enable Collection filters, then add Product search in the theme

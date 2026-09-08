@@ -250,18 +250,7 @@ export default function BillingPage() {
       : 0;
 
   return (
-    <Page
-      title="Pricing"
-      secondaryActions={[
-        {
-          content: "Apply discount code",
-          onAction: () =>
-            shopify.toast.show(
-              "Shopify handles discounts on checkout, not in-app",
-            ),
-        },
-      ]}
-    >
+    <Page title="Pricing">
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">

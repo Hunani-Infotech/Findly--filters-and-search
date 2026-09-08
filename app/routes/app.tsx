@@ -3,7 +3,7 @@ import type {
   LinksFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   isRouteErrorResponse,
   Outlet,
@@ -15,6 +15,7 @@ import {
   AppProvider as PolarisAppProvider,
   Banner,
   BlockStack,
+  Button,
   Card,
   Page,
   Text,
@@ -25,7 +26,12 @@ import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-ro
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "../styles/admin.css?url";
 
-import { AdminPendingScreen, ShopifyLoadingBar } from "../components/admin-loading";
+import {
+  AdminLoadRetry,
+  AdminPendingScreen,
+  clearAdminLoadRetry,
+  ShopifyLoadingBar,
+} from "../components/admin-loading";
 import {
   adminApiKey,
   authenticateAdminAllowReviewBot,
@@ -115,6 +121,10 @@ export function shouldRevalidate({
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
 
+  useEffect(() => {
+    clearAdminLoadRetry();
+  }, []);
+
   return (
     <ShopifyAppProvider embedded apiKey={apiKey}>
       <PolarisAppProvider i18n={enTranslations}>
@@ -127,7 +137,6 @@ export default function App() {
           <a href="/app/search">Search</a>
           <a href="/app/settings">Settings</a>
           <a href="/app/translation">Translation</a>
-          <a href="/app/integrations">Integrations</a>
           <a href="/app/analytics">Analytics</a>
           <a href="/app/billing">Pricing plans</a>
           <a href="/app/contact">Contact</a>
@@ -182,28 +191,46 @@ export function ErrorBoundary() {
     : error instanceof Error
       ? error.message
       : null;
+  const retry =
+    !isRouteErrorResponse(error) ||
+    error.status >= 500 ||
+    error.status === 408 ||
+    error.status === 429;
 
   return (
     <PolarisAppProvider i18n={enTranslations}>
-      <div className="findly-admin-shell">
-        <Page title="Something went wrong">
-          <Card>
-            <BlockStack gap="300">
-              <Banner tone="critical" title="Findly could not load this page">
-                <p>
-                  Try again, or reopen Findly from Shopify Admin. If this keeps
-                  happening, contact support.
-                </p>
-              </Banner>
-              {detail ? (
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {detail}
-                </Text>
-              ) : null}
-            </BlockStack>
-          </Card>
-        </Page>
-      </div>
+      <AdminLoadRetry
+        enabled={retry}
+        fallback={
+          <div className="findly-admin-shell">
+            <Page title="Something went wrong">
+              <Card>
+                <BlockStack gap="300">
+                  <Banner tone="critical" title="Findly could not load this page">
+                    <p>
+                      Try again, or reopen Findly from Shopify Admin. If this keeps
+                      happening, contact support.
+                    </p>
+                  </Banner>
+                  {detail ? (
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      {detail}
+                    </Text>
+                  ) : null}
+                  <Button
+                    onClick={() => {
+                      clearAdminLoadRetry();
+                      window.location.reload();
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </BlockStack>
+              </Card>
+            </Page>
+          </div>
+        }
+      />
     </PolarisAppProvider>
   );
 }

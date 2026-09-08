@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { parseCsvList } from "../utils/csv";
 import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "../utils/admin-list-page";
 import { collectCatalogFromProducts } from "../utils/filter-catalog";
 import { createTtlCache } from "../lib/read-cache.server";
@@ -181,14 +182,16 @@ export async function importValueGroups(shopId: string, payload: unknown) {
         Array.isArray((payload as { groups?: unknown }).groups)
       ? (payload as { groups: unknown[] }).groups
       : null;
-  if (!rows) return { error: "JSON must be an array of groups." as const };
+  if (!rows) return { error: "File must be a CSV or JSON list of groups." as const };
   let imported = 0;
   for (const item of rows) {
     if (!item || typeof item !== "object") continue;
     const row = item as Record<string, unknown>;
     const values = Array.isArray(row.values)
       ? row.values.map((value) => String(value))
-      : [];
+      : typeof row.values === "string"
+        ? parseCsvList(row.values)
+        : [];
     const result = await createValueGroup(shopId, {
       name: String(row.name || ""),
       sourceKey: String(row.sourceKey || ""),

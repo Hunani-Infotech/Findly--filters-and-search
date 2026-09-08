@@ -50,7 +50,7 @@ import {
 import { listShopImages, uploadShopImage } from "../services/shopify-files.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { withEmbeddedParams } from "../utils/admin-path";
-import { downloadJson } from "../utils/download-json";
+import { downloadCsv, parseJsonOrCsvRecords, recordsToCsv } from "../utils/csv";
 import { expandHexColor } from "../utils/hex-color";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
@@ -223,9 +223,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "import") {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(String(form.get("payload") || ""));
+      parsed = parseJsonOrCsvRecords(String(form.get("payload") || ""));
     } catch {
-      return { error: "Invalid JSON file." };
+      return { error: "Invalid CSV or JSON file." };
     }
     const result = await importSwatches(shop.id, parsed, optionKey);
     if ("error" in result && result.error) {
@@ -553,9 +553,14 @@ export default function SwatchesPage() {
     const key = JSON.stringify(result.payload);
     if (lastExportKey.current === key) return;
     lastExportKey.current = key;
-    downloadJson(
-      `findly-swatches-${encodeURIComponent(optionKey || "swatches")}.json`,
-      result.payload,
+    downloadCsv(
+      `findly-swatches-${encodeURIComponent(optionKey || "swatches")}.csv`,
+      recordsToCsv(
+        Array.isArray(result.payload)
+          ? (result.payload as Array<Record<string, unknown>>)
+          : [],
+        ["optionKey", "value", "kind", "color1", "color2", "imageUrl"],
+      ),
     );
   }, [exportFetcher.data, optionKey]);
 
@@ -647,7 +652,7 @@ export default function SwatchesPage() {
       <input
         ref={importInput}
         type="file"
-        accept="application/json"
+        accept=".csv,.json,text/csv,application/json"
         hidden
         onChange={async (event) => {
           const file = event.target.files?.[0];

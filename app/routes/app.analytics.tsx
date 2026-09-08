@@ -21,6 +21,7 @@ import {
 } from "../services/analytics.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
+import { csvCell, downloadCsv } from "../utils/csv";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { AnalyticsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
@@ -46,12 +47,6 @@ type CountRow = { label: string; count: number };
 function parseRange(value: string | null): AnalyticsRange {
   if (value && RANGE_VALUES.has(value)) return value as AnalyticsRange;
   return "this_month";
-}
-
-function csvCell(value: string | number) {
-  const raw = String(value);
-  if (/[",\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
-  return raw;
 }
 
 function countRowsToCsv(section: string, rows: CountRow[]) {
@@ -88,18 +83,6 @@ function analyticsCsv(dashboard: AnalyticsDashboard) {
     ["Section", "Label", "Count"].map(csvCell).join(","),
     ...listRows,
   ].join("\n");
-}
-
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function InsightCard({ title, rows }: { title: string; rows: CountRow[] }) {

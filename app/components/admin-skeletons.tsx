@@ -685,60 +685,10 @@ export function ContactPageSkeleton() {
               <Skel kind="text" width="76%" />
               <FieldBlock />
               <FieldBlock />
-              <FieldBlock />
               <FieldBlock lines={3} />
               <Skel kind="btn" />
             </BlockStack>
           </Card>
-        </Layout.Section>
-      </Layout>
-    </SkeletonPage>
-  );
-}
-
-export function IntegrationsPageSkeleton() {
-  return (
-    <SkeletonPage title="Integrations" backAction>
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  Filter render events
-                </Text>
-                <Skel kind="text" width="58%" />
-                <Skel kind="text" width="46%" />
-                <Skel kind="text" width="64%" />
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Theme.liquid listener snippet
-                  </Text>
-                  <Skel kind="btn" />
-                </InlineStack>
-                <Skel kind="block" />
-                <Skel kind="block" />
-              </BlockStack>
-            </Card>
-            {["Reviews", "Wishlist", "Translation"].map((title) => (
-              <Card key={title}>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    {title}
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Skel kind="text" width="32%" />
-                    <Skel kind="chip" />
-                  </InlineStack>
-                  <Skel kind="text" width="78%" />
-                </BlockStack>
-              </Card>
-            ))}
-          </BlockStack>
         </Layout.Section>
       </Layout>
     </SkeletonPage>
@@ -1149,7 +1099,6 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
   if (path === "/app/billing") return <BillingPageSkeleton />;
   if (path === "/app/contact") return <ContactPageSkeleton />;
   if (path === "/app/sync") return <HomePageSkeleton />;
-  if (path === "/app/integrations") return <IntegrationsPageSkeleton />;
   if (path === "/app/swatches" || path.startsWith("/app/swatches/")) {
     return <SwatchesPageSkeleton />;
   }
