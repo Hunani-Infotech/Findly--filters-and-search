@@ -6,22 +6,22 @@ import type {
   SetupStep,
   SetupStepStatus,
   ThemeEditorUrls,
-  ThemeStepId,
+  ThemeSetupFlags,
 } from "../utils/setup-progress";
 
 export {
   isSetupMarkId,
   isThemeStepId,
   THEME_STEP_IDS,
+  overlayThemeFlags,
   type SetupMarkId,
   type SetupProgress,
   type SetupStep,
   type SetupStepStatus,
   type ThemeEditorUrls,
+  type ThemeSetupFlags,
   type ThemeStepId,
 } from "../utils/setup-progress";
-
-type ThemeSetupFlags = Record<ThemeStepId, boolean>;
 
 type SetupExtras = ThemeSetupFlags & {
   guideDismissed: boolean;
@@ -70,12 +70,14 @@ export function themeEditorUrls(
   if (!apiKey) {
     return {
       collectionFilters: `${editor}?template=collection`,
+      collectionFiltersEmbed: `${editor}?context=apps&template=collection`,
       productSearch: `${editor}?template=search`,
       instantSearch: `${editor}?context=apps`,
     };
   }
   return {
     collectionFilters: `${editor}?template=collection&addAppBlockId=${apiKey}/collection-filters&target=newAppsSection`,
+    collectionFiltersEmbed: `${editor}?context=apps&template=collection&activateAppId=${apiKey}/collection-filters-embed`,
     productSearch: `${editor}?template=search&addAppBlockId=${apiKey}/product-search&target=newAppsSection`,
     instantSearch: `${editor}?context=apps&activateAppId=${apiKey}/instant-search`,
   };
@@ -191,8 +193,8 @@ async function loadSetupProgress(
       number: 3,
       title: "Enable Collection filters",
       description:
-        "In the theme editor, add Collection filters to the collection template (and search, if you use it). Save the theme. Use Collection filters (app embed) only if your theme has no app-block slot.",
-      href: editorUrls.collectionFilters,
+        "In the theme editor App embeds panel, turn on Collection filters. Save the theme. If your theme has an app-block slot, you can add Collection filters on the collection template instead.",
+      href: editorUrls.collectionFiltersEmbed,
       actionLabel: flags["collection-filters"]
         ? "Open collection editor"
         : "Open theme editor",
@@ -257,6 +259,23 @@ async function loadSetupProgress(
     showGuide: !guideDismissed && !allComplete,
     editorUrls,
   };
+}
+
+export async function setThemeSetupFlags(
+  shopId: string,
+  flags: ThemeSetupFlags,
+): Promise<void> {
+  const row = await prisma.appSettings.upsert({
+    where: { shopId },
+    create: { shopId },
+    update: {},
+    select: { adminExtras: true },
+  });
+  const extras = parseSetupExtras(row.adminExtras);
+  extras["collection-filters"] = flags["collection-filters"];
+  extras["product-search"] = flags["product-search"];
+  extras["instant-search"] = flags["instant-search"];
+  await persistSetupExtras(shopId, extras);
 }
 
 export async function setSetupMark(

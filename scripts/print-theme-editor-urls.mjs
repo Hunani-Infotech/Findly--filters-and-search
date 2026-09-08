@@ -56,6 +56,7 @@ const urls = themeEditorUrls(shop, apiKey);
 log.info(`shop=${shop}`);
 log.info(`apiKey=${apiKey ? `${apiKey.slice(0, 6)}…` : "(empty)"}`);
 log.info(`collectionFilters=${urls.collectionFilters}`);
+log.info(`collectionFiltersEmbed=${urls.collectionFiltersEmbed}`);
 log.info(`productSearch=${urls.productSearch}`);
 log.info(`instantSearch=${urls.instantSearch}`);
 
@@ -65,11 +66,19 @@ if (
 ) {
   log.error("collectionFilters URL missing addAppBlockId — FAIL");
   process.exitCode = 1;
+} else if (
+  apiKey &&
+  !urls.collectionFiltersEmbed.includes(
+    `activateAppId=${apiKey}/collection-filters-embed`,
+  )
+) {
+  log.error("collectionFiltersEmbed URL missing activateAppId — FAIL");
+  process.exitCode = 1;
 } else if (apiKey) {
   log.success(
     "STEPTHEME_URL_OK template matches SHOPIFY_API_KEY + collection-filters",
   );
   log.info(
-    "Manual click: open collectionFilters URL while logged into that shop admin. Pass if the collection template offers Findly Collection filters.",
+    "Manual click: open collectionFiltersEmbed URL while logged into that shop admin. Pass if App embeds opens Collection filters.",
   );
 }

@@ -41,10 +41,12 @@ import {
   getSetupProgress,
   isSetupMarkId,
   setSetupMark,
+  setThemeSetupFlags,
   themeEditorUrls,
 } from "../services/setup-progress.server";
-import type { SetupProgress } from "../utils/setup-progress";
+import { overlayThemeFlags, type SetupProgress } from "../utils/setup-progress";
 import { useEmbeddedHref } from "../hooks/use-embedded-navigate";
+import { useThemeExtensionStatus } from "../hooks/use-theme-extension-status";
 import { withEmbeddedParams } from "../utils/admin-path";
 
 export { HomePageSkeleton as HydrateFallback } from "../components/admin-skeletons";
@@ -89,8 +91,8 @@ function emptyHomeData(shopDomain: string) {
       number: 3,
       title: "Enable Collection filters",
       description:
-        "In the theme editor, add Collection filters to the collection template.",
-      href: editorUrls.collectionFilters,
+        "In the theme editor App embeds panel, turn on Collection filters.",
+      href: editorUrls.collectionFiltersEmbed,
       actionLabel: "Open theme editor",
       status: "todo",
       external: true,
@@ -260,6 +262,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, intent: "setup-theme" as const, step, done };
   }
 
+  if (intent === "sync-theme-status") {
+    await setThemeSetupFlags(shop.id, {
+      "collection-filters": String(form.get("collection-filters")) === "true",
+      "product-search": String(form.get("product-search")) === "true",
+      "instant-search": String(form.get("instant-search")) === "true",
+    });
+    return { ok: true, intent: "sync-theme-status" as const };
+  }
+
   if (intent === "sync") {
     try {
       await queueFullSync(session.shop);
@@ -287,7 +298,11 @@ export default function Home() {
     errorLog: string | null;
   }>();
   const lastSyncResult = useRef<unknown>(null);
-  const { setup } = data;
+  const { setup: setupLoaded } = data;
+  const liveThemeFlags = useThemeExtensionStatus(shopify, setupLoaded);
+  const setup = liveThemeFlags
+    ? overlayThemeFlags(setupLoaded, liveThemeFlags)
+    : setupLoaded;
   const polled = statusFetcher.data;
   const sync = {
     ...data.sync,
@@ -421,6 +436,24 @@ export default function Home() {
           <BlockStack gap="400">
             {setup.showGuide ? <SetupGuide progress={setup} /> : null}
 
+            {!setup.showGuide && !embedReady ? (
+              <Banner
+                title="Last step: activate on your theme"
+                tone="info"
+                action={{
+                  content: "Open theme editor",
+                  url: setup.editorUrls.collectionFiltersEmbed,
+                  target: "_blank",
+                }}
+              >
+                <p>
+                  In the theme editor, turn on Collection filters (app embed), or
+                  add the Collection filters block to the collection template.
+                  Save, then return here — we detect it automatically.
+                </p>
+              </Banner>
+            ) : null}
+
             {!setup.showGuide ? (
               <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
                 <Card>
@@ -440,11 +473,15 @@ export default function Home() {
                     </Text>
                     <InlineStack>
                       <Button
-                        url={embedStep?.href || setup.editorUrls.collectionFilters}
+                        url={
+                          embedReady
+                            ? embedStep?.href || setup.editorUrls.collectionFilters
+                            : setup.editorUrls.collectionFiltersEmbed
+                        }
                         target="_blank"
                         variant={embedReady ? "secondary" : "primary"}
                       >
-                        {embedReady ? "Open theme editor" : "Integrate theme"}
+                        Open theme editor
                       </Button>
                     </InlineStack>
                   </BlockStack>

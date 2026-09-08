@@ -174,8 +174,9 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                     </Text>
                     {themeStep && !complete ? (
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Open the theme editor, save your change, then mark this
-                        step as done.
+                        Open the theme editor, save, then return here. We detect
+                        Collection filters and Product search from the published
+                        theme.
                       </Text>
                     ) : null}
                     <InlineStack gap="200" wrap>
@@ -213,7 +214,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                           {step.actionLabel}
                         </Button>
                       )}
-                      {canMark ? (
+                      {canMark && !themeStep ? (
                         <Button
                           variant={complete ? "plain" : "secondary"}
                           loading={marking}
