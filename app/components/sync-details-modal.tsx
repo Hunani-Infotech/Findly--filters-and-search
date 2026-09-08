@@ -21,6 +21,7 @@ export type SyncModalData = {
   plan: string;
   planName: string;
   overProductLimit: boolean;
+  indexingBlocked: boolean;
 };
 
 export function formatSyncTime(value: string | null) {
@@ -28,11 +29,38 @@ export function formatSyncTime(value: string | null) {
   return new Date(value).toLocaleString();
 }
 
-export function syncStatusLabel(status: string) {
-  if (status === "READY") return "Ready";
+export function syncStatusLabel(status: string, indexingBlocked = false) {
   if (status === "SYNCING") return "Syncing";
   if (status === "ERROR") return "Needs attention";
+  if (indexingBlocked) return "Needs a plan";
+  if (status === "READY") return "Ready";
   return "Waiting";
+}
+
+export function indexedProductsLabel(data: {
+  productCount: number;
+  productLimit: number;
+  indexingBlocked: boolean;
+}) {
+  if (data.indexingBlocked) {
+    if (data.productCount > 0) {
+      return `Indexed products: ${data.productCount} (live Development does not index new products)`;
+    }
+    return "Indexed products: none — choose Standard or Pro to index this catalog";
+  }
+  return `Indexed products: ${data.productCount} of ${data.productLimit} allowed`;
+}
+
+export function catalogSummaryLabel(data: {
+  productCount: number;
+  productLimit: number;
+  collectionCount: number;
+  indexingBlocked: boolean;
+}) {
+  if (data.indexingBlocked) {
+    return `Not indexing · ${data.collectionCount} collections`;
+  }
+  return `${data.productCount} of ${data.productLimit} products · ${data.collectionCount} collections`;
 }
 
 export function SyncDetailsModal({
@@ -81,7 +109,19 @@ export function SyncDetailsModal({
     >
       <Modal.Section>
         <BlockStack gap="400">
-          {data.overProductLimit ? (
+          {data.indexingBlocked ? (
+            <Banner tone="warning" title="Products are not indexed on this plan">
+              <p>
+                Live stores need Standard or Pro to index products. Collections
+                can still sync.{" "}
+                <Button variant="plain" onClick={() => go(billingHref)}>
+                  Choose a plan
+                </Button>
+              </p>
+            </Banner>
+          ) : null}
+
+          {data.overProductLimit && !data.indexingBlocked ? (
             <Banner tone="warning">
               <p>
                 Product limit reached ({data.productCount}/{data.productLimit} on{" "}
@@ -94,7 +134,9 @@ export function SyncDetailsModal({
             </Banner>
           ) : null}
 
-          {data.status === "READY" && !data.overProductLimit ? (
+          {data.status === "READY" &&
+          !data.overProductLimit &&
+          !data.indexingBlocked ? (
             <Banner tone="success">
               <p>
                 Product and inventory changes update automatically in a few
@@ -122,16 +164,16 @@ export function SyncDetailsModal({
               Status
             </Text>
             <Text as="p">Plan: {data.planName}</Text>
-            <Text as="p">Status: {syncStatusLabel(data.status)}</Text>
+            <Text as="p">
+              Status: {syncStatusLabel(data.status, data.indexingBlocked)}
+            </Text>
             <Text as="p">
               Last full sync: {formatSyncTime(data.lastFullSyncAt)}
             </Text>
             <Text as="p">
               Last update: {formatSyncTime(data.lastIncrementalSyncAt)}
             </Text>
-            <Text as="p">
-              Indexed products: {data.productCount} / {data.productLimit}
-            </Text>
+            <Text as="p">{indexedProductsLabel(data)}</Text>
             <Text as="p">Collections: {data.collectionCount}</Text>
           </BlockStack>
 

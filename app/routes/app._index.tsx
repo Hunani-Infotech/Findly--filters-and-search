@@ -35,7 +35,12 @@ import { queueFullSync } from "../sync/queue-full-sync";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 import { SetupGuide } from "../components/setup-guide";
 import { HomePerformance } from "../components/home-performance";
-import { SyncDetailsModal, formatSyncTime, syncStatusLabel } from "../components/sync-details-modal";
+import {
+  SyncDetailsModal,
+  catalogSummaryLabel,
+  formatSyncTime,
+  syncStatusLabel,
+} from "../components/sync-details-modal";
 import { loadAnalyticsDashboard } from "../services/analytics.server";
 import {
   getSetupProgress,
@@ -154,6 +159,7 @@ function emptyHomeData(shopDomain: string) {
       collectionCount: 0,
       productLimit: PLANS.free.productLimit,
       overProductLimit: false,
+      indexingBlocked: PLANS.free.productLimit <= 0,
     },
     performance: EMPTY_PERFORMANCE,
     performanceFrom: new Date(0).toISOString(),
@@ -232,6 +238,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         collectionCount: setup.collectionCount,
         productLimit: caps.productLimit,
         overProductLimit: setup.productCount > caps.productLimit,
+        indexingBlocked: caps.productLimit <= 0,
       },
       performance: dashboard.metrics,
       performanceFrom: dashboard.from,
@@ -555,6 +562,22 @@ export default function Home() {
                     </Button>
                   </InlineStack>
                 </InlineStack>
+                {sync.indexingBlocked ? (
+                  <Banner tone="warning" title="Choose a plan to index products">
+                    <p>
+                      Live stores on Development do not index products.
+                      Standard allows {PLANS.standard.productLimit} products;
+                      Pro allows {PLANS.pro.productLimit}. Collections can
+                      still sync.{" "}
+                      <Link
+                        to={hrefFor("/app/billing")}
+                        className="findly-plain-btn"
+                      >
+                        Choose a plan
+                      </Link>
+                    </p>
+                  </Banner>
+                ) : null}
                 {sync.status === "ERROR" ? (
                   <Banner tone="critical" title="Sync needs another try">
                     <p>
@@ -569,7 +592,7 @@ export default function Home() {
                       Status
                     </Text>
                     <Text as="p" variant="bodyMd" fontWeight="medium">
-                      {syncStatusLabel(sync.status)}
+                      {syncStatusLabel(sync.status, sync.indexingBlocked)}
                     </Text>
                   </BlockStack>
                   <BlockStack gap="050">
@@ -593,7 +616,12 @@ export default function Home() {
                       Catalog
                     </Text>
                     <Text as="p" variant="bodyMd" fontWeight="medium">
-                      {`${setup.productCount} products · ${setup.collectionCount} collections`}
+                      {catalogSummaryLabel({
+                        productCount: setup.productCount,
+                        productLimit: sync.productLimit,
+                        collectionCount: setup.collectionCount,
+                        indexingBlocked: sync.indexingBlocked,
+                      })}
                     </Text>
                   </BlockStack>
                 </InlineGrid>
@@ -620,6 +648,7 @@ export default function Home() {
           plan: data.plan,
           planName: data.planName,
           overProductLimit: sync.overProductLimit,
+          indexingBlocked: sync.indexingBlocked,
         }}
         billingHref={hrefFor("/app/billing")}
         settingsHref={hrefFor("/app/settings")}
