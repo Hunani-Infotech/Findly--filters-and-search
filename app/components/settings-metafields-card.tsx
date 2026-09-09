@@ -6,20 +6,14 @@ import {
   Box,
   Button,
   Card,
-  Checkbox,
   IndexTable,
   InlineStack,
-  Popover,
   Text,
 } from "@shopify/polaris";
 import { RefreshIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { indexTablePagination } from "./admin-list-pagination";
-import {
-  METAFIELD_APPLY_KEYS,
-  isValidMetafieldPart,
-  type MetafieldApplyKey,
-} from "../utils/metafield-applies";
+import { type MetafieldApplyKey } from "../utils/metafield-applies";
 import type { SettingsMetafieldRow } from "../services/settings-metafields.server";
 import type { MetafieldOwnerTypeValue } from "../utils/metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
@@ -83,73 +77,22 @@ function typeLabel(filterType: MetafieldFilterType) {
   );
 }
 
-function AppliesToField({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: MetafieldApplyKey[];
-  disabled?: boolean;
-  onChange: (next: MetafieldApplyKey[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = new Set(value);
+function AppliesToBadges({ value }: { value: MetafieldApplyKey[] }) {
+  if (value.length === 0) {
+    return (
+      <Text as="span" variant="bodySm" tone="subdued">
+        None
+      </Text>
+    );
+  }
 
   return (
     <InlineStack gap="200" blockAlign="center" wrap>
-      {value.length === 0 ? (
-        <Text as="span" variant="bodySm" tone="subdued">
-          None
-        </Text>
-      ) : (
-        value.map((key) => (
-          <Badge key={key} tone={APPLY_TONES[key]}>
-            {APPLY_LABELS[key]}
-          </Badge>
-        ))
-      )}
-      <Popover
-        active={open}
-        activator={
-          <Button
-            size="slim"
-            disclosure
-            disabled={disabled}
-            onClick={() => setOpen((current) => !current)}
-            accessibilityLabel="Change where this metafield applies"
-          >
-            {value.length === 0 ? "Select" : "Change"}
-          </Button>
-        }
-        onClose={() => setOpen(false)}
-      >
-        <Box padding="300" minWidth="220px">
-          <BlockStack gap="200">
-            {METAFIELD_APPLY_KEYS.map((key) => (
-              <BlockStack key={key} gap="050">
-                <Checkbox
-                  label={APPLY_LABELS[key]}
-                  checked={selected.has(key)}
-                  disabled={disabled}
-                  onChange={(checked) => {
-                    const next = METAFIELD_APPLY_KEYS.filter((item) =>
-                      item === key ? checked : selected.has(item),
-                    );
-                    onChange(next);
-                  }}
-                />
-                {key === "sort" ? (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Checking Sort adds this metafield to the storefront Sort By
-                    dropdown (using its display name). Uncheck Sort to remove
-                    it.
-                  </Text>
-                ) : null}
-              </BlockStack>
-            ))}
-          </BlockStack>
-        </Box>
-      </Popover>
+      {value.map((key) => (
+        <Badge key={key} tone={APPLY_TONES[key]}>
+          {APPLY_LABELS[key]}
+        </Badge>
+      ))}
     </InlineStack>
   );
 }
@@ -239,44 +182,11 @@ export function SettingsMetafieldsCard({
   const slice = slicePage(rows, page, ADMIN_TABLE_PAGE_SIZE);
   if (page !== slice.safePage) setPage(slice.safePage);
 
-  const saveRows = (next = rows) => {
-    const incomplete = next.filter((row) => {
-      const namespace = row.namespace.trim();
-      const key = row.key.trim();
-      if (!namespace && !key) return false;
-      return (
-        !namespace ||
-        !key ||
-        !isValidMetafieldPart(namespace) ||
-        !isValidMetafieldPart(key)
-      );
-    });
-    if (incomplete.length) {
-      shopify.toast.show(
-        "Each metafield needs a valid namespace and key (letters, numbers, hyphen, underscore).",
-        { isError: true },
-      );
-      return;
-    }
-    const formData = new FormData();
-    formData.set("intent", "save-metafields");
-    formData.set("mappings", JSON.stringify(next));
-    fetcher.submit(formData, { method: "POST" });
-  };
-
   const syncDefinitions = () => {
     const formData = new FormData();
     formData.set("intent", "sync-metafields");
     formData.set("mappings", JSON.stringify(rows));
     fetcher.submit(formData, { method: "POST" });
-  };
-
-  const patchApplies = (clientId: string, appliesTo: MetafieldApplyKey[]) => {
-    const next = rows.map((row) =>
-      row.clientId === clientId ? { ...row, appliesTo } : row,
-    );
-    setRows(next);
-    saveRows(next);
   };
 
   const rowMarkup = slice.paged.map((row, index) => (
@@ -298,11 +208,7 @@ export function SettingsMetafieldsCard({
       </IndexTable.Cell>
       <IndexTable.Cell>{typeLabel(row.filterType)}</IndexTable.Cell>
       <IndexTable.Cell>
-        <AppliesToField
-          value={row.appliesTo}
-          disabled={busy}
-          onChange={(appliesTo) => patchApplies(row.clientId, appliesTo)}
-        />
+        <AppliesToBadges value={row.appliesTo} />
       </IndexTable.Cell>
     </IndexTable.Row>
   ));
@@ -316,8 +222,7 @@ export function SettingsMetafieldsCard({
               Metafields
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              Definitions come from Shopify. Sync to refresh the list, then
-              choose Filter, Search, or Sort for each metafield. Keep
+              Definitions come from Shopify. Sync to refresh the list. Keep
               Metafield enabled on Search → Search fields to query those values.
             </Text>
           </BlockStack>
