@@ -2802,7 +2802,6 @@ ol.product-grid > .sf-collection-layout,
 .product-grid > .sf-collection-layout,
 results-list > .sf-collection-layout,
 .main-collection-grid > .sf-collection-layout,
-.collection-wrapper > .sf-collection-layout,
 .product-grid-container > .sf-collection-layout {
   grid-column: 1 / -1;
   width: 100%;
@@ -2819,15 +2818,11 @@ results-list > .sf-collection-layout,
 
 .sf-layout-main > .collection-wrapper,
 .sf-collection-layout .collection-wrapper {
-  display: block !important;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  grid-template-columns: none !important;
 }
 
-.collection-wrapper:has(.sf-collection-layout),
-.collection-wrapper:has(.smart-filter),
 results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid),
 .product-grid-container:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid) {
   display: block !important;
@@ -2836,31 +2831,19 @@ results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-
   max-width: 100% !important;
 }
 
-.collection-wrapper.grid:has(.sf-collection-layout),
-.collection-wrapper.grid:has(.smart-filter),
-.sf-collection-layout .collection-wrapper.grid {
-  display: block !important;
-  grid-template-columns: none !important;
-}
-
-.collection-wrapper > .main-collection-grid,
-.collection-wrapper > results-list {
-  grid-column: 1 / -1 !important;
-  width: 100% !important;
-  max-width: 100% !important;
+.collection-wrapper > .sf-collection-layout {
+  grid-column: var(--centered, 2 / -2) !important;
+  width: auto !important;
+  max-width: none !important;
   min-width: 0 !important;
 }
 
-.collection-wrapper:has(.sf-collection-layout) > .sf-collection-layout,
-.collection-wrapper:has(.smart-filter) > .sf-collection-layout {
-  grid-column: 1 / -1 !important;
-  width: 100% !important;
-  max-width: 100% !important;
+.collection-wrapper--grid-full-width > .sf-collection-layout,
+.collection-wrapper:has(.collection-wrapper--full-width) > .sf-collection-layout {
+  grid-column: var(--full-width, 1 / -1) !important;
 }
 
-.collection-wrapper:has(.sf-collection-layout) .main-collection-grid,
 .sf-collection-layout .main-collection-grid {
-  grid-column: 1 / -1 !important;
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;

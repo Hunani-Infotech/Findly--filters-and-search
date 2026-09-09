@@ -123,7 +123,10 @@ function assertThemeContainerFit() {
     fail("layout host must wrap Horizon collection-wrapper, not the inner product grid");
   }
   if (!gridJs.includes("flattenHorizonCollectionWrapper")) {
-    fail("Horizon collection-wrapper must be flattened so products are not trapped in one grid track");
+    fail("Horizon collection-wrapper layout helper is missing");
+  }
+  if (!gridJs.includes("var(--centered, 2 / -2)") && !gridJs.includes("var(--centered,2 / -2)")) {
+    fail("Horizon layout must sit in centered collection-wrapper tracks, not full-bleed 1 / -1");
   }
   if (!gridJs.includes("data-sf-layout-stable")) {
     fail("layout repair must stop after the first stable pass");
@@ -158,11 +161,8 @@ function assertThemeContainerFit() {
   if (!gridJs.includes("armFilterReadyFailsafe")) {
     fail("filter loading CSS must not hide products forever if layout init stalls");
   }
-  if (!gridJs.includes("grid-template-columns:280px minmax(0,1fr)")) {
-    fail("left collection layout must use a 280px + remaining-width CSS grid");
-  }
-  if (!gridJs.includes("--grid-column--desktop:minmax(0,1fr)")) {
-    fail("Horizon --grid-column--desktop must be a single minmax track, not 250px 1fr");
+  if (!gridJs.includes("grid-template-columns:320px minmax(0,1fr)")) {
+    fail("left collection layout must use a 320px + remaining-width CSS grid");
   }
   const themeJs = read("extensions/smart-filter/assets/smart-filter-theme.js");
   if (
@@ -174,7 +174,10 @@ function assertThemeContainerFit() {
   }
   const css = read("extensions/smart-filter/assets/smart-filter.css");
   if (!css.includes(".collection-wrapper > .sf-collection-layout")) {
-    fail("Horizon collection-wrapper must span Findly layout across all grid columns");
+    fail("Horizon collection-wrapper must host the Findly layout in centered tracks");
+  }
+  if (!css.includes("var(--centered, 2 / -2)")) {
+    fail("Horizon Findly layout must use centered grid columns, not 1 / -1 full bleed");
   }
   if (!css.includes(".page-width > .sf-collection-layout")) {
     fail("collection layout must fill the theme page-width, not sit outside it");

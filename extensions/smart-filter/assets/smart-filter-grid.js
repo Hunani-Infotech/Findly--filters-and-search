@@ -487,7 +487,7 @@
         "{flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
         "ul.product-grid>.sf-collection-layout,.product-grid>.sf-collection-layout,ol.product-grid>.sf-collection-layout," +
         "results-list>.sf-collection-layout,.main-collection-grid>.sf-collection-layout,.sf-app-grid>.sf-collection-layout," +
-        ".collection-wrapper>.sf-collection-layout,.product-grid-container>.sf-collection-layout" +
+        ".product-grid-container>.sf-collection-layout" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
         ".collection-wrapper>.sf-pager,.collection-wrapper>.sf-toolbar,.collection-wrapper>.sf-page-chips," +
         ".collection-wrapper>.sf-sort-host," +
@@ -495,7 +495,7 @@
         ".product-grid-container>.sf-page-chips" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
         ".sf-layout-main>.collection-wrapper,.sf-collection-layout .collection-wrapper" +
-        "{display:block!important;width:100%;max-width:100%;min-width:0;grid-template-columns:none!important}" +
+        "{width:100%;max-width:100%;min-width:0}" +
         ".product-grid>.sf-toolbar,.product-grid>.sf-pager,.product-grid>.sf-sort-host,.product-grid>.sf-search-host," +
         "ul.product-grid>.sf-toolbar,ul.product-grid>.sf-pager,ul.product-grid>.sf-sort-host," +
         ".main-collection-grid>.sf-toolbar,.main-collection-grid>.sf-pager,.main-collection-grid>.sf-sort-host," +
@@ -512,21 +512,16 @@
         ".sf-layout-main .product-grid,.sf-layout-main ul.product-grid," +
         ".sf-layout-main ol.product-grid,.sf-layout-main .main-collection-grid," +
         ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:stretch!important}" +
-        ".collection-wrapper:has(.sf-collection-layout),.collection-wrapper:has(.smart-filter)," +
         "results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)," +
         ".product-grid-container:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)" +
         "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
-        ".collection-wrapper.grid:has(.sf-collection-layout),.collection-wrapper.grid:has(.smart-filter)," +
-        ".sf-collection-layout .collection-wrapper.grid" +
-        "{display:block!important;grid-template-columns:none!important}" +
-        ".collection-wrapper>.main-collection-grid,.collection-wrapper>results-list" +
-        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
-        ".collection-wrapper:has(.sf-collection-layout)>.sf-collection-layout," +
-        ".collection-wrapper:has(.smart-filter)>.sf-collection-layout" +
-        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
-        ".collection-wrapper:has(.sf-collection-layout) .main-collection-grid," +
+        ".collection-wrapper>.sf-collection-layout" +
+        "{grid-column:var(--centered,2 / -2)!important;width:auto!important;max-width:none!important;min-width:0!important}" +
+        ".collection-wrapper--grid-full-width>.sf-collection-layout," +
+        ".collection-wrapper:has(.collection-wrapper--full-width)>.sf-collection-layout" +
+        "{grid-column:var(--full-width,1 / -1)!important}" +
         ".sf-collection-layout .main-collection-grid" +
-        "{grid-column:1/-1!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        "{width:100%!important;max-width:100%!important;min-width:0!important}" +
         ".sf-collection-layout .badge,.sf-collection-layout .card__badge,.sf-collection-layout .product-card__badge" +
         "{writing-mode:horizontal-tb!important;white-space:nowrap;max-width:100%}" +
         "#findly-sf-pager,.sf-pager--pagination,.sf-pager--load-more,.sf-pager--infinite,[data-sf-pager-suppressed='1']," +
@@ -909,7 +904,7 @@
   }
 
   var THEME_WIDTH_SELECTOR =
-    ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow, .page-width--compact, .container:not(.container-fluid), .Container, .wrapper, .page-container";
+    ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow, .page-width--compact, .container:not(.container-fluid), .Container, .wrapper, .page-container, .collection-wrapper";
 
   function isFullBleedHost(el) {
     if (!el || el.nodeType !== 1) return true;
@@ -950,9 +945,7 @@
     return (
       cls.contains("product-grid") ||
       cls.contains("main-collection-grid") ||
-      cls.contains("sf-app-grid") ||
-      cls.contains("product-grid-container") ||
-      cls.contains("collection-wrapper")
+      cls.contains("sf-app-grid")
     );
   }
 
@@ -1147,6 +1140,9 @@
     if (el.classList.contains("container") && !el.classList.contains("container-fluid")) {
       return true;
     }
+    if (el.classList.contains("collection-wrapper")) {
+      return true;
+    }
     return (
       el.classList.contains("Container") || el.classList.contains("page-container")
     );
@@ -1333,7 +1329,13 @@
   function liftLayoutOutOfProductGrid(layout) {
     if (!layout || !layout.parentNode) return;
     var guard = 0;
-    while (layout.parentNode && isProductGridLike(layout.parentNode) && guard < 8) {
+    while (
+      layout.parentNode &&
+      isProductGridLike(layout.parentNode) &&
+      !isPageShellHost(layout.parentNode) &&
+      !isThemeWidthContainer(layout.parentNode) &&
+      guard < 8
+    ) {
       var gridHost = layout.parentNode;
       var grand = gridHost.parentNode;
       if (!grand) break;
@@ -1415,39 +1417,43 @@
 
   var repairingLayout = false;
 
+  function horizonLayoutColumn(wrap) {
+    if (
+      wrap &&
+      wrap.classList &&
+      (wrap.classList.contains("collection-wrapper--grid-full-width") ||
+        (wrap.querySelector && wrap.querySelector(".collection-wrapper--full-width")))
+    ) {
+      return "var(--full-width, 1 / -1)";
+    }
+    return "var(--centered, 2 / -2)";
+  }
+
   function flattenHorizonCollectionWrapper(layout) {
     if (!layout) return;
     var wrap =
       (layout.closest && layout.closest(".collection-wrapper")) ||
       layout.querySelector(".collection-wrapper");
+    if (wrap && layout.parentNode === wrap) {
+      applyImportantStyle(layout, "grid-column", horizonLayoutColumn(wrap));
+    }
     if (
       layout.getAttribute &&
-      layout.getAttribute("data-sf-horizon-flat") === "1" &&
-      wrap &&
-      wrap.style &&
-      wrap.style.display === "block"
+      layout.getAttribute("data-sf-horizon-flat") === "1"
     ) {
       return;
     }
     applyImportantStyle(layout, "width", "100%");
     applyImportantStyle(layout, "max-width", "100%");
     applyImportantStyle(layout, "min-width", "0");
-    applyImportantStyle(layout, "grid-column", "1 / -1");
 
-    var hosts = [];
-    if (wrap) hosts.push(wrap);
     var list =
       (layout.closest && layout.closest("results-list")) ||
       (layout.closest && layout.closest(".product-grid-container"));
-    if (list && hosts.indexOf(list) < 0) hosts.push(list);
-
-    var i;
-    for (i = 0; i < hosts.length; i++) {
-      if (isActualCardGrid(hosts[i])) continue;
-      applyImportantStyle(hosts[i], "display", "block");
-      applyImportantStyle(hosts[i], "grid-template-columns", "none");
-      applyImportantStyle(hosts[i], "width", "100%");
-      applyImportantStyle(hosts[i], "max-width", "100%");
+    if (list && !isActualCardGrid(list) && list !== wrap) {
+      applyImportantStyle(list, "display", "block");
+      applyImportantStyle(list, "width", "100%");
+      applyImportantStyle(list, "max-width", "100%");
     }
 
     var grids = layout.querySelectorAll
@@ -1455,11 +1461,11 @@
           ".main-collection-grid, ul.product-grid, ol.product-grid, .sf-app-grid",
         )
       : [];
+    var i;
     for (i = 0; i < grids.length; i++) {
       applyImportantStyle(grids[i], "width", "100%");
       applyImportantStyle(grids[i], "max-width", "100%");
       applyImportantStyle(grids[i], "min-width", "0");
-      applyImportantStyle(grids[i], "grid-column", "1 / -1");
     }
 
     var pagers = layout.querySelectorAll
