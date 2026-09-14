@@ -7,16 +7,17 @@ import type {
 import { redirect, useFetcher, useLoaderData, useSearchParams } from "react-router";
 import { Card, Layout, Page } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../admin-nav-extras.server";
-import { listColorOptionKeys } from "../color-swatches.server";
-import { mergeWidgetChrome } from "../widget-i18n";
+} from "../services/admin-extras.server";
+import { listColorOptionKeys } from "../services/color-swatches.server";
+import { mergeWidgetChrome } from "../utils/widget-i18n";
 import {
   BUILTIN_LABEL_FIELDS,
   TRANSLATION_FIELDS,
@@ -25,7 +26,7 @@ import {
   labelKeyFromOption,
   parseTranslationTab,
   type TranslationField,
-} from "../translation-catalog";
+} from "../utils/translation-catalog";
 
 export { TranslationLocaleSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -84,10 +85,25 @@ function mapForLocale<T>(
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const decoded = decodeLocaleParam(params.locale);
+  if (auth.bot) {
+    const lang = {
+      code: decoded || "en",
+      name: "English",
+      complete: true,
+      isDefault: true,
+    };
+    return {
+      lang,
+      strings: mergeLocaleStrings(undefined),
+      labelFields: [...BUILTIN_LABEL_FIELDS],
+      customFields: [] as Array<{ id: string; reference: string }>,
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
-  const decoded = decodeLocaleParam(params.locale);
   const lang = resolveLang(extras.langs, decoded);
   if (!lang) return redirect("/app/translation");
 
@@ -249,13 +265,13 @@ export default function TranslationLocalePage() {
               ))}
             </div>
             <div className="findly-i18n-table">
-              <div className="findly-i18n-table__head">
+              <div className="findly-i18n-table-head">
                 <span>Reference</span>
                 <span />
                 <span>{lang.name}</span>
               </div>
               {fields.map((field) => (
-                <div className="findly-i18n-table__row" key={field.key}>
+                <div className="findly-i18n-table-row" key={field.key}>
                   <span>{field.reference}</span>
                   <span className="findly-i18n-arrow" aria-hidden>
                     ›
@@ -283,7 +299,7 @@ export default function TranslationLocalePage() {
                   fetcher.submit({ intent: "addCustom" }, { method: "post" })
                 }
               >
-                <span className="findly-i18n-add__plus">+</span>
+                <span className="findly-i18n-add-plus">+</span>
                 Add field
               </button>
             ) : null}

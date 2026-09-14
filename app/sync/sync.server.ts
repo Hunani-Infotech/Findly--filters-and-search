@@ -1,8 +1,9 @@
 import prisma from "../db.server";
-import { enforcePlanLimits } from "../billing.server";
-import { bumpCatalogGeneration } from "../catalog-cache.server";
-import { log } from "../log.server";
-import { ensureShop } from "../shop.server";
+import { enforcePlanLimits, refreshPartnerDevelopment } from "../services/billing.server";
+import { bumpCatalogGeneration } from "../lib/catalog-cache.server";
+import { COLLECTION_REBUILD_DELAY_MS, SAMPLE_TEXT_MAX } from "../constants/limits";
+import { log } from "../lib/log.server";
+import { ensureShop } from "../services/shop.server";
 import {
   BULK_PRODUCTS_MUTATION,
   BULK_PRODUCTS_QUERY,
@@ -15,22 +16,31 @@ import {
   INVENTORY_ITEM_PRODUCT_QUERY,
   INVENTORY_LEVEL_PRODUCT_QUERY,
   PRODUCT_NODE_QUERY,
+  PRODUCT_AVAILABILITY_QUERY,
   PRODUCT_COLLECTIONS_QUERY,
   VARIANT_PRODUCT_QUERY,
   completedBulkIsFresh,
   countBulkQueryConnections,
-} from "./graphql";
+  wrapAdminGraphqlWithThrottleRetry,
+} from "./admin-graphql";
 import {
   syncProductMarketPrices,
   syncShopMarketPrices,
 } from "./markets-sync";
 import {
+  availableLocationNamesFromVariants,
   mapProductToFacet,
   parseBulkJsonlProducts,
+  productIsAvailable,
   shopifyVariantNodes,
+  variantIsInStock,
   variantsIncludeInventoryLevels,
 } from "./product-mapper";
-import { enqueueSyncJob } from "../queues.server";
+import { enqueueSyncJob, enqueueSyncJobWithTimeout } from "../lib/queues.server";
+import {
+  buildStoredVariants,
+  parseStoredVariants,
+} from "../utils/variants-as-products";
 
 type GraphqlClient = {
   graphql: (
@@ -42,7 +52,8 @@ type GraphqlClient = {
 async function getAdminForShop(shopDomain: string): Promise<GraphqlClient> {
   const { unauthenticated } = await import("../shopify.server");
   const { admin } = await unauthenticated.admin(shopDomain);
-  return admin;
+  // THROTTLED / 429 / cost-limit: exponential backoff in adminGraphqlWithRetry.
+  return wrapAdminGraphqlWithThrottleRetry(admin);
 }
 
 async function syncProductMemberships(
@@ -60,6 +71,7 @@ async function syncProductMemberships(
     });
     return previous;
   }
+
   await prisma.collectionMembership.deleteMany({
     where: {
       shopId,
@@ -67,25 +79,21 @@ async function syncProductMemberships(
       collectionGid: { notIn: collectionGids },
     },
   });
-  for (const collectionGid of collectionGids) {
-    const prev = existing.find((row) => row.collectionGid === collectionGid);
-    await prisma.collectionMembership.upsert({
-      where: {
-        shopId_collectionGid_productGid: {
-          shopId,
-          collectionGid,
-          productGid,
-        },
-      },
-      create: {
+
+  const existingSet = new Set(previous);
+  const toCreate = collectionGids.filter((gid) => !existingSet.has(gid));
+  if (toCreate.length) {
+    await prisma.collectionMembership.createMany({
+      data: toCreate.map((collectionGid) => ({
         shopId,
         collectionGid,
         productGid,
-        position: prev?.position ?? 0,
-      },
-      update: {},
+        position: 0,
+      })),
+      skipDuplicates: true,
     });
   }
+
   return previous;
 }
 
@@ -157,7 +165,7 @@ async function enqueueChangedCollectionRebuilds(
         { shop: shopDomain, collectionGid },
         {
           jobId: `${shopDomain}:collection.rebuild:${collectionGid}`,
-          delay: 2000,
+          delay: COLLECTION_REBUILD_DELAY_MS,
         },
       );
     } catch (error) {
@@ -203,27 +211,104 @@ async function recordDiscoveredMetafields(
   metafields: Record<string, string>,
   ownerType: "PRODUCT" | "VARIANT" = "PRODUCT",
 ) {
+  const entries = collectDiscoveredMetafieldEntries(metafields, ownerType);
+  await persistDiscoveredMetafieldEntries(shopId, entries);
+}
+
+type DiscoveredMetafieldEntry = {
+  namespace: string;
+  key: string;
+  ownerType: "PRODUCT" | "VARIANT";
+  sampleValue: string | null;
+};
+
+function collectDiscoveredMetafieldEntries(
+  metafields: Record<string, string>,
+  ownerType: "PRODUCT" | "VARIANT",
+): DiscoveredMetafieldEntry[] {
+  const out: DiscoveredMetafieldEntry[] = [];
   for (const [path, sampleValue] of Object.entries(metafields)) {
     const dot = path.indexOf(".");
     if (dot <= 0) continue;
     const namespace = path.slice(0, dot);
     const key = path.slice(dot + 1);
     if (!namespace || !key) continue;
+    out.push({
+      namespace,
+      key,
+      ownerType,
+      sampleValue: sampleValue?.slice(0, SAMPLE_TEXT_MAX) ?? null,
+    });
+  }
+  return out;
+}
 
-    await prisma.discoveredMetafield.upsert({
-      where: {
-        shopId_namespace_key_ownerType: { shopId, namespace, key, ownerType },
-      },
-      create: {
-        shopId,
-        namespace,
-        key,
-        ownerType,
-        sampleValue: sampleValue?.slice(0, 500) ?? null,
-      },
-      update: {
-        sampleValue: sampleValue?.slice(0, 500) ?? null,
-      },
+function mergeDiscoveredMetafieldEntry(
+  into: Map<string, DiscoveredMetafieldEntry>,
+  entry: DiscoveredMetafieldEntry,
+) {
+  const id = `${entry.ownerType}:${entry.namespace}.${entry.key}`;
+  if (!into.has(id)) into.set(id, entry);
+}
+
+async function persistDiscoveredMetafieldEntries(
+  shopId: string,
+  entries: Iterable<DiscoveredMetafieldEntry>,
+) {
+  const list = [...entries];
+  const CONCURRENCY = 10;
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, list.length) || 0 }, async () => {
+      while (next < list.length) {
+        const index = next;
+        next += 1;
+        const entry = list[index];
+        await prisma.discoveredMetafield.upsert({
+          where: {
+            shopId_namespace_key_ownerType: {
+              shopId,
+              namespace: entry.namespace,
+              key: entry.key,
+              ownerType: entry.ownerType,
+            },
+          },
+          create: {
+            shopId,
+            namespace: entry.namespace,
+            key: entry.key,
+            ownerType: entry.ownerType,
+            sampleValue: entry.sampleValue,
+          },
+          update: {
+            sampleValue: entry.sampleValue,
+          },
+        });
+      }
+    }),
+  );
+}
+
+/** Replace collection memberships for a bulk product set (positions refreshed in finalize). */
+async function replaceBulkMemberships(
+  shopId: string,
+  productGids: string[],
+  rows: Array<{
+    shopId: string;
+    collectionGid: string;
+    productGid: string;
+    position: number;
+  }>,
+) {
+  if (!productGids.length) return;
+  await prisma.collectionMembership.deleteMany({
+    where: { shopId, productGid: { in: productGids } },
+  });
+  const CHUNK = 1000;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await prisma.collectionMembership.createMany({
+      data: rows.slice(i, i + CHUNK),
+      skipDuplicates: true,
     });
   }
 }
@@ -419,6 +504,97 @@ async function readCurrentBulkOperation(
   return json.data?.currentBulkOperation ?? null;
 }
 
+/** Wait this long in SYNCING before checking Shopify for a missed finish webhook. */
+export const STUCK_SYNCING_CHECK_MS = 90_000;
+/** Give up waiting for a bulk op after this long (small catalogs finish far sooner). */
+export const STUCK_SYNCING_TIMEOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Clear stuck "Syncing" UI when the bulk finish webhook was missed or the job
+ * hung. Safe to call from admin loaders / light status polls.
+ */
+export async function recoverStuckSyncIfNeeded(shopDomain: string) {
+  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  if (!shop) return null;
+
+  const job = await prisma.syncJob.findUnique({ where: { shopId: shop.id } });
+  if (!job || job.status !== "SYNCING") return job;
+
+  const ageMs = Date.now() - job.updatedAt.getTime();
+  if (ageMs < STUCK_SYNCING_CHECK_MS) return job;
+
+  let op: BulkOperationSnapshot | null = null;
+  try {
+    const admin = await getAdminForShop(shopDomain);
+    op = await readCurrentBulkOperation(admin);
+  } catch (error) {
+    log.warn("[sync] stuck-sync bulk lookup failed", error);
+    if (ageMs < STUCK_SYNCING_TIMEOUT_MS) return job;
+    return setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog:
+        "Catalog sync timed out while checking Shopify. Click Sync now to retry.",
+    });
+  }
+
+  const opStatus = (op?.status || "").toUpperCase();
+  const opId = op?.id ?? null;
+
+  if (opStatus === "CREATED" || opStatus === "RUNNING") {
+    if (ageMs < STUCK_SYNCING_TIMEOUT_MS) {
+      if (opId && opId !== job.bulkOperationId) {
+        return setSyncStatus(shop.id, {
+          status: "SYNCING",
+          bulkOperationId: opId,
+        });
+      }
+      return job;
+    }
+    return setSyncStatus(shop.id, {
+      status: "ERROR",
+      errorLog:
+        "Catalog sync timed out waiting for Shopify bulk export. Click Sync now to retry.",
+      bulkOperationId: opId,
+    });
+  }
+
+  if (opStatus === "COMPLETED" && op?.url && completedBulkIsFresh(op)) {
+    try {
+      await enqueueSyncJob(
+        "shop.ingestBulk",
+        { shop: shopDomain, bulkOperationId: opId },
+        { jobId: `${shopDomain}:shop.ingestBulk:${opId || "current"}` },
+      );
+      log.info(
+        `[sync] recovered stuck SYNCING; queued ingest for ${opId}`,
+      );
+      return setSyncStatus(shop.id, {
+        status: "SYNCING",
+        bulkOperationId: opId,
+        errorLog: null,
+      });
+    } catch (error) {
+      log.warn("[sync] stuck-sync ingest enqueue failed", error);
+    }
+  }
+
+  // Failed / canceled / stale completed / missing — stop spinning the admin UI.
+  const detail =
+    opStatus && opStatus !== "COMPLETED"
+      ? `Shopify bulk status: ${opStatus}.`
+      : "The finish webhook was missed or the snapshot expired.";
+  log.warn(
+    `[sync] clearing stuck SYNCING for ${shopDomain} (${detail} age=${ageMs}ms)`,
+  );
+  return setSyncStatus(shop.id, {
+    status: job.lastFullSyncAt ? "READY" : "ERROR",
+    errorLog: job.lastFullSyncAt
+      ? null
+      : `${detail} Click Sync now to run a fresh catalog sync.`,
+    bulkOperationId: opId,
+  });
+}
+
 async function reuseCurrentBulkOperation(
   shopId: string,
   shopDomain: string,
@@ -471,6 +647,7 @@ export async function startFullSync(shopDomain: string) {
 
   try {
     const admin = await getAdminForShop(shopDomain);
+    await refreshPartnerDevelopment(admin, shop.id);
 
     await setSyncStatus(shop.id, { status: "SYNCING", errorLog: null });
 
@@ -619,8 +796,21 @@ async function ingestCompletedBulkOperation(
   const toIngest = truncated ? products.slice(0, productLimit) : products;
 
   let upserted = 0;
-  log.info(`[sync] ingesting ${toIngest.length} products (limit ${productLimit})`);
-  for (const product of toIngest) {
+  const PRODUCT_INGEST_CONCURRENCY = 8;
+  const membershipRows: Array<{
+    shopId: string;
+    collectionGid: string;
+    productGid: string;
+    position: number;
+  }> = [];
+  const discovered = new Map<string, DiscoveredMetafieldEntry>();
+  log.info(
+    `[sync] ingesting ${toIngest.length} products (limit ${productLimit}, concurrency ${PRODUCT_INGEST_CONCURRENCY})`,
+  );
+
+  async function ingestOneProduct(
+    product: (typeof toIngest)[number],
+  ): Promise<void> {
     const { facet, collectionGids } = mapProductToFacet(shop.id, product);
     const writeInventoryLocations = variantsIncludeInventoryLevels(
       shopifyVariantNodes(product),
@@ -657,32 +847,67 @@ async function ingestCompletedBulkOperation(
       },
     });
 
-    await recordDiscoveredMetafields(
-      shop.id,
+    for (const entry of collectDiscoveredMetafieldEntries(
       (facet.metafields as Record<string, string>) || {},
       "PRODUCT",
-    );
-    await recordDiscoveredMetafields(
-      shop.id,
+    )) {
+      mergeDiscoveredMetafieldEntry(discovered, entry);
+    }
+    for (const entry of collectDiscoveredMetafieldEntries(
       (facet.variantMetafields as Record<string, string>) || {},
       "VARIANT",
-    );
+    )) {
+      mergeDiscoveredMetafieldEntry(discovered, entry);
+    }
 
-    await syncProductMemberships(shop.id, facet.productGid, collectionGids);
+    for (const collectionGid of collectionGids) {
+      membershipRows.push({
+        shopId: shop.id,
+        collectionGid,
+        productGid: facet.productGid,
+        position: 0,
+      });
+    }
+
     upserted += 1;
-    if (upserted === 1 || upserted % 25 === 0 || upserted === toIngest.length) {
+    if (
+      upserted === 1 ||
+      upserted % 25 === 0 ||
+      upserted === toIngest.length
+    ) {
       log.info(`[sync] upserted ${upserted}/${toIngest.length}`);
     }
   }
 
+  {
+    let nextIndex = 0;
+    const workers = Array.from(
+      { length: Math.min(PRODUCT_INGEST_CONCURRENCY, toIngest.length) },
+      async () => {
+        while (nextIndex < toIngest.length) {
+          const index = nextIndex;
+          nextIndex += 1;
+          await ingestOneProduct(toIngest[index]);
+        }
+      },
+    );
+    await Promise.all(workers);
+  }
+
+  const ingestedGids = toIngest.map((product) => product.id);
+  log.info(
+    `[sync] writing ${membershipRows.length} memberships + ${discovered.size} discovered metafields`,
+  );
+  await replaceBulkMemberships(shop.id, ingestedGids, membershipRows);
+  await persistDiscoveredMetafieldEntries(shop.id, discovered.values());
+
   let pruned = 0;
   if (!truncated && toIngest.length > 0) {
-    const keepGids = toIngest.map((product) => product.id);
     const removed = await prisma.productFacet.deleteMany({
-      where: { shopId: shop.id, productGid: { notIn: keepGids } },
+      where: { shopId: shop.id, productGid: { notIn: ingestedGids } },
     });
     await prisma.collectionMembership.deleteMany({
-      where: { shopId: shop.id, productGid: { notIn: keepGids } },
+      where: { shopId: shop.id, productGid: { notIn: ingestedGids } },
     });
     pruned = removed.count;
     if (pruned) {
@@ -696,10 +921,71 @@ async function ingestCompletedBulkOperation(
     log.error("Post-ingest collection sync failed", error);
   }
 
+  const errorLog = truncated
+    ? `Product limit reached (${productLimit} for ${limits.plan} plan). Indexed first ${productLimit} of ${products.length} products; upgrade on Pricing plans for a higher limit.`
+    : null;
+
+  // Products + memberships from bulk are enough for filters. Mark READY now —
+  // collection sort order, content, and market prices finish in the background.
+  await setSyncStatus(shop.id, {
+    status: "READY",
+    lastFullSyncAt: new Date(),
+    errorLog,
+    bulkOperationId: op.id,
+  });
+  /* Drop invented Unspecified leftovers from older builds. */
+  await prisma.productFacet.updateMany({
+    where: {
+      shopId: shop.id,
+      OR: [
+        { productType: "__unspecified__" },
+        { productType: "Unspecified" },
+      ],
+    },
+    data: { productType: "" },
+  });
+  await bumpCatalogGeneration(shopDomain);
+
+  await queueFinalizeFullSync(shopDomain);
+
+  return { upserted, truncated, pruned, productLimit };
+}
+
+const FINALIZE_COLLECTION_CONCURRENCY = 5;
+
+async function queueFinalizeFullSync(shopDomain: string) {
+  try {
+    await enqueueSyncJob(
+      "shop.finalizeFullSync",
+      { shop: shopDomain },
+      { jobId: `${shopDomain}:shop.finalizeFullSync` },
+    );
+    const { ensureWorkerRunning, isSyncWorkerRunning } = await import(
+      "../workers/ensure-running.server"
+    );
+    await ensureWorkerRunning();
+    if (process.env.START_WORKER === "0" || isSyncWorkerRunning()) {
+      return;
+    }
+    log.warn("[sync] worker not running; finalizing full sync inline");
+  } catch (error) {
+    log.warn("[sync] finalize enqueue failed; running inline", error);
+  }
+  await finalizeFullSync(shopDomain);
+}
+
+/**
+ * After bulk product ingest: refresh collection sort order + market prices.
+ * Does not block SyncJob READY — filters already work from bulk memberships.
+ */
+export async function finalizeFullSync(shopDomain: string) {
+  const shop = await ensureShop(shopDomain);
+  const admin = await getAdminForShop(shopDomain);
+
   try {
     await syncShopContent(shopDomain);
   } catch (error) {
-    log.error("Post-ingest pages/articles sync failed", error);
+    log.error("Finalize pages/articles sync failed", error);
   }
 
   try {
@@ -707,25 +993,39 @@ async function ingestCompletedBulkOperation(
       where: { shopId: shop.id },
       select: { collectionGid: true },
     });
-    log.info(`[sync] rebuilding ${collections.length} collections`);
+    log.info(
+      `[sync] finalizing ${collections.length} collections (concurrency ${FINALIZE_COLLECTION_CONCURRENCY})`,
+    );
     let rebuilt = 0;
-    for (const collection of collections) {
-      try {
-        await rebuildCollection(shopDomain, collection.collectionGid);
-      } catch (error) {
-        log.error(
-          `[sync] rebuild failed ${collection.collectionGid}`,
-          error,
-        );
-        continue;
-      }
-      rebuilt += 1;
-      if (rebuilt === 1 || rebuilt % 10 === 0 || rebuilt === collections.length) {
-        log.info(`[sync] rebuilt collections ${rebuilt}/${collections.length}`);
-      }
+    for (let i = 0; i < collections.length; i += FINALIZE_COLLECTION_CONCURRENCY) {
+      const chunk = collections.slice(i, i + FINALIZE_COLLECTION_CONCURRENCY);
+      await Promise.all(
+        chunk.map(async (collection) => {
+          try {
+            await rebuildCollection(shopDomain, collection.collectionGid, {
+              admin,
+            });
+            rebuilt += 1;
+            if (
+              rebuilt === 1 ||
+              rebuilt % 10 === 0 ||
+              rebuilt === collections.length
+            ) {
+              log.info(
+                `[sync] rebuilt collections ${rebuilt}/${collections.length}`,
+              );
+            }
+          } catch (error) {
+            log.error(
+              `[sync] rebuild failed ${collection.collectionGid}`,
+              error,
+            );
+          }
+        }),
+      );
     }
   } catch (error) {
-    log.error("Post-ingest collection order sync failed", error);
+    log.error("Finalize collection order sync failed", error);
   }
 
   try {
@@ -733,22 +1033,15 @@ async function ingestCompletedBulkOperation(
     await syncShopMarketPrices(admin, shop.id);
     log.info("[sync] market prices done");
   } catch (error) {
-    log.error("Post-ingest market prices sync failed", error);
+    log.error("Finalize market prices sync failed", error);
   }
 
-  const errorLog = truncated
-    ? `Product limit reached (${productLimit} for ${limits.plan} plan). Indexed first ${productLimit} of ${products.length} products; upgrade to Pro for a higher limit.`
-    : null;
-
+  await bumpCatalogGeneration(shopDomain);
   await setSyncStatus(shop.id, {
     status: "READY",
-    lastFullSyncAt: new Date(),
-    errorLog,
-    bulkOperationId: op.id,
+    lastIncrementalSyncAt: new Date(),
   });
-
-  await bumpCatalogGeneration(shopDomain);
-  return { upserted, truncated, pruned, productLimit };
+  return { ok: true as const };
 }
 
 export async function upsertProduct(
@@ -838,8 +1131,6 @@ export async function upsertProduct(
       },
     });
 
-  await bumpCatalogGeneration(shopDomain);
-
   await recordDiscoveredMetafields(
     shop.id,
     (facet.metafields as Record<string, string>) || {},
@@ -866,10 +1157,34 @@ export async function upsertProduct(
     }
   }
 
+  // Markets are non-blocking — storefront filters/search update without waiting.
   try {
-    await syncProductMarketPrices(admin, shop.id, facet.productGid);
+    await enqueueSyncJobWithTimeout(
+      "product.markets",
+      { shop: shopDomain, productGid: facet.productGid },
+      {
+        jobId: `${shopDomain}:product.markets:${facet.productGid}`,
+        delay: 400,
+        timeoutMs: 1500,
+      },
+    );
+    const { ensureWorkerRunning, isSyncWorkerRunning } = await import(
+      "../workers/ensure-running.server"
+    );
+    await ensureWorkerRunning();
+    // Enqueued but no in-process worker (and not a dedicated-worker setup):
+    // process markets here so the job does not sit forever.
+    if (process.env.START_WORKER !== "0" && !isSyncWorkerRunning()) {
+      log.warn("[sync] worker not running; syncing market prices inline");
+      await syncProductMarketPrices(admin, shop.id, facet.productGid);
+    }
   } catch (error) {
-    log.error("Incremental market prices sync failed", error);
+    log.error("Failed to enqueue market prices; running inline", error);
+    try {
+      await syncProductMarketPrices(admin, shop.id, facet.productGid);
+    } catch (marketsError) {
+      log.error("Incremental market prices sync failed", marketsError);
+    }
   }
 
   await setSyncStatus(shop.id, {
@@ -877,6 +1192,113 @@ export async function upsertProduct(
     lastIncrementalSyncAt: new Date(),
   });
 
+  await bumpCatalogGeneration(shopDomain);
+}
+
+/**
+ * Fast path for inventory_levels/update — availability only, no metafields/markets.
+ * Falls back to full upsert when the product is not indexed yet.
+ */
+export async function syncProductAvailability(
+  shopDomain: string,
+  productGid: string,
+) {
+  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  if (!shop) return;
+
+  const existing = await prisma.productFacet.findUnique({
+    where: {
+      shopId_productGid: { shopId: shop.id, productGid },
+    },
+    select: { variants: true, status: true },
+  });
+  if (!existing) {
+    return upsertProduct(shopDomain, productGid);
+  }
+
+  const admin = await getAdminForShop(shopDomain);
+  const response = await admin.graphql(PRODUCT_AVAILABILITY_QUERY, {
+    variables: { id: productGid },
+  });
+  const json = await response.json();
+  const lookupError = graphqlErrors(json);
+  const product = json.data?.product as
+    | {
+        id?: string;
+        status?: string | null;
+        variants?: unknown;
+      }
+    | null
+    | undefined;
+  if (!product) {
+    if (lookupError) {
+      log.error(
+        `[sync] availability fetch failed ${productGid}: ${lookupError}`,
+      );
+      throw new Error(`Availability fetch failed for ${productGid}`);
+    }
+    await deleteProduct(shopDomain, productGid);
+    return;
+  }
+
+  const variants = shopifyVariantNodes(
+    product as Parameters<typeof shopifyVariantNodes>[0],
+  );
+  const available = productIsAvailable(product.status, variants);
+  const inventoryLocations = availableLocationNamesFromVariants(variants);
+  const stockById = new Map(
+    variants
+      .filter((v) => v.id)
+      .map((v) => [String(v.id), variantIsInStock(v)] as const),
+  );
+  const stored = parseStoredVariants(existing.variants);
+  const nextVariants = stored.length
+    ? stored.map((row) => ({
+        ...row,
+        available: stockById.has(row.id)
+          ? Boolean(stockById.get(row.id))
+          : row.available,
+      }))
+    : buildStoredVariants(
+        variants.map((variant) => ({
+          ...variant,
+          available: variantIsInStock(variant),
+        })),
+      );
+
+  await prisma.productFacet.update({
+    where: {
+      shopId_productGid: { shopId: shop.id, productGid },
+    },
+    data: {
+      available,
+      inventoryLocations,
+      variants: nextVariants,
+      status: product.status ?? existing.status,
+    },
+  });
+
+  await setSyncStatus(shop.id, {
+    status: "READY",
+    lastIncrementalSyncAt: new Date(),
+  });
+  await bumpCatalogGeneration(shopDomain);
+}
+
+export async function syncProductMarkets(
+  shopDomain: string,
+  productGid: string,
+) {
+  const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+  if (!shop) return;
+  const exists = await prisma.productFacet.findUnique({
+    where: { shopId_productGid: { shopId: shop.id, productGid } },
+    select: { id: true },
+  });
+  if (!exists) return;
+  const admin = await getAdminForShop(shopDomain);
+  await syncProductMarketPrices(admin, shop.id, productGid);
+  // Invalidate proxy/search caches so contextual prices become visible.
   await bumpCatalogGeneration(shopDomain);
 }
 
@@ -1010,9 +1432,10 @@ async function fetchCollectionProductGids(
 export async function rebuildCollection(
   shopDomain: string,
   collectionGid: string,
+  opts?: { admin?: GraphqlClient },
 ) {
   const shop = await ensureShop(shopDomain);
-  const admin = await getAdminForShop(shopDomain);
+  const admin = opts?.admin ?? (await getAdminForShop(shopDomain));
 
   const primary = await fetchCollectionProductGids(
     admin,
@@ -1175,7 +1598,7 @@ export async function syncInventoryItem(
     log.warn(`[sync] inventory item ${inventoryItemGid} has no product`);
     return;
   }
-  return upsertProduct(shopDomain, productGid);
+  return syncProductAvailability(shopDomain, productGid);
 }
 
 export async function syncVariant(shopDomain: string, variantGid: string) {

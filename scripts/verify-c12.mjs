@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -14,7 +14,7 @@ const SHOP_DOMAIN = "c12-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9812001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -145,9 +145,9 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveFilterConfig } = await import("../app/shop.server.ts");
-  const { parseValueSort } = await import("../app/filters.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveFilterConfig } = await import("../app/services/shop.server.ts");
+  const { parseValueSort } = await import("../app/services/filters.server.ts");
 
   const autoPayload = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

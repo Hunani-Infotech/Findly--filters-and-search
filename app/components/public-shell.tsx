@@ -1,22 +1,33 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
+
 import styles from "./public-shell.module.css";
 
 function Mark() {
   return (
-    <span className={styles.mark} aria-hidden="true">
-      F
-    </span>
+    <svg className={styles.mark} viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="6" fill="currentColor" />
+      <path
+        d="M7.5 9.2h13M7.5 14h9.2M7.5 18.8h5.4"
+        fill="none"
+        stroke="#fbf6ee"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
 function NavLinks({
   pathname,
+  onFaq,
   onPrivacy,
   onTerms,
 }: {
   pathname: string;
+  onFaq: boolean;
   onPrivacy: boolean;
   onTerms: boolean;
 }) {
@@ -27,6 +38,13 @@ function NavLinks({
     <>
       <Link className={linkClass(false)} to={{ pathname: "/", hash: "features" }}>
         Features
+      </Link>
+      <Link
+        className={linkClass(onFaq)}
+        to="/faq"
+        aria-current={onFaq ? "page" : undefined}
+      >
+        FAQ
       </Link>
       <Link
         className={linkClass(onPrivacy)}
@@ -57,25 +75,37 @@ export function PublicMessage({
   children,
   actionLabel = "Back to Findly",
   actionTo = "/",
+  minimal = false,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
   actionLabel?: string;
   actionTo?: string;
+  /** Title + action only — no marketing header/footer. */
+  minimal?: boolean;
 }) {
-  return (
-    <PublicShell>
-      <div className={styles.narrow}>
-        <div className={styles.card}>
-          <h1 className={styles.cardTitle}>{title}</h1>
-          <p className={styles.cardCopy}>{children}</p>
-          <Link className={styles.button} to={actionTo}>
-            {actionLabel}
-          </Link>
-        </div>
+  const body = (
+    <div className={styles.narrow}>
+      <div className={styles.card}>
+        <p className={styles.kicker}>Findly</p>
+        <h1 className={styles.cardTitle}>{title}</h1>
+        {children ? <p className={styles.cardCopy}>{children}</p> : null}
+        <Link className={styles.button} to={actionTo}>
+          {actionLabel}
+        </Link>
       </div>
-    </PublicShell>
+    </div>
   );
+
+  if (minimal) {
+    return (
+      <div className={`${styles.page} ${styles.messageOnly}`}>
+        {body}
+      </div>
+    );
+  }
+
+  return <PublicShell>{body}</PublicShell>;
 }
 
 export function PublicPending() {
@@ -102,9 +132,10 @@ export function PublicPending() {
 
 export function PublicShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const onFaq = pathname === "/faq";
   const onPrivacy = pathname === "/privacy";
   const onTerms = pathname === "/terms";
-  const navProps = { pathname, onPrivacy, onTerms };
+  const navProps = { pathname, onFaq, onPrivacy, onTerms };
 
   return (
     <div className={styles.page}>
@@ -139,13 +170,14 @@ export function PublicShell({ children }: { children: ReactNode }) {
               Findly
             </strong>
             <p>
-              Collection filters and storefront search for Shopify. Built by
-              Hunani Infotech.
+              Collection filters and storefront search that live in your
+              Shopify theme — not a bolted-on storefront.
             </p>
           </div>
           <nav className={styles.footerCol} aria-label="Product">
             <p>Product</p>
             <Link to={{ pathname: "/", hash: "features" }}>Features</Link>
+            <Link to="/faq">FAQ</Link>
             <Link to="/auth/login">Log in</Link>
           </nav>
           <nav className={styles.footerCol} aria-label="Legal">
@@ -153,9 +185,15 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
           </nav>
+          <nav className={styles.footerCol} aria-label="Contact">
+            <p>Studio</p>
+            <span className={styles.footerNote}>SRH Web Agency</span>
+            <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>
+          </nav>
         </div>
         <p className={styles.footerMeta}>
-          © {new Date().getFullYear()} Hunani Infotech. All rights reserved.
+          © {new Date().getFullYear()} SRH Web Agency. Shopify is a trademark of
+          Shopify Inc.
         </p>
       </footer>
     </div>

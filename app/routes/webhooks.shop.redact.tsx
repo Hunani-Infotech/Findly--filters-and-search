@@ -4,8 +4,8 @@ import {
   ensureShopPurged,
   logComplianceEvent,
   shopifyWebhookRequestId,
-} from "../compliance.server";
-import { log } from "../log.server";
+} from "../services/compliance.server";
+import { log } from "../lib/log.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic } = await authenticate.webhook(request);

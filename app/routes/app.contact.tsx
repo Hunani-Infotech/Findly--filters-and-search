@@ -24,14 +24,15 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
-import { useEmbeddedNavigate } from "../admin-path";
-import { deliverContactMessage } from "../contact.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { deliverContactMessage } from "../services/contact.server";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
-} from "../admin-nav-extras.server";
+} from "../services/admin-extras.server";
 
 export { ContactPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -41,15 +42,28 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function visibleSubject(value?: string) {
+  const subject = (value ?? "").trim();
+  if (!subject || subject === DEFAULT_SUBJECT) return "";
+  return subject;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      email: "",
+      subject: "",
+      message: "",
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
   const draft = extras.contactDraft;
   return {
     email: draft?.email ?? "",
-    collaboratorCode: draft?.collaboratorCode ?? "",
-    subject: draft?.subject || DEFAULT_SUBJECT,
+    subject: visibleSubject(draft?.subject),
     message: draft?.message ?? "",
   };
 };
@@ -59,8 +73,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop } = await ensureShopAccess(session.shop);
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim();
-  const collaboratorCode = String(form.get("collaboratorCode") ?? "").trim();
-  const subject = String(form.get("subject") ?? "").trim() || DEFAULT_SUBJECT;
+  const subjectInput = String(form.get("subject") ?? "").trim();
+  const subject = subjectInput || DEFAULT_SUBJECT;
   const message = String(form.get("message") ?? "").trim();
 
   const errors: { email?: string; message?: string } = {};
@@ -76,19 +90,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const extras = await getAdminNavExtras(shop.id);
   const draftExtras = {
-    recOn: extras.recOn,
-    recs: extras.recs,
-    ymm: extras.ymm,
     langs: extras.langs,
     i18n: extras.i18n,
     translationCustom: extras.translationCustom,
-    contactDraft: { email, collaboratorCode, subject, message },
+    contactDraft: { email, subject: subjectInput, message },
   };
 
   const delivered = await deliverContactMessage({
     shopDomain: session.shop,
     email,
-    collaboratorCode,
     subject,
     message,
   });
@@ -99,10 +109,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   await saveAdminNavExtras(shop.id, {
     ...draftExtras,
-    contactDraft: { email, collaboratorCode, subject, message: "" },
+    contactDraft: { email, subject: subjectInput, message: "" },
   });
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    ticketNumber: delivered.ticketNumber,
+    ackSent: delivered.ackSent,
+  };
 };
 
 export default function ContactNavPage() {
@@ -114,9 +128,6 @@ export default function ContactNavPage() {
   const submitting = isMutationBusy(navigation);
 
   const [email, setEmail] = useState(draft.email);
-  const [collaboratorCode, setCollaboratorCode] = useState(
-    draft.collaboratorCode,
-  );
   const [subject, setSubject] = useState(draft.subject);
   const [message, setMessage] = useState(draft.message);
   const [seenAction, setSeenAction] = useState(actionData);
@@ -131,7 +142,11 @@ export default function ContactNavPage() {
   useEffect(() => {
     if (!actionData || !("ok" in actionData)) return;
     if (actionData.ok) {
-      shopify.toast.show("Message sent to Findly support");
+      shopify.toast.show(
+        actionData.ticketNumber
+          ? `Message sent · ${actionData.ticketNumber}`
+          : "Message sent to Findly support",
+      );
       return;
     }
     if (actionData.sendError) {
@@ -139,11 +154,22 @@ export default function ContactNavPage() {
     }
   }, [actionData, shopify]);
 
-  const fieldErrors: { email?: string; message?: string } =
+  const fieldErrors: {
+    email?: string;
+    message?: string;
+  } =
     actionData && "ok" in actionData && !actionData.ok ? actionData.errors : {};
   const sendError =
     actionData && "ok" in actionData && !actionData.ok
       ? actionData.sendError
+      : undefined;
+  const successTicket =
+    actionData && "ok" in actionData && actionData.ok
+      ? actionData.ticketNumber
+      : undefined;
+  const successAckSent =
+    actionData && "ok" in actionData && actionData.ok
+      ? actionData.ackSent
       : undefined;
 
   return (
@@ -157,25 +183,28 @@ export default function ContactNavPage() {
             <BlockStack gap="400">
               <Text as="p">
                 Don&apos;t hesitate to reach out if you have questions or need
-                help. Please send a staff admin invitation to Findly support
-                using the email you enter below, and include Apps and Online
-                Store → Themes permissions in that invitation.
+                help. Most issues can be solved from your message.
               </Text>
               {sendError ? (
                 <Banner tone="critical" title="Message was not sent">
                   <p>{sendError}</p>
                 </Banner>
               ) : null}
+              {successTicket ? (
+                <Banner tone="success" title="Message sent to Findly support">
+                  <p>
+                    Reference: <strong>{successTicket}</strong>
+                    {successAckSent
+                      ? " A confirmation email with this reference was sent to your email."
+                      : " Save this reference for follow-ups. A confirmation email could not be sent just now."}
+                  </p>
+                </Banner>
+              ) : null}
               <Form method="post">
+                <input type="hidden" name="email" value={email} />
+                <input type="hidden" name="subject" value={subject} />
+                <input type="hidden" name="message" value={message} />
                 <FormLayout>
-                  <input type="hidden" name="email" value={email} />
-                  <input
-                    type="hidden"
-                    name="collaboratorCode"
-                    value={collaboratorCode}
-                  />
-                  <input type="hidden" name="subject" value={subject} />
-                  <input type="hidden" name="message" value={message} />
                   <TextField
                     label="Your email"
                     type="email"
@@ -185,16 +214,10 @@ export default function ContactNavPage() {
                     error={fieldErrors.email}
                   />
                   <TextField
-                    label="Collaborator request code"
-                    autoComplete="off"
-                    value={collaboratorCode}
-                    onChange={setCollaboratorCode}
-                    helpText="To find the 4-digit access code: Shopify admin > Settings > Users and permissions > Collaborators"
-                  />
-                  <TextField
                     label="Subject"
                     autoComplete="off"
                     value={subject}
+                    placeholder={DEFAULT_SUBJECT}
                     onChange={setSubject}
                   />
                   <TextField

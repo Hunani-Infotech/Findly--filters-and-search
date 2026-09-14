@@ -2,10 +2,10 @@
  * Step 1 gate: Postgres reachable + core tables present.
  * Usage: node ./scripts/verify-step1.mjs
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 const required = [
   "Session",
@@ -26,7 +26,7 @@ const required = [
 try {
   await prisma.$queryRaw`SELECT 1 AS ok`;
   const rows = await prisma.$queryRaw`
-    SELECT tablename FROM pg_tables
+    SELECT tablename::text AS tablename FROM pg_tables
     WHERE schemaname = 'public'
     ORDER BY tablename
   `;

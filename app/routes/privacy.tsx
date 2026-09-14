@@ -1,9 +1,11 @@
 import type { HeadersFunction, MetaFunction } from "react-router";
-import { Link } from "react-router";
 
 import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
-import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
+import {
+  FINDLY_PUBLIC_ORIGIN,
+  FINDLY_SUPPORT_EMAIL,
+} from "../utils/public-origin";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy — Findly: Smart Filters & Search" },
@@ -24,7 +26,7 @@ export default function PrivacyPolicy() {
       <LegalDoc
         eyebrow="Legal"
         title="Privacy Policy"
-        updated="Effective 21 August 2026"
+        updated="Effective 26 August 2026"
         toc={[
           { id: "responsible", label: "Who is responsible" },
           { id: "permissions", label: "Shopify permissions" },
@@ -43,7 +45,7 @@ export default function PrivacyPolicy() {
         ]}
       >
         <p>
-          This policy describes how Hunani Infotech (“we”, “us”, “Findly”)
+          This policy describes how SRH Web Agency (“we”, “us”, “Findly”)
           handles information when merchants install and use the Shopify app
           <strong> Findly: Smart Filters & Search</strong> (collection filters,
           storefront search, and a Theme App Extension). It is written for
@@ -58,8 +60,8 @@ export default function PrivacyPolicy() {
 
         <h2 id="responsible">1. Who is responsible</h2>
         <p>
-          Hunani Infotech operates Findly and the production app at{" "}
-          <a href={FINDLY_PUBLIC_ORIGIN}>deeppink-manatee-141983.hostingersite.com</a>
+          SRH Web Agency operates Findly and the production app at{" "}
+          <a href={FINDLY_PUBLIC_ORIGIN}>findly.srhwebagency.com</a>
           . Shopify remains responsible for the merchant’s store, Admin, and
           Checkout. Merchants remain responsible for their own storefront
           privacy notices to shoppers.
@@ -136,8 +138,8 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Support drafts.</strong> If a merchant uses Contact in the
-            admin, the draft (email, collaborator code, subject, message) is
-            saved with shop settings until they send or we purge the shop.
+            admin, a draft of their email, subject, and message may be saved
+            with shop settings until they send or we purge the shop.
           </li>
         </ul>
 
@@ -157,14 +159,22 @@ export default function PrivacyPolicy() {
             An anonymous visitor id stored in the shopper’s browser{" "}
             <code>localStorage</code> key <code>findly:vid</code>. It is a
             random identifier generated in the Theme App Extension, not a
-            Shopify customer id, email, or IP address.
+            Shopify customer id, email, or IP address. This id is written
+            only when Shopify’s Customer Privacy API reports that analytics
+            processing is allowed (the merchant’s cookie banner and the
+            shopper’s region/consent).
           </li>
         </ul>
         <p>
           Search boxes can contain whatever a shopper types. We treat those
-          strings as usage data, not as an identity record. Merchants should
-          mention Findly’s storefront widgets in their own privacy policy if
-          required by their region.
+          strings as usage data, not as an identity record. Storefront
+          analytics beacons (query, filter combination, clicked product
+          handle, visitor id, and device type) are sent only when Shopify’s
+          Customer Privacy API allows analytics processing for that shopper.
+          If the shopper declines analytics, we do not persist{" "}
+          <code>findly:vid</code> and we do not send those beacons. Merchants
+          should mention Findly’s storefront widgets in their own privacy
+          policy if required by their region.
         </p>
 
         <h2 id="use">5. How we use this data</h2>
@@ -189,14 +199,17 @@ export default function PrivacyPolicy() {
         <h2 id="storage">6. Where data is stored</h2>
         <ul>
           <li>
-            <strong>PostgreSQL</strong> — primary store for sessions, catalog
-            index, configuration, analytics events, and compliance audit rows.
-            Hosted with the production app (currently Hostinger).
+            <strong>PostgreSQL (Supabase)</strong> — primary store for
+            sessions, catalog index, configuration, analytics events, and
+            compliance audit rows. This is not Hostinger MySQL. The database
+            is a separate Supabase Postgres project (pooled connections on
+            port 6543 plus a direct connection on port 5432 for migrations).
           </li>
           <li>
-            <strong>Redis + BullMQ</strong> — short-lived job payloads (shop
-            domain, product/collection ids, sync commands) for background
-            workers. Jobs are not a second catalog copy.
+            <strong>PostgreSQL job queue</strong> — short-lived job
+            payloads (shop domain, product/collection ids, sync commands) stored
+            as <code>QueueJob</code> rows and drained by an in-process or
+            nohup/cron worker. Jobs are not a second catalog copy.
           </li>
           <li>
             <strong>Shopify</strong> — OAuth, Billing, Files (swatch uploads),
@@ -205,7 +218,8 @@ export default function PrivacyPolicy() {
           <li>
             <strong>Email</strong> — if the merchant submits Contact, the
             message is sent to Findly’s support inbox over SMTP. Reply-To is
-            the merchant’s email so we can answer from that inbox.
+            the merchant’s email so we can answer from that inbox. The merchant
+            also receives an automated confirmation with a reference number.
           </li>
         </ul>
         <p>
@@ -248,7 +262,7 @@ export default function PrivacyPolicy() {
             </strong>{" "}
             — Shopify sends this after uninstall (typically within 48 hours)
             when the shop’s data must be erased. We try to queue a background
-            cleanup; if Redis is down we delete tenant data in the webhook
+            cleanup; if the queue is unavailable we delete tenant data in the webhook
             process before responding. If that purge also fails we return an
             error so Shopify retries. Audit status is queued, redacted, or
             failed.
@@ -280,12 +294,12 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Storefront analytics:</strong> pruned automatically —
-            90 days on the Free plan, 180 days on paid plans.
+            90 days on Development, 180 days on Standard and Pro.
           </li>
           <li>
             <strong>After uninstall:</strong> we queue deletion of sessions and
             all shop-scoped rows (products, collections, settings, mappings,
-            swatches, analytics, billing mirror). Redis jobs for that shop are
+            swatches, analytics, billing mirror). Pending queue jobs for that shop are
             not used as a long-term store.
           </li>
           <li>
@@ -308,15 +322,19 @@ export default function PrivacyPolicy() {
         <p>
           The embedded admin uses Shopify’s session cookies to keep the merchant
           logged in. The storefront Theme App Extension does not set a Findly
-          cookie; it may write the anonymous <code>findly:vid</code> value to{" "}
-          <code>localStorage</code> for analytics uniqueness. Filter state is
-          kept in the page URL hash (not sent to our servers as a shopper
-          identity).
+          cookie. When analytics consent is granted through Shopify’s Customer
+          Privacy API, it may write the anonymous <code>findly:vid</code> value
+          to <code>localStorage</code> for analytics uniqueness. If consent is
+          not granted, that key is not written (and is removed if it was
+          present). Filter state is kept in the page URL hash (not sent to our
+          servers as a shopper identity).
         </p>
 
         <h2 id="transfers">10. International transfers</h2>
         <p>
-          Production hosting is currently on Hostinger.
+          The app process is hosted on Hostinger (Node.js). PostgreSQL is
+          hosted on Supabase (including the background job queue). Shopify remains
+          the merchant’s store, Admin, Billing, and Files host.
           If a merchant or shopper is in the EEA, UK, or another region, data
           described above may be processed in the US to provide the app.
           Shopify also processes data under the merchant’s Shopify agreement.
@@ -333,9 +351,12 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             Contact us using <strong>Findly → Contact</strong> in the app, or
-            the support email published on the Findly Shopify App Store
-            listing. Do not send privacy requests to Shopify about this app’s
-            stored index; Shopify will forward mandatory GDPR topics to us.
+            email{" "}
+            <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+              {FINDLY_SUPPORT_EMAIL}
+            </a>
+            . Do not send privacy requests to Shopify about this app’s stored
+            index; Shopify will forward mandatory GDPR topics to us.
           </li>
         </ul>
         <p>
@@ -360,15 +381,12 @@ export default function PrivacyPolicy() {
 
         <h2 id="contact">14. Contact</h2>
         <p>
-          Hunani Infotech — Findly: Smart Filters & Search
+          SRH Web Agency — Findly: Smart Filters & Search
           <br />
-          Privacy page:{" "}
-          <a href={`${FINDLY_PUBLIC_ORIGIN}/privacy`}>
-            {FINDLY_PUBLIC_ORIGIN}/privacy
+          Email:{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
           </a>
-          <br />
-          Terms:{" "}
-          <Link to="/terms">{FINDLY_PUBLIC_ORIGIN}/terms</Link>
           <br />
           In-app: Findly → Contact
         </p>

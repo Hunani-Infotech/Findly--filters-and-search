@@ -30,16 +30,17 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { catalogOptionRows, mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../services/filters.server";
 import {
   parseAppliesToAllProducts,
   parseExcludeCollectionGids,
   parseFacetSettings,
   withFilterTreeMeta,
-} from "../facet-settings";
-import { getMetafieldMappings, filterConfigPriceFields } from "../shop.server";
-import { normalizeVariantOptionNames } from "../variants-as-products";
+} from "../utils/facet-settings";
+import { getMetafieldMappings, filterConfigPriceFields } from "../services/shop.server";
+import { normalizeVariantOptionNames } from "../utils/variants-as-products";
 import {
   createFilterTree,
   defaultFilterTreeDisplayOrder,
@@ -48,12 +49,13 @@ import {
   getFilterTree,
   listFilterTrees,
   updateFilterTree,
-} from "../filter-trees.server";
+} from "../services/filter-trees.server";
 import prisma from "../db.server";
-import { COLLECTION_PICKER_PAGE_SIZE } from "../collections-picker";
-import { listCollectionsForPicker } from "../collections-picker.server";
+import { COLLECTION_PICKER_PAGE_SIZE } from "../utils/collections-picker";
+import { listCollectionsForPicker } from "../services/collections-picker.server";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
-import { useEmbeddedNavigate, withEmbeddedParamsFromRequest } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { isMutationBusy } from "../components/admin-loading";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
@@ -65,7 +67,7 @@ import {
   persistDisplayOrder,
   storedFilterDisplayOrder,
   type BuiltinEnableKey,
-} from "../filter-option-rows";
+} from "../utils/filter-option-rows";
 
 export { FilterEditorSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -97,10 +99,57 @@ type ConfigState = {
   excludeCollectionGids: string[];
 };
 
+function emptyFilterEditor(treeId: string) {
+  const isNew = treeId === "new" || !treeId;
+  return {
+    treeId: isNew ? "" : treeId,
+    isNew,
+    collections: [],
+    knownCollections: [],
+    collectionTotal: 0,
+    collectionHasNext: false,
+    collectionPageSize: COLLECTION_PICKER_PAGE_SIZE,
+    usedElsewhere: {} as Record<string, boolean>,
+    allCollectionsUsedElsewhere: false,
+    catalogOptions: [],
+    mappedFacets: [],
+    facetSettings: parseFacetSettings({}),
+    config: {
+      name: "",
+      appliesToSearch: false,
+      appliesToAllProducts: false,
+      collectionGids: [] as string[],
+      excludeCollectionGids: [] as string[],
+      enabled: true,
+      enablePrice: true,
+      enableSale: true,
+      enableRating: false,
+      enableLocation: false,
+      enableAvailability: true,
+      enableVendor: true,
+      enableProductType: true,
+      enableTags: true,
+      enableOptions: true,
+      enableVariantsAsProducts: false,
+      variantAsProductOptions: "",
+      displayOrder: defaultFilterTreeDisplayOrder(),
+      displayTypes: parseDisplayTypes({}),
+      matchModes: parseMatchModes({}),
+      valueSort: parseValueSort({}),
+      rangeBounds: rangeBoundsToForm(parseRangeBounds({})),
+      ...filterConfigPriceFields(null),
+    },
+  };
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const treeId = params.id;
+  if (auth.bot) {
+    return emptyFilterEditor(String(treeId || "new"));
+  }
+  const { session } = auth;
+  const { shop } = await ensureShopAccess(session.shop);
   if (!treeId) {
     throw new Response("Not found", { status: 404 });
   }

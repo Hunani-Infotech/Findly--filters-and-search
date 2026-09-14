@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -14,7 +14,7 @@ const SHOP_DOMAIN = "d5-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9505001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -29,16 +29,16 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes('namespace: "reviews"') || !graphql.includes('key: "rating"')) {
     fail("sync GraphQL must fetch reviews.rating metafield");
   }
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (!filters.includes("parseReviewRating") || !filters.includes('source: "rating"')) {
     fail("filters.ts missing rating facet / parseReviewRating");
   }
   const widget = readRepo("extensions", "smart-filter", "assets", "smart-filter.js");
-  if (!widget.includes("smart-filter__stars") || !widget.includes('source === "rating"')) {
+  if (!widget.includes("sf-stars") || !widget.includes('source === "rating"')) {
     fail("smart-filter.js missing star render path");
   }
   const editor = readRepo("app", "routes", "app.filters.$id.tsx");
@@ -56,8 +56,7 @@ try {
   await cleanup();
   assertStaticMarkers();
 
-  const { parseReviewRating, productReviewRating } = await import(
-    "../app/filters.ts"
+  const { parseReviewRating, productReviewRating } = await import("../app/utils/filters.ts"
   );
   const jsonFive = parseReviewRating(
     '{"value":"5.0","scale_min":"1.0","scale_max":"5.0"}',
@@ -156,7 +155,7 @@ try {
     });
   }
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const all = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

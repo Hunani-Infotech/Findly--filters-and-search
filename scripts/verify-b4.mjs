@@ -6,13 +6,13 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "b4-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -104,7 +104,7 @@ try {
   assertThemeMarkers();
   log.info("theme empty-state markers present");
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const garbage = await getSearchPayload({
     shopDomain: SHOP_DOMAIN,

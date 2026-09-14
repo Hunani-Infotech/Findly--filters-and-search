@@ -1,8 +1,8 @@
 /**
  * Contact form must email Gmail (app password SMTP), not only save a draft.
  * Usage: npm run verify:contact
+ * (package.json runs this with: node --import tsx)
  */
-import "tsx/esm";
 import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -10,8 +10,9 @@ import { fileURLToPath } from "node:url";
 import { log } from "./terminal-log.mjs";
 import {
   deliverContactMessage,
+  formatContactHtml,
   formatContactPlainText,
-} from "../app/contact.server.ts";
+} from "../app/services/contact.server.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = `findly-contact-e2e-${Date.now()}`;
@@ -52,7 +53,7 @@ function clearContactEnv() {
 
 function assertRouteWiresDelivery() {
   const route = readRepo("app", "routes", "app.contact.tsx");
-  if (!route.includes('from "../contact.server"')) {
+  if (!route.includes('from "../services/contact.server"')) {
     fail("app.contact.tsx must import deliverContactMessage from contact.server");
   }
   if (!route.includes("await deliverContactMessage(")) {
@@ -65,16 +66,31 @@ function assertRouteWiresDelivery() {
   if (afterSave.includes("return { ok: true") && !route.includes("delivered.ok")) {
     fail("app.contact.tsx still returns ok after saving a draft only");
   }
+  if (route.includes("Request store access") || route.includes("requestAccess")) {
+    fail("Contact form must not include request store access");
+  }
+  if (route.includes("collaboratorCode")) {
+    fail("Contact form must not collect collaborator codes");
+  }
+  if (!route.includes("ticketNumber: delivered.ticketNumber")) {
+    fail("Contact success response must include delivered.ticketNumber");
+  }
+  if (!route.includes("ackSent: delivered.ackSent")) {
+    fail("Contact success response must include delivered.ackSent");
+  }
+  if (!route.includes("Reference:")) {
+    fail("Contact success UI must show the reference / ticket number");
+  }
   log.info("Contact route waits for outbound delivery before success");
 }
 
-function sampleMessage() {
+function sampleMessage(overrides = {}) {
   return {
     shopDomain: "findly-test-store.myshopify.com",
     email: "merchant@example.com",
-    collaboratorCode: "4821",
     subject: "[Findly Smart Filters & Search] contact e2e",
     message: `Please help with collection filters. Marker: ${MARKER}`,
+    ...overrides,
   };
 }
 
@@ -152,7 +168,7 @@ async function assertUnconfiguredFails(msg) {
 async function assertLocalSmtp(msg) {
   const snap = snapshotEnv();
   const inbox = await listenLocalSmtp();
-  process.env.GMAIL_USER = "findly.support@gmail.com";
+  process.env.GMAIL_USER = "info@srhwebagency.com";
   process.env.GMAIL_APP_PASSWORD = "test-app-password";
   process.env.SMTP_HOST = "127.0.0.1";
   process.env.SMTP_PORT = String(inbox.port);
@@ -165,22 +181,64 @@ async function assertLocalSmtp(msg) {
     if (!result.channels.includes("smtp")) {
       fail("Expected smtp channel on local delivery");
     }
-    if (inbox.received.length !== 1) {
-      fail(`Expected 1 SMTP message, got ${inbox.received.length}`);
+    if (!result.ticketNumber || !/^FINDLY-[A-Z0-9]+$/i.test(result.ticketNumber)) {
+      fail("Delivery must return a FINDLY reference / ticket number");
     }
-    const raw = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
-    const text = formatContactPlainText(msg);
-    if (!raw.includes(MARKER) || !raw.includes(msg.message)) {
+    if (!result.ackSent) {
+      fail("Merchant confirmation email must be sent after support delivery");
+    }
+    if (inbox.received.length !== 2) {
+      fail(`Expected 2 SMTP messages (support + ack), got ${inbox.received.length}`);
+    }
+    const rawSupport = inbox.received[0].replace(/=\r\n/g, "").replace(/=\n/g, "");
+    const rawAck = inbox.received[1].replace(/=\r\n/g, "").replace(/=\n/g, "");
+    const withTicket = { ...msg, ticketNumber: result.ticketNumber };
+    const text = formatContactPlainText(withTicket);
+    const html = formatContactHtml(withTicket);
+    if (!rawSupport.includes(MARKER) || !rawSupport.includes(msg.message)) {
       fail("SMTP message missing the merchant body");
     }
-    if (!raw.includes(msg.email) || !raw.includes(msg.shopDomain)) {
+    if (!rawSupport.includes(msg.email) || !rawSupport.includes(msg.shopDomain)) {
       fail("SMTP message missing reply email or shop");
     }
-    if (!raw.includes("findly.support@gmail.com")) {
-      fail("SMTP message was not addressed to GMAIL_USER");
+    if (!rawSupport.includes("info@srhwebagency.com")) {
+      fail("SMTP message was not addressed to the support inbox");
     }
-    if (!text.includes(msg.collaboratorCode)) {
-      fail("Plain-text body missing collaborator code");
+    if (!rawSupport.includes(result.ticketNumber)) {
+      fail("Support SMTP message missing the ticket reference");
+    }
+    if (!rawSupport.toLowerCase().includes("text/html")) {
+      fail("SMTP message missing the HTML body");
+    }
+    if (!rawAck.includes(msg.email) || !rawAck.includes(result.ticketNumber)) {
+      fail("Merchant ack missing recipient address or ticket reference");
+    }
+    if (!rawAck.toLowerCase().includes("we received")) {
+      fail("Merchant ack missing confirmation copy");
+    }
+    if (!text.includes("Support request") || !text.includes(result.ticketNumber)) {
+      fail("Plain-text body missing app heading or ticket reference");
+    }
+    if (text.toLowerCase().includes("collaborator")) {
+      fail("Plain-text body must not include collaborator codes");
+    }
+    if (
+      !html.includes("Findly Smart Filters &amp; Search") ||
+      !html.includes("Support request") ||
+      !html.includes(msg.shopDomain) ||
+      !html.includes(result.ticketNumber)
+    ) {
+      fail("HTML body missing app name, heading, shop, or ticket");
+    }
+    if (html.toLowerCase().includes("collaborator")) {
+      fail("HTML body must not include collaborator codes");
+    }
+    const injected = formatContactHtml({
+      ...msg,
+      message: `<img src=x onerror=alert(1)>`,
+    });
+    if (injected.includes("<img") || !injected.includes("&lt;img")) {
+      fail("HTML body must escape merchant message markup");
     }
     log.info("Local SMTP captured the contact email for Gmail");
   } finally {

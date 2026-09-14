@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -29,17 +29,18 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess, PLANS } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   LayoutPicker,
   WidgetLookPreview,
+  toWidgetPreviewSettings,
 } from "../components/widget-preview";
 import { SortOptionsPicker } from "../components/sort-options-picker";
 import {
   HIDE_OUT_OF_STOCK_OPTIONS,
-  PAGING_STYLE_OPTIONS,
   DEFAULT_APP_SETTINGS,
   DEFAULT_SEARCH_FIELDS,
   SORT_OPTION_LABELS,
@@ -56,20 +57,20 @@ import {
   normalizeSearchFields,
   normalizeSortOptions,
   parseHideOutOfStock,
-  parsePaginationStyle,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
   parseWidgetRadius,
   parseWidgetTitleSize,
+  resolveHideOutOfStock,
   type HideOutOfStockMode,
-  type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
-} from "../app-settings";
-import { getAppSettings, saveAppSettings } from "../settings.server";
-import { useEmbeddedNavigate } from "../admin-path";
+} from "../utils/app-settings";
+import { expandHexColor } from "../utils/hex-color";
+import { getAppSettings, saveAppSettings } from "../services/settings.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
 import {
   loadSettingsMetafields,
@@ -77,7 +78,7 @@ import {
   parseDeclaredMetafieldRows,
   saveDeclaredMetafields,
   syncShopifyMetafieldDefinitions,
-} from "../settings-metafields.server";
+} from "../services/settings-metafields.server";
 
 export { SettingsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -135,7 +136,6 @@ type SettingsState = {
   hideProductTags: string[];
   collapseByDefault: boolean;
   hideOutOfStock: HideOutOfStockMode;
-  paginationStyle: PaginationStyle;
   widgetShadow: boolean;
   widgetRadius: number;
   radiusChoice: string;
@@ -149,8 +149,6 @@ type SettingsState = {
   sortOptionsEnabled: SortOptionKey[];
   defaultSort: SortOptionKey;
   hideSortDropdown: boolean;
-  inStockOnTop: boolean;
-  soldOutToBottom: boolean;
   enableCollectionSearch: boolean;
   enableMarkets: boolean;
   enableFiltersOnSearch: boolean;
@@ -174,7 +172,6 @@ function toSettingsState(settings: {
   hideProductTags?: unknown;
   collapseByDefault: boolean;
   hideOutOfStock?: string;
-  paginationStyle?: string;
   widgetShadow: boolean;
   widgetRadius: number;
   widgetFontMode: string;
@@ -211,8 +208,7 @@ function toSettingsState(settings: {
     showTotalProductCount: settings.showTotalProductCount !== false,
     hideProductTags: normalizeHideProductTags(settings.hideProductTags),
     collapseByDefault: settings.collapseByDefault,
-    hideOutOfStock: parseHideOutOfStock(settings.hideOutOfStock),
-    paginationStyle: parsePaginationStyle(settings.paginationStyle),
+    hideOutOfStock: resolveHideOutOfStock(settings),
     widgetShadow: settings.widgetShadow,
     widgetRadius,
     radiusChoice: isPresetRadius(widgetRadius) ? String(widgetRadius) : "custom",
@@ -234,8 +230,6 @@ function toSettingsState(settings: {
         : normalizeSortOptions(settings.sortOptionsEnabled),
     defaultSort: parseSortOption(settings.defaultSort),
     hideSortDropdown: Boolean(settings.hideSortDropdown),
-    inStockOnTop: Boolean(settings.inStockOnTop),
-    soldOutToBottom: Boolean(settings.soldOutToBottom),
     enableCollectionSearch: Boolean(settings.enableCollectionSearch),
     enableMarkets: settings.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets,
     enableFiltersOnSearch: settings.enableFiltersOnSearch ?? true,
@@ -257,23 +251,29 @@ function toSettingsState(settings: {
   };
 }
 
-function toColorInputValue(value: string) {
-  const color = value.trim();
-  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
-  if (/^#[0-9a-f]{3}$/i.test(color)) {
-    return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
-  }
-  return DEFAULT_APP_SETTINGS.accentColor;
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
+  if (auth.bot) {
+    return {
+      tab,
+      metafields: {
+        rows: [],
+        filterCount: 0,
+        filterLimit: PLANS.free.filterLimit,
+        plan: "free" as const,
+        overFilterLimit: false,
+      },
+      settings: toSettingsState({ ...DEFAULT_APP_SETTINGS }),
+    };
+  }
+
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const [settings, metafields] = await Promise.all([
     getAppSettings(shop.id),
     loadSettingsMetafields(shop.id),
   ]);
-  const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
 
   return {
     tab,
@@ -286,7 +286,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       hideProductTags: settings.hideProductTags,
       collapseByDefault: settings.collapseByDefault,
       hideOutOfStock: settings.hideOutOfStock,
-      paginationStyle: (settings as { paginationStyle?: string }).paginationStyle,
       widgetShadow: settings.widgetShadow,
       widgetRadius: settings.widgetRadius,
       widgetFontMode: settings.widgetFontMode,
@@ -411,7 +410,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("collapseByDefault") === "true" ||
       form.get("collapseByDefault") === "on",
     hideOutOfStock: parseHideOutOfStock(form.get("hideOutOfStock")),
-    paginationStyle: parsePaginationStyle(form.get("paginationStyle")),
     widgetShadow:
       form.get("widgetShadow") === "true" || form.get("widgetShadow") === "on",
     widgetRadius: parseWidgetRadius(form.get("widgetRadius")),
@@ -427,11 +425,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     hideSortDropdown:
       form.get("hideSortDropdown") === "true" ||
       form.get("hideSortDropdown") === "on",
-    inStockOnTop:
-      form.get("inStockOnTop") === "true" || form.get("inStockOnTop") === "on",
-    soldOutToBottom:
-      form.get("soldOutToBottom") === "true" ||
-      form.get("soldOutToBottom") === "on",
     enableCollectionSearch:
       form.get("enableCollectionSearch") === "true" ||
       form.get("enableCollectionSearch") === "on",
@@ -512,6 +505,47 @@ export default function SettingsPage() {
   const showPreview =
     selectedTab === "general" || selectedTab === "panel";
   const hidePageSave = selectedTab === "metafields";
+  const previewSettings = useMemo(
+    () =>
+      toWidgetPreviewSettings({
+        widgetPosition: settings.widgetPosition,
+        accentColor: settings.accentColor,
+        showProductCounts: settings.showProductCounts,
+        collapseByDefault: settings.collapseByDefault,
+        widgetShadow: settings.widgetShadow,
+        widgetRadius: settings.widgetRadius,
+        widgetFontMode: settings.widgetFontMode,
+        widgetFontFamily: settings.widgetFontFamily,
+        widgetTitle: settings.widgetTitle,
+        widgetTitleSize: settings.widgetTitleSize,
+        widgetTitleColor: settings.widgetTitleColor,
+        enableCollectionSearch: settings.enableCollectionSearch,
+        hideSortDropdown: settings.hideSortDropdown,
+        showTotalProductCount: settings.showTotalProductCount,
+        hideSingleValueFacets: settings.hideSingleValueFacets,
+        showRefineBy: settings.showRefineBy,
+        autoApplyFilters: settings.autoApplyFilters,
+      }),
+    [
+      settings.widgetPosition,
+      settings.accentColor,
+      settings.showProductCounts,
+      settings.collapseByDefault,
+      settings.widgetShadow,
+      settings.widgetRadius,
+      settings.widgetFontMode,
+      settings.widgetFontFamily,
+      settings.widgetTitle,
+      settings.widgetTitleSize,
+      settings.widgetTitleColor,
+      settings.enableCollectionSearch,
+      settings.hideSortDropdown,
+      settings.showTotalProductCount,
+      settings.hideSingleValueFacets,
+      settings.showRefineBy,
+      settings.autoApplyFilters,
+    ],
+  );
 
   const saving = isMutationBusy(navigation);
 
@@ -539,7 +573,6 @@ export default function SettingsPage() {
     formData.set("hideProductTags", next.hideProductTags.join(", "));
     formData.set("collapseByDefault", String(next.collapseByDefault));
     formData.set("hideOutOfStock", next.hideOutOfStock);
-    formData.set("paginationStyle", next.paginationStyle);
     formData.set("widgetShadow", String(next.widgetShadow));
     formData.set("widgetRadius", String(next.widgetRadius));
     formData.set("widgetFontMode", next.widgetFontMode);
@@ -550,8 +583,6 @@ export default function SettingsPage() {
     formData.set("sortOptionsEnabled", JSON.stringify(next.sortOptionsEnabled));
     formData.set("defaultSort", next.defaultSort);
     formData.set("hideSortDropdown", String(next.hideSortDropdown));
-    formData.set("inStockOnTop", String(next.inStockOnTop));
-    formData.set("soldOutToBottom", String(next.soldOutToBottom));
     formData.set("enableCollectionSearch", String(next.enableCollectionSearch));
     formData.set("enableMarkets", String(next.enableMarkets));
     formData.set("enableFiltersOnSearch", String(next.enableFiltersOnSearch));
@@ -662,7 +693,7 @@ export default function SettingsPage() {
                         label="Show filters on the search results page"
                         checked={settings.enableFiltersOnSearch}
                         disabled={saving}
-                        helpText="Turn on the Collection filters app embed; this toggle shows or hides filters on the search results page."
+                        helpText="Add Collection filters to the search template as well; this toggle shows or hides filters on the search results page."
                         onChange={(checked) =>
                           setSettings((s) => ({
                             ...s,
@@ -782,9 +813,9 @@ export default function SettingsPage() {
                                     }))
                                   }
                                 />
-                                <span className="findly-stock-radio__label">
+                                <span className="findly-stock-radio-label">
                                   {option.label}
-                                  <span className="findly-stock-radio__help">
+                                  <span className="findly-stock-radio-help">
                                     {option.helpText}
                                   </span>
                                 </span>
@@ -796,50 +827,6 @@ export default function SettingsPage() {
                           The availability filter still works with every option.
                         </Text>
                       </BlockStack>
-                      <Checkbox
-                        label="Display in-stock products on top"
-                        checked={settings.inStockOnTop}
-                        disabled={saving}
-                        helpText="Keeps available products first. Combines with the selected Sort By order among in-stock items."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            inStockOnTop: checked,
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Move sold-out products to the bottom"
-                        checked={settings.soldOutToBottom}
-                        disabled={saving}
-                        helpText="Pushes out-of-stock products last while keeping the selected sort inside each group."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            soldOutToBottom: checked,
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Pagination
-                      </Text>
-                      <Select
-                        label="Paging style"
-                        options={PAGING_STYLE_OPTIONS}
-                        value={settings.paginationStyle}
-                        disabled={saving}
-                        helpText="Applies to filtered collection and search grids. Theme pagination is left alone when intercept is not possible."
-                        onChange={(value) =>
-                          setSettings((s) => ({
-                            ...s,
-                            paginationStyle: parsePaginationStyle(value),
-                          }))
-                        }
-                      />
                     </BlockStack>
                   </Card>
                   <Card>
@@ -943,8 +930,10 @@ export default function SettingsPage() {
                         Common filter layouts: Vertical (left or right
                         sidebar next to the product grid), Horizontal (filters
                         above the grid), or Off-canvas (Filter button +
-                        drawer). Enable the Collection filters app embed to
-                        place this automatically.
+                        drawer). Add Collection filters to the collection
+                        template in the theme editor to place this. Use the
+                        Collection filters (app embed) only if your theme has no
+                        app-block slot.
                       </Text>
                       <LayoutPicker
                         value={settings.widgetPosition}
@@ -1077,8 +1066,9 @@ export default function SettingsPage() {
                             <input
                               type="color"
                               aria-label="Pick title color"
-                              value={toColorInputValue(
+                              value={expandHexColor(
                                 settings.widgetTitleColor,
+                                DEFAULT_APP_SETTINGS.accentColor,
                               )}
                               disabled={saving}
                               onChange={(event) =>
@@ -1122,7 +1112,10 @@ export default function SettingsPage() {
                             <input
                               type="color"
                               aria-label="Pick accent color"
-                              value={toColorInputValue(settings.accentColor)}
+                              value={expandHexColor(
+                                settings.accentColor,
+                                DEFAULT_APP_SETTINGS.accentColor,
+                              )}
                               disabled={saving}
                               onChange={(event) =>
                                 setSettings((s) => ({
@@ -1308,7 +1301,7 @@ export default function SettingsPage() {
                     <Text as="h2" variant="headingMd">
                       Preview
                     </Text>
-                    <WidgetLookPreview settings={settings} />
+                    <WidgetLookPreview settings={previewSettings} />
                   </BlockStack>
                 </Card>
               </div>

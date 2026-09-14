@@ -1,12 +1,12 @@
 /**
- * C5 gate: in-stock on top + sold-out to bottom, composing with C4 sort.
+ * C5 gate: "Show at the end" pins sold-out products after in-stock, composing with C4 sort.
  * Usage: npm run verify:c5
  */
 import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -14,7 +14,7 @@ const SHOP_DOMAIN = "c5-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9505001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -24,13 +24,23 @@ function titles(result) {
   return (result.data?.products ?? []).map((p) => p.title);
 }
 
-function assertAdminToggles() {
+function assertAdminOption() {
   const settingsPage = readFileSync(
     join(ROOT, "app/routes/app.settings.tsx"),
     "utf8",
   );
-  if (!settingsPage.includes("inStockOnTop") || !settingsPage.includes("soldOutToBottom")) {
-    fail("admin settings missing the two C5 stock-pinning toggles");
+  if (
+    settingsPage.includes("Display in-stock products on top") ||
+    settingsPage.includes("Move sold-out products to the bottom")
+  ) {
+    fail("admin settings still has the removed stock-pinning checkboxes");
+  }
+  const appSettings = readFileSync(
+    join(ROOT, "app/utils/app-settings.ts"),
+    "utf8",
+  );
+  if (!appSettings.includes('value: "end"')) {
+    fail("out-of-stock options missing Show at the end (end)");
   }
 }
 
@@ -135,6 +145,52 @@ async function seedShopData() {
     });
   }
 
+  await prisma.productFacet.upsert({
+    where: {
+      shopId_productGid: {
+        shopId: shop.id,
+        productGid: "gid://shopify/Product/9505099",
+      },
+    },
+    create: {
+      shopId: shop.id,
+      productGid: "gid://shopify/Product/9505099",
+      handle: "draft-hidden",
+      title: "Draft Hidden",
+      vendor: "Acme",
+      productType: "Apparel",
+      tags: ["c5-verify"],
+      options: {},
+      priceMin: 1,
+      priceMax: 1,
+      available: true,
+      status: "DRAFT",
+      imageUrl: null,
+      metafields: {},
+    },
+    update: {
+      title: "Draft Hidden",
+      status: "DRAFT",
+      available: true,
+    },
+  });
+  await prisma.collectionMembership.upsert({
+    where: {
+      shopId_collectionGid_productGid: {
+        shopId: shop.id,
+        collectionGid: COLLECTION_GID,
+        productGid: "gid://shopify/Product/9505099",
+      },
+    },
+    create: {
+      shopId: shop.id,
+      collectionGid: COLLECTION_GID,
+      productGid: "gid://shopify/Product/9505099",
+      position: 99,
+    },
+    update: { position: 99 },
+  });
+
   return shop;
 }
 
@@ -142,18 +198,16 @@ try {
   await cleanup();
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
-  assertAdminToggles();
+  assertAdminOption();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { getCollectionFilterPayload, clearFilterPayloadCache } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   await saveAppSettings(shop.id, {
     hideOutOfStock: "show",
-    inStockOnTop: false,
-    soldOutToBottom: false,
   });
+  clearFilterPayloadCache();
 
   const unsorted = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -164,15 +218,18 @@ try {
   if (titles(unsorted).join(",") !== "OOS Other,OOS Cheap,In Mid,In Pricey") {
     fail(`plain price_asc expected OOS Other,OOS Cheap,In Mid,In Pricey got ${titles(unsorted)}`);
   }
+  if (titles(unsorted).includes("Draft Hidden")) {
+    fail("DRAFT products must not appear in storefront filter payloads");
+  }
 
   await saveAppSettings(shop.id, {
-    inStockOnTop: true,
-    soldOutToBottom: true,
+    hideOutOfStock: "end",
   });
+  clearFilterPayloadCache();
   const persisted = await getAppSettings(shop.id);
-  if (!persisted.inStockOnTop || !persisted.soldOutToBottom) {
+  if (persisted.hideOutOfStock !== "end" || !persisted.soldOutToBottom) {
     fail(
-      `toggles did not persist: inStockOnTop=${persisted.inStockOnTop} soldOutToBottom=${persisted.soldOutToBottom}`,
+      `end mode did not persist: hideOutOfStock=${persisted.hideOutOfStock} soldOutToBottom=${persisted.soldOutToBottom}`,
     );
   }
 
@@ -184,13 +241,13 @@ try {
   });
   if (titles(both).join(",") !== "In Mid,In Pricey,OOS Other,OOS Cheap") {
     fail(
-      `both on + price_asc expected In Mid,In Pricey,OOS Other,OOS Cheap got ${titles(both)}`,
+      `show at the end + price_asc expected In Mid,In Pricey,OOS Other,OOS Cheap got ${titles(both)}`,
     );
   }
-  if (both.data.settings?.inStockOnTop !== true || both.data.settings?.soldOutToBottom !== true) {
-    fail("payload settings must expose both C5 toggles");
+  if (both.data.settings?.hideOutOfStock !== "end") {
+    fail("payload settings must expose hideOutOfStock=end");
   }
-  log.info("both on: in-stock first (price order), OOS last (price order)");
+  log.info("show at the end: in-stock first (price order), OOS last (price order)");
 
   const acme = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
@@ -200,12 +257,12 @@ try {
   });
   if (titles(acme).join(",") !== "In Mid,In Pricey,OOS Cheap") {
     fail(
-      `both on + vendor Acme + price_asc expected In Mid,In Pricey,OOS Cheap got ${titles(acme)}`,
+      `show at the end + vendor Acme + price_asc expected In Mid,In Pricey,OOS Cheap got ${titles(acme)}`,
     );
   }
-  log.info("both on still honors vendor filter");
+  log.info("show at the end still honors vendor filter");
 
-  log.success("STEPC5_OK in-stock on top + sold-out to bottom compose with C4 sort");
+  log.success("STEPC5_OK show at the end composes with C4 sort");
 } catch (error) {
   log.error(`STEPC5_FAIL ${error.message}`);
   if (error.stack) console.error(error.stack);

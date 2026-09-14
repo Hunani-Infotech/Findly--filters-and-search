@@ -6,12 +6,12 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "f4-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -26,7 +26,7 @@ function assertStaticMarkers() {
   if (!schema.includes("model AnalyticsEvent")) {
     fail("schema missing AnalyticsEvent");
   }
-  const server = readRepo("app", "analytics.server.ts");
+  const server = readRepo("app", "services", "analytics.server.ts");
   if (!server.includes("ingestAnalyticsEvent") || !server.includes("loadAnalyticsDashboard")) {
     fail("analytics.server.ts missing ingest/dashboard");
   }
@@ -61,8 +61,7 @@ try {
     data: { domain: SHOP_DOMAIN, plan: "free" },
   });
 
-  const { ingestAnalyticsEvent, loadAnalyticsDashboard } = await import(
-    "../app/analytics.server.ts"
+  const { ingestAnalyticsEvent, loadAnalyticsDashboard } = await import("../app/services/analytics.server.ts"
   );
 
   const search = await ingestAnalyticsEvent({

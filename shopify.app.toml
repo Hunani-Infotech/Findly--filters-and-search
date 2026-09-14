@@ -4,11 +4,11 @@ client_id = "15d512118a672ce93db2d90ad68f826b"
 name = "Findly Smart Filters"
 # Public app host. `shopify app dev` still rewrites these when
 # automatically_update_urls_on_dev is true; `shopify app deploy` pushes them.
-application_url = "https://deeppink-manatee-141983.hostingersite.com"
+application_url = "https://findly.srhwebagency.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-07"
@@ -69,16 +69,6 @@ api_version = "2026-07"
   uri = "/webhooks/inventory_levels/update"
   topics = [ "inventory_levels/update" ]
 
-# Catalog sync uses both [webhooks] and this Events subscription.
-[events]
-api_version = "unstable"
-
-[[events.subscription]]
-handle = "product-catalog"
-topic = "Product"
-actions = ["create", "update", "delete"]
-uri = "/events/app/products"
-
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # read_products only: catalog sync is queries + webhooks. No product mutations in app runtime.
@@ -88,12 +78,12 @@ optional_scopes = [ "read_companies" ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://deeppink-manatee-141983.hostingersite.com/auth/callback" ]
+redirect_urls = [ "https://findly.srhwebagency.com/auth/callback" ]
 
 # Must share the application_url host (not localhost).
 # `shopify app dev` replaces this with the Cloudflare tunnel URL.
 [app_proxy]
-url = "https://deeppink-manatee-141983.hostingersite.com/apps/smart-filter"
+url = "https://findly.srhwebagency.com/apps/smart-filter"
 subpath = "smart-filter"
 prefix = "apps"
 

@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -16,7 +16,7 @@ const SHORT_GID = "gid://shopify/Product/91400141";
 const LONG_GID = "gid://shopify/Product/91400142";
 const LENGTH_KEY = "mf_custom_length";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -197,7 +197,7 @@ try {
 
   assertStaticMarkers();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

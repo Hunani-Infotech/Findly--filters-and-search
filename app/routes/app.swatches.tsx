@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -25,12 +20,12 @@ import {
   ImportIcon,
   MagicIcon,
   SearchIcon,
-  XSmallIcon,
 } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { SwatchImagePicker } from "../components/swatch-image-picker";
@@ -41,35 +36,22 @@ import {
   listSwatchesForOption,
   loadSwatchesAdmin,
   upsertSwatch,
+  parseSwatchKind,
   type SwatchKind,
   type SwatchListStatus,
   type SwatchRow,
-} from "../color-swatches.server";
-import { listShopImages, uploadShopImage } from "../shopify-files.server";
-import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
+} from "../services/color-swatches.server";
+import { listShopImages, uploadShopImage } from "../services/shopify-files.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParams } from "../utils/admin-path";
+import { downloadCsv, parseJsonOrCsvRecords, recordsToCsv } from "../utils/csv";
+import { expandHexColor } from "../utils/hex-color";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export { SwatchesPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
-const PROMO_STORAGE_KEY = "findly-swatch-promo-dismissed";
 /** Image swatches (upload / thumbnail picker) stay in code but are hidden until needed. */
 const SHOW_IMAGE_SWATCHES = false;
-
-function parseKind(value: unknown): SwatchKind {
-  return value === "dual" || value === "image" ? value : "solid";
-}
-
-function toColorInput(hex: string) {
-  const raw = hex.trim();
-  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw;
-  if (/^#[0-9a-f]{3}$/i.test(raw)) {
-    const r = raw[1];
-    const g = raw[2];
-    const b = raw[3];
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return "#ffffff";
-}
 
 function parseSwatchRows(raw: unknown, optionKey: string): SwatchRow[] {
   if (!Array.isArray(raw)) return [];
@@ -82,27 +64,13 @@ function parseSwatchRows(raw: unknown, optionKey: string): SwatchRow[] {
     rows.push({
       optionKey: String(row.optionKey || optionKey).trim() || optionKey,
       value,
-      kind: parseKind(row.kind),
+      kind: parseSwatchKind(row.kind),
       color1: String(row.color1 || ""),
       color2: String(row.color2 || ""),
       imageUrl: String(row.imageUrl || ""),
     });
   }
   return rows;
-}
-
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function parseStatus(value: string | null): SwatchListStatus {
@@ -145,7 +113,30 @@ function swatchesHref(
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      optionKey: "",
+      label: "",
+      options: [] as Array<{
+        optionKey: string;
+        label: string;
+        valueCount: number;
+        missing: number;
+      }>,
+      rows: [] as SwatchRow[],
+      total: 0,
+      page: 0,
+      pageCount: 1,
+      showingFrom: 0,
+      showingTo: 0,
+      query: "",
+      status: "all" as SwatchListStatus,
+      shopFiles: [] as Awaited<ReturnType<typeof listShopImages>>,
+      filesError: "",
+    };
+  }
+  const { admin, session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const url = new URL(request.url);
   const data = await loadSwatchesAdmin(
@@ -225,9 +216,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "import") {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(String(form.get("payload") || ""));
+      parsed = parseJsonOrCsvRecords(String(form.get("payload") || ""));
     } catch {
-      return { error: "Invalid JSON file." };
+      return { error: "Invalid CSV or JSON file." };
     }
     const result = await importSwatches(shop.id, parsed, optionKey);
     if ("error" in result && result.error) {
@@ -298,14 +289,14 @@ function ColorHexField({
       <label
         className={
           filled
-            ? "findly-swatch-hex__chip"
-            : "findly-swatch-hex__chip findly-swatch-hex__chip--empty"
+            ? "findly-swatch-hex-chip"
+            : "findly-swatch-hex-chip is-empty"
         }
       >
         <input
           type="color"
           aria-label={label}
-          value={toColorInput(hex || value)}
+          value={expandHexColor(hex || value, "#ffffff")}
           onChange={(event) => {
             const next = event.target.value;
             setHex(next);
@@ -315,7 +306,7 @@ function ColorHexField({
       </label>
       <input
         type="text"
-        className="findly-swatch-hex__input"
+        className="findly-swatch-hex-input"
         placeholder="#hex"
         aria-label={`${label} hex`}
         value={hex}
@@ -402,16 +393,6 @@ export default function SwatchesPage() {
   const [drafts, setDrafts] = useState(rows);
   const [uploadingValue, setUploadingValue] = useState<string | null>(null);
   const [imageValue, setImageValue] = useState<string | null>(null);
-  const storedPromoOpen = useSyncExternalStore(
-    (onChange) => {
-      window.addEventListener("storage", onChange);
-      return () => window.removeEventListener("storage", onChange);
-    },
-    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
-    () => false,
-  );
-  const [promoHidden, setPromoHidden] = useState(false);
-  const promoOpen = storedPromoOpen && !promoHidden;
   const [seenRows, setSeenRows] = useState(rows);
   const [seenOption, setSeenOption] = useState(optionKey);
   const [seenUpload, setSeenUpload] = useState<string | null>(null);
@@ -555,9 +536,14 @@ export default function SwatchesPage() {
     const key = JSON.stringify(result.payload);
     if (lastExportKey.current === key) return;
     lastExportKey.current = key;
-    downloadJson(
-      `findly-swatches-${encodeURIComponent(optionKey || "swatches")}.json`,
-      result.payload,
+    downloadCsv(
+      `findly-swatches-${encodeURIComponent(optionKey || "swatches")}.csv`,
+      recordsToCsv(
+        Array.isArray(result.payload)
+          ? (result.payload as Array<Record<string, unknown>>)
+          : [],
+        ["optionKey", "value", "kind", "color1", "color2", "imageUrl"],
+      ),
     );
   }, [exportFetcher.data, optionKey]);
 
@@ -577,11 +563,6 @@ export default function SwatchesPage() {
 
   const autofillDrafts = () => {
     fetcher.submit({ intent: "autofill", optionKey }, { method: "post" });
-  };
-
-  const dismissPromo = () => {
-    setPromoHidden(true);
-    window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
   };
 
   const imageRow = drafts.find((row) => row.value === imageValue) || null;
@@ -649,7 +630,7 @@ export default function SwatchesPage() {
       <input
         ref={importInput}
         type="file"
-        accept="application/json"
+        accept=".csv,.json,text/csv,application/json"
         hidden
         onChange={async (event) => {
           const file = event.target.files?.[0];
@@ -663,28 +644,6 @@ export default function SwatchesPage() {
         }}
       />
       <BlockStack gap="400">
-      {promoOpen ? (
-        <div className="findly-swatch-promo">
-          <span className="findly-swatch-promo__icon" aria-hidden />
-          <p className="findly-swatch-promo__body">
-            Make separate products feel like real variants. Connect colors,
-            styles, and related products in one product experience.
-          </p>
-          <div className="findly-swatch-promo__actions">
-            <button type="button" onClick={dismissPromo}>
-              Start for free
-            </button>
-          </div>
-          <button
-            type="button"
-            className="findly-swatch-promo__close"
-            aria-label="Dismiss"
-            onClick={dismissPromo}
-          >
-            <XSmallIcon width={16} height={16} />
-          </button>
-        </div>
-      ) : null}
       <div className="findly-swatch-workspace">
         <div className="findly-swatch-options">
           {options.map((option) => {
@@ -702,11 +661,11 @@ export default function SwatchesPage() {
                   navigate(swatchesHref(searchParams, { option: option.optionKey }))
                 }
               >
-                <span className="findly-swatch-option__label">
+                <span className="findly-swatch-option-label">
                   {option.label}
                 </span>
                 {option.missing > 0 ? (
-                  <span className="findly-swatch-option__badge">
+                  <span className="findly-swatch-option-badge">
                     {option.missing} missing
                   </span>
                 ) : null}
@@ -717,7 +676,7 @@ export default function SwatchesPage() {
         <div className="findly-swatch-main">
           <div className="findly-swatch-toolbar">
             <div className="findly-swatch-search">
-              <span className="findly-swatch-search__icon" aria-hidden>
+              <span className="findly-swatch-search-icon" aria-hidden>
                 <SearchIcon width={16} height={16} />
               </span>
               <input
@@ -813,14 +772,14 @@ export default function SwatchesPage() {
             </div>
           ) : (
             <div className="findly-swatch-table">
-              <div className="findly-swatch-table__head">
+              <div className="findly-swatch-table-head">
                 <span />
                 <span>Value</span>
                 <span>Type</span>
                 <span>{SHOW_IMAGE_SWATCHES ? "Color & Image" : "Color"}</span>
               </div>
               {paged.map((row) => (
-                <div className="findly-swatch-table__row" key={row.value}>
+                <div className="findly-swatch-table-row" key={row.value}>
                   <input
                     type="checkbox"
                     aria-label={`Select ${row.value}`}
@@ -834,7 +793,7 @@ export default function SwatchesPage() {
                       )
                     }
                   />
-                  <span className="findly-swatch-table__value">
+                  <span className="findly-swatch-table-value">
                     <ValuePreview row={row} />
                     {row.value}
                   </span>
@@ -861,8 +820,8 @@ export default function SwatchesPage() {
                             (!SHOW_IMAGE_SWATCHES &&
                               kind === "solid" &&
                               row.kind === "image"))
-                            ? "findly-swatch-type__btn findly-swatch-type__btn--active"
-                            : "findly-swatch-type__btn"
+                            ? "findly-swatch-type-btn is-active"
+                            : "findly-swatch-type-btn"
                         }
                         disabled={busy}
                         onClick={() => patchRow(row.value, { kind })}
@@ -954,7 +913,7 @@ export default function SwatchesPage() {
           )}
           <div className="findly-swatch-pager">
             {total > 0 ? (
-              <span className="findly-swatch-pager__label">
+              <span className="findly-swatch-pager-label">
                 {`Showing ${showingFrom}–${showingTo} of ${total}`}
               </span>
             ) : null}

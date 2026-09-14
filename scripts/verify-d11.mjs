@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -15,7 +15,7 @@ const COLLECTION_GID = "gid://shopify/Collection/9110011";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MFSORT_KEY = "mfsort_p_custom.release_date";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -30,15 +30,15 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("COLLECTION_DEFAULT")) {
     fail("COLLECTION_PRODUCTS_QUERY missing sortKey: COLLECTION_DEFAULT");
   }
-  const applies = readRepo("app", "metafield-applies.ts");
+  const applies = readRepo("app", "utils", "metafield-applies.ts");
   if (!applies.includes("mappingAppliesToSort")) {
     fail("metafield-applies.ts missing mappingAppliesToSort");
   }
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("metafieldSortOptions")) {
     fail("proxy.server.ts missing metafieldSortOptions");
   }
@@ -177,8 +177,8 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveAppSettings } = await import("../app/settings.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveAppSettings } = await import("../app/services/settings.server.ts");
 
   await saveAppSettings(shop.id, {
     sortOptionsEnabled: ["manual", "title_asc", "price_asc"],

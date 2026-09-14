@@ -6,13 +6,13 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "c8-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -23,8 +23,8 @@ function handles(rows) {
 }
 
 function assertStaticMarkers() {
-  const appSettings = readFileSync(join(ROOT, "app/app-settings.ts"), "utf8");
-  const searchServer = readFileSync(join(ROOT, "app/search.server.ts"), "utf8");
+  const appSettings = readFileSync(join(ROOT, "app/utils/app-settings.ts"), "utf8");
+  const searchServer = readFileSync(join(ROOT, "app/services/search.server.ts"), "utf8");
   const settingsPage = readFileSync(
     join(ROOT, "app/routes/app.settings.tsx"),
     "utf8",
@@ -185,9 +185,9 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
   const { searchProducts, searchProductFacets, productMatchesKeyword } =
-    await import("../app/search.server.ts");
-  const { saveAppSettings } = await import("../app/settings.server.ts");
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+    await import("../app/services/search.server.ts");
+  const { saveAppSettings } = await import("../app/services/settings.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const defaultHits = await searchProducts(shop.id, "cotton");
   const defaultHandles = handles(defaultHits);

@@ -10,7 +10,7 @@ import {
   useRouteError,
 } from "react-router";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import adminStyles from "./admin.css?url";
+import adminStyles from "./styles/admin.css?url";
 import { PublicMessage, PublicPending } from "./components/public-shell";
 
 export const links: LinksFunction = () => [
@@ -20,6 +20,12 @@ export const links: LinksFunction = () => [
   {
     rel: "stylesheet",
     href: "https://cdn.shopify.com/static/fonts/inter/v4/styles.css",
+  },
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap",
   },
 ];
 
@@ -58,10 +64,10 @@ export function HydrateFallback() {
       {isAdmin ? (
         <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
           <div className="findly-root-skeleton">
-            <div className="findly-root-skeleton__bar" />
-            <div className="findly-root-skeleton__title" />
-            <div className="findly-root-skeleton__card" />
-            <div className="findly-root-skeleton__card" />
+            <div className="findly-root-skeleton-bar" />
+            <div className="findly-root-skeleton-title" />
+            <div className="findly-root-skeleton-card" />
+            <div className="findly-root-skeleton-card" />
           </div>
         </div>
       ) : (
@@ -77,11 +83,17 @@ export function ErrorBoundary() {
 
   return (
     <Document>
-      <PublicMessage title={notFound ? "Page not found" : "Something went wrong"}>
-        {notFound
-          ? "That URL is not a Findly page. Use the homepage to open the app in Shopify Admin."
-          : "The public page failed to load. Try again, or open Findly from Shopify Admin."}
-      </PublicMessage>
+      {notFound ? (
+        <PublicMessage title="Page not found" actionLabel="Go back" minimal>
+          That address isn’t a Findly page. Head home, or open the app from
+          Shopify Admin.
+        </PublicMessage>
+      ) : (
+        <PublicMessage title="Server under maintenance">
+          Findly is temporarily unavailable while we perform server maintenance.
+          Please try again in a few minutes, or open the app from Shopify Admin.
+        </PublicMessage>
+      )}
     </Document>
   );
 }

@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import type { WidgetPosition } from "../app-settings";
+import { memo, type CSSProperties } from "react";
+import type { WidgetPosition } from "../types/search";
 import styles from "./widget-preview.module.css";
 
 export type WidgetPreviewSettings = {
@@ -21,6 +21,31 @@ export type WidgetPreviewSettings = {
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
 };
+
+/** Pick only fields the look preview reads so unrelated edits skip its render. */
+export function toWidgetPreviewSettings(
+  settings: WidgetPreviewSettings,
+): WidgetPreviewSettings {
+  return {
+    widgetPosition: settings.widgetPosition,
+    accentColor: settings.accentColor,
+    showProductCounts: settings.showProductCounts,
+    collapseByDefault: settings.collapseByDefault,
+    widgetShadow: settings.widgetShadow,
+    widgetRadius: settings.widgetRadius,
+    widgetFontMode: settings.widgetFontMode,
+    widgetFontFamily: settings.widgetFontFamily,
+    widgetTitle: settings.widgetTitle,
+    widgetTitleSize: settings.widgetTitleSize,
+    widgetTitleColor: settings.widgetTitleColor,
+    enableCollectionSearch: settings.enableCollectionSearch,
+    hideSortDropdown: settings.hideSortDropdown,
+    showTotalProductCount: settings.showTotalProductCount,
+    hideSingleValueFacets: settings.hideSingleValueFacets,
+    showRefineBy: settings.showRefineBy,
+    autoApplyFilters: settings.autoApplyFilters,
+  };
+}
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
 
@@ -167,14 +192,10 @@ function MiniProductGrid({
               {showSort ? (
                 <div className={styles.sortRow}>
                   <span className={styles.sortLabel}>Sort by</span>
-                  <div className={styles.sortControl}>
-                    <div className={styles.sortBy}>Featured</div>
-                    {showTotal ? (
-                      <div className={styles.totalCount}>163 products</div>
-                    ) : null}
-                  </div>
+                  <div className={styles.sortBy}>Featured</div>
                 </div>
-              ) : showTotal ? (
+              ) : null}
+              {showTotal ? (
                 <div className={styles.totalCount}>163 products</div>
               ) : null}
             </div>
@@ -359,7 +380,7 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   );
 }
 
-export function WidgetLookPreview({
+export const WidgetLookPreview = memo(function WidgetLookPreview({
   settings,
 }: {
   settings: WidgetPreviewSettings;
@@ -384,8 +405,8 @@ export function WidgetLookPreview({
   return (
     <div className={styles.preview}>
       <div className={styles.stageHint}>
-        Approximate look on the collection page. Filters, search, and sort stay
-        inside the theme content width. Theme fonts apply on the storefront.
+        Approximate look on the collection page. Theme fonts apply on the
+        storefront.
       </div>
       <div className={styles.pageFrame}>
         <div className={stageClass}>
@@ -404,4 +425,4 @@ export function WidgetLookPreview({
       </div>
     </div>
   );
-}
+});

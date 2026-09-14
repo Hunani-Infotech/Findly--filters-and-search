@@ -4,6 +4,7 @@ node_modules
 .DS_Store
 
 /.cache
+/.vite
 /build
 /app/build
 /public/build/
@@ -14,6 +15,9 @@ node_modules
 database.sqlite
 
 .env
+.env.local
+.env.production
+.env.*.local
 
 # npm lockfile is tracked so GitHub CI (`npm ci`) matches local installs.
 yarn.lock
@@ -34,9 +38,18 @@ pnpm-lock.yaml
 # Local Postgres dumps (never commit)
 *.dump
 
-# Local research dumps (never commit)
-.local-globo-research/
 npmdev.log
+
+# Local Hostinger deploy archives (never commit)
+.tmp-findly-deploy.zip
+.tmp-*-deploy.zip
+
+# Perf audit / LCP fixture outputs (regenerate locally)
+scripts/perf-audit-*.json
+scripts/perf-audit-*-log*.txt
+scripts/perf-lcp-compare.json
+scripts/_dead-*
+scripts/_tmp-*
 
 # Cursor skills on this PC only — not shared via git
 .cursor/skills/*
@@ -44,12 +57,13 @@ npmdev.log
 !.cursor/skills/theme-extension-split/
 !.cursor/skills/theme-extension-split/**
 
-# Local comparison / step prompts — local only
-GLOBO-MATCH-STEP-PROMPTS.txt
-docs/findly-vs-globo-comparison.html
-docs/agent-prompts/
+# Private App Store submit checklist (local only — never push)
+APP-STORE-REVIEW.local.md
 
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+
+
+new-shopify-app-setup-prompt.md
 .gitignore

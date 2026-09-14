@@ -7,7 +7,7 @@
  *   node ./scripts/seed-dev-catalog.mjs
  *   node ./scripts/seed-dev-catalog.mjs --shop=findly-test-store.myshopify.com
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const API_VERSION = "2026-07";
@@ -15,7 +15,7 @@ const TITLE_PREFIX = "[Findly Seed]";
 const SEED_TAG = "findly-seed";
 const SLEEP_MS = 400;
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

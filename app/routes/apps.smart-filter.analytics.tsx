@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { verifyAppProxySignature } from "../proxy.server";
-import { ingestAnalyticsEvent } from "../analytics.server";
+import { isAppProxySignatureBypassEnabled, verifyAppProxySignature } from "../services/proxy.server";
+import { ingestAnalyticsEvent } from "../services/analytics.server";
 
 const corsHeaders = {
   "Content-Type": "application/json",
@@ -14,9 +14,7 @@ function paramsFrom(request: Request) {
 
 async function handleBeacon(request: Request) {
   const url = new URL(request.url);
-  const bypass =
-    process.env.NODE_ENV !== "production" &&
-    process.env.PROXY_SIGNATURE_BYPASS === "true";
+  const bypass = isAppProxySignatureBypassEnabled();
   if (!bypass && !verifyAppProxySignature(url)) {
     return new Response(JSON.stringify({ error: "Invalid signature" }), {
       status: 401,

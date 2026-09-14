@@ -10,11 +10,15 @@ export const meta: MetaFunction = () => [
   },
 ];
 
+export const loader = () => {
+  throw new Response("Not found", { status: 404 });
+};
+
 export default function NotFound() {
   return (
-    <PublicMessage title="Page not found">
-      That URL is not a Findly page. Open the homepage to log in with your
-      Shopify shop, or read the privacy and terms links in the header.
+    <PublicMessage title="Page not found" actionLabel="Go back" minimal>
+      That address isn’t a Findly page. Head home, or open the app from Shopify
+      Admin.
     </PublicMessage>
   );
 }

@@ -31,7 +31,9 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { DEFAULT_SEARCH_EXTRAS } from "../utils/instant-search";
 import { isMutationBusy } from "../components/admin-loading";
 import { CheckboxOrderList } from "../components/checkbox-order-list";
 import { InstantLayoutPicker } from "../components/instant-layout-picker";
@@ -42,7 +44,7 @@ import {
   normalizeHandleList,
   normalizeSearchFields,
   type SearchFieldKey,
-} from "../app-settings";
+} from "../utils/app-settings";
 import {
   INSTANT_MAX_PRODUCTS_MAX,
   INSTANT_MAX_PRODUCTS_MIN,
@@ -55,9 +57,9 @@ import {
   normalizeStopWordList,
   type InstantProductStyle,
   type SearchExtras,
-} from "../instant-search";
-import { getAppSettings, saveSearchSettings } from "../settings.server";
-import { useEmbeddedNavigate } from "../admin-path";
+} from "../utils/instant-search";
+import { getAppSettings, saveSearchSettings } from "../services/settings.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -125,11 +127,29 @@ type SearchPageState = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  const tab = parseSearchTab(new URL(request.url).searchParams.get("tab"));
+  if (auth.bot) {
+    const searchFields = normalizeSearchFields(undefined);
+    return {
+      tab,
+      shopDomain: new URL(request.url).searchParams.get("shop") || "",
+      settings: {
+        searchFields,
+        fieldOrder: orderedFieldKeys(searchFields),
+        showSuggestionsOnEmptyQuery: false,
+        showSuggestionsOnNoResults: false,
+        suggestionProductHandles: [],
+        suggestionCollectionHandles: [],
+        searchExtras: { ...DEFAULT_SEARCH_EXTRAS },
+      } satisfies SearchPageState,
+    };
+  }
+
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const settings = await getAppSettings(shop.id);
   const searchFields = normalizeSearchFields(settings.searchFields);
-  const tab = parseSearchTab(new URL(request.url).searchParams.get("tab"));
 
   return {
     tab,
@@ -594,7 +614,7 @@ export default function SearchPage() {
                         label="Enable Instant Search widget"
                         checked={state.searchExtras.instant.enabled}
                         disabled={saving}
-                        helpText="Shows live results while customers type in the store search bar. Enable the Instant search app embeds toggle in the theme editor if header search does not show suggestions."
+                        helpText="Shows live product results while customers type in the store header search or the collection Search products bar. Does not apply to per-filter Search values boxes (those only filter that facet’s options)."
                         onChange={(checked) =>
                           setState((s) => ({
                             ...s,

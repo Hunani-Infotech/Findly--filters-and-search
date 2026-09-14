@@ -1,5 +1,5 @@
 import { InlineStack, Pagination, Text } from "@shopify/polaris";
-import type { PagedSlice } from "../admin-list-page";
+import type { PagedSlice } from "../utils/admin-list-page";
 
 type AdminListPaginationProps = {
   slice: PagedSlice<unknown>;

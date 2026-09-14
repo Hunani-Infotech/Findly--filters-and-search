@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -16,7 +16,7 @@ const COL_A = "gid://shopify/Collection/51001";
 const COL_B = "gid://shopify/Collection/51002";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -45,12 +45,12 @@ function assertThemeSeoAndUi() {
   );
   const toml = read("shopify.app.toml");
   const shopifyServer = read("app/shopify.server.ts");
-  const billing = read("app/billing.server.ts");
+  const billing = read("app/services/billing.server.ts");
   const uninstall = read("app/routes/webhooks.app.uninstalled.tsx");
   const dataRequest = read("app/routes/webhooks.customers.data_request.tsx");
   const customerRedact = read("app/routes/webhooks.customers.redact.tsx");
   const shopRedact = read("app/routes/webhooks.shop.redact.tsx");
-  const compliance = read("app/compliance.server.ts");
+  const compliance = read("app/services/compliance.server.ts");
 
   if (!filterJs.includes('HASH_KEY = "sf"')) {
     fail("smart-filter.js missing HASH_KEY sf");
@@ -97,7 +97,11 @@ function assertThemeSeoAndUi() {
   if (!filterJs.includes("sf-sort-host")) {
     fail("Findly sort must mount in an owned host, not theme facet chrome");
   }
-  if (!read("app/proxy.server.ts").includes("hmacMessageFromRawQueryEncoded")) {
+  if (
+    !read("app/services/proxy-signature.server.ts").includes(
+      "hmacMessageFromRawQueryEncoded",
+    )
+  ) {
     fail("app proxy HMAC must also accept encoded query signatures");
   }
   if (!read("app/routes/apps.smart-filter.filters.tsx").includes("private, no-store")) {
@@ -149,17 +153,17 @@ function assertThemeSeoAndUi() {
     !gridJs.includes("GRID_BUSY_CSS") ||
     !gridJs.includes("findly-grid-busy-overlay") ||
     !gridJs.includes("data-findly-skel") ||
-    !gridJs.includes("findly-grid-skel__img") ||
+    !gridJs.includes("findly-grid-skel-img") ||
     !gridJs.includes("bootEarlyGridBusy")
   ) {
     fail("smart-filter-grid.js must show product-grid skeletons while filters fetch");
   }
-  if (!filterCss.includes("findly-grid-skel__img")) {
+  if (!filterCss.includes("findly-grid-skel-img")) {
     fail("smart-filter.css must style product-grid skeleton cards");
   }
   if (
     !searchJs.includes("renderSearchSkeletons") ||
-    !searchCss.includes("smart-filter-search__skel-img")
+    !searchCss.includes("sf-search-skel-img")
   ) {
     fail("product search must show result skeletons while fetching");
   }
@@ -175,6 +179,43 @@ function assertThemeSeoAndUi() {
   if (!collectionLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters.liquid must load smart-filter-theme.min.js");
   }
+  if (!collectionLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("collection-filters.liquid must load smart-filter-privacy.min.js");
+  }
+  const privacyJs = read(
+    "extensions/smart-filter/assets/smart-filter-privacy.js",
+  );
+  if (
+    !privacyJs.includes("consent-tracking-api") ||
+    !privacyJs.includes("analyticsProcessingAllowed") ||
+    !privacyJs.includes("visitorConsentCollected")
+  ) {
+    fail("smart-filter-privacy.js must gate analytics on Customer Privacy API");
+  }
+  if (
+    !filterJs.includes("__FINDLY_PRIVACY") ||
+    !searchJs.includes("__FINDLY_PRIVACY")
+  ) {
+    fail("filter and search widgets must send analytics through __FINDLY_PRIVACY");
+  }
+  if (
+    /localStorage\.setItem\(\s*["']findly:vid["']/.test(filterJs) ||
+    /localStorage\.setItem\(\s*["']findly:vid["']/.test(searchJs)
+  ) {
+    fail("findly:vid must not be written outside the privacy helper");
+  }
+  if (!searchLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("product-search.liquid must load smart-filter-privacy.min.js");
+  }
+  if (
+    collectionLiquid.includes("instant-search.min.js") ||
+    collectionLiquid.includes("instant-search.css")
+  ) {
+    fail("collection-filters.liquid must not load instant-search (separate app embed)");
+  }
+  if (!collectionLiquid.includes('"stylesheet": "smart-filter.min.css"')) {
+    fail("collection-filters.liquid schema stylesheet must be smart-filter.min.css");
+  }
   const embedLiquid = read(
     "extensions/smart-filter/blocks/collection-filters-embed.liquid",
   );
@@ -184,6 +225,41 @@ function assertThemeSeoAndUi() {
   if (!embedLiquid.includes("smart-filter-theme.min.js")) {
     fail("collection-filters-embed.liquid must load smart-filter-theme.min.js");
   }
+  if (!embedLiquid.includes("smart-filter-privacy.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter-privacy.min.js");
+  }
+  if (!embedLiquid.includes("smart-filter.min.js")) {
+    fail("collection-filters-embed.liquid must load smart-filter.min.js from Liquid");
+  }
+  if (
+    embedLiquid.includes("instant-search.min.js") ||
+    embedLiquid.includes("instant-search.css")
+  ) {
+    fail("collection-filters-embed.liquid must not load instant-search (separate app embed)");
+  }
+  const embedSchemaStart = embedLiquid.indexOf("{% schema %}");
+  const embedSchema = embedSchemaStart === -1 ? "" : embedLiquid.slice(embedSchemaStart);
+  if (
+    /"stylesheet"\s*:/.test(embedSchema) ||
+    /"javascript"\s*:/.test(embedSchema)
+  ) {
+    fail(
+      "collection-filters-embed.liquid must omit schema stylesheet/javascript so body target does not inject assets on every page",
+    );
+  }
+  const embedGuard = embedLiquid.indexOf(
+    "{% if request.page_type == 'collection' or request.page_type == 'search' %}",
+  );
+  const embedFirstLink = embedLiquid.indexOf("<link ");
+  const embedFirstScriptSrc = embedLiquid.indexOf("<script src=");
+  if (embedGuard === -1 || embedFirstLink === -1 || embedFirstScriptSrc === -1) {
+    fail("collection-filters-embed.liquid missing page_type guard or assets");
+  }
+  if (embedFirstLink < embedGuard || embedFirstScriptSrc < embedGuard) {
+    fail(
+      "collection-filters-embed.liquid must load <link> and <script src> inside the collection/search page_type guard",
+    );
+  }
   const instantJs = read("extensions/smart-filter/assets/instant-search.js");
   if (
     !instantJs.includes("suppressThemePredictive") ||
@@ -191,10 +267,10 @@ function assertThemeSeoAndUi() {
   ) {
     fail("instant search must bind any theme search input and hide native predictive results");
   }
-  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant__skel-card")) {
+  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant-skel-card")) {
     fail("instant search must show a loading panel while fetching");
   }
-  if (!filterCss.includes("max-width: 280px")) {
+  if (!filterCss.includes("max-width: 320px") && !filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
   }
   if (!filterJs.includes("renderChips") || !filterJs.includes("clearFilters")) {
@@ -250,7 +326,20 @@ function assertThemeSeoAndUi() {
     !compliance.includes("running inline purge") ||
     !compliance.includes("inline purge FAILED")
   ) {
-    fail("compliance.server.ts must queue cleanup, inline-purge on Redis failure, and rethrow if purge fails");
+    fail(
+      "compliance.server.ts must queue cleanup, inline-purge on enqueue failure, and rethrow if purge fails",
+    );
+  }
+  if (
+    !compliance.includes('path: ["shop"]') ||
+    !compliance.includes("queueJob.deleteMany") ||
+    !compliance.includes("cacheGeneration.deleteMany") ||
+    !compliance.includes("catalogCacheKey") ||
+    !compliance.includes("configCacheKey")
+  ) {
+    fail(
+      "purgeShopData must delete QueueJob by payload.shop and CacheGeneration catalog:/config: keys",
+    );
   }
   if (!dataRequest.includes("logComplianceEvent")) {
     fail("customers/data_request must log compliance (not a stub)");
@@ -268,16 +357,39 @@ function assertThemeSeoAndUi() {
     fail("compliance.server.ts missing purgeShopData");
   }
   if (!billing.includes("appSubscriptionCreate") || !billing.includes("productLimit: 200")) {
-    fail("billing.server.ts missing Shopify Billing API / Free caps");
+    fail("billing.server.ts missing Shopify Billing API / Standard caps");
   }
-  if (!billing.includes("productLimit: 5000") || !billing.includes("19.99")) {
-    fail("billing.server.ts missing Pro caps / price");
+  if (!billing.includes("productLimit: 1000") || !billing.includes("19.99") || !billing.includes("11.99")) {
+    fail("billing.server.ts missing Standard 11.99 / Pro 19.99 caps / price");
+  }
+  if (!billing.includes("startStandardSubscriptionIfLive") || !billing.includes("partnerDevelopment")) {
+    fail("billing.server.ts missing live-install Standard charge or development unlock");
   }
 }
 
 async function cleanup() {
   await prisma.shop.deleteMany({
     where: { domain: { in: [SHOP_A, SHOP_B] } },
+  });
+  await prisma.queueJob.deleteMany({
+    where: {
+      OR: [
+        { payload: { path: ["shop"], equals: SHOP_A } },
+        { payload: { path: ["shop"], equals: SHOP_B } },
+      ],
+    },
+  });
+  await prisma.cacheGeneration.deleteMany({
+    where: {
+      key: {
+        in: [
+          `catalog:${SHOP_A}`,
+          `config:${SHOP_A}`,
+          `catalog:${SHOP_B}`,
+          `config:${SHOP_B}`,
+        ],
+      },
+    },
   });
 }
 
@@ -475,12 +587,11 @@ try {
   log.info("theme SEO hash, empty state, billing, and compliance markers present");
 
   const { getCollectionFilterPayload, getSearchFilterPayload, getSearchPayload } =
-    await import("../app/proxy.server.ts");
-  const { PLANS } = await import("../app/billing.server.ts");
+    await import("../app/services/proxy.server.ts");
+  const { PLANS } = await import("../app/services/billing.server.ts");
   const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
-    await import("../app/compliance.server.ts");
-  const { webhookGraphqlId, webhookInventoryItemGid, catalogProductGid } = await import(
-    "../app/webhooks.server.ts"
+    await import("../app/services/compliance.server.ts");
+  const { webhookGraphqlId, webhookInventoryItemGid } = await import("../app/services/webhooks.server.ts"
   );
   const { mapProductToFacet, productIsAvailable, variantsIncludeInventoryLevels } =
     await import("../app/sync/product-mapper.ts");
@@ -490,19 +601,37 @@ try {
   const syncServer = read("app/sync/sync.server.ts");
   const syncPage = read("app/routes/app.sync.tsx");
   const syncModal = read("app/components/sync-details-modal.tsx");
-  const proxy = read("app/proxy.server.ts");
-  const eventsRoute = read("app/routes/events.app.products.tsx");
+  const proxy = read("app/services/proxy.server.ts");
   const workerBoot = read("app/workers/ensure-running.server.ts");
+  const entryServer = read("app/entry.server.tsx");
+  const webhooksServer = read("app/services/webhooks.server.ts");
+  const pkgJson = JSON.parse(read("package.json"));
+  const startScript = String(pkgJson.scripts?.start ?? "");
   if (!toml.includes("inventory_levels/update") || !toml.includes("products/update")) {
     fail(
       "shopify.app.toml must subscribe to inventory_levels/update and products/update (metafield value topics were removed in Admin API 2026-07)",
     );
   }
-  if (!eventsRoute.includes("handleProductEvent")) {
-    fail("events.app.products must enqueue catalog sync via handleProductEvent");
+  if (toml.includes("[events]") || toml.includes('api_version = "unstable"')) {
+    fail("shopify.app.toml must not use Shopify Events or an unstable API version");
   }
   if (!workerBoot.includes("in-process") || !workerBoot.includes("startInProcessWorker")) {
-    fail("ensureWorkerRunning must start an in-process BullMQ Worker");
+    fail("ensureWorkerRunning must start an in-process postgres queue poller");
+  }
+  if (entryServer.includes("ensureWorkerRunning")) {
+    fail(
+      "app/entry.server.tsx must not call ensureWorkerRunning (web process uses START_WORKER=0; worker:prod drains the queue)",
+    );
+  }
+  if (/await runSyncJobInline/.test(webhooksServer)) {
+    fail(
+      "webhooks.server.ts must not await runSyncJobInline (enqueue is fire-and-forget)",
+    );
+  }
+  if (!startScript.includes("worker:prod") && !startScript.includes("start-prod")) {
+    fail(
+      "package.json start must invoke worker:prod or start-prod (dedicated worker process), not only node server.js",
+    );
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");
@@ -529,7 +658,7 @@ try {
   if (!queueFullSync.includes("startFullSync")) {
     fail("queueFullSync must fall back to inline startFullSync so manual sync is not blocked");
   }
-  const graphqlSync = read("app/sync/graphql.ts");
+  const graphqlSync = read("app/sync/admin-graphql.ts");
   if (
     !graphqlSync.includes("inventoryQuantity") ||
     !graphqlSync.includes("inventoryItem") ||
@@ -542,7 +671,7 @@ try {
     countBulkQueryConnections,
     BULK_PRODUCTS_QUERY,
     SHOPIFY_BULK_MAX_CONNECTIONS,
-  } = await import("../app/sync/graphql.ts");
+  } = await import("../app/sync/admin-graphql.ts");
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000 - 1000).toISOString();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   if (completedBulkIsFresh({ completedAt: twoHoursAgo })) {
@@ -568,7 +697,10 @@ try {
   if (countBulkQueryConnections("edges { edges {") !== 2) {
     fail("countBulkQueryConnections should count each edges { connection");
   }
-  if (!proxy.includes("getCatalogGeneration")) {
+  if (
+    !proxy.includes("catalogGenerationForShopId") &&
+    !proxy.includes("getCatalogGeneration")
+  ) {
     fail("proxy.server.ts must key filter cache by catalog generation");
   }
   if (!syncPage.includes("/app?sync=1")) {
@@ -608,14 +740,6 @@ try {
   );
   if (collectionGid !== "gid://shopify/Collection/841564295") {
     fail(`2026-07 collection webhook GID parse failed: ${collectionGid}`);
-  }
-  const eventGid = catalogProductGid({
-    topic: "Product",
-    action: "update",
-    query_variables: { productId: "gid://shopify/Product/555" },
-  });
-  if (eventGid !== "gid://shopify/Product/555") {
-    fail(`product event GID parse failed: ${eventGid}`);
   }
   const taggedOos = mapProductToFacet("shop", {
     id: "gid://shopify/Product/oos",
@@ -696,14 +820,23 @@ try {
   }
   log.info("2026-07 webhook payload parse (product/collection/GDPR) ok");
 
-  if (PLANS.free.productLimit !== 200 || PLANS.free.filterLimit !== 5) {
-    fail("Free plan caps drifted");
+  if (PLANS.free.productLimit !== 0 || PLANS.free.filterLimit !== 0) {
+    fail("Development plan caps drifted");
   }
-  if (PLANS.pro.productLimit !== 5000 || PLANS.pro.filterLimit !== 25) {
+  if (PLANS.standard.productLimit !== 200 || PLANS.standard.filterLimit !== 6) {
+    fail("Standard plan caps drifted");
+  }
+  if (PLANS.pro.productLimit !== 1000 || PLANS.pro.filterLimit !== 15) {
     fail("Pro plan caps drifted");
   }
   if (PLANS.pro.amount !== 19.99) {
     fail("Pro price drifted");
+  }
+  if (PLANS.standard.amount !== 11.99) {
+    fail("Standard price drifted");
+  }
+  if (PLANS.standard.trialDays !== 0 || PLANS.pro.trialDays !== 0) {
+    fail("Paid plans must have no trial");
   }
 
   const collectionA = await getCollectionFilterPayload({
@@ -950,6 +1083,45 @@ try {
   if (kept !== 1) fail("unrelated analytics must survive customers/redact");
   log.info("customers/redact scrubbed matching analytics only");
 
+  // Seed non-FK leftovers that CASCADE cannot reach (Postgres queue + cache gens).
+  await prisma.queueJob.createMany({
+    data: [
+      {
+        type: "product.upsert",
+        payload: { shop: SHOP_A, productGid: "gid://shopify/Product/b5-purge-a" },
+        jobKey: `b5_purge_${SHOP_A}_a`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+      {
+        type: "shop.fullSync",
+        payload: { shop: SHOP_A },
+        jobKey: `b5_purge_${SHOP_A}_full`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+      {
+        type: "product.upsert",
+        payload: { shop: SHOP_B, productGid: "gid://shopify/Product/b5-purge-b" },
+        jobKey: `b5_purge_${SHOP_B}_b`,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(),
+      },
+    ],
+  });
+  await prisma.cacheGeneration.createMany({
+    data: [
+      { key: `catalog:${SHOP_A}`, version: 7 },
+      { key: `config:${SHOP_A}`, version: 4 },
+      { key: `catalog:${SHOP_B}`, version: 2 },
+      { key: `config:${SHOP_B}`, version: 1 },
+    ],
+    skipDuplicates: true,
+  });
+
   const purged = await purgeShopData(SHOP_A);
   if (!purged.deleted) fail("purgeShopData should delete shop A");
   const gone = await prisma.shop.findUnique({ where: { domain: SHOP_A } });
@@ -958,7 +1130,62 @@ try {
     where: { shopId: shopA.id },
   });
   if (leftoverFacets !== 0) fail("product facets leaked after purge");
-  log.info("compliance purge removed tenant data");
+
+  const leftoverJobsA = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_A } },
+  });
+  if (leftoverJobsA !== 0) {
+    fail("QueueJob rows for purged shop must be deleted (payload.shop)");
+  }
+  const leftoverJobsB = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_B } },
+  });
+  if (leftoverJobsB < 1) {
+    fail("QueueJob rows for other shops must survive purgeShopData");
+  }
+  const leftoverCacheA = await prisma.cacheGeneration.count({
+    where: {
+      key: { in: [`catalog:${SHOP_A}`, `config:${SHOP_A}`] },
+    },
+  });
+  if (leftoverCacheA !== 0) {
+    fail("CacheGeneration catalog:/config: keys for purged shop must be deleted");
+  }
+  const leftoverCacheB = await prisma.cacheGeneration.count({
+    where: {
+      key: { in: [`catalog:${SHOP_B}`, `config:${SHOP_B}`] },
+    },
+  });
+  if (leftoverCacheB !== 2) {
+    fail("CacheGeneration keys for other shops must survive purgeShopData");
+  }
+
+  // Idempotent second pass (Shop already gone) still scrubs any re-seeded leftovers.
+  await prisma.queueJob.create({
+    data: {
+      type: "inventory.sync",
+      payload: { shop: SHOP_A, inventoryItemGid: "gid://shopify/InventoryItem/1" },
+      jobKey: `b5_purge_${SHOP_A}_orphan`,
+      status: "pending",
+      maxAttempts: 3,
+      runAt: new Date(),
+    },
+  });
+  await prisma.cacheGeneration.create({
+    data: { key: `catalog:${SHOP_A}`, version: 1 },
+  });
+  const purgedAgain = await purgeShopData(SHOP_A);
+  if (purgedAgain.deleted) fail("second purge should report deleted=false (no Shop row)");
+  const orphanJobs = await prisma.queueJob.count({
+    where: { payload: { path: ["shop"], equals: SHOP_A } },
+  });
+  if (orphanJobs !== 0) fail("idempotent purge must still delete QueueJob leftovers");
+  const orphanCache = await prisma.cacheGeneration.count({
+    where: { key: `catalog:${SHOP_A}` },
+  });
+  if (orphanCache !== 0) fail("idempotent purge must still delete CacheGeneration leftovers");
+
+  log.info("compliance purge removed tenant data including QueueJob + CacheGeneration");
 
   log.success("STEPB5_OK launch E2E: filters + search isolation + billing + compliance");
 } catch (error) {

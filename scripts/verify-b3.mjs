@@ -3,12 +3,12 @@
  * Usage: npm run verify:b3
  */
 import "tsx/esm";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "b3-verify.myshopify.com";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -129,9 +129,8 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
   const { searchProducts, searchProductFacets, normalizeSearchQuery } =
-    await import("../app/search.server.ts");
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+    await import("../app/services/search.server.ts");
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   if (normalizeSearchQuery("")) {

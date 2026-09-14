@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -17,7 +17,7 @@ const FEATURED_IMAGE = "https://cdn.example.com/default.jpg";
 const RED_PREFIX = "https://cdn.example.com/red";
 const BLUE_S_IMAGE = "https://cdn.example.com/blue-s.jpg";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -43,17 +43,17 @@ function findC6Product(result) {
 }
 
 function assertGraphqlVariantImages() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("selectedOptions")) {
-    fail("app/sync/graphql.ts must include selectedOptions on variants");
+    fail("app/sync/admin-graphql.ts must include selectedOptions on variants");
   }
   if (!graphql.includes("image")) {
-    fail("app/sync/graphql.ts must include image on variants");
+    fail("app/sync/admin-graphql.ts must include image on variants");
   }
   if (!graphql.includes("url")) {
-    fail("app/sync/graphql.ts must include image { url } on variants");
+    fail("app/sync/admin-graphql.ts must include image { url } on variants");
   }
-  log.info("graphql.ts includes selectedOptions and image { url } on variants");
+  log.info("admin-graphql.ts includes selectedOptions and image { url } on variants");
 }
 
 function assertThemeApplyVariantImages() {
@@ -180,7 +180,7 @@ try {
   assertGraphqlVariantImages();
   assertThemeApplyVariantImages();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

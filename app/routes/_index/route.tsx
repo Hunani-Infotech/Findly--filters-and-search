@@ -4,7 +4,8 @@ import { redirect, Form, Link, useLoaderData, useNavigation } from "react-router
 
 import { PublicShell } from "../../components/public-shell";
 import shell from "../../components/public-shell.module.css";
-import { scrollToId } from "../../public-scroll";
+import { scrollToId } from "../../utils/public-scroll";
+import { FINDLY_SUPPORT_EMAIL } from "../../utils/public-origin";
 import { login } from "../../shopify.server";
 
 import styles from "./styles.module.css";
@@ -14,7 +15,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Collection filters and storefront search for Shopify. Theme App Extension widget, metafield mapping, and GDPR-ready shop-scoped data.",
+      "Collection filters, storefront search, instant suggestions, metafield mapping, and GDPR-ready shop-scoped data for Shopify.",
   },
 ];
 
@@ -25,19 +26,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
-  return {
-    showForm: Boolean(login),
-    defaultShop:
-      process.env.SHOPIFY_FLAG_STORE || "findly-test-store.myshopify.com",
-  };
+  return { showForm: Boolean(login) };
 };
 
+const SHOP_DOMAIN_EXAMPLE = "your-store.myshopify.com";
+
 function ShopLoginForm({
-  defaultShop,
   submitting,
   hintId,
 }: {
-  defaultShop: string;
   submitting: boolean;
   hintId: string;
 }) {
@@ -49,7 +46,8 @@ function ShopLoginForm({
           className={shell.input}
           type="text"
           name="shop"
-          defaultValue={defaultShop}
+          defaultValue=""
+          placeholder={SHOP_DOMAIN_EXAMPLE}
           disabled={submitting}
           autoComplete="off"
           spellCheck={false}
@@ -58,7 +56,7 @@ function ShopLoginForm({
         />
       </label>
       <p className={shell.hint} id={hintId}>
-        e.g. {defaultShop}
+        e.g. {SHOP_DOMAIN_EXAMPLE}
       </p>
       <button className={shell.button} type="submit" disabled={submitting}>
         {submitting ? "Logging in…" : "Continue to Shopify"}
@@ -67,8 +65,17 @@ function ShopLoginForm({
   );
 }
 
+const PRODUCTS = [
+  { name: "Linen apron", price: "$48", photo: styles.ph1 },
+  { name: "Stoneware mug", price: "$22", photo: styles.ph2 },
+  { name: "Oak board", price: "$64", photo: styles.ph3 },
+  { name: "Wool throw", price: "$90", photo: styles.ph4 },
+  { name: "Brass hook", price: "$18", photo: styles.ph5 },
+  { name: "Cotton tote", price: "$28", photo: styles.ph6 },
+] as const;
+
 export default function App() {
-  const { showForm, defaultShop } = useLoaderData<typeof loader>();
+  const { showForm } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const submitting =
     navigation.state !== "idle" &&
@@ -84,7 +91,7 @@ export default function App() {
     <PublicShell>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>Shopify app · Theme App Extension</p>
+          <p className={styles.kicker}>Built for Shopify themes</p>
           <h1 className={styles.heading}>
             Help shoppers find the right product — without leaving your theme
           </h1>
@@ -93,11 +100,20 @@ export default function App() {
             Merchants configure everything in Admin. Shoppers never create a
             Findly account.
           </p>
-          <ul className={styles.pills} aria-label="Highlights">
-            <li>Price, vendor, type, tags, availability</li>
-            <li>Mapped metafields</li>
-            <li>Instant search widget</li>
-          </ul>
+          <dl className={styles.stats} aria-label="Highlights">
+            <div>
+              <dt>Theme App Extension</dt>
+              <dd>Filters in the theme</dd>
+            </div>
+            <div>
+              <dt>App proxy</dt>
+              <dd>Requests on your domain</dd>
+            </div>
+            <div>
+              <dt>Admin GraphQL</dt>
+              <dd>No REST Admin API</dd>
+            </div>
+          </dl>
         </div>
         {showForm ? (
           <aside className={shell.card} id="open-admin" aria-labelledby="open-admin-title">
@@ -109,7 +125,6 @@ export default function App() {
               domain to install Findly or open it if it is already installed.
             </p>
             <ShopLoginForm
-              defaultShop={defaultShop}
               submitting={submitting}
               hintId="shop-domain-hint"
             />
@@ -117,44 +132,50 @@ export default function App() {
         ) : null}
       </section>
 
-      <section className={styles.previewSection} aria-hidden="true">
-        <div className={styles.previewFrame}>
-          <div className={styles.previewChrome}>
-            <span />
-            <span />
-            <span />
-            <p>your-store.com / collections / all</p>
+      <section className={styles.stage} aria-hidden="true">
+        <div className={styles.frame}>
+          <div className={styles.bar}>
+            <p>your-store.com/collections/all</p>
           </div>
-          <div className={styles.previewBody}>
-            <aside className={styles.previewFilters}>
-              <p>Filters</p>
-              <div className={styles.previewFilter}>
-                <span /> In stock
+          <div className={styles.body}>
+            <aside className={styles.side}>
+              <p className={styles.sideHead}>Filters</p>
+              <div className={styles.check}>
+                <span className={styles.on} /> In stock
               </div>
-              <div className={styles.previewFilter}>
+              <div className={styles.check}>
                 <span /> Under $50
               </div>
-              <div className={styles.previewFilter}>
+              <div className={styles.check}>
                 <span /> Vendor: Findly
               </div>
-              <div className={styles.previewSwatches}>
-                <i />
-                <i />
-                <i />
-                <i />
-              </div>
+              <ul className={styles.swatches}>
+                <li>
+                  <i className={styles.ink} /> Ink
+                </li>
+                <li>
+                  <i className={styles.bone} /> Bone
+                </li>
+                <li>
+                  <i className={styles.pine} /> Pine
+                </li>
+                <li>
+                  <i className={styles.clay} /> Clay
+                </li>
+              </ul>
             </aside>
-            <div className={styles.previewGrid}>
-              <article />
-              <article />
-              <article />
-              <article />
-              <article />
-              <article />
+            <div className={styles.grid}>
+              {PRODUCTS.map((item) => (
+                <article key={item.name}>
+                  <div className={item.photo} />
+                  <h3>{item.name}</h3>
+                  <p>{item.price}</p>
+                </article>
+              ))}
             </div>
           </div>
         </div>
-        <p className={styles.previewCaption}>
+        <p className={styles.caption}>
           Filter sidebar and product grid on the collection page — loaded from
           your theme, not a separate storefront.
         </p>
@@ -162,7 +183,7 @@ export default function App() {
 
       <section className={styles.section} aria-labelledby="how-heading">
         <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>Setup</p>
+          <p className={styles.kicker}>Setup</p>
           <h2 className={styles.sectionTitle} id="how-heading">
             Live in three steps
           </h2>
@@ -192,9 +213,9 @@ export default function App() {
             <span className={styles.stepNum}>3</span>
             <h3>Enable the theme blocks</h3>
             <p>
-              Turn on the collection filters app embed (and search, if you use
-              it) in the theme editor. Placement, accent, and counts are
-              configurable.
+              Add Collection filters to the collection template (and Instant
+              search as an app embed, if you use it) in the theme editor.
+              Placement, accent, and counts are configurable.
             </p>
           </li>
         </ol>
@@ -202,40 +223,58 @@ export default function App() {
 
       <section className={styles.section} id="features" aria-labelledby="features-heading">
         <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>Product</p>
+          <p className={styles.kicker}>Product</p>
           <h2 className={styles.sectionTitle} id="features-heading">
             What merchants get
           </h2>
           <p className={styles.sectionLede}>
-            Launch scope is solid collection filters, storefront search, and
-            the Theme App Extension — configured per shop in Admin.
+            Collection filters, storefront search, and the Theme App Extension
+            — plus search extras, translation, and usage analytics —
+            configured per shop in Admin.
           </p>
         </div>
-        <div className={styles.features}>
-          <article className={styles.feature}>
+        <div className={styles.lead}>
+          <article className={styles.tile}>
             <h3 className={styles.featureTitle}>Collection filters</h3>
             <p className={styles.featureCopy}>
               Price, availability, vendor, product type, tags, options, and
               metafields you map. Per-collection filter sets in Admin.
             </p>
+            <ul className={styles.snip}>
+              <li>
+                <span className={styles.on} /> In stock
+              </li>
+              <li>
+                <span /> Under $50
+              </li>
+              <li>
+                <span /> Vendor: Findly
+              </li>
+            </ul>
           </article>
-          <article className={styles.feature}>
+          <article className={styles.tile}>
             <h3 className={styles.featureTitle}>Storefront search</h3>
             <p className={styles.featureCopy}>
               Keyword product search through the Theme App Extension — instant
-              suggestions from your indexed catalog, not a separate search
-              engine UI.
+              suggestions, pinnings, synonyms, and redirects from your indexed
+              catalog, not a separate search-engine UI.
             </p>
+            <div className={styles.searchSnip}>
+              <span>Search products…</span>
+            </div>
           </article>
-          <article className={styles.feature}>
+        </div>
+        <div className={styles.list}>
+          <article>
             <h3 className={styles.featureTitle}>Theme App Extension</h3>
             <p className={styles.featureCopy}>
-              Async-loaded widget, scoped CSS, and basic styling: position
-              (left, right, or top), accent color, product counts, and
+              Collection filters app block, Product search block, and Instant
+              search embed. Async-loaded widget, scoped CSS, and basic styling:
+              position (left, right, or top), accent color, product counts, and
               collapse-by-default.
             </p>
           </article>
-          <article className={styles.feature}>
+          <article>
             <h3 className={styles.featureTitle}>Metafield mapping</h3>
             <p className={styles.featureCopy}>
               Turn product metafields into filter facets. Color swatches can
@@ -243,15 +282,30 @@ export default function App() {
               media library.
             </p>
           </article>
-          <article className={styles.feature}>
+          <article>
             <h3 className={styles.featureTitle}>Shopify Billing</h3>
             <p className={styles.featureCopy}>
-              Free, Standard, and Pro through the Shopify Billing API. Product
-              index and metafield-mapping caps differ by plan; you approve
-              charges in Admin.
+              Development (Shopify development stores only), Standard, and Pro
+              through the Shopify Billing API. Product index and metafield
+              caps differ by plan; live shops approve Standard at install.
             </p>
           </article>
-          <article className={styles.feature}>
+          <article>
+            <h3 className={styles.featureTitle}>Translation</h3>
+            <p className={styles.featureCopy}>
+              Edit widget labels per locale. After Ajax filtering, review and
+              wishlist widgets (and Weglot) can re-init so they stay in sync
+              with the filtered grid.
+            </p>
+          </article>
+          <article>
+            <h3 className={styles.featureTitle}>Filter &amp; search analytics</h3>
+            <p className={styles.featureCopy}>
+              See top queries, no-results, and popular filters in Admin. Counts
+              stay at zero until the theme widgets are live on the storefront.
+            </p>
+          </article>
+          <article>
             <h3 className={styles.featureTitle}>Shop-scoped &amp; GDPR ready</h3>
             <p className={styles.featureCopy}>
               Every table is tied to the installing shop. Mandatory compliance
@@ -262,14 +316,43 @@ export default function App() {
         </div>
       </section>
 
-      <section className={styles.band} aria-labelledby="trust-heading">
+      <section className={styles.help} aria-labelledby="help-heading">
+        <div>
+          <p className={styles.kicker}>Help</p>
+          <h2 className={styles.sectionTitle} id="help-heading">
+            Search answers before you write in
+          </h2>
+          <p className={styles.sectionLede}>
+            Install, filters, search extras, plans, and data handling — jump
+            straight to a matching FAQ.
+          </p>
+        </div>
+        <form className={styles.helpSearch} action="/faq" method="get" role="search">
+          <label className={styles.helpLabel} htmlFor="home-faq-q">
+            Search the FAQ
+          </label>
+          <input
+            id="home-faq-q"
+            className={styles.helpInput}
+            type="search"
+            name="q"
+            placeholder="e.g. metafield filters, refund, theme block"
+            autoComplete="off"
+          />
+          <button className={styles.helpSubmit} type="submit">
+            Search FAQ
+          </button>
+        </form>
+      </section>
+
+      <section className={styles.trust} aria-labelledby="trust-heading">
         <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>Built for Shopify</p>
+          <p className={styles.kicker}>Built for Shopify</p>
           <h2 className={styles.sectionTitle} id="trust-heading">
             Admin GraphQL only. No shopper login.
           </h2>
         </div>
-        <ul className={styles.trust}>
+        <ul className={styles.trustList}>
           <li>
             <strong>Embedded admin</strong>
             Configure filters, search, swatches, and billing inside Shopify
@@ -287,9 +370,11 @@ export default function App() {
             markets. Findly does not request customer or order data.
           </li>
         </ul>
-        <p className={styles.legalRow}>
+        <p className={styles.legal}>
+          <Link to="/faq">FAQ</Link>
           <Link to="/privacy">Privacy policy</Link>
           <Link to="/terms">Terms of service</Link>
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>{FINDLY_SUPPORT_EMAIL}</a>
         </p>
       </section>
 
@@ -310,7 +395,6 @@ export default function App() {
               Development stores and production shops both use this form.
             </p>
             <ShopLoginForm
-              defaultShop={defaultShop}
               submitting={submitting}
               hintId="shop-domain-hint-cta"
             />

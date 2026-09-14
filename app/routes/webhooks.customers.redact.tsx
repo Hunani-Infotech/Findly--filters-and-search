@@ -4,8 +4,8 @@ import {
   logComplianceEvent,
   scrubCustomerData,
   shopifyWebhookRequestId,
-} from "../compliance.server";
-import { log } from "../log.server";
+} from "../services/compliance.server";
+import { log } from "../lib/log.server";
 
 /** GDPR customers/redact: scrub any stored identifiers, then audit (no payload). */
 export const action = async ({ request }: ActionFunctionArgs) => {

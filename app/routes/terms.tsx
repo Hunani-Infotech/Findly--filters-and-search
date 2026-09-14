@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 import { LegalDoc } from "../components/legal-doc";
 import { PublicShell } from "../components/public-shell";
-import { FINDLY_PUBLIC_ORIGIN } from "../public-origin";
+import { FINDLY_SUPPORT_EMAIL } from "../utils/public-origin";
 
 export const meta: MetaFunction = () => [
   { title: "Terms of Service — Findly: Smart Filters & Search" },
@@ -24,7 +24,7 @@ export default function TermsOfService() {
       <LegalDoc
         eyebrow="Legal"
         title="Terms of Service"
-        updated="Effective 21 August 2026"
+        updated="Effective 26 August 2026"
         toc={[
           { id: "service", label: "The service" },
           { id: "eligibility", label: "Eligibility" },
@@ -44,7 +44,7 @@ export default function TermsOfService() {
       >
         <p>
           These Terms of Service (“Terms”) are a contract between you (the
-          Shopify merchant installing the app) and Hunani Infotech (“we”,
+          Shopify merchant installing the app) and SRH Web Agency (“we”,
           “us”, “Findly”) for the hosted Shopify application{" "}
           <strong>Findly: Smart Filters & Search</strong>.
         </p>
@@ -106,23 +106,23 @@ export default function TermsOfService() {
         <h2 id="billing">3. Billing plans</h2>
         <p>
           All charges go through the Shopify Billing API. Listing prices must
-          match in-app prices. There is no yearly plan at launch. Currency is
-          USD. Billing interval for paid plans is every 30 days.
+          match in-app prices. Currency is USD. Billing interval for paid
+          plans is every 30 days.
         </p>
         <ul>
           <li>
-            <strong>Free</strong> — $0.00. No Shopify App Subscription
-            charge. Up to 200 products in the Findly index and 5 metafield
-            filter mappings. No trial (the plan is already free).
+            <strong>Development</strong> — $0.00. No Shopify App Subscription
+            charge. For Shopify development and partner stores only; all
+            features are included there. Live stores are not included.
           </li>
           <li>
-            <strong>Standard</strong> — $9.99 USD every 30 days after a
-            7-day trial. Up to 1,000 products and 12 metafield filter
-            mappings.
+            <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
+            Billing starts when you approve the charge at install. Up to 200
+            products and 6 metafield filter mappings.
           </li>
           <li>
-            <strong>Pro</strong> — $19.99 USD every 30 days after a 7-day
-            trial. Up to 5,000 products and 25 metafield filter mappings.
+            <strong>Pro</strong> — $19.99 USD every 30 days. No trial. Up to
+            1,000 products and 15 metafield filter mappings.
           </li>
         </ul>
         <p>
@@ -133,17 +133,18 @@ export default function TermsOfService() {
           product cap.
         </p>
         <p>
-          You can move between Free, Standard, and Pro in{" "}
+          You can move between Development, Standard, and Pro in{" "}
           <strong>Findly → Pricing plans</strong> without reinstalling. Paid
           upgrades create or replace a Shopify charge that you must approve
-          in Admin. If you decline the charge, you stay on your current
-          entitled plan (typically Free if no paid subscription is active).
+          in Admin. Live shops are asked to start Standard when the app is
+          installed. If you decline the charge, you stay on Development (no
+          live catalog).
         </p>
         <p>
-          Trials apply only when Shopify starts a paid Standard or Pro
-          subscription. There is <strong>no 30-day money-back
-          guarantee</strong>. Refunds, if any, are handled through Shopify’s
-          billing tools and policies, not as a separate Findly cash refund.
+          There is <strong>no free trial</strong> on any plan and{" "}
+          <strong>no 30-day money-back guarantee</strong>. Refunds, if any,
+          are handled through Shopify’s billing tools and policies, not as a
+          separate Findly cash refund.
         </p>
         <p>
           If you exceed plan limits, Findly may stop indexing additional
@@ -218,19 +219,24 @@ export default function TermsOfService() {
           We aim to keep Findly available but do not promise uninterrupted
           uptime. Catalog sync depends on Shopify Admin GraphQL, webhooks,
           and background workers. Theme widgets depend on your theme and on
-          you adding the app blocks.
+          you adding the app blocks. The app process runs on Hostinger;
+          catalog and settings live in Supabase Postgres; background jobs use
+          the same Postgres database.
         </p>
         <p>
-          Support is offered through <strong>Findly → Contact</strong> and
-          the email on the Shopify App Store listing. We do not guarantee
-          response times. Shopify cannot provide Findly product support on
-          our behalf.
+          Support is offered through <strong>Findly → Contact</strong> and by
+          email at{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
+          </a>
+          . We do not guarantee response times. Shopify cannot provide Findly
+          product support on our behalf.
         </p>
 
         <h2 id="ip">7. Intellectual property</h2>
         <p>
           Findly’s name, admin UI, Theme App Extension, and hosted service
-          are owned by Hunani Infotech or its licensors. Installing the app
+          are owned by SRH Web Agency or its licensors. Installing the app
           does not transfer ownership. Shopify trademarks belong to Shopify
           Inc.
         </p>
@@ -252,7 +258,7 @@ export default function TermsOfService() {
 
         <h2 id="liability">9. Limitation of liability</h2>
         <p>
-          To the fullest extent permitted by law, Hunani Infotech and its
+          To the fullest extent permitted by law, SRH Web Agency and its
           officers, employees, and contractors will not be liable for
           indirect, incidental, special, consequential, or punitive damages,
           or for lost profits, lost sales, lost data, theme breakage, SEO
@@ -273,7 +279,7 @@ export default function TermsOfService() {
 
         <h2 id="indemnity">10. Indemnity</h2>
         <p>
-          You will defend and indemnify Hunani Infotech against claims,
+          You will defend and indemnify SRH Web Agency against claims,
           damages, and reasonable legal fees arising from your storefront
           content, your product data, your misuse of Findly, or your
           violation of these Terms or third-party rights, except to the
@@ -309,7 +315,7 @@ export default function TermsOfService() {
           waiver.
         </p>
         <p>
-          Governing law is the law of the jurisdiction where Hunani Infotech
+          Governing law is the law of the jurisdiction where SRH Web Agency
           is established, excluding conflict-of-law rules, unless a
           mandatory consumer or merchant protection law in your country says
           otherwise. Shopify’s platform terms are between you and Shopify.
@@ -317,17 +323,12 @@ export default function TermsOfService() {
 
         <h2 id="contact">14. Contact</h2>
         <p>
-          Hunani Infotech — Findly: Smart Filters & Search
+          SRH Web Agency — Findly: Smart Filters & Search
           <br />
-          Terms:{" "}
-          <a href={`${FINDLY_PUBLIC_ORIGIN}/terms`}>
-            {FINDLY_PUBLIC_ORIGIN}/terms
+          Email:{" "}
+          <a href={`mailto:${FINDLY_SUPPORT_EMAIL}`}>
+            {FINDLY_SUPPORT_EMAIL}
           </a>
-          <br />
-          Privacy:{" "}
-          <Link to="/privacy">
-            {FINDLY_PUBLIC_ORIGIN}/privacy
-          </Link>
           <br />
           In-app: Findly → Contact
         </p>

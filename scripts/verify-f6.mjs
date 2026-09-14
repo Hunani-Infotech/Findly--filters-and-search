@@ -1,6 +1,6 @@
 /**
  * F6 gate: partner re-init after Ajax grid (findlyFilterRenderCompleted,
- * Judge.me, Wishlist Hero, Integrations admin).
+ * Judge.me, Wishlist Hero).
  * Usage: npm run verify:f6
  *
  * Static file greps only — no Prisma / Postgres.
@@ -67,48 +67,10 @@ function assertStaticMarkers() {
     "extensions/smart-filter/assets/smart-filter.js",
   );
 
-  const vehicleJs = readRepo(
-    "extensions",
-    "smart-filter",
-    "assets",
-    "vehicle-finder.js",
-  );
-  requireAll(
-    vehicleJs,
-    [
-      "findlyFilterRenderCompleted",
-      "window.dispatchEvent",
-    ],
-    "extensions/smart-filter/assets/vehicle-finder.js",
-  );
-
-  const partners = readRepo("app", "partner-integrations.ts");
-  requireAll(
-    partners,
-    [
-      "findlyFilterRenderCompleted",
-      "Judge.me",
-      "Wishlist Hero",
-    ],
-    "app/partner-integrations.ts",
-  );
-
-  const admin = readRepo("app", "routes", "app.integrations.tsx");
-  requireAll(
-    admin,
-    ["Integrations", "findlyFilterRenderCompleted"],
-    "app/routes/app.integrations.tsx",
-  );
-
   const appNav = readRepo("app", "routes", "app.tsx");
-  requireAll(appNav, ["/app/integrations"], "app/routes/app.tsx");
-
-  const docs = readRepo("docs", "partner-integrations.md");
-  requireAll(
-    docs,
-    ["findlyFilterRenderCompleted", "smart-filter:update"],
-    "docs/partner-integrations.md",
-  );
+  if (appNav.includes("/app/integrations")) {
+    fail("app/routes/app.tsx still links to removed Integrations admin");
+  }
 
   log.info("F6 static markers present");
 }

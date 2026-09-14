@@ -7,7 +7,83 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
-import { log } from "./log.server";
+import { log } from "./lib/log.server";
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __FINDLY_PROCESS_GUARDS__: boolean | undefined;
+}
+
+function installProcessGuards() {
+  if (globalThis.__FINDLY_PROCESS_GUARDS__) return;
+  globalThis.__FINDLY_PROCESS_GUARDS__ = true;
+  process.on("unhandledRejection", (reason) => {
+    log.error("[process] unhandledRejection", reason);
+  });
+  process.on("uncaughtException", (error) => {
+    log.error("[process] uncaughtException", error);
+  });
+}
+
+installProcessGuards();
+
+/** Library default is ~10s; paused Postgres often needs longer. */
+const SESSION_STORAGE_CONNECTION_RETRIES = 20;
+const SESSION_STORAGE_RETRY_INTERVAL_MS = 3000;
+
+function createPrismaSessionStorage() {
+  const sessionStorage = new PrismaSessionStorage(prisma, {
+    connectionRetries: SESSION_STORAGE_CONNECTION_RETRIES,
+    connectionRetryIntervalMs: SESSION_STORAGE_RETRY_INTERVAL_MS,
+  });
+
+  // `ready` rejects with no listener and kills Node. Catch it and keep polling.
+  const pending = (
+    sessionStorage as unknown as { ready?: Promise<unknown> }
+  ).ready;
+  if (pending && typeof pending.then === "function") {
+    void pending.catch((error: unknown) => {
+      log.error(
+        "[shopify] session storage not ready after boot poll",
+        error,
+      );
+      void recoverSessionStorage(sessionStorage);
+    });
+  }
+
+  return sessionStorage;
+}
+
+async function recoverSessionStorage(
+  sessionStorage: PrismaSessionStorage<typeof prisma>,
+) {
+  let attempt = 0;
+  for (;;) {
+    await new Promise((resolve) =>
+      setTimeout(resolve, SESSION_STORAGE_RETRY_INTERVAL_MS),
+    );
+    attempt += 1;
+    try {
+      if (await sessionStorage.isReady()) {
+        log.success(
+          `[shopify] session storage recovered after ${attempt} extra poll(s)`,
+        );
+        return;
+      }
+    } catch (error) {
+      log.warn(
+        `[shopify] session storage recover failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    if (attempt === 1 || attempt % 10 === 0) {
+      log.warn(
+        `[shopify] session table still unreachable (recover attempt ${attempt})`,
+      );
+    }
+  }
+}
 
 function resolveAppUrl() {
   const candidates = [process.env.SHOPIFY_APP_URL, process.env.HOST];
@@ -29,17 +105,50 @@ function resolveAppUrl() {
 const appUrl = resolveAppUrl();
 log.info(`[shopify] appUrl=${appUrl || "(empty)"}`);
 
+if (process.env.NODE_ENV === "production") {
+  if ((process.env.DEV_UNLOCK_LIMITS ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] DEV_UNLOCK_LIMITS=true in production — plan limits are unlocked",
+    );
+  }
+  if ((process.env.BILLING_TEST_MODE ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] BILLING_TEST_MODE=true in production — Shopify charges are test mode",
+    );
+  }
+  if ((process.env.PROXY_SIGNATURE_BYPASS ?? "").toLowerCase() === "true") {
+    log.warn(
+      "[security] PROXY_SIGNATURE_BYPASS is ignored unless NODE_ENV=development",
+    );
+  }
+}
+
+const apiSecretKey = process.env.SHOPIFY_API_SECRET?.trim() || "";
+if (!apiSecretKey) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "SHOPIFY_API_SECRET is required in production (OAuth, webhooks, App Proxy HMAC).",
+    );
+  }
+  log.warn(
+    "[shopify] SHOPIFY_API_SECRET is empty — OAuth, webhooks, and App Proxy HMAC will fail",
+  );
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  apiSecretKey,
   apiVersion: ApiVersion.July26,
   scopes: process.env.SCOPES?.split(","),
   appUrl,
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: createPrismaSessionStorage(),
   distribution: AppDistribution.AppStore,
   logger: {
-    level: LogSeverity.Debug,
+    level:
+      process.env.NODE_ENV === "production"
+        ? LogSeverity.Info
+        : LogSeverity.Debug,
     log: (severity, message) => {
       switch (severity) {
         case LogSeverity.Error:
@@ -68,15 +177,19 @@ const shopify = shopifyApp({
       log.success(
         `[afterAuth] shop=${session.shop} online=${session.isOnline}`,
       );
-      const { ensureShop } = await import("./shop.server");
-      await ensureShop(session.shop);
-      // Redis/BullMQ is optional for admin boot — don't block OAuth if Redis is down.
+      const { ensureShop } = await import("./services/shop.server");
+      const shop = await ensureShop(session.shop);
+      // Audit #11: uninstall→reinstall — diff these two log lines with purge.
+      log.info(
+        `[afterAuth] billing-audit shop=${session.shop} plan=${shop.plan} subStatus=${shop.subscription?.status ?? "none"} subPlan=${shop.subscription?.planName ?? "none"} shopifySubId=${shop.subscription?.shopifySubscriptionId ?? "none"}`,
+      );
+      // Queue is Postgres-backed — don't block OAuth if enqueue fails.
       try {
         const { queueFullSync } = await import("./sync/queue-full-sync");
         await queueFullSync(session.shop);
       } catch (error) {
         log.warn(
-          `[afterAuth] sync enqueue skipped (is Redis running?): ${
+          `[afterAuth] sync enqueue skipped: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -93,3 +206,4 @@ export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
 export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
+export { appUrl };

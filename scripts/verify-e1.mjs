@@ -6,13 +6,13 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "e1-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -32,7 +32,11 @@ function assertStaticMarkers() {
   if (!liquid.includes('"target": "body"') || !liquid.includes("findly-instant")) {
     fail("instant-search.liquid must be a body app embed with .findly-instant");
   }
-  if (!liquid.includes("instant-search.js") || !liquid.includes("instant-search.css")) {
+  if (
+    (!liquid.includes("instant-search.js") &&
+      !liquid.includes("instant-search.min.js")) ||
+    !liquid.includes("instant-search.min.css")
+  ) {
     fail("instant-search.liquid missing stylesheet/javascript assets");
   }
 
@@ -40,8 +44,17 @@ function assertStaticMarkers() {
   if (!js.includes(".smart-filter-search") || !js.includes("widget=1")) {
     fail("instant-search.js must ignore product-search and fetch widget=1");
   }
+  if (!js.includes("isCollectionSearchInput") || !js.includes("listing=1")) {
+    fail("instant-search.js must suggest on the collection listing search bar");
+  }
   if (!js.includes("AbortController") || !js.includes("maxProducts")) {
     fail("instant-search.js missing AbortController or maxProducts limit");
+  }
+  if (js.includes("ensureInstantRoot") || js.includes('className = "findly-instant"')) {
+    fail("instant-search.js must not create a .findly-instant root; only boot when the app embed is present");
+  }
+  if (!js.includes('if (!roots.length) return')) {
+    fail("instant-search.js must skip boot when .findly-instant is absent");
   }
 
   const searchBlock = readRepo(
@@ -127,8 +140,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getInstantSearchWidgetPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getInstantSearchWidgetPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
 
   const disabled = await getInstantSearchWidgetPayload({ shopDomain: SHOP_DOMAIN });

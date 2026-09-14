@@ -10,7 +10,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 
-import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "../admin-list-page";
+import { ADMIN_CATALOG_PAGE_SIZE, slicePage } from "../utils/admin-list-page";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 
 export function CatalogValuePicker({

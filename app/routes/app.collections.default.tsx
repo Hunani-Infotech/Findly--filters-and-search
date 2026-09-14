@@ -28,16 +28,17 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../filters.server";
-import { storedFilterDisplayOrder } from "../filter-option-rows";
-import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields } from "../shop.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMatchModes, parseRangeBounds, parseValueSort, rangeBoundsToForm, type RangeBoundFormMap, type ValueSortMap } from "../services/filters.server";
+import { storedFilterDisplayOrder } from "../utils/filter-option-rows";
+import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields } from "../services/shop.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { FilterOptionsGuide } from "../components/filter-options-guide";
 import { NumericRangeBounds } from "../components/numeric-range-bounds";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { CollectionFilterSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -63,7 +64,33 @@ type ConfigState = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      valueCatalog: [] as Array<{ key: string; label: string; values: string[] }>,
+      listMetafields: [] as Array<{ key: string; label: string }>,
+      mappedFacets: [] as Array<{ key: string; label: string; filterType: string }>,
+      config: {
+        enabled: true,
+        enablePrice: true,
+        enableSale: false,
+        enableRating: false,
+        enableLocation: false,
+        enableAvailability: true,
+        enableVendor: true,
+        enableProductType: true,
+        enableTags: true,
+        enableOptions: true,
+        displayOrder: storedFilterDisplayOrder(undefined, true),
+        displayTypes: parseDisplayTypes({}),
+        matchModes: parseMatchModes({}),
+        valueSort: parseValueSort({}),
+        rangeBounds: rangeBoundsToForm(parseRangeBounds({})),
+        ...filterConfigPriceFields(null),
+      },
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const [config, valueCatalog, mappings] = await Promise.all([
     getFilterConfig(shop.id, ""),
@@ -278,7 +305,7 @@ export default function ShopDefaultFilterConfigPage() {
     <Page
       title="Shop-wide default filters"
       backAction={{
-        content: "Collections",
+        content: "Filters",
         onAction: () => navigate("/app/filters"),
       }}
       primaryAction={{

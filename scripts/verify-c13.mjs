@@ -6,7 +6,7 @@ import "tsx/esm";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -17,7 +17,7 @@ const HANDLE_B = "c13-variant-fit-tee";
 const PRODUCT_A_GID = "gid://shopify/Product/91300131";
 const PRODUCT_B_GID = "gid://shopify/Product/91300132";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -34,7 +34,7 @@ function handles(result) {
 
 function extractExport(source, name) {
   const start = source.indexOf(`export const ${name}`);
-  if (start < 0) fail(`app/sync/graphql.ts missing ${name}`);
+  if (start < 0) fail(`app/sync/admin-graphql.ts missing ${name}`);
   const next = source.indexOf("export const", start + `export const ${name}`.length);
   return source.slice(start, next < 0 ? source.length : next);
 }
@@ -65,7 +65,7 @@ function variantsBlockIncludesMetafields(chunk, label) {
 }
 
 function assertStaticMarkers() {
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   variantsBlockIncludesMetafields(
     extractExport(graphql, "PRODUCT_NODE_QUERY"),
     "PRODUCT_NODE_QUERY",
@@ -75,9 +75,9 @@ function assertStaticMarkers() {
     "BULK_PRODUCTS_MUTATION",
   );
   if (/\bfetch\s*\(/.test(graphql) || /Admin REST/.test(graphql)) {
-    fail("graphql.ts must stay Admin GraphQL only (no fetch( or Admin REST)");
+    fail("admin-graphql.ts must stay Admin GraphQL only (no fetch( or Admin REST)");
   }
-  log.info("graphql.ts: variant metafields on PRODUCT_NODE_QUERY + BULK; no REST");
+  log.info("admin-graphql.ts: variant metafields on PRODUCT_NODE_QUERY + BULK; no REST");
 
   const mapper = readRepo("app", "sync", "product-mapper.ts");
   if (!mapper.includes("variantMetafields")) {
@@ -94,9 +94,9 @@ function assertStaticMarkers() {
   }
   log.info("metafields admin page includes ownerType and Variant");
 
-  const filters = readRepo("app", "filters.server.ts");
+  const filters = readRepo("app", "services", "filters.server.ts");
   if (!filters.includes("metafieldOwner") && !filters.includes("variantMetafields")) {
-    fail("app/filters.server.ts must include metafieldOwner or variantMetafields");
+    fail("app/services/filters.server.ts must include metafieldOwner or variantMetafields");
   }
   log.info("filters.server.ts includes metafieldOwner / variantMetafields");
 
@@ -334,7 +334,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const filtersMod = await import("../app/filters.server.ts");
+  const filtersMod = await import("../app/services/filters.server.ts");
   const { productKey, variantKey } = resolveFacetKeys(filtersMod);
   log.info(`Facet keys: product=${productKey} variant=${variantKey}`);
 
@@ -343,7 +343,7 @@ try {
   );
   assertJsonlVariantMetafields(parseBulkJsonlProducts, mapProductToFacet);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const unfiltered = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

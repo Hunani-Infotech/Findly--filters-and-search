@@ -10,7 +10,16 @@
     dropdown_one: "findly-instant--dropdown-one",
   };
 
+  function domApi() {
+    return window.__FINDLY_DOM || null;
+  }
+
   function runWhenIdle(fn) {
+    var api = domApi();
+    if (api && api.runWhenIdle) {
+      api.runWhenIdle(fn);
+      return;
+    }
     if (typeof window.requestIdleCallback !== "function") {
       window.setTimeout(fn, 0);
       return;
@@ -24,6 +33,11 @@
   }
 
   function setHidden(el, hidden) {
+    var api = domApi();
+    if (api && api.setHidden) {
+      api.setHidden(el, hidden);
+      return;
+    }
     if (!el) return;
     if (hidden) el.setAttribute("hidden", "");
     else el.removeAttribute("hidden");
@@ -35,6 +49,8 @@
   }
 
   function formatPrice(value, currencyCode) {
+    var api = domApi();
+    if (api && api.formatPrice) return api.formatPrice(value, currencyCode);
     if (value == null || value === "") return "";
     var n = Number(value);
     if (!Number.isFinite(n)) return String(value);
@@ -59,20 +75,42 @@
     return Array.isArray(value) ? value.filter(Boolean) : [];
   }
 
+  function isFacetValueSearchInput(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.classList && el.classList.contains("sf-facet-search-input")) return true;
+    if (el.getAttribute && el.getAttribute("data-findly-ignore-instant") != null) {
+      return true;
+    }
+    return Boolean(el.closest && el.closest(".sf-facet-search"));
+  }
+
+  function isCollectionSearchInput(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isFacetValueSearchInput(el)) return false;
+    if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
+    if (!el.hasAttribute || !el.hasAttribute("data-collection-search")) return false;
+    var wrap =
+      el.closest && el.closest("[data-collection-search-wrap], .sf-search-host");
+    if (wrap && (wrap.hidden || wrap.hasAttribute("hidden"))) return false;
+    return true;
+  }
+
   function isIgnoredContainer(el) {
     return Boolean(
       el &&
         (el.closest(".smart-filter-search") ||
           el.closest(".findly-instant") ||
-          el.closest(".sf-collection-search-host") ||
-          el.closest(".smart-filter__collection-search")),
+          el.closest(".sf-search-host") ||
+          el.closest(".sf-search") ||
+          el.closest(".sf-facet-search")),
     );
   }
 
   function isThemeSearchInput(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
-    if (el.hasAttribute && el.hasAttribute("data-collection-search")) return false;
+    if (isFacetValueSearchInput(el)) return false;
+    if (isCollectionSearchInput(el)) return false;
     if (isIgnoredContainer(el)) return false;
     var type = String(el.getAttribute("type") || "text").toLowerCase();
     if (
@@ -105,7 +143,7 @@
       return true;
     }
     if (name === "q" && (type === "search" || type === "text")) return true;
-    if (type === "search" && /q|search|query/.test(name || "q")) return true;
+    if (type === "search" && name && /^(q|search|query)$/i.test(name)) return true;
     if (role === "searchbox") return true;
     if (
       inSearchForm &&
@@ -171,14 +209,33 @@
     this._abort = null;
     this._reqId = 0;
     this.panel = document.createElement("div");
-    this.panel.className = "findly-instant__panel";
+    this.panel.className = "findly-instant-panel";
     this.panel.setAttribute("data-instant-panel", "");
     root.appendChild(this.panel);
   }
 
-  InstantSearch.prototype.layoutClass = function () {
+  InstantSearch.prototype.themeEnabled = function () {
+    return Boolean(this.instant && this.instant.enabled === true);
+  };
+
+  InstantSearch.prototype.isCollectionSuggest = function () {
+    return isCollectionSearchInput(this.activeInput);
+  };
+
+  InstantSearch.prototype.shouldHandleInput = function (input) {
+    if (isFacetValueSearchInput(input)) return false;
+    if (isCollectionSearchInput(input)) return true;
+    return this.themeEnabled() && isThemeSearchInput(input);
+  };
+
+  InstantSearch.prototype.effectiveLayout = function () {
+    if (this.isCollectionSuggest()) return "dropdown_two";
     var layout = this.instant && this.instant.layout;
-    return LAYOUT_CLASS[layout] || LAYOUT_CLASS.dropdown_one;
+    return LAYOUT_CLASS[layout] ? layout : "dropdown_one";
+  };
+
+  InstantSearch.prototype.layoutClass = function () {
+    return LAYOUT_CLASS[this.effectiveLayout()] || LAYOUT_CLASS.dropdown_one;
   };
 
   InstantSearch.prototype.applyChrome = function () {
@@ -189,20 +246,114 @@
       "findly-instant--dropdown-one",
       "findly-instant--grid",
       "findly-instant--carousel",
+      "findly-instant--collection",
     );
     root.classList.add(this.layoutClass());
-    if (this.instant && this.instant.productStyle === "carousel") {
+    if (this.isCollectionSuggest()) {
+      root.classList.add("findly-instant--collection");
+      root.classList.add("findly-instant--grid");
+    } else if (this.instant && this.instant.productStyle === "carousel") {
       root.classList.add("findly-instant--carousel");
     } else {
       root.classList.add("findly-instant--grid");
     }
+    this.syncThemeType();
+  };
+
+  InstantSearch.prototype.syncThemeType = function () {
+    var root = this.root;
+    if (!root || typeof window.getComputedStyle !== "function") return;
+    var typeSource = this.activeInput || document.body || document.documentElement;
+    var cs = window.getComputedStyle(typeSource);
+    if (!cs) return;
+    if (cs.color) root.style.color = cs.color;
+    if (cs.fontFamily) root.style.fontFamily = cs.fontFamily;
+    if (cs.fontSize) root.style.fontSize = cs.fontSize;
+    if (cs.fontStyle) root.style.fontStyle = cs.fontStyle;
+    if (cs.lineHeight && cs.lineHeight !== "normal") {
+      root.style.lineHeight = cs.lineHeight;
+    }
+    if (cs.letterSpacing && cs.letterSpacing !== "normal") {
+      root.style.letterSpacing = cs.letterSpacing;
+    }
+    var bgSource = document.body || document.documentElement;
+    var bg = "";
+    while (bgSource && bgSource.nodeType === 1) {
+      var walk = window.getComputedStyle(bgSource);
+      bg = walk && walk.backgroundColor ? walk.backgroundColor : "";
+      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") break;
+      bgSource = bgSource.parentElement;
+    }
+    if ((!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") && document.documentElement) {
+      bg = window.getComputedStyle(document.documentElement).backgroundColor || "";
+    }
+    if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
+      root.style.setProperty("--fi-surface", bg);
+      root.style.backgroundColor = bg;
+    }
+  };
+
+  InstantSearch.prototype.cacheCurrentResults = function (query) {
+    if (!this.panel) return;
+    if (this.root.classList.contains("is-loading")) return;
+    if (this.panel.querySelector(".is-skeleton")) return;
+    var q = String(query || this._lastQuery || "").trim();
+    if (!q) return;
+    this._cachedQuery = q;
+    this._cachedHtml = this.panel.innerHTML;
+    this._lastQuery = q;
+  };
+
+  InstantSearch.prototype.hasCachedResults = function (query) {
+    var q = String(query || "").trim();
+    if (!q) return false;
+    if (q !== String(this._cachedQuery || "").trim()) return false;
+    if (this._cachedHtml) return true;
+    if (!this.panel || !this.panel.childNodes.length) return false;
+    if (this.panel.querySelector(".is-skeleton")) return false;
+    return q === String(this._lastQuery || "").trim();
+  };
+
+  InstantSearch.prototype.restoreCachedResults = function () {
+    if (!this.hasCachedResults(this._cachedQuery || this._lastQuery)) return false;
+    if (this.panel && this._cachedHtml && !this.panel.childNodes.length) {
+      this.panel.innerHTML = this._cachedHtml;
+    } else if (
+      this.panel &&
+      this._cachedHtml &&
+      this.panel.querySelector(".is-skeleton")
+    ) {
+      this.panel.innerHTML = this._cachedHtml;
+    }
+    if (!this.panel || !this.panel.childNodes.length) return false;
+    this.root.classList.remove("is-loading");
+    this.root.removeAttribute("aria-busy");
+    setHidden(this.root, false);
+    if (this.activeInput) {
+      if (!this.panel.id) this.panel.id = "findly-instant-panel";
+      this.activeInput.setAttribute("aria-expanded", "true");
+      this.activeInput.setAttribute("aria-controls", this.panel.id);
+    }
+    this.position();
+    return true;
+  };
+
+  InstantSearch.prototype.clearCachedResults = function () {
+    this._lastQuery = undefined;
+    this._cachedQuery = "";
+    this._cachedHtml = "";
+    this._listingQuery = "";
+    this._listingProductRows = null;
+    this._listingCollections = [];
+    if (this.panel) this.panel.innerHTML = "";
   };
 
   InstantSearch.prototype.close = function () {
     window.clearTimeout(this._timer);
     if (this._abort) this._abort.abort();
     this._abort = null;
-    this.panel.innerHTML = "";
+    this.root.classList.remove("is-loading");
+    this.root.removeAttribute("aria-busy");
     setHidden(this.root, true);
     if (this.activeInput) {
       this.activeInput.removeAttribute("aria-expanded");
@@ -211,21 +362,36 @@
     this.activeInput = null;
   };
 
+  InstantSearch.prototype.anchorRect = function () {
+    var input = this.activeInput;
+    if (!input) return null;
+    if (isCollectionSearchInput(input) && input.closest) {
+      var field =
+        input.closest(".sf-search-field") ||
+        input.closest(".sf-search-host") ||
+        input.closest("[data-collection-search-wrap]");
+      if (field) return field.getBoundingClientRect();
+    }
+    return input.getBoundingClientRect();
+  };
+
   InstantSearch.prototype.position = function () {
     var input = this.activeInput;
     var root = this.root;
     if (!input) return;
-    var rect = input.getBoundingClientRect();
+    var rect = this.anchorRect();
+    if (!rect) return;
     var gap = 4;
     var top = Math.max(0, Math.round(rect.bottom + gap));
     var vw = window.innerWidth;
     var vh = window.innerHeight;
+    var layout = this.effectiveLayout();
     root.style.position = "fixed";
     root.style.zIndex = "2147483000";
     root.style.maxHeight = Math.max(160, vh - top - 8) + "px";
     root.style.top = top + "px";
 
-    if (this.instant && this.instant.layout === "overlay") {
+    if (layout === "overlay") {
       root.style.left = "0";
       root.style.right = "0";
       root.style.width = "100%";
@@ -233,8 +399,10 @@
       return;
     }
 
-    var maxW = this.instant && this.instant.layout === "dropdown_two" ? 860 : 420;
-    var width = Math.min(maxW, Math.max(rect.width, 240), vw - 16);
+    var listing = this.isCollectionSuggest();
+    var maxW = listing ? 640 : layout === "dropdown_two" ? 860 : 420;
+    var minW = listing ? 420 : 240;
+    var width = Math.min(maxW, Math.max(rect.width, minW), vw - 16);
     var left = Math.round(rect.left);
     if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
     if (left < 8) left = 8;
@@ -246,9 +414,9 @@
 
   InstantSearch.prototype.section = function (title, className) {
     var wrap = document.createElement("section");
-    wrap.className = "findly-instant__section " + className;
+    wrap.className = "findly-instant-section " + className;
     var heading = document.createElement("h3");
-    heading.className = "findly-instant__heading";
+    heading.className = "findly-instant-heading";
     heading.textContent = title;
     wrap.appendChild(heading);
     return wrap;
@@ -256,9 +424,9 @@
 
   InstantSearch.prototype.linkItem = function (href, label, extraClass) {
     var li = document.createElement("li");
-    li.className = "findly-instant__item";
+    li.className = "findly-instant-item";
     var a = document.createElement("a");
-    a.className = "findly-instant__link" + (extraClass ? " " + extraClass : "");
+    a.className = "findly-instant-link" + (extraClass ? " " + extraClass : "");
     a.href = href || "#";
     a.textContent = label;
     li.appendChild(a);
@@ -270,13 +438,13 @@
     var href = item && item.url ? String(item.url) : item && item.handle ? "/products/" + item.handle : "#";
     var title = String((item && (item.title || item.handle)) || "Product");
     var a = document.createElement("a");
-    a.className = "findly-instant__product";
+    a.className = "findly-instant-product";
     a.href = href;
 
     var src = item && item.imageUrl ? String(item.imageUrl) : "";
     if (src) {
       var img = document.createElement("img");
-      img.className = "findly-instant__image";
+      img.className = "findly-instant-image";
       img.src = src;
       img.alt = "";
       img.loading = "lazy";
@@ -285,21 +453,21 @@
       a.appendChild(img);
     } else {
       var ph = document.createElement("span");
-      ph.className = "findly-instant__image findly-instant__image--empty";
+      ph.className = "findly-instant-image is-empty";
       ph.setAttribute("aria-hidden", "true");
       a.appendChild(ph);
     }
 
     var meta = document.createElement("span");
-    meta.className = "findly-instant__meta";
+    meta.className = "findly-instant-meta";
     var name = document.createElement("span");
-    name.className = "findly-instant__title";
+    name.className = "findly-instant-title";
     name.textContent = title;
     meta.appendChild(name);
 
     if (instant.showVendor && item && item.vendor) {
       var vendor = document.createElement("span");
-      vendor.className = "findly-instant__vendor";
+      vendor.className = "findly-instant-vendor";
       vendor.textContent = String(item.vendor);
       meta.appendChild(vendor);
     }
@@ -311,7 +479,7 @@
       );
       if (priceText) {
         var price = document.createElement("span");
-        price.className = "findly-instant__price";
+        price.className = "findly-instant-price";
         price.textContent = priceText;
         meta.appendChild(price);
       }
@@ -323,7 +491,7 @@
 
   InstantSearch.prototype.renderList = function (items, mapFn) {
     var ul = document.createElement("ul");
-    ul.className = "findly-instant__list";
+    ul.className = "findly-instant-list";
     ul.setAttribute("role", "list");
     items.forEach(function (item) {
       ul.appendChild(mapFn(item));
@@ -335,6 +503,8 @@
     var instant = (data && data.instant) || this.instant || {};
     this.instant = instant;
     this.applyChrome();
+    this.root.classList.remove("is-loading");
+    this.root.removeAttribute("aria-busy");
 
     var query = String((data && data.query) || "").trim();
     var queries = asArray(data && data.queries);
@@ -346,11 +516,14 @@
 
     if (!products.length && suggestions.length) products = suggestions;
 
-    var showProducts = instant.showProducts !== false && products.length > 0;
-    var showCollections = instant.showCollections !== false && collections.length > 0;
-    var showPages = instant.showPages === true && pages.length > 0;
-    var showPosts = instant.showBlogPosts === true && articles.length > 0;
-    var showQueries = queries.length > 0;
+    var listing = this.isCollectionSuggest();
+    var showProducts =
+      (listing || instant.showProducts !== false) && products.length > 0;
+    var showCollections =
+      (listing || instant.showCollections !== false) && collections.length > 0;
+    var showPages = !listing && instant.showPages === true && pages.length > 0;
+    var showPosts = !listing && instant.showBlogPosts === true && articles.length > 0;
+    var showQueries = !listing && queries.length > 0;
 
     this.panel.innerHTML = "";
 
@@ -362,7 +535,7 @@
       suggestion.toLowerCase() !== query.toLowerCase();
     if (showSpell) {
       var spell = document.createElement("p");
-      spell.className = "findly-instant__spell";
+      spell.className = "findly-instant-spell";
       spell.appendChild(
         document.createTextNode(
           (chrome.did_you_mean || "Did you mean") + " ",
@@ -370,7 +543,7 @@
       );
       var spellBtn = document.createElement("button");
       spellBtn.type = "button";
-      spellBtn.className = "findly-instant__spell-link";
+      spellBtn.className = "findly-instant-spell-link";
       spellBtn.textContent = suggestion;
       var selfSpell = this;
       spellBtn.addEventListener("click", function () {
@@ -386,40 +559,42 @@
     if (!showQueries && !showProducts && !showCollections && !showPages && !showPosts) {
       if (query) {
         var empty = document.createElement("p");
-        empty.className = "findly-instant__empty";
+        empty.className = "findly-instant-empty";
         empty.textContent = "No results";
         this.panel.appendChild(empty);
         setHidden(this.root, false);
         this.position();
+        this.cacheCurrentResults(query);
       } else {
+        this.clearCachedResults();
         this.close();
       }
       return;
     }
 
     var layout = document.createElement("div");
-    layout.className = "findly-instant__layout";
+    layout.className = "findly-instant-layout";
     var aside = document.createElement("div");
-    aside.className = "findly-instant__aside";
+    aside.className = "findly-instant-aside";
     var main = document.createElement("div");
-    main.className = "findly-instant__main";
+    main.className = "findly-instant-main";
 
     var self = this;
 
     if (showQueries) {
-      var qSec = this.section("Queries", "findly-instant__section--queries");
+      var qSec = this.section("Queries", "findly-instant-section-queries");
       qSec.appendChild(
         this.renderList(queries, function (row) {
           var label = text(row.query, "");
           var href = text(row.url, "/search?q=" + encodeURIComponent(label));
-          return self.linkItem(href, label, "findly-instant__link--query");
+          return self.linkItem(href, label, "findly-instant-link-query");
         }),
       );
       aside.appendChild(qSec);
     }
 
     if (showCollections) {
-      var cSec = this.section("Collections", "findly-instant__section--collections");
+      var cSec = this.section("Collections", "findly-instant-section-collections");
       cSec.appendChild(
         this.renderList(collections, function (row) {
           var label = text(row.title || row.handle, "Collection");
@@ -431,7 +606,7 @@
     }
 
     if (showPosts) {
-      var bSec = this.section("Blog posts", "findly-instant__section--articles");
+      var bSec = this.section("Blog posts", "findly-instant-section-articles");
       bSec.appendChild(
         this.renderList(articles, function (row) {
           return self.linkItem(text(row.url, "#"), text(row.title, "Article"));
@@ -441,7 +616,7 @@
     }
 
     if (showPages) {
-      var pSec = this.section("Pages", "findly-instant__section--pages");
+      var pSec = this.section("Pages", "findly-instant-section-pages");
       pSec.appendChild(
         this.renderList(pages, function (row) {
           return self.linkItem(text(row.url, "#"), text(row.title, "Page"));
@@ -451,9 +626,9 @@
     }
 
     if (showProducts) {
-      var prodSec = this.section("Products", "findly-instant__section--products");
+      var prodSec = this.section("Products", "findly-instant-section-products");
       var grid = document.createElement("div");
-      grid.className = "findly-instant__products";
+      grid.className = "findly-instant-products";
       products.forEach(function (item) {
         grid.appendChild(self.productCard(item));
       });
@@ -474,24 +649,46 @@
       this.activeInput.setAttribute("aria-controls", this.panel.id);
     }
     this.position();
+    this.cacheCurrentResults(query);
+  };
+
+  InstantSearch.prototype.skeletonProduct = function () {
+    return (
+      '<div class="findly-instant-skel-card findly-instant-skel-product">' +
+      '<span class="findly-instant-skel-thumb">\u00a0</span>' +
+      '<span class="findly-instant-skel-meta">' +
+      '<span class="findly-instant-skel-row">\u00a0</span>' +
+      '<span class="findly-instant-skel-row is-short">\u00a0</span>' +
+      "</span></div>"
+    );
   };
 
   InstantSearch.prototype.showLoadingPanel = function () {
     if (!this.panel) return;
     this.applyChrome();
+    this.root.classList.remove("findly-instant--dropdown-two");
+    this.root.classList.add("findly-instant--no-aside");
+    this.root.classList.add("is-loading");
+    var n = Number(this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
+    if (!(n > 0)) n = DEFAULT_LIMIT;
+    if (n > 8) n = 8;
+    var cards = "";
+    var i;
+    for (i = 0; i < n; i++) cards += this.skeletonProduct();
     this.panel.innerHTML =
-      '<div class="findly-instant__layout is-skeleton" aria-hidden="true">' +
-      '<div class="findly-instant__main">' +
-      '<div class="findly-instant__skel-row"></div>' +
-      '<div class="findly-instant__skel-row"></div>' +
-      '<div class="findly-instant__skel-row is-short"></div>' +
-      '<div class="findly-instant__products">' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
-      '<div class="findly-instant__skel-card"></div>' +
-      "</div></div></div>";
+      '<p class="findly-instant-skel-status" role="status">Searching\u2026</p>' +
+      '<div class="findly-instant-skel-wrap is-skeleton">' +
+      '<h3 class="findly-instant-heading">Products</h3>' +
+      '<div class="findly-instant-skel-products" aria-hidden="true">' +
+      cards +
+      "</div></div>";
+    this.root.setAttribute("aria-busy", "true");
     setHidden(this.root, false);
+    if (this.activeInput) {
+      if (!this.panel.id) this.panel.id = "findly-instant-panel";
+      this.activeInput.setAttribute("aria-expanded", "true");
+      this.activeInput.setAttribute("aria-controls", this.panel.id);
+    }
     this.position();
   };
 
@@ -514,7 +711,7 @@
   };
 
   InstantSearch.prototype.applySearchData = function (data) {
-    if (data && data.redirect) {
+    if (data && data.redirect && !this.isCollectionSuggest()) {
       window.location = data.redirect;
       return;
     }
@@ -525,8 +722,107 @@
     this.render(data || {});
   };
 
+  InstantSearch.prototype.applyListingProducts = function (detail) {
+    if (!isCollectionSearchInput(this.activeInput) && !this.isCollectionSuggest()) {
+      return;
+    }
+    var query = String((detail && detail.query) || "").trim();
+    var typed = this.activeInput
+      ? String(this.activeInput.value || "").trim()
+      : "";
+    if (!query) {
+      this.close();
+      return;
+    }
+    if (typed && query !== typed) return;
+    var limit = Number(this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
+    if (!(limit > 0)) limit = DEFAULT_LIMIT;
+    var products = asArray(detail && detail.products).slice(0, limit);
+    this._listingProductRows = products;
+    var currency =
+      (detail && detail.currency) ||
+      (detail && detail.settings && detail.settings.currency);
+    if (currency) this.payloadCurrency = String(currency);
+    this.render({
+      query: query,
+      products: products,
+      collections: this._listingCollections || [],
+      instant: this.instant || {},
+      settings: this.payloadCurrency
+        ? { currency: this.payloadCurrency }
+        : undefined,
+    });
+  };
+
+  InstantSearch.prototype.tryListingFromWidget = function (query) {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (!widget) return;
+    if (String(widget.collectionQuery || "").trim() !== String(query || "").trim()) {
+      return;
+    }
+    if (widget._loadingPage) return;
+    var data = widget._lastFilterData;
+    if (!data) return;
+    this.applyListingProducts({
+      query: query,
+      products: data.products,
+      total: data.total,
+      currency: data.settings && data.settings.currency,
+    });
+  };
+
+  InstantSearch.prototype.fetchListingCollections = function (query) {
+    var self = this;
+    var url =
+      this.proxyBase +
+      "/search?q=" +
+      encodeURIComponent(query) +
+      "&limit=6&listing=1";
+    if (this.locale) url += "&locale=" + encodeURIComponent(this.locale);
+    if (this.country) url += "&country=" + encodeURIComponent(this.country);
+    if (this.currency) url += "&currency=" + encodeURIComponent(this.currency);
+    if (this.companyLocation) {
+      url +=
+        "&company_location=" + encodeURIComponent(this.companyLocation);
+    }
+    this.fetchJson(url)
+      .then(function (data) {
+        if (self._listingQuery !== query) return;
+        self._listingCollections = asArray(data && data.collections);
+        if (self._listingProductRows) {
+          self.applyListingProducts({
+            query: query,
+            products: self._listingProductRows,
+          });
+        }
+      })
+      .catch(function (err) {
+        if (err && err.name === "AbortError") return;
+        if (self._listingQuery !== query) return;
+        self._listingCollections = [];
+      });
+  };
+
+  InstantSearch.prototype.bindListingSuggest = function () {
+    if (this._listingBound) return;
+    this._listingBound = true;
+    var self = this;
+    document.addEventListener("findly:listing-suggest", function (event) {
+      var detail = (event && event.detail) || {};
+      if (!isCollectionSearchInput(self.activeInput) && !self.isCollectionSuggest()) {
+        return;
+      }
+      self.applyListingProducts(detail);
+    });
+  };
+
   InstantSearch.prototype.runQuery = function (rawQuery) {
     var query = String(rawQuery || "").trim();
+    if (this.hasCachedResults(query)) {
+      this._lastQuery = query;
+      this.restoreCachedResults();
+      return;
+    }
     if (query === this._lastQuery) {
       if (this.root.hasAttribute("hidden") && this.panel && this.panel.childNodes.length) {
         setHidden(this.root, false);
@@ -538,6 +834,16 @@
     var self = this;
     var reqId = ++this._reqId;
     this.showLoadingPanel();
+
+    if (this.isCollectionSuggest()) {
+      this._listingQuery = query;
+      this._listingProductRows = null;
+      this._listingCollections = this._listingCollections || [];
+      this.fetchListingCollections(query);
+      this.tryListingFromWidget(query);
+      return;
+    }
+
     var limit = (this.instant && this.instant.maxProducts) || DEFAULT_LIMIT;
     var url =
       this.proxyBase +
@@ -563,8 +869,10 @@
         if (reqId !== self._reqId) return;
         if (self._lastQuery === query) self._lastQuery = undefined;
         if (!self.panel) return;
+        self.root.classList.remove("is-loading");
+        self.root.removeAttribute("aria-busy");
         self.panel.innerHTML =
-          '<p class="findly-instant__empty">Search could not be loaded.</p>';
+          '<p class="findly-instant-empty">Search could not be loaded.</p>';
         setHidden(self.root, false);
         self.position();
       });
@@ -572,27 +880,39 @@
 
   InstantSearch.prototype.scheduleQuery = function (value) {
     var self = this;
+    var trimmed = String(value || "").trim();
     window.clearTimeout(this._timer);
+    if (this.hasCachedResults(trimmed)) {
+      this.restoreCachedResults();
+      return;
+    }
+    if (trimmed) this.showLoadingPanel();
     this._timer = window.setTimeout(function () {
       self.runQuery(value);
     }, DEBOUNCE_MS);
   };
 
   InstantSearch.prototype.onInputValue = function (input) {
-    if (!isThemeSearchInput(input)) return;
+    if (isFacetValueSearchInput(input)) {
+      this.close();
+      return;
+    }
+    if (!this.shouldHandleInput(input)) return;
     this.activeInput = input;
-    suppressThemePredictive(input);
+    if (!isCollectionSearchInput(input)) suppressThemePredictive(input);
     var value = String(input.value || "");
     var trimmed = value.trim();
     var minChars = this.minChars || DEFAULT_MIN_CHARS;
 
     if (!trimmed) {
+      this.clearCachedResults();
       if (this.showSuggestionsOnEmptyQuery) this.scheduleQuery("");
       else this.close();
       return;
     }
 
     if (trimmed.length < minChars) {
+      this.clearCachedResults();
       this.close();
       return;
     }
@@ -601,13 +921,23 @@
   };
 
   InstantSearch.prototype.onFocus = function (input) {
-    if (!isThemeSearchInput(input)) return;
+    if (isFacetValueSearchInput(input)) {
+      this.close();
+      return;
+    }
+    if (!this.shouldHandleInput(input)) return;
     this.activeInput = input;
-    suppressThemePredictive(input);
+    if (!isCollectionSearchInput(input)) suppressThemePredictive(input);
     var trimmed = String(input.value || "").trim();
     if (!trimmed && this.showSuggestionsOnEmptyQuery) {
       this.scheduleQuery("");
-    } else if (trimmed.length >= (this.minChars || DEFAULT_MIN_CHARS)) {
+      return;
+    }
+    if (trimmed.length >= (this.minChars || DEFAULT_MIN_CHARS)) {
+      if (this.hasCachedResults(trimmed)) {
+        this.restoreCachedResults();
+        return;
+      }
       this.scheduleQuery(trimmed);
     }
   };
@@ -640,6 +970,16 @@
       if (self.activeInput && (target === self.activeInput || self.activeInput.contains(target))) {
         return;
       }
+      if (
+        self.activeInput &&
+        isCollectionSearchInput(self.activeInput) &&
+        self.activeInput.closest
+      ) {
+        var field =
+          self.activeInput.closest(".sf-search-field") ||
+          self.activeInput.closest("[data-collection-search-wrap]");
+        if (field && field.contains(target)) return;
+      }
       self.close();
     });
     document.addEventListener(
@@ -650,8 +990,8 @@
         var input = form.querySelector(
           "input[name='q'], input[type='search'], [role='searchbox']",
         );
-        if (!input || !isThemeSearchInput(input)) return;
-        suppressThemePredictive(input);
+        if (!input || !self.shouldHandleInput(input)) return;
+        if (!isCollectionSearchInput(input)) suppressThemePredictive(input);
       },
       true,
     );
@@ -684,17 +1024,19 @@
     this.fetchJson(url)
       .then(function (data) {
         var instant = data && data.instant;
-        if (!instant || instant.enabled !== true) return;
-        self.instant = instant;
-        self.minChars = Number(data.minChars) || DEFAULT_MIN_CHARS;
-        self.showSuggestionsOnEmptyQuery = data.showSuggestionsOnEmptyQuery === true;
-        self.showSuggestionsOnNoResults = data.showSuggestionsOnNoResults === true;
+        self.instant = instant && typeof instant === "object" ? instant : {};
+        self.minChars = Number(data && data.minChars) || DEFAULT_MIN_CHARS;
+        self.showSuggestionsOnEmptyQuery =
+          data && data.showSuggestionsOnEmptyQuery === true;
+        self.showSuggestionsOnNoResults =
+          data && data.showSuggestionsOnNoResults === true;
         if (data && data.settings && data.settings.currency) {
           self.payloadCurrency = String(data.settings.currency);
         }
         self.applyChrome();
         self.bind();
-        ensureFallbackSearchBar();
+        self.bindListingSuggest();
+        if (self.themeEnabled()) ensureFallbackSearchBar();
       })
       .catch(function () {});
   };
@@ -715,7 +1057,7 @@
     var bar = document.createElement("div");
     bar.className = "findly-instant-bar";
     var input = document.createElement("input");
-    input.className = "findly-instant-bar__input";
+    input.className = "findly-instant-bar-input";
     input.type = "search";
     input.name = "q";
     input.setAttribute("role", "searchbox");
@@ -735,41 +1077,9 @@
     }
   }
 
-  function ensureInstantRoot() {
-    var existing = document.querySelector(".findly-instant");
-    if (existing) return existing;
-    var root = document.createElement("div");
-    root.className = "findly-instant";
-    root.setAttribute("hidden", "");
-    root.setAttribute("data-proxy-base", "/apps/smart-filter");
-    try {
-      if (window.Shopify && window.Shopify.locale) {
-        root.setAttribute("data-locale", String(window.Shopify.locale));
-      }
-      if (window.Shopify && window.Shopify.country) {
-        root.setAttribute("data-country", String(window.Shopify.country));
-      }
-      if (
-        window.Shopify &&
-        window.Shopify.currency &&
-        window.Shopify.currency.active
-      ) {
-        root.setAttribute("data-currency", String(window.Shopify.currency.active));
-      }
-    } catch (err) {
-      /* ignore */
-    }
-    (document.body || document.documentElement).appendChild(root);
-    return root;
-  }
-
   function boot() {
     var roots = document.querySelectorAll(".findly-instant");
-    if (!roots.length) {
-      var created = ensureInstantRoot();
-      if (!created) return;
-      roots = [created];
-    }
+    if (!roots.length) return;
     roots.forEach(function (root) {
       if (root.getAttribute("data-findly-instant-ready") === "true") return;
       root.setAttribute("data-findly-instant-ready", "true");

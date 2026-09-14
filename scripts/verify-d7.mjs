@@ -6,20 +6,20 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 import {
   sanitizeCustomCss,
   sanitizeProductListLiquid,
   scopeCustomCss,
-} from "../app/widget-code.ts";
+} from "../app/utils/widget-code.ts";
 
 const SHOP_DOMAIN = "d7-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9707001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -30,14 +30,14 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const widgetCode = readRepo("app", "widget-code.ts");
+  const widgetCode = readRepo("app", "utils", "widget-code.ts");
   for (const name of [
     "sanitizeCustomCss",
     "scopeCustomCss",
     "sanitizeProductListLiquid",
   ]) {
     if (!widgetCode.includes(`export function ${name}`)) {
-      fail(`app/widget-code.ts missing ${name}`);
+      fail(`app/utils/widget-code.ts missing ${name}`);
     }
   }
 
@@ -65,7 +65,7 @@ function assertStaticMarkers() {
     fail("custom CSS must not be written to document.head");
   }
 
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("scopeCustomCss") || !proxy.includes("customCss:")) {
     fail("proxy.server.ts must send scoped customCss on the filter payload");
   }
@@ -172,10 +172,9 @@ try {
     },
   });
 
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   await saveAppSettings(shop.id, {
     customCss:

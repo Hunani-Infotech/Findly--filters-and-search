@@ -22,18 +22,20 @@ import {
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { ADDABLE_LOCALES } from "../admin-locales";
+import { ADDABLE_LOCALES } from "../utils/admin-locales";
+import { csvCell, downloadCsv, parseCsv } from "../utils/csv";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
   type AdminLocaleRow,
-} from "../admin-nav-extras.server";
-import { useEmbeddedNavigate } from "../admin-path";
-import { slicePage } from "../admin-list-page";
+} from "../services/admin-extras.server";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import {
   DEFAULT_WIDGET_I18N,
   WIDGET_I18N_KEYS,
@@ -41,17 +43,11 @@ import {
   mergeWidgetChrome,
   type WidgetI18nKey,
   type WidgetI18nMap,
-} from "../widget-i18n";
+} from "../utils/widget-i18n";
 
 export { TranslationListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 const WIDGET_KEY_SET = new Set<string>(WIDGET_I18N_KEYS);
-
-function csvCell(value: string | number) {
-  const raw = String(value);
-  if (/[",\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
-  return raw;
-}
 
 function widgetCsvRows(
   locale: string,
@@ -89,56 +85,6 @@ function exportCsv(langs: AdminLocaleRow[], i18n: WidgetI18nMap) {
     rows.push(...widgetCsvRows(lang.code, chrome, true));
   }
   return [header, ...rows].join("\n");
-}
-
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let inQuotes = false;
-  const src = text.replace(/^\uFEFF/, "");
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i]!;
-    if (inQuotes) {
-      if (ch === '"') {
-        if (src[i + 1] === '"') {
-          cell += '"';
-          i += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (ch === "\n") {
-      row.push(cell);
-      if (row.some((part) => part.trim())) rows.push(row);
-      row = [];
-      cell = "";
-    } else if (ch !== "\r") {
-      cell += ch;
-    }
-  }
-  row.push(cell);
-  if (row.some((part) => part.trim())) rows.push(row);
-  return rows;
 }
 
 function isWidgetKey(value: string): value is WidgetI18nKey {
@@ -185,7 +131,14 @@ function normalizeImportLocale(raw: string, fallback: string) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return {
+      langs: [{ code: "en", name: "English", complete: true, isDefault: true }],
+      i18n: {},
+    };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const extras = await getAdminNavExtras(shop.id);
   return { langs: extras.langs, i18n: extras.i18n };

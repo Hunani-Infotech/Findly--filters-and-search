@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -14,7 +14,7 @@ const SHOP_DOMAIN = "d4-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9404001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -33,7 +33,7 @@ function assertStaticMarkers() {
   if (!schema.includes("enableLocation") || !schema.includes("inventoryLocations")) {
     fail("schema missing enableLocation / inventoryLocations");
   }
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (
     !graphql.includes("inventoryLevels") ||
     !graphql.includes('quantities(names: ["available"])') ||
@@ -48,7 +48,7 @@ function assertStaticMarkers() {
   ) {
     fail("product-mapper.ts missing availableLocationNamesFromVariants / inventoryLocations");
   }
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (!filters.includes('source: "location"') || !filters.includes("enableLocation")) {
     fail("filters.ts missing location facet / enableLocation");
   }
@@ -169,7 +169,7 @@ try {
     });
   }
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const all = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,

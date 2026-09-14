@@ -48,11 +48,11 @@ function Skel({
 function SkelBanner() {
   return (
     <div className="findly-skel-banner">
-      <div className="findly-skel-banner__head">
+      <div className="findly-skel-banner-head">
         <Skel kind="circle" />
         <Skel kind="title" width="38%" />
       </div>
-      <div className="findly-skel-banner__body">
+      <div className="findly-skel-banner-body">
         <div className="findly-skel-stack">
           <Skel kind="text" width="92%" />
           <Skel kind="text" width="64%" />
@@ -84,7 +84,7 @@ function CheckboxRow({ width = "48%" }: { width?: string }) {
 
 function DragHandleDots() {
   return (
-    <span className="findly-filters-list__handle" aria-hidden>
+    <span className="findly-list-handle" aria-hidden>
       <svg width="12" height="16" viewBox="0 0 12 16" fill="#c9cccf">
         <circle cx="3" cy="3" r="1.25" />
         <circle cx="9" cy="3" r="1.25" />
@@ -104,13 +104,13 @@ export function FiltersListSkeleton() {
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
-              <div className="findly-filters-list__search">
+              <div className="findly-list-search">
                 <Skel kind="field" />
               </div>
-              <table className="findly-filters-list__table">
+              <table className="findly-list-table">
                 <thead>
                   <tr>
-                    <th className="findly-filters-list__check">
+                    <th className="findly-list-check">
                       <Skel kind="check" />
                     </th>
                     <th>Name</th>
@@ -121,11 +121,11 @@ export function FiltersListSkeleton() {
                 <tbody>
                   {Array.from({ length: 6 }, (_, index) => (
                     <tr key={index}>
-                      <td className="findly-filters-list__check">
+                      <td className="findly-list-check">
                         <Skel kind="check" />
                       </td>
                       <td>
-                        <div className="findly-filters-list__name">
+                        <div className="findly-list-name">
                           <DragHandleDots />
                           <Skel kind="text" width={index % 2 ? "58%" : "72%"} />
                         </div>
@@ -156,14 +156,14 @@ export function FiltersListSkeleton() {
               <div className="findly-pref-list">
                 {["36%", "42%", "28%"].map((width) => (
                   <div className="findly-pref-row" key={width}>
-                    <span className="findly-pref-row__icon">
+                    <span className="findly-pref-row-icon">
                       <Skel kind="icon" />
                     </span>
-                    <span className="findly-pref-row__body">
+                    <span className="findly-pref-row-body">
                       <Skel kind="text" width={width} />
                       <Skel kind="line" width="70%" />
                     </span>
-                    <span className="findly-pref-row__chevron">
+                    <span className="findly-pref-row-chevron">
                       <Skel kind="line" width={8} />
                     </span>
                   </div>
@@ -177,6 +177,8 @@ export function FiltersListSkeleton() {
   );
 }
 
+
+
 export function HomePageSkeleton() {
   const steps = [
     "Sync your catalog",
@@ -186,13 +188,13 @@ export function HomePageSkeleton() {
     "Check performance",
   ];
   return (
-    <SkeletonPage title="Welcome to Findly Smart Filters">
+    <SkeletonPage title="Welcome to Findly">
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
               <div className="findly-setup">
-                <div className="findly-setup__header">
+                <div className="findly-setup-header">
                   <BlockStack gap="050">
                     <Text as="h2" variant="headingMd">
                       Get started
@@ -200,17 +202,17 @@ export function HomePageSkeleton() {
                     <Skel kind="line" width="46%" />
                   </BlockStack>
                 </div>
-                <ol className="findly-setup__list">
+                <ol className="findly-setup-list">
                   {steps.map((title, index) => (
                     <li
                       key={title}
                       className={
                         index === 0
-                          ? "findly-setup__item findly-setup__item--open"
-                          : "findly-setup__item"
+                          ? "findly-setup-item is-open"
+                          : "findly-setup-item"
                       }
                     >
-                      <div className="findly-setup__row">
+                      <div className="findly-setup-row">
                         <span
                           className={
                             index === 0
@@ -221,14 +223,14 @@ export function HomePageSkeleton() {
                         >
                           {index + 1}
                         </span>
-                        <span className="findly-setup__title">
+                        <span className="findly-setup-title">
                           <Text as="span" variant="bodyMd" fontWeight="semibold">
                             {title}
                           </Text>
                         </span>
                       </div>
                       {index === 0 ? (
-                        <div className="findly-setup__body">
+                        <div className="findly-setup-body">
                           <Skel kind="text" width="88%" />
                           <Skel kind="text" width="62%" />
                           <Skel kind="btn" />
@@ -323,7 +325,7 @@ export function SearchPageSkeleton() {
                 </Text>
                 <div className="findly-search-fields">
                   {Array.from({ length: 6 }, (_, index) => (
-                    <div className="findly-search-fields__row" key={index}>
+                    <div className="findly-search-fields-row" key={index}>
                       <DragHandleDots />
                       <Skel kind="check" />
                       <Skel kind="text" width={index % 2 ? "44%" : "36%"} />
@@ -450,7 +452,7 @@ export function SettingsPageSkeleton() {
                       Preview
                     </Text>
                     <div className="findly-skel-widget">
-                      <div className="findly-skel-stack findly-skel-widget__side">
+                      <div className="findly-skel-stack findly-skel-widget-side">
                         <Skel kind="title" width="70%" />
                         <Skel kind="field" />
                         <CheckboxRow width="80%" />
@@ -458,9 +460,9 @@ export function SettingsPageSkeleton() {
                         <CheckboxRow width="72%" />
                         <Skel kind="block" />
                       </div>
-                      <div className="findly-skel-widget__grid">
+                      <div className="findly-skel-widget-grid">
                         {Array.from({ length: 4 }, (_, index) => (
-                          <div className="findly-skel-widget__tile" key={index} />
+                          <div className="findly-skel-widget-tile" key={index} />
                         ))}
                       </div>
                     </div>
@@ -483,7 +485,7 @@ export function TranslationListSkeleton() {
           <BlockStack gap="400">
             <SkelBanner />
             <Card padding="0">
-              <table className="findly-filters-list__table">
+              <table className="findly-list-table">
                 <thead>
                   <tr>
                     <th>Language</th>
@@ -527,7 +529,6 @@ const I18N_TABS = [
   "Filter",
   "Sort",
   "Filter option labels",
-  "Vehicle Finder form",
   "Custom",
 ];
 
@@ -552,7 +553,7 @@ export function TranslationLocaleSkeleton() {
               ))}
             </div>
             <div className="findly-i18n-table">
-              <div className="findly-i18n-table__head">
+              <div className="findly-i18n-table-head">
                 <span>Reference</span>
                 <span />
                 <span>
@@ -560,7 +561,7 @@ export function TranslationLocaleSkeleton() {
                 </span>
               </div>
               {Array.from({ length: 8 }, (_, index) => (
-                <div className="findly-i18n-table__row" key={index}>
+                <div className="findly-i18n-table-row" key={index}>
                   <Skel kind="text" width={index % 2 ? "62%" : "48%"} />
                   <span className="findly-i18n-arrow">›</span>
                   <Skel kind="field" />
@@ -684,60 +685,10 @@ export function ContactPageSkeleton() {
               <Skel kind="text" width="76%" />
               <FieldBlock />
               <FieldBlock />
-              <FieldBlock />
               <FieldBlock lines={3} />
               <Skel kind="btn" />
             </BlockStack>
           </Card>
-        </Layout.Section>
-      </Layout>
-    </SkeletonPage>
-  );
-}
-
-export function IntegrationsPageSkeleton() {
-  return (
-    <SkeletonPage title="Integrations" backAction>
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  Filter render events
-                </Text>
-                <Skel kind="text" width="58%" />
-                <Skel kind="text" width="46%" />
-                <Skel kind="text" width="64%" />
-              </BlockStack>
-            </Card>
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    Theme.liquid listener snippet
-                  </Text>
-                  <Skel kind="btn" />
-                </InlineStack>
-                <Skel kind="block" />
-                <Skel kind="block" />
-              </BlockStack>
-            </Card>
-            {["Reviews", "Wishlist", "Translation"].map((title) => (
-              <Card key={title}>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    {title}
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Skel kind="text" width="32%" />
-                    <Skel kind="chip" />
-                  </InlineStack>
-                  <Skel kind="text" width="78%" />
-                </BlockStack>
-              </Card>
-            ))}
-          </BlockStack>
         </Layout.Section>
       </Layout>
     </SkeletonPage>
@@ -780,8 +731,8 @@ export function FilterEditorSkeleton() {
                   </Text>
                   <Skel kind="btn" />
                 </InlineStack>
-                <div className="findly-filter-option-table">
-                  <div className="findly-filter-option-table__head">
+                <div className="findly-option-table">
+                  <div className="findly-option-table-head">
                     <span />
                     <span>Label</span>
                     <span>Source</span>
@@ -789,7 +740,7 @@ export function FilterEditorSkeleton() {
                     <span>Actions</span>
                   </div>
                   {Array.from({ length: 6 }, (_, index) => (
-                    <div className="findly-filter-option-table__row" key={index}>
+                    <div className="findly-option-table-row" key={index}>
                       <DragHandleDots />
                       <Skel kind="text" width="70%" />
                       <Skel kind="chip" />
@@ -932,22 +883,22 @@ export function FilterOptionSkeleton() {
                     Preview
                   </Text>
                   <div className="findly-option-preview">
-                    <div className="findly-option-preview__header">
-                      <span className="findly-option-preview__caret" />
-                      <span className="findly-option-preview__title">
+                    <div className="findly-option-preview-header">
+                      <span className="findly-option-preview-caret" />
+                      <span className="findly-option-preview-title">
                         <Skel kind="text" width="5rem" />
                       </span>
-                      <span className="findly-option-preview__tip">i</span>
+                      <span className="findly-option-preview-tip">i</span>
                     </div>
-                    <div className="findly-option-preview__body">
-                      <div className="findly-option-preview__search">
+                    <div className="findly-option-preview-body">
+                      <div className="findly-option-preview-search">
                         <Skel kind="line" width="42%" />
                       </div>
-                      <div className="findly-option-preview__values">
+                      <div className="findly-option-preview-values">
                         {Array.from({ length: 5 }, (_, index) => (
-                          <div className="findly-option-preview__value" key={index}>
+                          <div className="findly-option-preview-value" key={index}>
                             <Skel kind="check" />
-                            <span className="findly-option-preview__text">
+                            <span className="findly-option-preview-text">
                               <Skel kind="text" width={index % 2 ? "70%" : "54%"} />
                             </span>
                           </div>
@@ -971,7 +922,7 @@ export function GroupsListSkeleton() {
       <Layout>
         <Layout.Section>
           <Card padding="0">
-            <table className="findly-filters-list__table">
+            <table className="findly-list-table">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -1050,7 +1001,7 @@ export function SwatchesPageSkeleton() {
                       : "findly-swatch-option"
                   }
                 >
-                  <span className="findly-swatch-option__label">
+                  <span className="findly-swatch-option-label">
                     <Skel kind="text" width={index % 2 ? "58%" : "72%"} />
                   </span>
                   {index === 1 || index === 3 ? (
@@ -1067,16 +1018,16 @@ export function SwatchesPageSkeleton() {
                 <Skel kind="field" width={120} />
               </div>
               <div className="findly-swatch-table">
-                <div className="findly-swatch-table__head">
+                <div className="findly-swatch-table-head">
                   <span />
                   <span>Value</span>
                   <span>Type</span>
                   <span>Color</span>
                 </div>
                 {Array.from({ length: 7 }, (_, index) => (
-                  <div className="findly-swatch-table__row" key={index}>
+                  <div className="findly-swatch-table-row" key={index}>
                     <Skel kind="check" />
-                    <span className="findly-swatch-table__value">
+                    <span className="findly-swatch-table-value">
                       <Skel kind="swatch" />
                       <Skel kind="text" width={index % 2 ? "52%" : "68%"} />
                     </span>
@@ -1093,7 +1044,7 @@ export function SwatchesPageSkeleton() {
                 ))}
               </div>
               <div className="findly-swatch-pager">
-                <span className="findly-swatch-pager__label">
+                <span className="findly-swatch-pager-label">
                   <Skel kind="line" width="10rem" />
                 </span>
                 <div className="findly-skel-row">
@@ -1103,27 +1054,6 @@ export function SwatchesPageSkeleton() {
               </div>
             </div>
           </div>
-        </Layout.Section>
-      </Layout>
-    </SkeletonPage>
-  );
-}
-
-export function UnderConstructionSkeleton({ title }: { title: string }) {
-  return (
-    <SkeletonPage title={title} backAction>
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300" inlineAlign="center">
-              <span className="findly-under-construction__icon">
-                <Skel kind="circle" />
-              </span>
-              <Skel kind="title" width="11rem" />
-              <Skel kind="text" width="70%" />
-              <Skel kind="text" width="54%" />
-            </BlockStack>
-          </Card>
         </Layout.Section>
       </Layout>
     </SkeletonPage>
@@ -1154,7 +1084,9 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
   const path = (pathname || "/app").replace(/\/+$/, "") || "/app";
 
   if (path === "/app") return <HomePageSkeleton />;
-  if (path === "/app/filters") return <FiltersListSkeleton />;
+  if (path === "/app/filters" || path === "/app/collections") {
+    return <FiltersListSkeleton />;
+  }
   if (path === "/app/search") return <SearchPageSkeleton />;
   if (path === "/app/search/pinnings") return <PinningsPageSkeleton />;
   if (path === "/app/search/redirects") return <RedirectsPageSkeleton />;
@@ -1167,7 +1099,6 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
   if (path === "/app/billing") return <BillingPageSkeleton />;
   if (path === "/app/contact") return <ContactPageSkeleton />;
   if (path === "/app/sync") return <HomePageSkeleton />;
-  if (path === "/app/integrations") return <IntegrationsPageSkeleton />;
   if (path === "/app/swatches" || path.startsWith("/app/swatches/")) {
     return <SwatchesPageSkeleton />;
   }
@@ -1176,12 +1107,5 @@ export function AdminRouteSkeleton({ pathname }: { pathname?: string }) {
   if (/\/options(\/|$)/.test(path)) return <FilterOptionSkeleton />;
   if (path.startsWith("/app/collections/")) return <CollectionFilterSkeleton />;
   if (path.startsWith("/app/filters/")) return <FilterEditorSkeleton />;
-  if (path === "/app/recommendations") {
-    return <UnderConstructionSkeleton title="Recommendations" />;
-  }
-  if (path === "/app/vehicle-finder") {
-    return <UnderConstructionSkeleton title="Vehicle Finder" />;
-  }
-
   return <SimplePageSkeleton />;
 }

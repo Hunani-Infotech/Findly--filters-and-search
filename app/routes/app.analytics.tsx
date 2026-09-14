@@ -18,10 +18,11 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   loadAnalyticsDashboard,
   type AnalyticsRange,
-} from "../analytics.server";
-import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { useEmbeddedNavigate } from "../admin-path";
+} from "../services/analytics.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { csvCell, downloadCsv } from "../utils/csv";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { AnalyticsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -46,12 +47,6 @@ type CountRow = { label: string; count: number };
 function parseRange(value: string | null): AnalyticsRange {
   if (value && RANGE_VALUES.has(value)) return value as AnalyticsRange;
   return "this_month";
-}
-
-function csvCell(value: string | number) {
-  const raw = String(value);
-  if (/[",\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
-  return raw;
 }
 
 function countRowsToCsv(section: string, rows: CountRow[]) {
@@ -90,18 +85,6 @@ function analyticsCsv(dashboard: AnalyticsDashboard) {
   ].join("\n");
 }
 
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
 function InsightCard({ title, rows }: { title: string; rows: CountRow[] }) {
   return (
     <Card>
@@ -133,10 +116,33 @@ function InsightCard({ title, rows }: { title: string; rows: CountRow[] }) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { shop, plan } = await ensureShopAccess(session.shop);
+  const auth = await authenticateAdminAllowReviewBot(request);
   const url = new URL(request.url);
   const range = parseRange(url.searchParams.get("range"));
+  if (auth.bot) {
+    return {
+      retentionDays: 90,
+      range,
+      from: new Date(0).toISOString(),
+      metrics: {
+        uniqueVisitors: 0,
+        ctr: 0,
+        noResultRate: 0,
+        uniqueDesktop: 0,
+        uniqueMobile: 0,
+        searchCount: 0,
+        filterCount: 0,
+      },
+      sessions: [],
+      topQueries: [],
+      noResultQueries: [],
+      topFilterValues: [],
+      filterCombos: [],
+      mostVisited: [],
+    };
+  }
+  const { session } = auth;
+  const { shop, plan } = await ensureShopAccess(session.shop);
   const dashboard = await loadAnalyticsDashboard(shop.id, range, plan);
   return dashboard;
 };
@@ -187,8 +193,8 @@ export default function AnalyticsPage() {
           <BlockStack gap="400">
             <Banner tone="info">
               <p>
-                Events are retained for {dashboard.retentionDays} days. Free
-                keeps 90 days; Pro keeps 180 days.
+                Events are retained for {dashboard.retentionDays} days.
+                Development keeps 90 days; Standard and Pro keep 180 days.
               </p>
             </Banner>
 

@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -15,7 +15,7 @@ const COLLECTION_GID = "gid://shopify/Collection/9811001";
 const MF_KEY = "mf_custom_material";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -38,7 +38,7 @@ function assertStaticMarkers() {
     join(ROOT, "app/routes/app.collections.default.tsx"),
     "utf8",
   );
-  const filters = readFileSync(join(ROOT, "app/filters.server.ts"), "utf8");
+  const filters = readFileSync(join(ROOT, "app/services/filters.server.ts"), "utf8");
 
   if (!collectionPage.includes("matchModes") || !collectionPage.includes("Use AND condition")) {
     fail("collection config missing AND vs OR / matchModes");
@@ -175,9 +175,8 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN}`);
   assertStaticMarkers();
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
-  const { saveFilterConfig, getFilterConfig } = await import(
-    "../app/shop.server.ts"
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
+  const { saveFilterConfig, getFilterConfig } = await import("../app/services/shop.server.ts"
   );
 
   async function payload(selected, matchModes) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Form, useFetcher, useNavigation, useSearchParams, useSubmit } from "react-router";
-import { useEmbeddedNavigate, withEmbeddedParams } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParams } from "../utils/admin-path";
 import {
   BlockStack,
   Card,
@@ -14,7 +15,7 @@ import {
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { isMutationBusy } from "./admin-loading";
 import { useConfirmDelete } from "./confirm-delete-modal";
-import type { CatalogValuesPage } from "../value-groups.server";
+import type { CatalogValuesPage } from "../services/value-groups.server";
 
 export type ValueGroupDraft = {
   id: string;

@@ -7,28 +7,32 @@
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",
+      "clear_all": "Clear All",
+      "clear_search": "Clear search",
       "close": "Close filters"
     },
     "collection_filters_embed": {
-      "name": "Collection filters",
+      "name": "Collection filters (app embed)",
       "filter": "Filter",
       "offcanvas": "Off-canvas",
       "sort": "Sort by",
       "search": "Search in collection",
       "search_placeholder": "Search products",
+      "clear_all": "Clear All",
+      "clear_search": "Clear search",
       "close": "Close filters"
-    },
-    "vehicle_finder": {
-      "name": "Vehicle finder"
-    },
-    "product_recommendations": {
-      "name": "Product recommendations"
     },
     "instant_search": {
       "name": "Instant search"
     },
     "product_search": {
-      "name": "Product search"
+      "name": "Product search",
+      "label": "Search products",
+      "submit": "Search",
+      "empty": "No products found",
+      "empty_copy": "Your search did not match any products.",
+      "clear_query": "Clear query",
+      "suggested": "Suggested"
     }
   }
 }

@@ -3,13 +3,13 @@
  * Usage: npm run verify:b2
  */
 import "tsx/esm";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
 const SHOP_DOMAIN = "b2-verify.myshopify.com";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -118,7 +118,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getSearchFilterPayload } = await import("../app/proxy.server.ts");
+  const { getSearchFilterPayload } = await import("../app/services/proxy.server.ts");
 
   const unfiltered = await getSearchFilterPayload({
     shopDomain: SHOP_DOMAIN,

@@ -6,18 +6,24 @@ import type {
 import { redirect, useActionData, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
-import { withEmbeddedParamsFromRequest } from "../admin-path";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { parseValueGroupForm, ValueGroupFormPage } from "../components/value-group-form";
 import {
   createValueGroup,
+  emptyCatalogValuesPage,
   getCatalogValuesPage,
-} from "../value-groups.server";
+} from "../services/value-groups.server";
 
 export { GroupFormSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return { catalog: emptyCatalogValuesPage() };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const catalog = await getCatalogValuesPage(shop.id, "");
   return { catalog };

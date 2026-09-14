@@ -19,8 +19,8 @@ Target merchants: stores with 200–5,000+ products, especially fashion, beauty,
 - API: Shopify Admin GraphQL API only — no REST
 - Database: PostgreSQL
 - ORM: Prisma
-- Queue/jobs: Redis + BullMQ
-- Hosting target: Fly.io
+- Queue/jobs: Postgres `QueueJob` table + poller. Production: separate `npm run worker:prod` process. Local/dev: in-process poller when `START_WORKER` is not `0`.
+- Hosting target: Hostinger Node web process (`npm start` / `server.js`) plus a separate `npm run worker:prod` process (Postgres `QueueJob` poller). Postgres is Supabase. There is no `fly.toml`; add one later only if Fly.io is chosen again.
 - Billing: Shopify Billing API (`AppSubscriptionCreate` GraphQL mutation)
 
 Do not introduce Next.js, Express, MongoDB, or REST Admin API calls anywhere in this project, even as a "quick" solution. If a package or pattern conflicts with this stack, stop and ask before proceeding.
@@ -33,7 +33,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 Then:
 - Add Prisma with a PostgreSQL provider (replace any default SQLite config)
-- Add Redis + BullMQ as dependencies
+- Add Postgres `QueueJob` model (no Redis/BullMQ)
 - Set up `.env.example` listing every required environment variable (no real secrets committed)
 
 ## 3. Data Model
@@ -55,7 +55,7 @@ Use the built-in token exchange / managed installation flow from the React Route
 - Initial sync on install: use Admin API Bulk Operations (`bulkOperationRunQuery`), not paginated REST/GraphQL loops.
 - Incremental sync: register webhooks for `products/update`, `products/delete`, `collections/update`, re-run sync for affected shop/collection only.
 - Sync populates: product list, collection list, tags, vendors, product types, and metafields (store all metafields found, even before merchant selects which to use).
-- Build as a BullMQ job (`sync-queue`), not inline in request/response cycle.
+- Build as a Postgres queue job (`QueueJob`), not inline in request/response cycle.
 
 ### 4.3 Mandatory Compliance Webhooks
 Implement and register: `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request`. Required for App Store approval — do not skip or stub.

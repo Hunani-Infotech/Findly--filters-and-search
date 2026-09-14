@@ -3,7 +3,7 @@
  * Usage: npm run verify:a7
  */
 import "tsx/esm";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -11,7 +11,7 @@ const SHOP_DOMAIN = "a7-verify.myshopify.com";
 const COLLECTION_GID = "gid://shopify/Collection/9007001";
 const PRODUCT_GID = "gid://shopify/Product/9007001";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -24,8 +24,24 @@ async function cleanup() {
 async function seedShopData() {
   const shop = await prisma.shop.upsert({
     where: { domain: SHOP_DOMAIN },
-    create: { domain: SHOP_DOMAIN, plan: "free" },
-    update: { uninstalledAt: null, plan: "free" },
+    create: { domain: SHOP_DOMAIN, plan: "standard" },
+    update: { uninstalledAt: null, plan: "standard" },
+  });
+  await prisma.subscription.upsert({
+    where: { shopId: shop.id },
+    create: {
+      shopId: shop.id,
+      planName: "Findly Standard",
+      status: "ACTIVE",
+      productLimit: 200,
+      filterLimit: 6,
+    },
+    update: {
+      planName: "Findly Standard",
+      status: "ACTIVE",
+      productLimit: 200,
+      filterLimit: 6,
+    },
   });
 
   await seedFilterConfig(prisma, shop.id, {
@@ -179,7 +195,7 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getCollectionFilterPayload } = await import("../app/proxy.server.ts");
+  const { getCollectionFilterPayload } = await import("../app/services/proxy.server.ts");
   const result = await getCollectionFilterPayload({
     shopDomain: SHOP_DOMAIN,
     collectionGid: COLLECTION_GID,
@@ -228,15 +244,14 @@ try {
     `metafield facet (BOOLEAN/waterproof Yes/No): ${JSON.stringify(waterproofFacet)}`,
   );
 
-  const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import(
-    "../app/billing.server.ts"
+  const { enforcePlanLimits, PLANS, isDevUnlockLimits } = await import("../app/services/billing.server.ts"
   );
 
-  if (PLANS.free.filterLimit !== 5) {
-    fail(`PLANS.free.filterLimit expected 5, got ${PLANS.free.filterLimit}`);
+  if (PLANS.standard.filterLimit !== 6) {
+    fail(`PLANS.standard.filterLimit expected 6, got ${PLANS.standard.filterLimit}`);
   }
-  if (PLANS.pro.filterLimit !== 25) {
-    fail(`PLANS.pro.filterLimit expected 25, got ${PLANS.pro.filterLimit}`);
+  if (PLANS.pro.filterLimit !== 15) {
+    fail(`PLANS.pro.filterLimit expected 15, got ${PLANS.pro.filterLimit}`);
   }
 
   const limitsWithThree = await enforcePlanLimits(shop.id);
@@ -244,11 +259,11 @@ try {
 
   if (devUnlocked) {
     log.info(
-      `DEV_UNLOCK_LIMITS=true — runtime filterLimit=${limitsWithThree.filterLimit} (PLANS.free.filterLimit still ${PLANS.free.filterLimit})`,
+      `DEV_UNLOCK_LIMITS=true — runtime filterLimit=${limitsWithThree.filterLimit} (PLANS.standard.filterLimit still ${PLANS.standard.filterLimit})`,
     );
-  } else if (limitsWithThree.filterLimit !== 5) {
+  } else if (limitsWithThree.filterLimit !== 6) {
     fail(
-      `free plan filterLimit expected 5, got ${limitsWithThree.filterLimit}`,
+      `standard plan filterLimit expected 6, got ${limitsWithThree.filterLimit}`,
     );
   }
 
@@ -256,15 +271,15 @@ try {
     fail(`expected 3 metafield mappings, got ${limitsWithThree.filterCount}`);
   }
 
-  const sixEnabledWouldExceed = 6 > PLANS.free.filterLimit;
-  if (!sixEnabledWouldExceed) {
-    fail("6 enabled mappings should exceed free plan cap of 5");
+  const sevenEnabledWouldExceed = 7 > PLANS.standard.filterLimit;
+  if (!sevenEnabledWouldExceed) {
+    fail("7 enabled mappings should exceed standard plan cap of 6");
   }
   log.info(
-    `plan cap check: 6 enabled mappings > free filterLimit ${PLANS.free.filterLimit}`,
+    `plan cap check: 7 enabled mappings > standard filterLimit ${PLANS.standard.filterLimit}`,
   );
 
-  const extraKeys = ["extra_a", "extra_b", "extra_c"];
+  const extraKeys = ["extra_a", "extra_b", "extra_c", "extra_d"];
   await prisma.productFacet.update({
     where: {
       shopId_productGid: { shopId: shop.id, productGid: PRODUCT_GID },
@@ -277,6 +292,7 @@ try {
         "custom.extra_a": "a",
         "custom.extra_b": "b",
         "custom.extra_c": "c",
+        "custom.extra_d": "d",
       },
     },
   });
@@ -294,23 +310,23 @@ try {
     });
   }
 
-  const limitsWithSix = await enforcePlanLimits(shop.id);
-  if (limitsWithSix.filterCount !== 6) {
-    fail(`expected 6 metafield mappings after seed, got ${limitsWithSix.filterCount}`);
+  const limitsWithSeven = await enforcePlanLimits(shop.id);
+  if (limitsWithSeven.filterCount !== 7) {
+    fail(`expected 7 metafield mappings after seed, got ${limitsWithSeven.filterCount}`);
   }
 
   if (devUnlocked) {
-    if (limitsWithSix.overFilterLimit) {
+    if (limitsWithSeven.overFilterLimit) {
       fail(
-        "DEV_UNLOCK_LIMITS should not mark 6 mappings as over pro filterLimit 25",
+        "DEV_UNLOCK_LIMITS should not mark 7 mappings as over development unlock cap",
       );
     }
   } else {
-    if (!limitsWithSix.overFilterLimit) {
-      fail("6 enabled mappings should exceed free plan filterLimit of 5");
+    if (!limitsWithSeven.overFilterLimit) {
+      fail("7 enabled mappings should exceed standard plan filterLimit of 6");
     }
     log.info(
-      `enforcePlanLimits rejects 6 mappings on free: filterCount=${limitsWithSix.filterCount} filterLimit=${limitsWithSix.filterLimit} overFilterLimit=${limitsWithSix.overFilterLimit}`,
+      `enforcePlanLimits rejects 7 mappings on standard: filterCount=${limitsWithSeven.filterCount} filterLimit=${limitsWithSeven.filterLimit} overFilterLimit=${limitsWithSeven.overFilterLimit}`,
     );
   }
 
@@ -322,25 +338,25 @@ try {
   const cappedFacets = (cappedPayload.data?.facets ?? []).filter(
     (facet) => facet.source === "metafield",
   );
-  if (cappedFacets.length > limitsWithSix.filterLimit) {
+  if (cappedFacets.length > limitsWithSeven.filterLimit) {
     fail(
-      `storefront payload returned ${cappedFacets.length} metafield facets; cap is ${limitsWithSix.filterLimit}`,
+      `storefront payload returned ${cappedFacets.length} metafield facets; cap is ${limitsWithSeven.filterLimit}`,
     );
   }
-  if (!devUnlocked && cappedFacets.length !== PLANS.free.filterLimit) {
+  if (!devUnlocked && cappedFacets.length !== PLANS.standard.filterLimit) {
     fail(
-      `free plan payload should include ${PLANS.free.filterLimit} metafield facets, got ${cappedFacets.length}`,
+      `standard plan payload should include ${PLANS.standard.filterLimit} metafield facets, got ${cappedFacets.length}`,
     );
   }
   log.info(
-    `storefront payload capped metafield facets=${cappedFacets.length} (limit=${limitsWithSix.filterLimit})`,
+    `storefront payload capped metafield facets=${cappedFacets.length} (limit=${limitsWithSeven.filterLimit})`,
   );
   if (!devUnlocked) {
-    if (findMetafieldFacet(cappedFacets, "extra_c")) {
-      fail("free plan payload should drop the 6th mapping custom.extra_c");
+    if (findMetafieldFacet(cappedFacets, "extra_d")) {
+      fail("standard plan payload should drop the 7th mapping custom.extra_d");
     }
-    if (!findMetafieldFacet(cappedFacets, "extra_a")) {
-      fail("free plan payload should still include the 4th mapping custom.extra_a");
+    if (!findMetafieldFacet(cappedFacets, "extra_c")) {
+      fail("standard plan payload should still include the 6th mapping custom.extra_c");
     }
   }
 

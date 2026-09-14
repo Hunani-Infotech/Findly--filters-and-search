@@ -1,8 +1,8 @@
-import { log } from "../log.server";
-import { enqueueSyncJob } from "../queues.server";
+import { log } from "../lib/log.server";
+import { enqueueSyncJob } from "../lib/queues.server";
 
 /**
- * Queue a catalog full sync. If Redis/BullMQ is down, start the bulk query
+ * Queue a catalog full sync. If enqueue fails, start the bulk query
  * inline so install and Sync now are not blocked.
  */
 export async function queueFullSync(shop: string) {

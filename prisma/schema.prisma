@@ -1,8 +1,8 @@
 // Findly: Smart Filters & Search — Prisma schema (PostgreSQL, multi-tenant)
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-1.1.x"]
+  provider   = "prisma-client-js"
+  engineType = "client"
 }
 
 datasource db {
@@ -30,6 +30,8 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  @@index([shop])
 }
 
 enum SyncStatus {
@@ -58,6 +60,8 @@ model Shop {
   uninstalledAt DateTime?
   /// Denormalized plan label (kept in sync with Subscription / PLANS)
   plan          String    @default("free")
+  /// Shopify Admin `shop.plan.partnerDevelopment` — Development is fully unlocked
+  partnerDevelopment Boolean @default(false)
 
   filterConfigs         FilterConfig[]
   metafieldMappings     MetafieldMapping[]
@@ -134,7 +138,7 @@ model AppSettings {
   suggestionCollectionHandles String[] @default([])
   /// Instant search + Search Settings extras (fuzzy, popular terms, pinnings, synonyms, redirects)
   searchExtras      Json     @default("{}")
-  /// Admin extras (recommendations toggles, YMM form, locales) — not storefront engines
+  /// Admin extras (locales, contact draft)
   adminExtras       Json     @default("{}")
   /// D7: merchant CSS for the filter widget (stored raw-sanitized; scoped when serving storefront)
   customCss         String   @default("")
@@ -301,6 +305,8 @@ model ProductFacet {
   @@index([shopId, vendor])
   @@index([shopId, productType])
   @@index([shopId, available])
+  @@index([shopId, status])
+  @@index([shopId, handle])
 }
 
 model CollectionMembership {
@@ -314,6 +320,7 @@ model CollectionMembership {
 
   @@unique([shopId, collectionGid, productGid])
   @@index([shopId, collectionGid])
+  @@index([shopId, productGid])
 }
 
 /// Synced collection list for admin UI / filter config.
@@ -441,4 +448,45 @@ model ComplianceRequest {
   createdAt  DateTime @default(now())
 
   @@index([shopDomain])
+}
+
+/// Postgres job queue (replaces BullMQ/Redis). Distinct from SyncJob (per-shop status).
+enum QueueJobStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model QueueJob {
+  id          String         @id @default(cuid())
+  /// Handler name (e.g. shop.fullSync) — former BullMQ job name.
+  type        String
+  payload     Json
+  status      QueueJobStatus @default(pending)
+  attempts    Int            @default(0)
+  /// Matches former BullMQ attempts: 3.
+  maxAttempts Int            @default(3)
+  /// Due time; delays and exponential backoff set this in the future.
+  runAt       DateTime       @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  /// Former BullMQ custom jobId — unique when set for webhook / sync idempotency.
+  jobKey      String?        @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  /// Claim hot path: status=pending AND runAt<=now() ORDER BY runAt.
+  @@index([status, runAt])
+  /// Stale recovery: status=processing AND lockedAt < timeout.
+  @@index([status, lockedAt])
+  /// DROP_IF_BUSY / follow-up checks by type.
+  @@index([type, status])
+}
+
+/// Storefront cache generation counters (replaces Redis INCR keys).
+model CacheGeneration {
+  key     String @id
+  version Int    @default(0)
 }

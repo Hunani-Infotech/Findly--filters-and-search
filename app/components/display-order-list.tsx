@@ -1,13 +1,14 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { BlockStack, Select, Text } from "@shopify/polaris";
-import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../admin-list-page";
+import { ADMIN_TABLE_PAGE_SIZE, reorderWithinSubset, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "./admin-list-pagination";
+import { DragHandle } from "./drag-handle";
 import {
   displayTypeChoicesForKey,
   FACET_DISPLAY_TYPE_LABELS,
   parseDisplayTypes,
   type FacetDisplayType,
-} from "../filters";
+} from "../utils/filters";
 
 const DISPLAY_ORDER_LABELS: Record<string, string> = {
   availability: "Availability",
@@ -41,28 +42,6 @@ type DisplayOrderListProps = {
   facetKinds?: Record<string, string>;
   helpText?: string;
 };
-
-function DragHandle() {
-  return (
-    <svg
-      width="12"
-      height="16"
-      viewBox="0 0 12 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {[0, 1, 2, 3, 4, 5].map((dot) => (
-        <circle
-          key={dot}
-          cx={dot % 2 === 0 ? 3 : 9}
-          cy={2 + Math.floor(dot / 2) * 6}
-          r="1.4"
-          fill="#8c9196"
-        />
-      ))}
-    </svg>
-  );
-}
 
 export function DisplayOrderList({
   keys,
@@ -128,26 +107,26 @@ export function DisplayOrderList({
     if (overIndex !== nextOver) setOverIndex(nextOver);
   };
 
-  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    if (disabled || dragIndex == null || overIndex == null) {
-      clearGhost();
-      setDragIndex(null);
-      setOverIndex(null);
-      return;
-    }
-    let target = overIndex;
-    if (target > dragIndex) target -= 1;
-      onChange(reorderWithinSubset(keys, paged, dragIndex, target));
+  const resetDrag = () => {
     clearGhost();
     setDragIndex(null);
     setOverIndex(null);
   };
 
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (disabled || dragIndex == null || overIndex == null) {
+      resetDrag();
+      return;
+    }
+    let target = overIndex;
+    if (target > dragIndex) target -= 1;
+    onChange(reorderWithinSubset(keys, paged, dragIndex, target));
+    resetDrag();
+  };
+
   const handleDragEnd = () => {
-    clearGhost();
-    setDragIndex(null);
-    setOverIndex(null);
+    resetDrag();
   };
 
   const handleKeyDown = (
@@ -181,15 +160,7 @@ export function DisplayOrderList({
           return (
             <div key={key}>
               {showLine ? (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 3,
-                    margin: "0 4px 6px",
-                    borderRadius: 99,
-                    background: "#005bd3",
-                  }}
-                />
+                <div className="findly-option-table-line" aria-hidden="true" />
               ) : null}
               <div
                 style={{
@@ -290,15 +261,7 @@ export function DisplayOrderList({
         {dragIndex != null &&
         overIndex === paged.length &&
         overIndex !== dragIndex + 1 ? (
-          <div
-            aria-hidden="true"
-            style={{
-              height: 3,
-              margin: "0 4px 6px",
-              borderRadius: 99,
-              background: "#005bd3",
-            }}
-          />
+          <div className="findly-option-table-line" aria-hidden="true" />
         ) : null}
       </div>
       <AdminListPagination

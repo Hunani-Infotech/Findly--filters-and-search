@@ -13,8 +13,8 @@ Shopify embedded app. **Launch MVP = solid collection filters + storefront searc
 - Theme App Extension for storefront (not script tags)
 - Admin **GraphQL** API only — never REST
 - PostgreSQL + Prisma (hosted: Supabase; `DATABASE_URL` pooler :6543 + `DIRECT_URL` direct :5432)
-- Redis + BullMQ for sync jobs
-- Fly.io hosting target
+- Postgres `QueueJob` table + poller for sync jobs. Production: `npm start` runs `server.js` with `START_WORKER=0` plus a sibling `worker:prod` process. Do not boot the poller from `entry.server.tsx`.
+- Hostinger Node hosting (web + dedicated worker). Do not add Fly.io / `fly.toml` unless that host is chosen again.
 - Shopify Billing API for plans
 
 Never introduce: Next.js, Express, MongoDB, REST Admin API calls. If a task seems to need one of these, stop and ask.
@@ -31,12 +31,10 @@ Check `docs/build-order.md` for the active step. Work only on the current step (
 ## Explicitly deferred — STOP if you start building these
 If a request or your own plan starts generating any of the following, **stop immediately**, say it is deferred post-launch, and redirect to the current step in `docs/build-order.md`:
 
-1. **Analytics** — search/filter analytics dashboard, event pipelines for analytics
-2. **AI/ML ranking** — relevance models, embeddings, semantic “smart” ranking
-3. **Advanced search extras** — synonym groups, typo-tolerance engines, redirects/boosts (beyond solid basic search)
-4. **Advanced styling / merchandising** — custom theme editor, drag-drop widget builder, filter tree builder, variants-as-products, Year-Make-Model, recommendations
+1. **AI/ML ranking** — relevance models, embeddings, semantic “smart” ranking
+2. **Advanced styling / merchandising** — custom theme editor, drag-drop widget builder, filter tree builder, variants-as-products, Year-Make-Model, Vehicle Finder, recommendations
 
-There is **no AI/analytics code to remove** today — those features were never implemented. Do not add stubs for them.
+Vehicle Finder and Recommendations have been **removed from the codebase** (deployed `findly-smart-filters-8`). Do not re-add them. Analytics, synonyms, redirects, pinnings, and instant search are shipped.
 
 ## Hard boundaries
 - Every DB table is shop-scoped (multi-tenant).

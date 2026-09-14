@@ -3,12 +3,12 @@
  * Usage: npm run verify:b1
  */
 import "tsx/esm";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "b1-verify.myshopify.com";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -94,8 +94,8 @@ try {
   const shop = await seedShopData();
   log.info(`Seeded shop ${SHOP_DOMAIN} (id=${shop.id})`);
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
-  const { normalizeSearchQuery } = await import("../app/search.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
+  const { normalizeSearchQuery } = await import("../app/services/search.server.ts");
 
   const collapsed = normalizeSearchQuery("  Cotton   Tee  extra");
   if (!collapsed.startsWith("Cotton Tee")) {

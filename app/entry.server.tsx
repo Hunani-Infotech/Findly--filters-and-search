@@ -4,11 +4,12 @@ import { ServerRouter } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
-import { log } from "./log.server";
+import { ensureDatabaseReady } from "./db.server";
+import { log } from "./lib/log.server";
 import { addDocumentResponseHeaders } from "./shopify.server";
-import { ensureWorkerRunning } from "./workers/ensure-running.server";
 
-ensureWorkerRunning();
+// Warm Postgres before serving shopper/admin traffic.
+void ensureDatabaseReady();
 
 export const streamTimeout = 5000;
 
@@ -20,7 +21,7 @@ export default async function handleRequest(
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
   const userAgent = request.headers.get("user-agent");
-  const callbackName = isbot(userAgent ?? '')
+  const callbackName = isbot(userAgent ?? "")
     ? "onAllReady"
     : "onShellReady";
 

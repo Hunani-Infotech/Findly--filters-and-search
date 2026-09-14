@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 
@@ -16,7 +16,7 @@ const OTHER_COLLECTION_GID = "gid://shopify/Collection/9707002";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const IN_COLLECTION = 50;
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -28,8 +28,8 @@ function titles(result) {
 
 function assertStaticMarkers() {
   const settingsPage = readFileSync(join(ROOT, "app/routes/app.settings.tsx"), "utf8");
-  const appSettings = readFileSync(join(ROOT, "app/app-settings.ts"), "utf8");
-  const proxy = readFileSync(join(ROOT, "app/proxy.server.ts"), "utf8");
+  const appSettings = readFileSync(join(ROOT, "app/utils/app-settings.ts"), "utf8");
+  const proxy = readFileSync(join(ROOT, "app/services/proxy.server.ts"), "utf8");
   const filtersRoute = readFileSync(
     join(ROOT, "app/routes/apps.smart-filter.filters.tsx"),
     "utf8",
@@ -74,20 +74,47 @@ function assertStaticMarkers() {
     fail("smart-filter.js missing collection search bar wiring");
   }
   if (
-    !gridJs.includes("sf-collection-search-host") ||
+    !gridJs.includes("sf-search-host") ||
     !gridJs.includes("placeCollectionSearchOnGrid") ||
     !gridJs.includes("isLayoutShell")
   ) {
     fail("collection search must mount above the product grid, not in the sidebar");
   }
-  if (!filterCss.includes("smart-filter__collection-search--toolbar")) {
+  if (!filterCss.includes("sf-search-toolbar")) {
     fail("collection search toolbar styles missing");
   }
-  if (!filterCss.includes(".smart-filter > .smart-filter__collection-search")) {
+  if (!filterCss.includes(".smart-filter > .sf-search")) {
     fail("collection search must stay hidden while still in the filter sidebar");
   }
   if (!filterCss.includes(":has(> li:nth-child(6))")) {
     fail("facet option lists must scroll only when they have many values");
+  }
+
+  const instantJs = readFileSync(
+    join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
+    "utf8",
+  );
+  if (
+    !instantJs.includes("function isCollectionSearchInput") ||
+    !instantJs.includes("shouldHandleInput") ||
+    !instantJs.includes("listing=1") ||
+    !instantJs.includes("findly:listing-suggest") ||
+    !instantJs.includes("restoreCachedResults")
+  ) {
+    fail("instant-search.js must attach suggestions to the collection search bar");
+  }
+  if (!gridJs.includes("findly:listing-suggest")) {
+    fail("collection search must publish listing suggestions from the same grid results");
+  }
+  if (
+    !instantJs.includes("function isFacetValueSearchInput") ||
+    !instantJs.includes(".sf-facet-search") ||
+    !instantJs.includes("sf-facet-search-input")
+  ) {
+    fail("instant-search.js must ignore per-facet Search values inputs");
+  }
+  if (!gridJs.includes("data-findly-ignore-instant")) {
+    fail("facet Search values inputs must opt out of instant product suggestions");
   }
 }
 
@@ -196,11 +223,9 @@ try {
   log.info(`Seeded shop ${SHOP_DOMAIN} with ${IN_COLLECTION} collection products`);
   assertStaticMarkers();
 
-  const { getCollectionFilterPayload, getSearchPayload } = await import(
-    "../app/proxy.server.ts"
+  const { getCollectionFilterPayload, getSearchPayload } = await import("../app/services/proxy.server.ts"
   );
-  const { saveAppSettings, getAppSettings } = await import(
-    "../app/settings.server.ts"
+  const { saveAppSettings, getAppSettings } = await import("../app/services/settings.server.ts"
   );
 
   async function collectionPayload(query, selected = {}) {

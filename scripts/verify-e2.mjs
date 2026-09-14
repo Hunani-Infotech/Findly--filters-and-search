@@ -6,13 +6,13 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
 const SHOP_DOMAIN = "e2-verify.myshopify.com";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -28,9 +28,9 @@ function assertStaticMarkers() {
     fail("schema missing ShopPage / ShopArticle");
   }
 
-  const graphql = readRepo("app", "sync", "graphql.ts");
+  const graphql = readRepo("app", "sync", "admin-graphql.ts");
   if (!graphql.includes("PAGES_LIST_QUERY") || !graphql.includes("ARTICLES_LIST_QUERY")) {
-    fail("graphql.ts missing pages/articles list queries");
+    fail("admin-graphql.ts missing pages/articles list queries");
   }
 
   const sync = readRepo("app", "sync", "sync.server.ts");
@@ -38,12 +38,12 @@ function assertStaticMarkers() {
     fail("sync.server.ts missing syncShopContent");
   }
 
-  const search = readRepo("app", "search.server.ts");
+  const search = readRepo("app", "services", "search.server.ts");
   if (!search.includes("searchPages") || !search.includes("searchArticles")) {
     fail("search.server.ts missing searchPages / searchArticles");
   }
 
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("searchPages") || !proxy.includes("searchArticles")) {
     fail("proxy.server.ts must search pages and articles for Instant Search");
   }
@@ -126,7 +126,7 @@ try {
     },
   });
 
-  const { getSearchPayload } = await import("../app/proxy.server.ts");
+  const { getSearchPayload } = await import("../app/services/proxy.server.ts");
 
   const pageHit = await getSearchPayload({
     shopDomain: SHOP_DOMAIN,

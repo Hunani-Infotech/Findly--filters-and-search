@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
-import { buildStoredVariants } from "../variants-as-products";
-import { mergeProductMarketPrices } from "../markets.server";
+import { buildStoredVariants } from "../utils/variants-as-products";
+import { mergeProductMarketPrices } from "../services/markets.server";
+import { normalizeProductTypeValue } from "../utils/filters";
 
 type JsonObject = Prisma.InputJsonValue;
 
@@ -47,6 +48,8 @@ type ShopifyProduct = {
   vendor?: string | null;
   productType?: string | null;
   product_type?: string | null;
+  /** Shopify Admin Category (taxonomy). Used when legacy productType is blank. */
+  category?: { name?: string | null; fullName?: string | null } | null;
   tags?: string[] | string | null;
   status?: string | null;
   createdAt?: string | null;
@@ -375,7 +378,11 @@ export function mapProductToFacet(
       handle: product.handle,
       title: product.title,
       vendor: product.vendor ?? "",
-      productType: product.productType ?? product.product_type ?? "",
+      productType: normalizeProductTypeValue(
+        (product.productType || product.product_type || "").trim() ||
+          (product.category?.name || product.category?.fullName || "").trim() ||
+          "",
+      ),
       tags: normalizeTags(product.tags),
       skus,
       options: options as JsonObject,

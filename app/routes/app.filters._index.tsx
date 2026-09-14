@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type DragEvent,
 } from "react";
 import {
@@ -36,21 +35,21 @@ import {
   LayoutSidebarLeftIcon,
   MergeIcon,
   SearchIcon,
-  XSmallIcon,
 } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import prisma from "../db.server";
-import {
-  useEmbeddedNavigate,
-  withEmbeddedParamsFromRequest,
-} from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { AdminListPagination } from "../components/admin-list-pagination";
-import { slicePage } from "../admin-list-page";
+import { DragHandle } from "../components/drag-handle";
+import { slicePage, reorderWithinSubset } from "../utils/admin-list-page";
+import { downloadCsv, recordsToCsv } from "../utils/csv";
 import {
   deleteFilterTrees,
   duplicateFilterTrees,
@@ -58,11 +57,9 @@ import {
   listFilterTrees,
   reorderFilterTrees,
   setFilterTreesEnabled,
-} from "../filter-trees.server";
+} from "../services/filter-trees.server";
 
 export { FiltersListSkeleton as HydrateFallback } from "../components/admin-skeletons";
-
-const PROMO_STORAGE_KEY = "findly-filters-promo-dismissed";
 
 const PREFERENCES = [
   {
@@ -90,20 +87,6 @@ const PREFERENCES = [
   },
 ] as const;
 
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
 function parseIdList(raw: unknown): string[] {
   try {
     const parsed = JSON.parse(String(raw || "[]"));
@@ -112,44 +95,6 @@ function parseIdList(raw: unknown): string[] {
   } catch {
     return [];
   }
-}
-
-function moveItem<T>(items: T[], from: number, to: number) {
-  if (from === to || from < 0 || to < 0 || to >= items.length) return items;
-  const next = [...items];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
-function applyVisibleReorder(full: string[], visible: string[], from: number, to: number) {
-  const nextVisible = moveItem(visible, from, to);
-  if (nextVisible === visible) return full;
-  const visSet = new Set(visible);
-  let i = 0;
-  return full.map((id) => (visSet.has(id) ? nextVisible[i++] : id));
-}
-
-function DragHandle() {
-  return (
-    <svg
-      width="12"
-      height="16"
-      viewBox="0 0 12 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {[0, 1, 2, 3, 4, 5].map((dot) => (
-        <circle
-          key={dot}
-          cx={dot % 2 === 0 ? 3 : 9}
-          cy={2 + Math.floor(dot / 2) * 6}
-          r="1.4"
-          fill="#8c9196"
-        />
-      ))}
-    </svg>
-  );
 }
 
 type FilterListTree = {
@@ -181,7 +126,11 @@ function appliesToMarkup(tree: FilterListTree) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return { trees: [] };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
 
   const trees = await listFilterTrees(shop.id);
@@ -290,16 +239,6 @@ export default function FiltersIndex() {
     setSelectedIds((current) => current.filter((id) => treeIds.includes(id)));
   }
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const storedPromoOpen = useSyncExternalStore(
-    (onChange) => {
-      window.addEventListener("storage", onChange);
-      return () => window.removeEventListener("storage", onChange);
-    },
-    () => window.localStorage.getItem(PROMO_STORAGE_KEY) !== "1",
-    () => false,
-  );
-  const [promoHidden, setPromoHidden] = useState(false);
-  const promoOpen = !promoHidden && storedPromoOpen;
   const lastExportKey = useRef<string | null>(null);
   const lastBulkKey = useRef<unknown>(null);
   const [clearedBulkResult, setClearedBulkResult] = useState<unknown>(null);
@@ -317,7 +256,39 @@ export default function FiltersIndex() {
         : JSON.stringify(result.payload);
     if (lastExportKey.current === key) return;
     lastExportKey.current = key;
-    downloadJson("findly-filters.json", result.payload);
+    const trees =
+      typeof result.payload === "object" &&
+      result.payload &&
+      "trees" in result.payload &&
+      Array.isArray(result.payload.trees)
+        ? (result.payload.trees as Array<Record<string, unknown>>)
+        : [];
+    downloadCsv(
+      "findly-filters.csv",
+      recordsToCsv(trees, [
+        "name",
+        "enabled",
+        "appliesToSearch",
+        "collectionGids",
+        "enablePrice",
+        "enableSale",
+        "enableRating",
+        "enableLocation",
+        "enableAvailability",
+        "enableVendor",
+        "enableProductType",
+        "enableTags",
+        "enableOptions",
+        "enableVariantsAsProducts",
+        "variantAsProductOptions",
+        "displayOrder",
+        "displayTypes",
+        "matchModes",
+        "valueSort",
+        "rangeBounds",
+        "sortOrder",
+      ]),
+    );
   }, [exportFetcher.data]);
 
   const bulkResult =
@@ -395,7 +366,7 @@ export default function FiltersIndex() {
   };
 
   const handleDrop = (from: number, to: number) => {
-    const next = applyVisibleReorder(order, visibleIds, from, to);
+    const next = reorderWithinSubset(order, visibleIds, from, to);
     if (next.join() === order.join()) return;
     persistOrder(next);
   };
@@ -478,7 +449,7 @@ export default function FiltersIndex() {
         <Layout.Section>
           <BlockStack gap="400">
             <Card padding="0">
-              <div className="findly-filters-list__search">
+              <div className="findly-list-search">
                 <TextField
                   label="Searching filters"
                   labelHidden
@@ -498,8 +469,8 @@ export default function FiltersIndex() {
                 />
               </div>
               {selectedVisible.length > 0 ? (
-                <div className="findly-filters-list__bulk">
-                  <div className="findly-filters-list__bulk-start">
+                <div className="findly-list-bulk">
+                  <div className="findly-list-bulk-start">
                     <Checkbox
                       label="Select all filters"
                       labelHidden
@@ -538,11 +509,11 @@ export default function FiltersIndex() {
                   </ButtonGroup>
                 </div>
               ) : null}
-              <table className="findly-filters-list__table">
+              <table className="findly-list-table">
                 {selectedVisible.length === 0 ? (
                   <thead>
                     <tr>
-                      <th className="findly-filters-list__check">
+                      <th className="findly-list-check">
                         <Checkbox
                           label="Select all filters"
                           labelHidden
@@ -567,7 +538,7 @@ export default function FiltersIndex() {
                   {filteredTrees.length === 0 ? (
                     <tr>
                       <td colSpan={4}>
-                        <div className="findly-filters-list__empty">
+                        <div className="findly-list-empty">
                           <Text as="p" tone="subdued">
                             {trees.length === 0
                               ? "Add a filter to configure collection and search filters."
@@ -585,12 +556,12 @@ export default function FiltersIndex() {
                         <tr
                           key={tree.id}
                           className={
-                            dragging ? "findly-filters-list__row--dragging" : undefined
+                            dragging ? "findly-list-row is-dragging" : undefined
                           }
                           onDragOver={handleDragOver}
                           onDrop={(event) => handleRowDrop(index, event)}
                         >
-                          <td className="findly-filters-list__check">
+                          <td className="findly-list-check">
                             <Checkbox
                               label={`Select ${tree.name.trim() || "Untitled"}`}
                               labelHidden
@@ -599,10 +570,10 @@ export default function FiltersIndex() {
                             />
                           </td>
                           <td>
-                            <div className="findly-filters-list__name">
+                            <div className="findly-list-name">
                               <button
                                 type="button"
-                                className="findly-filters-list__handle"
+                                className="findly-list-handle"
                                 draggable
                                 aria-label={`Reorder ${tree.name}. Position ${listSlice.start + index + 1} of ${filteredTrees.length}`}
                                 onDragStart={(event) => handleDragStart(index, event)}
@@ -613,7 +584,7 @@ export default function FiltersIndex() {
                               </button>
                               <button
                                 type="button"
-                                className="findly-filters-list__name-btn"
+                                className="findly-list-name-btn"
                                 onClick={() => navigate(href)}
                               >
                                 <Text as="span" variant="bodyMd" fontWeight="semibold">
@@ -640,31 +611,6 @@ export default function FiltersIndex() {
                 noun="filter"
               />
             </Card>
-            {promoOpen ? (
-              <div className="findly-swatch-promo">
-                <span className="findly-swatch-promo__icon" aria-hidden />
-                <p className="findly-swatch-promo__body">
-                  Make separate products feel like real variants. Connect colors,
-                  styles, and related products in one product experience.
-                </p>
-                <div className="findly-swatch-promo__actions">
-                  <button type="button" onClick={() => navigate("/app/swatches")}>
-                    Start for free
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="findly-swatch-promo__close"
-                  aria-label="Dismiss"
-                  onClick={() => {
-                    setPromoHidden(true);
-                    window.localStorage.setItem(PROMO_STORAGE_KEY, "1");
-                  }}
-                >
-                  <XSmallIcon width={16} height={16} />
-                </button>
-              </div>
-            ) : null}
             <Card padding="0">
               <div className="findly-pref-heading">
                 <Text as="h2" variant="headingMd">
@@ -679,10 +625,10 @@ export default function FiltersIndex() {
                     className="findly-pref-row"
                     onClick={() => navigate(item.url)}
                   >
-                    <span className="findly-pref-row__icon">
+                    <span className="findly-pref-row-icon">
                       <Icon source={item.icon} />
                     </span>
-                    <span className="findly-pref-row__body">
+                    <span className="findly-pref-row-body">
                       <Text as="span" variant="bodyMd" fontWeight="semibold">
                         {item.title}
                       </Text>
@@ -690,7 +636,7 @@ export default function FiltersIndex() {
                         {item.description}
                       </Text>
                     </span>
-                    <span className="findly-pref-row__chevron">
+                    <span className="findly-pref-row-chevron">
                       <Icon source={ChevronRightIcon} />
                     </span>
                   </button>

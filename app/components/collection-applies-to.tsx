@@ -16,13 +16,13 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
-import { withEmbeddedParams } from "../admin-path";
+import { withEmbeddedParams } from "../utils/admin-path";
 import { useDebouncedCallback } from "../hooks/use-debounced-callback";
 import {
   COLLECTION_PICKER_BROWSE_SIZE,
   COLLECTION_PICKER_PAGE_SIZE,
   type CollectionChoice,
-} from "../collections-picker";
+} from "../utils/collections-picker";
 
 export type { CollectionChoice };
 
@@ -493,7 +493,7 @@ export function CollectionAppliesTo({
       {showExclude ? (
         <BlockStack gap="200">
           <div className="findly-exclude-collections">
-            <div className="findly-exclude-collections__field">
+            <div className="findly-exclude-collections-field">
               <Combobox
                 allowMultiple
                 maxHeight="320px"

@@ -1,16 +1,21 @@
 # Smart Filter & Search — MVP Build Guide
 
-## 1. Scope Decision: Filters + Search Launch, Advanced Later
+## 1. Scope Decision: Filters + Search Launch
 
-Launch MVP = collection filters + storefront search + Theme App Extension.
+Launch product = collection filters + storefront search + Theme App Extension, plus the admin surfaces that support them.
 
-- Filter by price, availability, vendor, product type, tags
-- Filter by metafields (color, size, material, etc.)
-- Per-collection configuration in the admin dashboard
-- Mobile-responsive storefront filter widget
-- Solid storefront product search via Theme App Extension (not AI ranking; not in code yet)
+**In repo today:**
 
-Later (post-launch): AI/ML ranking, analytics dashboards, and advanced search extras (synonym engines, typo-tolerance engines beyond basic search, redirects/boosts). Deferred / no stubs — those features were never in the codebase.
+- Filter by price, availability, vendor, product type, tags, options, and mapped metafields
+- Per-collection / filter-set configuration in the admin dashboard
+- Mobile-responsive storefront filter widget (Theme App Extension)
+- Storefront Product search + Instant search (not AI ranking)
+- Search extras: pinnings, synonyms, redirects
+- Analytics dashboard (filter + search usage)
+- Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
+- Plans: Development (dev-only) / Standard / Pro
+
+**Do not advertise as finished:** AI/ML semantic ranking, drag-drop theme editor.
 
 ## 2. Tech Stack: The Shopify-Native Recommendation
 
@@ -38,42 +43,37 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | Storefront widget | Theme App Extension | Only supported storefront injection method now; async, no page-speed penalty |
 | API layer | Admin GraphQL API (not REST) | Shopify is phasing out REST for new apps |
 | Database | Postgres (Supabase) | Hosted pooler + direct URLs; better fit than Mongo for relational filter-config/metafield-mapping data |
-| Queue/sync | Redis + BullMQ | Product/metafield sync jobs, no rate-limit surprises |
-| Billing | Shopify Billing API (`AppSubscriptionCreate`) | Wire early, even for the free tier |
-| Hosting | Fly.io or Railway | Known-good Shopify app deploy paths |
+| Queue/sync | Postgres `QueueJob` + poller | Product/metafield sync jobs. Hostinger: web process + separate `npm run worker:prod`. In-process poller when `START_WORKER` is not `0` (local/dev). |
+| Billing | Shopify Billing API (`AppSubscriptionCreate`) | Free + Standard + Pro |
+| Hosting | Hostinger Node | Current production. Postgres on Supabase (queue + catalog). No `fly.toml`; add one later only if Fly.io is chosen again. |
 | Mandatory webhooks | `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request` | Required for App Store approval, not optional |
 
-## 3. Path to First Submission
+## 3. Path to App Store submit
 
-1. Scaffold the app with Shopify CLI, connect to a Partner account + dev store
-2. Build the metafield-mapping step — merchant chooses which metafields become filters (don't auto-detect)
-3. Build the filter config UI in the embedded admin (per-collection, Polaris components)
-4. Build the Theme App Extension — storefront filter widget, async-loaded
-5. Add storefront search via Theme App Extension (solid basic search)
-6. Wire product/collection sync — Bulk Operations API for initial full sync, webhooks for incremental updates
-7. Wire Billing API — even for a free tier, get the subscription flow working early
-8. Add mandatory GDPR webhooks
-9. Internal QA, then a small beta with 3–5 real stores before submission
+1. Scaffold the app with Shopify CLI, connect to a Partner account + dev store — **done**
+2. Metafield mapping, filter admin, Theme App Extension filters — **done in repo**
+3. Storefront search + Instant search + search extras — **done in repo**
+4. Catalog sync (bulk + webhooks) — **done in repo**; live proof: AS-Q1 / AS-Q2
+5. Billing API — Free / Standard / Pro — **done in repo**; live charges: AS-B5–B7
+6. Mandatory GDPR webhooks — **done in repo**; live delivery: AS-C6
+7. Fix production `/health` (Postgres on Hostinger) + `shopify app deploy` — **done**
+8. Live QA on a development store (filters, search, billing)
+9. Partner listing assets + reviewer notes
 10. Submit for App Store review
 
 ## 4. Plan structure
 
-**Free plan:**
-- Standard collection filters (price, availability, tags, vendor, product type)
-- Basic metafield filtering (limited number of metafields)
-- Solid storefront search (Theme App Extension)
-- Mobile-responsive widget
-- Capped product count (e.g. up to 200–500 products)
+| Plan | Price | Caps | Includes |
+|---|---|---|---|
+| **Development** | $0 | Live: 0 products. Development stores: full catalog | All features, development stores only |
+| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | Live plan (previous Free caps), billed from install |
+| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | Previous Standard caps |
 
-**Paid plans:**
-- Unlimited/expanded metafield filters
-- Higher product caps
-- Priority sync frequency
-- AI ranking and analytics — later (not sold on Pro at launch)
+Search extras and analytics are **not** separate SKUs — they ship on every plan. Caps differentiate plans.
 
 ## 5. Summary
 
-- Buildable — launch risk is filters + solid search + Theme Extension, not an AI suite
 - Tech decision locked: React Router 7 official template, not Next.js/Express
-- MVP = filters + search + Theme App Extension
-- AI + analytics + advanced search extras = post-launch; deferred / no stubs
+- Product = filters + search (+ extras) + analytics + Theme App Extension
+- Plans = Development (dev stores only) / Standard / Pro
+- Remaining risk is **live Hostinger + storefront QA**, not re-building search from scratch

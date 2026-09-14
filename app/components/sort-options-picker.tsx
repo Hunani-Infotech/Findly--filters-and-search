@@ -11,7 +11,7 @@ import {
   SORT_OPTION_KEYS,
   SORT_OPTION_LABELS,
   type SortOptionKey,
-} from "../app-settings";
+} from "../utils/app-settings";
 
 const EMPTY_VALUE = "__empty__";
 
@@ -162,7 +162,7 @@ export function SortOptionsPicker({
               onDrop={(event) => handleDrop(index, event)}
               onDragEnd={clearDrag}
             >
-              <span className="findly-sort-chip__handle" aria-hidden="true">
+              <span className="findly-sort-chip-handle" aria-hidden="true">
                 <svg width="8" height="14" viewBox="0 0 8 14" focusable="false">
                   <circle cx="2" cy="2" r="1.15" fill="currentColor" />
                   <circle cx="6" cy="2" r="1.15" fill="currentColor" />
@@ -172,12 +172,12 @@ export function SortOptionsPicker({
                   <circle cx="6" cy="12" r="1.15" fill="currentColor" />
                 </svg>
               </span>
-              <span className="findly-sort-chip__label">
+              <span className="findly-sort-chip-label">
                 {SORT_OPTION_LABELS[key]}
               </span>
               <button
                 type="button"
-                className="findly-sort-chip__remove"
+                className="findly-sort-chip-remove"
                 disabled={disabled}
                 aria-label={`Remove ${SORT_OPTION_LABELS[key]}`}
                 onPointerDown={(event) => event.stopPropagation()}

@@ -25,14 +25,15 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
-import { ensureShopAccess } from "../billing.server";
+import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
+import { ensureShopAccess } from "../services/billing.server";
 import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
-import { parseSynonyms } from "../instant-search";
-import { getAppSettings, saveSearchSettings } from "../settings.server";
-import { lastPageIndex, slicePage } from "../admin-list-page";
+import { parseSynonyms } from "../utils/instant-search";
+import { getAppSettings, saveSearchSettings } from "../services/settings.server";
+import { lastPageIndex, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "../components/admin-list-pagination";
-import { useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export { SynonymsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -47,7 +48,11 @@ function newId() {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const auth = await authenticateAdminAllowReviewBot(request);
+  if (auth.bot) {
+    return { rows: [] as SynonymDraft[] };
+  }
+  const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   const settings = await getAppSettings(shop.id);
   return {

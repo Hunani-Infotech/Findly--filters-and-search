@@ -22,27 +22,27 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { withEmbeddedParams } from "../admin-path";
-import { hexFromColorName } from "../color-autofill";
+import { withEmbeddedParams } from "../utils/admin-path";
+import { hexFromColorName } from "../utils/color-autofill";
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
 import type {
   FilterOptionCatalogPage,
   FilterOptionEditorData,
-} from "../filter-option-editor.server";
+} from "../services/filter-option-editor.server";
 import {
   FACET_DISPLAY_TYPE_LABELS,
   type FacetDisplayType,
   type FacetMatchMode,
-} from "../filters";
+} from "../utils/filters";
 import {
   defaultUrlHandle,
   type FacetShowMoreMode,
   type FacetTextTransform,
   type FacetValueMode,
   type FacetValueSortMode,
-} from "../facet-settings";
+} from "../utils/facet-settings";
 
 const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
 
@@ -556,6 +556,7 @@ export function FilterOptionEditorPage({
                     label="Enable search within values"
                     checked={enableValueSearch}
                     disabled={saving}
+                    helpText="Adds a Search values box that filters this facet’s option list only (for example tags). It does not show product suggestions."
                     onChange={setEnableValueSearch}
                   />
                   <ChoiceList
@@ -729,7 +730,13 @@ function buildPreviewItems(input: {
         value,
         label: input.labels[value] || value,
       }))
-      .filter((item) => !item.label.startsWith("gid://"));
+      .filter((item) => !item.label.startsWith("gid://"))
+      .filter((item) => {
+        if (input.sourceKey !== "productType") return true;
+        const value = String(item.value || "").trim();
+        const label = String(item.label || "").trim().toLowerCase();
+        return value !== "__unspecified__" && label !== "unspecified" && value !== "";
+      });
   let items: PreviewItem[] = [];
   if (input.valueMode === "manual" && input.selectedValues.length) {
     items = labeled(input.selectedValues);
@@ -819,12 +826,12 @@ function FilterOptionPreview({
       ? { textTransform }
       : { textTransform: "none" };
   const valuesClass = [
-    "findly-option-preview__values",
+    "findly-option-preview-values",
     displayType === "swatch" || displayType === "swatch-text"
-      ? "findly-option-preview__values--swatches"
+      ? "findly-option-preview-values-swatches"
       : "",
-    displayType === "box" ? "findly-option-preview__values--boxes" : "",
-    displayType === "collection" ? "findly-option-preview__values--links" : "",
+    displayType === "box" ? "findly-option-preview-values-boxes" : "",
+    displayType === "collection" ? "findly-option-preview-values-links" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -832,7 +839,7 @@ function FilterOptionPreview({
   const renderValue = (item: PreviewItem) => {
     const depth = collectionTree ? previewDepth(item.value, parents, valueIds) : 0;
     const text = (
-      <span className="findly-option-preview__text" style={transformStyle}>
+      <span className="findly-option-preview-text" style={transformStyle}>
         {item.label}
       </span>
     );
@@ -840,7 +847,7 @@ function FilterOptionPreview({
       return (
         <span
           key={item.value}
-          className="findly-option-preview__link"
+          className="findly-option-preview-link"
           style={{ paddingLeft: `${depth * 14}px` }}
         >
           {text}
@@ -851,7 +858,7 @@ function FilterOptionPreview({
       return (
         <span
           key={item.value}
-          className="findly-option-preview__swatch"
+          className="findly-option-preview-swatch"
           title={item.label}
           style={{ background: previewSwatchColor(item.label) }}
         />
@@ -859,9 +866,9 @@ function FilterOptionPreview({
     }
     if (displayType === "swatch-text") {
       return (
-        <span key={item.value} className="findly-option-preview__swatch-text">
+        <span key={item.value} className="findly-option-preview-swatch-text">
           <span
-            className="findly-option-preview__swatch findly-option-preview__swatch--inline"
+            className="findly-option-preview-swatch findly-option-preview-swatch-inline"
             style={{ background: previewSwatchColor(item.label) }}
           />
           {text}
@@ -870,7 +877,7 @@ function FilterOptionPreview({
     }
     if (displayType === "box") {
       return (
-        <span key={item.value} className="findly-option-preview__box">
+        <span key={item.value} className="findly-option-preview-box">
           {text}
         </span>
       );
@@ -879,7 +886,7 @@ function FilterOptionPreview({
       return (
         <span
           key={item.value}
-          className="findly-option-preview__value findly-option-preview__value--list"
+          className="findly-option-preview-value findly-option-preview-value-list"
           style={{ paddingLeft: `${depth * 14}px` }}
         >
           {text}
@@ -889,7 +896,7 @@ function FilterOptionPreview({
     return (
       <label
         key={item.value}
-        className="findly-option-preview__value"
+        className="findly-option-preview-value"
         style={{ paddingLeft: `${depth * 14}px` }}
       >
         <input
@@ -907,51 +914,51 @@ function FilterOptionPreview({
     <div className="findly-option-preview">
       <button
         type="button"
-        className="findly-option-preview__header"
+        className="findly-option-preview-header"
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
       >
         <span
           className={
             open
-              ? "findly-option-preview__caret"
-              : "findly-option-preview__caret findly-option-preview__caret--collapsed"
+              ? "findly-option-preview-caret"
+              : "findly-option-preview-caret is-collapsed"
           }
           aria-hidden
         />
-        <span className="findly-option-preview__title">{label}</span>
+        <span className="findly-option-preview-title">{label}</span>
         {tooltip.trim() ? (
-          <span className="findly-option-preview__tip" title={tooltip.trim()}>
+          <span className="findly-option-preview-tip" title={tooltip.trim()}>
             ?
           </span>
         ) : null}
       </button>
       {open ? (
-        <div className="findly-option-preview__body">
+        <div className="findly-option-preview-body">
           {enableValueSearch && !isSlider ? (
-            <div className="findly-option-preview__search">Search values</div>
+            <div className="findly-option-preview-search">Search values</div>
           ) : null}
           {isSlider ? (
-            <div className="findly-option-preview__slider" aria-hidden>
-              <div className="findly-option-preview__slider-track">
-                <div className="findly-option-preview__slider-fill" />
-                <span className="findly-option-preview__slider-thumb findly-option-preview__slider-thumb--min" />
-                <span className="findly-option-preview__slider-thumb findly-option-preview__slider-thumb--max" />
+            <div className="findly-option-preview-slider" aria-hidden>
+              <div className="findly-option-preview-slider-track">
+                <div className="findly-option-preview-slider-fill" />
+                <span className="findly-option-preview-slider-thumb findly-option-preview-slider-thumb-min" />
+                <span className="findly-option-preview-slider-thumb findly-option-preview-slider-thumb-max" />
               </div>
-              <div className="findly-option-preview__slider-inputs">
+              <div className="findly-option-preview-slider-inputs">
                 <span>20</span>
                 <span>180</span>
               </div>
             </div>
           ) : displayType === "dropdown" ? (
-            <div className="findly-option-preview__dropdown">
+            <div className="findly-option-preview-dropdown">
               {items[0]?.label || "Any"}
             </div>
           ) : (
             <div className={valuesClass}>{items.map(renderValue)}</div>
           )}
           {!isSlider && displayType !== "dropdown" && showMore === "button" ? (
-            <span className="findly-option-preview__more">Show more</span>
+            <span className="findly-option-preview-more">Show more</span>
           ) : null}
         </div>
       ) : null}

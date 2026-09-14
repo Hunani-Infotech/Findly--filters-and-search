@@ -6,7 +6,7 @@ import "tsx/esm";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 import { seedFilterConfig } from "./seed-filter-config.mjs";
 import {
@@ -14,7 +14,7 @@ import {
   collectionStorefrontPath,
   collectionFacetCounts,
   shouldShowCollectionFacet,
-} from "../app/collection-facet.ts";
+} from "../app/utils/collection-facet.ts";
 
 const SHOP_DOMAIN = "d3-verify.myshopify.com";
 const ALL_GID = "gid://shopify/Collection/9303000";
@@ -23,7 +23,7 @@ const CHILD_GID = "gid://shopify/Collection/9303002";
 const OTHER_GID = "gid://shopify/Collection/9303003";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function fail(message) {
   throw new Error(message);
@@ -53,14 +53,14 @@ function findFacetValue(values, gid) {
 }
 
 function assertStaticMarkers() {
-  const filters = readRepo("app", "filters.ts");
+  const filters = readRepo("app", "utils", "filters.ts");
   if (
     !filters.includes('source: "collection"') ||
     !filters.includes('"collection"')
   ) {
     fail("filters.ts missing collection facet source / display type");
   }
-  const helper = readRepo("app", "collection-facet.ts");
+  const helper = readRepo("app", "utils", "collection-facet.ts");
   if (
     !helper.includes("nestCollectionValues") ||
     !helper.includes("collectionStorefrontPath") ||
@@ -70,7 +70,7 @@ function assertStaticMarkers() {
   ) {
     fail("collection-facet.ts missing nest / storefront path / total-count helpers");
   }
-  const proxy = readRepo("app", "proxy.server.ts");
+  const proxy = readRepo("app", "services", "proxy.server.ts");
   if (
     !proxy.includes("loadCollectionProductCounts") ||
     !proxy.includes("collectionTotals") ||
@@ -131,7 +131,7 @@ function assertStaticMarkers() {
   ) {
     fail("collection filter blocks missing data-collection-handle");
   }
-  if (!widget.includes("smart-filter__tree-children")) {
+  if (!widget.includes("sf-tree-children")) {
     fail("smart-filter.js missing nested collection tree markup");
   }
   const editor = readRepo("app", "components", "filter-option-editor.tsx");
@@ -322,11 +322,9 @@ try {
     collections: [ALL_GID, OTHER_GID],
   });
 
-  const { clearFilterPayloadCache, getCollectionFilterPayload } = await import(
-    "../app/proxy.server.ts"
+  const { clearFilterPayloadCache, getCollectionFilterPayload } = await import("../app/services/proxy.server.ts"
   );
-  const { invalidateFilterTreeResolveCache } = await import(
-    "../app/filter-trees.server.ts"
+  const { invalidateFilterTreeResolveCache } = await import("../app/services/filter-trees.server.ts"
   );
 
   const unfiltered = await getCollectionFilterPayload({

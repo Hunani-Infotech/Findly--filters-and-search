@@ -1,13 +1,14 @@
 import {
   Banner,
   BlockStack,
+  Button,
   InlineStack,
   List,
   Modal,
   Spinner,
   Text,
 } from "@shopify/polaris";
-import { Link } from "react-router";
+import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 export type SyncModalData = {
   status: string;
@@ -20,18 +21,46 @@ export type SyncModalData = {
   plan: string;
   planName: string;
   overProductLimit: boolean;
+  indexingBlocked: boolean;
 };
 
-function formatSyncTime(value: string | null) {
+export function formatSyncTime(value: string | null) {
   if (!value) return "Never";
   return new Date(value).toLocaleString();
 }
 
-function statusLabel(status: string) {
-  if (status === "READY") return "Ready";
+export function syncStatusLabel(status: string, indexingBlocked = false) {
   if (status === "SYNCING") return "Syncing";
   if (status === "ERROR") return "Needs attention";
+  if (indexingBlocked) return "Needs a plan";
+  if (status === "READY") return "Ready";
   return "Waiting";
+}
+
+export function indexedProductsLabel(data: {
+  productCount: number;
+  productLimit: number;
+  indexingBlocked: boolean;
+}) {
+  if (data.indexingBlocked) {
+    if (data.productCount > 0) {
+      return `Indexed products: ${data.productCount} (live Development does not index new products)`;
+    }
+    return "Indexed products: none — choose Standard or Pro to index this catalog";
+  }
+  return `Indexed products: ${data.productCount} of ${data.productLimit} allowed`;
+}
+
+export function catalogSummaryLabel(data: {
+  productCount: number;
+  productLimit: number;
+  collectionCount: number;
+  indexingBlocked: boolean;
+}) {
+  if (data.indexingBlocked) {
+    return `Not indexing · ${data.collectionCount} collections`;
+  }
+  return `${data.productCount} of ${data.productLimit} products · ${data.collectionCount} collections`;
 }
 
 export function SyncDetailsModal({
@@ -57,7 +86,13 @@ export function SyncDetailsModal({
   onClose: () => void;
   onSync: () => void;
 }) {
+  const navigate = useEmbeddedNavigate();
   const syncing = data.status === "SYNCING" || busy;
+
+  const go = (to: string) => {
+    onClose();
+    navigate(to);
+  };
 
   return (
     <Modal
@@ -65,31 +100,48 @@ export function SyncDetailsModal({
       onClose={onClose}
       title="Catalog sync"
       primaryAction={{
-        content: submitting ? "Queueing…" : "Sync now",
+        content: submitting ? "Queueing…" : syncing ? "Syncing…" : "Sync now",
         loading: submitting,
-        disabled: submitting,
+        disabled: submitting || syncing,
         onAction: onSync,
       }}
       secondaryActions={[{ content: "Close", onAction: onClose }]}
     >
       <Modal.Section>
         <BlockStack gap="400">
-          {data.overProductLimit ? (
-            <Banner tone="warning">
+          {data.indexingBlocked ? (
+            <Banner tone="warning" title="Products are not indexed on this plan">
               <p>
-                Product limit reached ({data.productCount}/{data.productLimit} on{" "}
-                {data.planName}).{" "}
-                <Link to={billingHref}>Upgrade your plan</Link> for a higher cap.
+                Live stores need Standard or Pro to index products. Collections
+                can still sync.{" "}
+                <Button variant="plain" onClick={() => go(billingHref)}>
+                  Choose a plan
+                </Button>
               </p>
             </Banner>
           ) : null}
 
-          {data.status === "READY" && !data.overProductLimit ? (
+          {data.overProductLimit && !data.indexingBlocked ? (
+            <Banner tone="warning">
+              <p>
+                Product limit reached ({data.productCount}/{data.productLimit} on{" "}
+                {data.planName}).{" "}
+                <Button variant="plain" onClick={() => go(billingHref)}>
+                  Upgrade your plan
+                </Button>{" "}
+                for a higher cap.
+              </p>
+            </Banner>
+          ) : null}
+
+          {data.status === "READY" &&
+          !data.overProductLimit &&
+          !data.indexingBlocked ? (
             <Banner tone="success">
               <p>
-                Catalog updates by itself when products, collections, or
-                inventory change in Shopify. Use Sync now only if something
-                looks stuck or after a large import.
+                Product and inventory changes update automatically in a few
+                seconds. Filters become ready first; collection order and prices
+                finish in the background.
               </p>
             </Banner>
           ) : null}
@@ -112,16 +164,16 @@ export function SyncDetailsModal({
               Status
             </Text>
             <Text as="p">Plan: {data.planName}</Text>
-            <Text as="p">Status: {statusLabel(data.status)}</Text>
+            <Text as="p">
+              Status: {syncStatusLabel(data.status, data.indexingBlocked)}
+            </Text>
             <Text as="p">
               Last full sync: {formatSyncTime(data.lastFullSyncAt)}
             </Text>
             <Text as="p">
               Last update: {formatSyncTime(data.lastIncrementalSyncAt)}
             </Text>
-            <Text as="p">
-              Indexed products: {data.productCount} / {data.productLimit}
-            </Text>
+            <Text as="p">{indexedProductsLabel(data)}</Text>
             <Text as="p">Collections: {data.collectionCount}</Text>
           </BlockStack>
 
@@ -130,15 +182,15 @@ export function SyncDetailsModal({
               Automatic updates
             </Text>
             <Text as="p" tone="subdued">
-              Findly stays in sync from Shopify. You do not need to re-sync
-              after everyday product edits.
+              Store changes update in a few seconds. Filters go live first;
+              collection order and prices catch up in the background.
             </Text>
             <List>
-              <List.Item>Product or variant created, edited, or deleted</List.Item>
-              <List.Item>Inventory / availability changes</List.Item>
-              <List.Item>Collection membership changes</List.Item>
+              <List.Item>Products or variants added, edited, or removed</List.Item>
+              <List.Item>Stock or availability changes</List.Item>
+              <List.Item>Products added to or removed from collections</List.Item>
               <List.Item>Product or variant metafield changes</List.Item>
-              <List.Item>Full re-sync still runs on app install</List.Item>
+              <List.Item>A full sync still runs when you install the app</List.Item>
             </List>
           </BlockStack>
 
@@ -148,13 +200,23 @@ export function SyncDetailsModal({
             </Text>
             <List type="number">
               <List.Item>
-                <Link to={metafieldsHref}>Map metafields</Link> if you use custom
-                attributes
+                <Button variant="plain" onClick={() => go(metafieldsHref)}>
+                  Map metafields
+                </Button>{" "}
+                if you use custom attributes
               </List.Item>
               <List.Item>
-                <Link to={defaultFiltersHref}>Set shop-wide default filters</Link>
-                , then open <Link to={settingsHref}>Settings</Link> for layout,
-                search, and sort
+                <Button
+                  variant="plain"
+                  onClick={() => go(defaultFiltersHref)}
+                >
+                  Set shop-wide default filters
+                </Button>
+                , then open{" "}
+                <Button variant="plain" onClick={() => go(settingsHref)}>
+                  Settings
+                </Button>{" "}
+                for layout, search, and sort
               </List.Item>
               <List.Item>
                 Enable Collection filters, then add Product search in the theme

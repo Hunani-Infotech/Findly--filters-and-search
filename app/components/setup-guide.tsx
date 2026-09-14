@@ -14,9 +14,9 @@ import {
   type SetupMarkId,
   type SetupProgress,
   type SetupStep,
-} from "../setup-progress";
+} from "../utils/setup-progress";
 import { isNavigatingTo } from "./admin-loading";
-import { useEmbeddedHref, useEmbeddedNavigate } from "../admin-path";
+import { useEmbeddedHref, useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 
 function markerClass(step: SetupStep, isNext: boolean) {
   if (step.status === "complete") return "findly-setup-marker findly-setup-marker--done";
@@ -80,7 +80,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
   return (
     <Card padding="0">
       <div className="findly-setup">
-        <div className="findly-setup__header">
+        <div className="findly-setup-header">
           <Text as="h2" variant="headingMd">
             Get started
           </Text>
@@ -92,7 +92,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
           </Text>
         </div>
 
-        <ol className="findly-setup__list">
+        <ol className="findly-setup-list">
           {progress.steps.map((step) => {
             const complete = step.status === "complete";
             const isNext = progress.nextStep?.id === step.id;
@@ -109,14 +109,14 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                 key={step.id}
                 className={
                   expanded
-                    ? "findly-setup__item findly-setup__item--open"
-                    : "findly-setup__item"
+                    ? "findly-setup-item is-open"
+                    : "findly-setup-item"
                 }
               >
-                <div className="findly-setup__row">
+                <div className="findly-setup-row">
                   <button
                     type="button"
-                    className="findly-setup__toggle"
+                    className="findly-setup-toggle"
                     aria-expanded={expanded}
                     onClick={() => setExpandedId(expanded ? "" : step.id)}
                   >
@@ -135,14 +135,14 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                         step.number
                       )}
                     </span>
-                    <span className="findly-setup__title">
+                    <span className="findly-setup-title">
                       <Text as="span" variant="bodyMd" fontWeight="semibold">
                         {step.title}
                       </Text>
                       {complete ? (
-                        <span className="findly-setup__done">Done</span>
+                        <span className="findly-setup-done">Done</span>
                       ) : isNext ? (
-                        <span className="findly-setup__next">Current step</span>
+                        <span className="findly-setup-next">Current step</span>
                       ) : null}
                     </span>
                   </button>
@@ -168,14 +168,15 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                   id={`findly-setup-${step.id}`}
                   transition={{ duration: "120ms", timingFunction: "ease-out" }}
                 >
-                  <div className="findly-setup__body">
+                  <div className="findly-setup-body">
                     <Text as="p" variant="bodySm" tone="subdued">
                       {step.description}
                     </Text>
                     {themeStep && !complete ? (
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Open the theme editor, save your change, then mark this
-                        step as done.
+                        Open the theme editor, save, then return here. We detect
+                        Collection filters and Product search from the published
+                        theme.
                       </Text>
                     ) : null}
                     <InlineStack gap="200" wrap>
@@ -213,7 +214,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                           {step.actionLabel}
                         </Button>
                       )}
-                      {canMark ? (
+                      {canMark && !themeStep ? (
                         <Button
                           variant={complete ? "plain" : "secondary"}
                           loading={marking}

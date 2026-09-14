@@ -2,10 +2,10 @@
  * Step 2 gate: at least one offline Session row after install.
  * Usage: node ./scripts/verify-step2.mjs
  */
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "./prisma-runtime.mjs";
 import { log } from "./terminal-log.mjs";
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 try {
   const sessions = await prisma.session.findMany({
