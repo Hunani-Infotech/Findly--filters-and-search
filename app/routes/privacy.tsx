@@ -61,7 +61,7 @@ export default function PrivacyPolicy() {
         <h2 id="responsible">1. Who is responsible</h2>
         <p>
           SRH Web Agency operates Findly and the production app at{" "}
-          <a href={FINDLY_PUBLIC_ORIGIN}>deeppink-manatee-141983.hostingersite.com</a>
+          <a href={FINDLY_PUBLIC_ORIGIN}>findly.srhwebagency.com</a>
           . Shopify remains responsible for the merchant’s store, Admin, and
           Checkout. Merchants remain responsible for their own storefront
           privacy notices to shoppers.

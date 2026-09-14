@@ -93,13 +93,13 @@ Only apps Findly re-inits after Ajax (`app/utils/partner-integrations.ts`). Do n
 **Privacy policy URL**
 
 ```
-https://deeppink-manatee-141983.hostingersite.com/privacy
+https://findly.srhwebagency.com/privacy
 ```
 
 **Terms of service URL**
 
 ```
-https://deeppink-manatee-141983.hostingersite.com/terms
+https://findly.srhwebagency.com/terms
 ```
 
 **Support email** (listing contact only — must not contain “Shopify”)
@@ -131,7 +131,7 @@ Paste on **Manage listing → Edit language → Pricing details**. Display name 
 **Optional pricing URL**
 
 ```
-https://deeppink-manatee-141983.hostingersite.com/terms#billing
+https://findly.srhwebagency.com/terms#billing
 ```
 
 #### Plan: free

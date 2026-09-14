@@ -54,7 +54,7 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host, "localhost", "127.0.0.1", "deeppink-manatee-141983.hostingersite.com"],
+    allowedHosts: [host, "localhost", "127.0.0.1", "findly.srhwebagency.com"],
     cors: {
       preflightContinue: true,
     },

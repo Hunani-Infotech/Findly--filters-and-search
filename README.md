@@ -35,7 +35,7 @@ Split terminals: `npm run dev:shopify` and `npm run worker`.
 
 ## Production
 
-Live app is Hostinger: `https://deeppink-manatee-141983.hostingersite.com` (Postgres on Supabase; job queue in Postgres). `shopify app deploy` pushes App URL + app proxy to the Partner Dashboard.
+Live app is Hostinger: `https://findly.srhwebagency.com` (Postgres on Supabase; job queue in Postgres). `shopify app deploy` pushes App URL + app proxy to the Partner Dashboard.
 
 There is no `fly.toml` in this repo. Production does not use Fly.io. If Fly is needed later, add a new `fly.toml` then (`fly launch`).
 
