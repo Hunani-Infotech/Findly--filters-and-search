@@ -142,13 +142,12 @@
 
 #smart-filter-root .sf-slider-track,
 #smart-filter-embed .sf-slider-track,
-.sf-panel.sf-drawer-portal .sf-slider-track,
-#smart-filter-root .sf-slider-fill,
-#smart-filter-embed .sf-slider-fill,
-.sf-panel.sf-drawer-portal .sf-slider-fill {
+.sf-panel.sf-drawer-portal .sf-slider-track {
   position: absolute !important;
   left: 0 !important;
+  right: 0 !important;
   top: 50% !important;
+  width: auto !important;
   height: 2px !important;
   margin-top: -1px !important;
   border: 0 !important;
@@ -157,22 +156,24 @@
   display: block !important;
   max-width: none !important;
   transform: none !important;
-}
-
-#smart-filter-root .sf-slider-track,
-#smart-filter-embed .sf-slider-track,
-.sf-panel.sf-drawer-portal .sf-slider-track {
-  right: 0 !important;
-  width: auto !important;
   background: #dcdcdc !important;
   z-index: 0 !important;
 }
 
+/* Fill left/width come from JS — do not pin left:0 or left-thumb drag only shrinks the right edge. */
 #smart-filter-root .sf-slider-fill,
 #smart-filter-embed .sf-slider-fill,
 .sf-panel.sf-drawer-portal .sf-slider-fill {
+  position: absolute !important;
+  top: 50% !important;
   height: 3px !important;
   margin-top: -1.5px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  pointer-events: none !important;
+  display: block !important;
+  max-width: none !important;
+  transform: none !important;
   background: var(--sf-accent, #111) !important;
   z-index: 1 !important;
 }
