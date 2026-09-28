@@ -1022,7 +1022,7 @@
       }
     }
     var kids = collectDirectThemeCards(el);
-    return Boolean(kids && kids.length >= 2);
+    return Boolean(kids && kids.length >= 1);
   }
 
   function preferProductCardGrid(el) {
@@ -1108,6 +1108,44 @@
     return snap;
   }
 
+  function ensureFallbackProductGridTracks(host) {
+    if (!host || !host.style || typeof host.style.setProperty !== "function") {
+      return;
+    }
+    if (isResultsListEl(host) || isPageShellHost(host)) return;
+    var id = host.id || "";
+    var looksLikeGrid =
+      isProductGridLike(host) ||
+      (host.classList && host.classList.contains("sf-app-grid")) ||
+      id === "product-grid" ||
+      id === "ProductGrid" ||
+      id === "findly-grid-host";
+    if (!looksLikeGrid) return;
+    try {
+      if (typeof window.getComputedStyle !== "function") {
+        host.style.setProperty(
+          "grid-template-columns",
+          "repeat(auto-fill, minmax(min(100%, 14rem), 1fr))",
+        );
+        return;
+      }
+      var cs = window.getComputedStyle(host);
+      if (tracksLookUsable(cs.gridTemplateColumns)) return;
+      if (String(cs.getPropertyValue("--product-grid-columns-desktop") || "").trim()) {
+        return;
+      }
+      if (String(cs.display || "").indexOf("grid") === -1) {
+        host.style.setProperty("display", "grid");
+      }
+      host.style.setProperty(
+        "grid-template-columns",
+        "repeat(auto-fill, minmax(min(100%, 14rem), 1fr))",
+      );
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function lockThemeGridTracks(host) {
     host = preferProductCardGrid(host) || host;
     if (!host || !host.style || typeof host.style.setProperty !== "function") {
@@ -1120,15 +1158,26 @@
       /* ignore */
     }
     var snap = captureThemeGridLayout(host);
-    if (!snap) return;
+    if (!snap) {
+      ensureFallbackProductGridTracks(host);
+      return;
+    }
     var display = String(snap.display || "");
     if (display.indexOf("flex") !== -1) {
       if (snap.flexWrap) host.style.setProperty("flex-wrap", snap.flexWrap);
       return;
     }
-    if (display.indexOf("grid") === -1) return;
+    if (display.indexOf("grid") === -1) {
+      ensureFallbackProductGridTracks(host);
+      return;
+    }
     if (snap.horizonCols) {
       host.style.setProperty("--product-grid-columns-desktop", snap.horizonCols);
+    }
+    if (tracksLookUsable(snap.gridTemplateColumns)) {
+      host.style.setProperty("grid-template-columns", snap.gridTemplateColumns);
+    } else if (!snap.horizonCols) {
+      ensureFallbackProductGridTracks(host);
     }
   }
 
@@ -7211,10 +7260,28 @@
     };
 
     var origRenderPrice = proto.renderPriceFacet;
-    proto.renderPriceFacet = function () {
+    proto.renderPriceFacet = function (facet) {
       var wrap = origRenderPrice
         ? origRenderPrice.apply(this, arguments)
         : null;
+      if (wrap && facet && !facet.isProductPrice && facet.key !== "price") {
+        var boundSpans = wrap.querySelectorAll(".sf-price-bounds span");
+        if (boundSpans && boundSpans.length >= 2) {
+          var low = Number(facet.min);
+          var high = Number(facet.max);
+          var isSale = facet.key === "sale" || facet.source === "sale";
+          if (Number.isFinite(low)) {
+            boundSpans[0].textContent = isSale
+              ? Math.round(low) + "%"
+              : String(Math.round(low));
+          }
+          if (Number.isFinite(high)) {
+            boundSpans[1].textContent = isSale
+              ? Math.round(high) + "%"
+              : String(Math.round(high));
+          }
+        }
+      }
       enhancePriceSliders(wrap);
       return wrap;
     };

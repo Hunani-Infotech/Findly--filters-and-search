@@ -3387,4 +3387,19 @@ html.sf-pager-unneeded .ajaxinate-pagination {
 [data-findly-theme-hidden="1"],
 [data-findly-hidden-native="true"] {
   display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Horizon/Dawn search: collapse facet shells that only wrap hidden chrome. */
+.facets-container:has(> [data-findly-theme-hidden="1"]):not(:has(.sf-collection-layout)):not(:has(.smart-filter)):not(:has(.product-grid)):not(:has(#product-grid)):not(:has(results-list)),
+.facets-block-wrapper:has(> [data-findly-theme-hidden="1"]):not(:has(.sf-collection-layout)):not(:has(.smart-filter)):not(:has(.product-grid)):not(:has(#product-grid)):not(:has(results-list)) {
+  display: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
