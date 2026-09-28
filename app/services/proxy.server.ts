@@ -16,6 +16,10 @@ import {
   type SelectedFilters,
 } from "./filters.server";
 import {
+  isMetaobjectGid,
+  resolveMetaobjectLabels,
+} from "./metaobject-labels.server";
+import {
   applyFacetValueFilter,
   applyFacetValueLabel,
   parseFacetSettings,
@@ -129,6 +133,33 @@ export function clearFilterPayloadCache() {
   collectionProductCountsCache.deletePrefix("");
   collectionMembershipIndexCache.deletePrefix("");
   shopCollectionsCache.deletePrefix("");
+}
+
+async function resolveFacetMetaobjectLabels<
+  T extends {
+    values?: Array<{ value: string; label: string; [key: string]: unknown }> | null;
+  },
+>(shopDomain: string | null | undefined, facets: T[]): Promise<T[]> {
+  if (!shopDomain || !facets.length) return facets;
+  const gids: string[] = [];
+  for (const facet of facets) {
+    for (const item of facet.values || []) {
+      if (isMetaobjectGid(item.value)) gids.push(item.value);
+      if (isMetaobjectGid(item.label)) gids.push(item.label);
+    }
+  }
+  if (!gids.length) return facets;
+  const map = await resolveMetaobjectLabels(shopDomain, gids);
+  if (!map.size) return facets;
+  return facets.map((facet) => ({
+    ...facet,
+    values: facet.values?.map((item) => {
+      if (!isMetaobjectGid(item.label) && item.label) return item;
+      const resolved =
+        map.get(item.value) || map.get(item.label) || item.label;
+      return resolved === item.label ? item : { ...item, label: resolved };
+    }),
+  }));
 }
 
 function collectionFilterCacheKey(input: {
@@ -512,6 +543,7 @@ async function loadCollectionFilterPayload(input: {
   return measureStorefrontStep("aggregateMs", () =>
     buildFacetPayload({
       shopId: shop.id,
+      shopDomain: input.shopDomain,
       config,
       rows: allRows,
       selected: input.selected,
@@ -536,6 +568,7 @@ async function loadCollectionFilterPayload(input: {
 
 async function buildFacetPayload(input: {
   shopId: string;
+  shopDomain?: string | null;
   config: FilterConfig;
   rows: ProductFacetRow[];
   selected: SelectedFilters;
@@ -698,7 +731,7 @@ async function buildFacetPayload(input: {
     },
   );
   const optionGroups = selectedOptionFilterGroups(facets, input.selected);
-  const aggregations = withWidgetChrome(chrome, () =>
+  const aggregationsRaw = withWidgetChrome(chrome, () =>
     buildFacetAggregations(visibleRows, facets, {
       mode: input.config.priceRangeMode,
       customMin: input.config.customPriceMin,
@@ -760,6 +793,10 @@ async function buildFacetPayload(input: {
     };
   });
 
+  const aggregations = await resolveFacetMetaobjectLabels(
+    input.shopDomain,
+    aggregationsRaw,
+  );
   const productCard = (product: (typeof filtered)[number]) => {
     const variantId = shopifyNumericId(product.variantGid || "");
     const variantImage = product.variantGid
@@ -919,6 +956,7 @@ async function loadSearchFilterPayload(input: {
 
   return buildFacetPayload({
     shopId: shop.id,
+    shopDomain: input.shopDomain,
     config,
     rows: allRows,
     selected: input.selected,

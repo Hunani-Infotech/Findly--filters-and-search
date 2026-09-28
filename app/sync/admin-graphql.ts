@@ -29,6 +29,10 @@ export const PRODUCT_NODE_QUERY = `#graphql
       options {
         name
         values
+        optionValues {
+          name
+          linkedMetafieldValue
+        }
       }
       variants(first: 100) {
         edges {
@@ -229,7 +233,14 @@ export const BULK_PRODUCTS_QUERY = `
         createdAt
         publishedAt
         featuredImage { url }
-        options { name values }
+        options {
+          name
+          values
+          optionValues {
+            name
+            linkedMetafieldValue
+          }
+        }
         variants {
           edges {
             node {

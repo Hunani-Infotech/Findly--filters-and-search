@@ -61,6 +61,7 @@ async function loadColorOptions(shopId: string): Promise<ColorOptionEntry[]> {
         ? (product.options as Record<string, string[]>)
         : {};
     for (const [name, list] of Object.entries(options)) {
+      if (name === "__labels" || !Array.isArray(list)) continue;
       if (!isColorOptionName(name)) continue;
       const optionKey = optionKeyFromName(name);
       const entry = keys.get(optionKey) ?? {

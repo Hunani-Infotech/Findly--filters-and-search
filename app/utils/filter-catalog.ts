@@ -42,6 +42,7 @@ export function collectCatalogFromProducts(
         ? (product.options as Record<string, string[]>)
         : {};
     for (const [name, list] of Object.entries(options)) {
+      if (name === "__labels" || !Array.isArray(list)) continue;
       const key = sourceKeyForOption(name);
       optionLabels.set(key, name);
       const next = optionValues.get(key) ?? [];

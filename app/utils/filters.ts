@@ -27,6 +27,45 @@ export type FacetSource =
   | "metafield"
   | "option";
 
+/** Stored on ProductFacet.options — maps Metaobject GID → human label. */
+export const OPTION_VALUE_LABELS_KEY = "__labels";
+
+export function isReservedOptionKey(name: string) {
+  return name === OPTION_VALUE_LABELS_KEY;
+}
+
+export function productOptionEntries(
+  options: Record<string, unknown> | null | undefined,
+): Array<[string, string[]]> {
+  const out: Array<[string, string[]]> = [];
+  if (!options || typeof options !== "object") return out;
+  for (const [name, values] of Object.entries(options)) {
+    if (isReservedOptionKey(name) || !Array.isArray(values)) continue;
+    out.push([
+      name,
+      values.filter((value): value is string => typeof value === "string" && Boolean(value)),
+    ]);
+  }
+  return out;
+}
+
+export function collectOptionValueLabels(
+  products: Array<{ options?: Record<string, unknown> | null }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const product of products) {
+    const raw = product.options?.[OPTION_VALUE_LABELS_KEY];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    for (const [gid, label] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof label !== "string") continue;
+      const trimmed = label.trim();
+      if (!trimmed || map.has(gid)) continue;
+      map.set(gid, trimmed);
+    }
+  }
+  return map;
+}
+
 export const FACET_DISPLAY_TYPES = [
   "list",
   "dropdown",
@@ -905,7 +944,7 @@ export function optionFacetsFromProducts(
     { names: Set<string>; values: Set<string> }
   >();
   for (const product of products) {
-    for (const [name, values] of Object.entries(product.options || {})) {
+    for (const [name, values] of productOptionEntries(product.options || {})) {
       if (!name || isUselessOption(name, values || [])) continue;
       const label = canonicalOptionLabel(name);
       const group = byLabel.get(label) ?? {
@@ -1230,7 +1269,11 @@ function chromeString(key: string, fallback: string) {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
-function labelFor(facet: FacetDef, value: string) {
+function labelFor(
+  facet: FacetDef,
+  value: string,
+  optionLabels?: Map<string, string> | null,
+) {
   if (facet.source === "availability") {
     return value === "in_stock"
       ? chromeString("in_stock", "In stock")
@@ -1243,6 +1286,8 @@ function labelFor(facet: FacetDef, value: string) {
     return value === BOOLEAN_TRUE ? BOOLEAN_TRUE_LABEL : BOOLEAN_FALSE_LABEL;
   }
   if (value === UNSPECIFIED_VALUE || value === "") return UNSPECIFIED_LABEL;
+  const mapped = optionLabels?.get(value);
+  if (mapped) return mapped;
   return value;
 }
 
@@ -1414,6 +1459,8 @@ export function buildFacetAggregations(
     }>;
     range?: { min: number | null; max: number | null };
   }> = [];
+
+  const optionLabels = collectOptionValueLabels(products);
 
   for (const facet of facets.filter((item) => item.enabled)) {
     if (facet.source === "price") {
@@ -1593,7 +1640,7 @@ export function buildFacetAggregations(
       .sort((a, b) => compareListedValues(a[0], b[0], facet, sort))
       .map(([value, count]) => ({
         value,
-        label: labelFor(facet, value),
+        label: labelFor(facet, value, optionLabels),
         count,
       }));
 

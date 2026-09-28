@@ -1,7 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { buildStoredVariants } from "../utils/variants-as-products";
 import { mergeProductMarketPrices } from "../services/markets.server";
-import { normalizeProductTypeValue } from "../utils/filters";
+import {
+  normalizeProductTypeValue,
+  OPTION_VALUE_LABELS_KEY,
+} from "../utils/filters";
+import { isMetaobjectGid } from "../services/metaobject-labels.server";
 
 type JsonObject = Prisma.InputJsonValue;
 
@@ -13,6 +17,11 @@ type ShopifyInventoryLevelNode = {
   available?: number | null;
   quantities?: ShopifyInventoryQuantity[] | null;
   location?: { id?: string | null; name?: string | null; isActive?: boolean | null } | null;
+};
+
+type ShopifyOptionValue = {
+  name?: string | null;
+  linkedMetafieldValue?: string | null;
 };
 
 type ShopifyVariantNode = {
@@ -55,7 +64,11 @@ type ShopifyProduct = {
   createdAt?: string | null;
   publishedAt?: string | null;
   featuredImage?: { url?: string | null } | null;
-  options?: Array<{ name: string; values: string[] }> | null;
+  options?: Array<{
+    name: string;
+    values?: string[] | null;
+    optionValues?: ShopifyOptionValue[] | null;
+  }> | null;
   variants?: {
     edges?: Array<{
       node: ShopifyVariantNode;
@@ -347,9 +360,33 @@ export function mapProductToFacet(
     compareAtAndSaleFromVariants(variants);
   const available = productIsAvailable(product.status, variants);
 
-  const options: Record<string, string[]> = {};
+  const options: Record<string, string[] | Record<string, string>> = {};
+  const optionLabels: Record<string, string> = {};
   for (const opt of product.options ?? []) {
-    options[opt.name] = opt.values ?? [];
+    const values = (opt.values ?? []).filter(
+      (value): value is string => typeof value === "string" && Boolean(value),
+    );
+    options[opt.name] = values;
+    const optionValues = opt.optionValues ?? [];
+    const max = Math.max(values.length, optionValues.length);
+    for (let i = 0; i < max; i++) {
+      const ov = optionValues[i];
+      const raw = values[i] || "";
+      const name = String(ov?.name || "").trim();
+      if (!name || isMetaobjectGid(name)) continue;
+      const linked = String(ov?.linkedMetafieldValue || "").trim();
+      if (linked) optionLabels[linked] = name;
+      if (raw && isMetaobjectGid(raw)) optionLabels[raw] = name;
+    }
+    for (const ov of optionValues) {
+      const name = String(ov?.name || "").trim();
+      const linked = String(ov?.linkedMetafieldValue || "").trim();
+      if (!name || isMetaobjectGid(name)) continue;
+      if (linked) optionLabels[linked] = name;
+    }
+  }
+  if (Object.keys(optionLabels).length) {
+    options[OPTION_VALUE_LABELS_KEY] = optionLabels;
   }
 
   const metafields = mergeMetafieldBags(
