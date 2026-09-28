@@ -950,12 +950,17 @@ export default function SettingsPage() {
                         Filter layout
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Common filter layouts: Vertical (left or right
-                        sidebar next to the product grid), Horizontal (filters
-                        above the grid), or Off-canvas (Filter button +
-                        drawer). Add Collection filters to the collection
-                        template in the theme editor to place this. Use the
-                        Collection filters (app embed) only if your theme has no
+                        Vertical (left/right) shows a sidebar beside products on
+                        desktop (990px+). Horizontal stacks filters above the
+                        grid. Off-canvas uses a Filter button that opens a
+                        drawer on every screen size. Below 990px, Vertical and
+                        Horizontal also use the Filter button + drawer so the
+                        product grid stays full width. Layout is controlled here
+                        in the app — the theme editor &quot;Filter tree style&quot;
+                        is only a first-paint default and will be overridden
+                        after settings load. Add Collection filters to the
+                        collection template in the theme editor to place the
+                        widget; use the app embed only if your theme has no
                         app-block slot.
                       </Text>
                       <LayoutPicker

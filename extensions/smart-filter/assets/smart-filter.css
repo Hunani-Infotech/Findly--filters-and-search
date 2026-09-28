@@ -2587,11 +2587,55 @@ results-list > .sf-toolbar {
     padding: var(--sf-gutter);
   }
 
+  /* Vertical/Horizontal desktop: no Filter button — facets are inline.
+     Off-canvas keeps the button (root or toolbar). */
   .sf-toggle,
-  .sf-backdrop,
-  .sf-close,
   .sf-sort-host .sf-toggle-toolbar {
     display: none !important;
+  }
+
+  .smart-filter--offcanvas .sf-toggle,
+  .sf-collection-layout--offcanvas .sf-toggle,
+  .sf-collection-layout--offcanvas .sf-toggle-toolbar,
+  .sf-collection-layout--offcanvas .sf-toolbar .sf-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    box-sizing: border-box;
+    width: auto;
+    min-width: 7.5rem;
+    min-height: 2.5rem;
+    margin: 0;
+    padding: 0.5rem 1rem;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: #111 !important;
+    color: #fff !important;
+    font: inherit !important;
+    font-size: 0.9375rem !important;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: none !important;
+    white-space: nowrap;
+  }
+
+  .sf-collection-layout--offcanvas .sf-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 24px;
+    width: 100%;
+    margin: 0 0 18px;
+  }
+
+  .sf-backdrop,
+  .sf-close {
+    display: none !important;
+  }
+
+  .smart-filter--offcanvas .sf-close {
+    display: inline-flex !important;
   }
 
   .sf-panel {
@@ -2957,24 +3001,32 @@ html.sf-pager-unneeded .ajaxinate-pagination {
   display: none !important;
 }
 
-/* Sidebar grid must match drawer breakpoint (≤989px portals filters).
-   Using 750px left an empty 320px aside column on tablet while drawer mode is on. */
+/* Sidebar / drawer layout contract (theme-agnostic):
+   - left/right: 2-col grid only ≥990px (Dawn large); ≤989px = drawer + hide emptied aside
+   - top: column stack; ≤989px portals panel then hides emptied aside
+   - offcanvas: never a sidebar column; Filter button lives in toolbar at all widths */
 @media (max-width: 989px) {
   .sf-collection-layout--left,
-  .sf-collection-layout--right {
+  .sf-collection-layout--right,
+  .sf-collection-layout--top,
+  .sf-collection-layout--offcanvas {
     display: block !important;
     grid-template-columns: none !important;
     gap: 0 !important;
   }
 
   /* Hide emptied aside once toggle + panel have left for toolbar/drawer portal.
-     Keep aside if toggle/panel still live there (no toolbar host). */
-  .sf-collection-layout--left > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
-  .sf-collection-layout--right > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
-  .sf-collection-layout--left > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
-  .sf-collection-layout--right > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])) {
+     Keep aside if toggle/panel still live there (no toolbar host yet). */
+  .sf-collection-layout > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
+  .sf-collection-layout > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])) {
     display: none !important;
   }
+}
+
+/* Off-canvas: hide emptied aside at every width (toggle stays in toolbar). */
+.sf-collection-layout--offcanvas > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
+.sf-collection-layout--offcanvas > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])) {
+  display: none !important;
 }
 
 @media (min-width: 990px) {
@@ -3079,6 +3131,15 @@ html.sf-pager-unneeded .ajaxinate-pagination {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+}
+
+/* Off-canvas aside is only a mount shell — no sidebar padding/gap strip. */
+.sf-collection-layout--offcanvas > .sf-layout-aside,
+.sf-collection-layout--offcanvas > .shopify-block.sf-layout-aside {
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  overflow: visible;
 }
 
 .sf-dropdown-wrap {

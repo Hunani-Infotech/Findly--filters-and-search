@@ -54,10 +54,15 @@ function assertParseWidgetPosition() {
 }
 
 function assertSettingsSavePath(settingsServer) {
-  if (!settingsServer.includes("offcanvas")) {
-    fail("app/services/settings.server.ts must mention offcanvas (save path accepts it)");
+  if (
+    !settingsServer.includes("parseWidgetPosition") ||
+    !settingsServer.includes("widgetPosition")
+  ) {
+    fail(
+      "app/services/settings.server.ts must persist widgetPosition via parseWidgetPosition (left/right/top/offcanvas)",
+    );
   }
-  log.info("settings.server.ts save path mentions offcanvas");
+  log.info("settings.server.ts save path persists widgetPosition via parseWidgetPosition");
 }
 
 function assertLiquidSchema(liquid) {

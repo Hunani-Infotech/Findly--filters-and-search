@@ -545,14 +545,19 @@
         "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .ajaxinate-pagination:not([data-sf-pager-suppressed='1']):not([hidden])" +
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;max-width:100%!important;visibility:visible!important}" +
         "@media(max-width:989px){" +
-        ".sf-collection-layout--left,.sf-collection-layout--right{" +
+        ".sf-collection-layout--left,.sf-collection-layout--right," +
+        ".sf-collection-layout--top,.sf-collection-layout--offcanvas{" +
         "display:block!important;grid-template-columns:none!important;gap:0!important}" +
-        ".sf-collection-layout--left>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
-        ".sf-collection-layout--right>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
-        ".sf-collection-layout--left>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
-        ".sf-collection-layout--right>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
+        ".sf-collection-layout>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
+        ".sf-collection-layout>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
         "{display:none!important}" +
         "}" +
+        ".sf-collection-layout--offcanvas>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
+        ".sf-collection-layout--offcanvas>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
+        "{display:none!important}" +
+        ".sf-collection-layout--offcanvas>.sf-layout-aside," +
+        ".sf-collection-layout--offcanvas>.shopify-block.sf-layout-aside" +
+        "{padding:0!important;margin:0!important;min-height:0!important}" +
         "@media(min-width:990px){" +
         ".sf-collection-layout--left{display:grid!important;grid-template-columns:320px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
         ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 320px!important;align-items:start;gap:32px;width:100%!important;max-width:100%!important}" +
@@ -572,6 +577,12 @@
         ".sf-collection-layout--top>.sf-layout-aside,.sf-collection-layout--top>.smart-filter," +
         ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
         "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        ".sf-toggle,.sf-sort-host .sf-toggle-toolbar{display:none!important}" +
+        ".smart-filter--offcanvas .sf-toggle," +
+        ".sf-collection-layout--offcanvas .sf-toggle," +
+        ".sf-collection-layout--offcanvas .sf-toggle-toolbar," +
+        ".sf-collection-layout--offcanvas .sf-toolbar .sf-toggle" +
+        "{display:inline-flex!important;align-items:center;justify-content:center;gap:.45rem;width:auto;min-width:7.5rem;min-height:2.5rem;margin:0;padding:.5rem 1rem;border:0!important;border-radius:999px!important;background:#111!important;color:#fff!important;font:inherit!important;font-weight:600;cursor:pointer;box-shadow:none!important}" +
         "}" +
         ".sf-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 24px;width:100%;max-width:100%;margin:0 0 18px;box-sizing:border-box}" +
         ".sf-toolbar-search,.sf-search-host.sf-toolbar-search{flex:1 1 16rem;min-width:0;width:min(22rem,100%);max-width:22rem;margin:0}" +
@@ -4677,7 +4688,10 @@
   function placeMobileToolbarToggle(widget) {
     var toggle = findDrawerToggle(widget);
     if (!toggle) return null;
-    if (!isMobileDrawer()) {
+    /* Off-canvas always uses the toolbar Filter button (desktop + mobile).
+       Vertical/Horizontal only move the toggle into the toolbar below 990px. */
+    var useToolbar = isMobileDrawer() || isOffcanvasPosition(widget);
+    if (!useToolbar) {
       if (
         toggle.classList.contains("sf-toggle-toolbar") &&
         widget &&

@@ -169,10 +169,13 @@ function assertThemeContainerFit() {
   }
   if (
     !gridJs.includes(
-      ".sf-collection-layout--left>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))",
+      ".sf-collection-layout>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))",
     )
   ) {
-    fail("tablet/mobile must hide emptied layout aside after drawer portal");
+    fail("tablet/mobile must hide emptied layout aside for every position after drawer portal");
+  }
+  if (!gridJs.includes("isOffcanvasPosition(widget)") || !gridJs.includes("useToolbar")) {
+    fail("off-canvas must keep the Filter button in the toolbar on desktop");
   }
   if (
     !gridJs.includes("display:none!important;position:absolute!important") ||
@@ -183,6 +186,9 @@ function assertThemeContainerFit() {
   const themeJs = read("extensions/smart-filter/assets/smart-filter-theme.js");
   if (!themeJs.includes("@media(min-width:990px)")) {
     fail("theme compat inject must use 990px sidebar grid with drawer mode");
+  }
+  if (!themeJs.includes("sf-collection-layout--offcanvas .sf-toggle")) {
+    fail("theme compat must keep off-canvas Filter button visible on desktop");
   }
   if (
     /sf-collection-layout--left,.sf-collection-layout--right\{[^}]*display:flex!important/.test(

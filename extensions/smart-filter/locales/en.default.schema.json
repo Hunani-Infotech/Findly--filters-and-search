@@ -5,6 +5,7 @@
       "settings": {
         "position": {
           "label": "Filter tree style",
+          "info": "First-paint default only. Findly app Settings → Filter panel overrides this after load.",
           "options": {
             "left": "Vertical (left)",
             "right": "Vertical (right)",
@@ -22,6 +23,7 @@
       "settings": {
         "position": {
           "label": "Filter tree style",
+          "info": "First-paint default only. Findly app Settings → Filter panel overrides this after load.",
           "options": {
             "left": "Vertical (left)",
             "right": "Vertical (right)",
