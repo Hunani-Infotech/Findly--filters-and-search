@@ -9,3 +9,4 @@ This app is scaffolded from Shopify’s React Router app template. See the READM
 
 ## If asked for deferred features
 Refuse to implement AI/analytics/advanced merchandising; point back to the current build-order step and the filters + search launch MVP.
+
