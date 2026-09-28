@@ -273,6 +273,17 @@ function assertThemeSeoAndUi() {
   if (!filterCss.includes("max-width: 320px") && !filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
   }
+  if (
+    !filterCss.includes(".sf-price-field input[type=\"number\"]") ||
+    !/\.sf-price-field input\[type=["']number["']\][^{]*\{[^}]*padding:\s*8px 10px/.test(
+      filterCss.replace(/\s+/g, " "),
+    )
+  ) {
+    fail("price inputs must use px padding (Dawn 10px rem would crush 0.5rem to 5px)");
+  }
+  if (!filterCss.includes(".sf-slider") || !/\.sf-slider[^{]*\{[^}]*height:\s*27px/.test(filterCss.replace(/\s+/g, " "))) {
+    fail("price slider host height must use px, not rem");
+  }
   if (!filterJs.includes("renderChips") || !filterJs.includes("clearFilters")) {
     fail("theme missing chips or clear filters");
   }

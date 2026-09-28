@@ -1001,12 +1001,14 @@
   color: inherit;
 }
 
+/* Price/range chrome uses px — Dawn sets html { font-size: 10px }, so rem
+   would shrink padding/gaps (~0.5rem → 5px) and crush the number inputs. */
 .sf-price {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 0.75rem 0.65rem;
+  gap: 12px 10px;
   align-items: center;
-  padding-bottom: 0.25rem;
+  padding-bottom: 4px;
   width: 100%;
   min-width: 0;
   overflow: visible;
@@ -1015,11 +1017,11 @@
 .sf-slider {
   grid-column: 1 / -1;
   position: relative;
-  height: 1.7rem;
+  height: 27px;
   display: block;
   width: 100%;
   min-width: 0;
-  margin: 0.55rem 0 0.2rem;
+  margin: 9px 0 3px;
   overflow: visible;
 }
 
@@ -1058,7 +1060,7 @@
   -webkit-appearance: none;
   background: transparent;
   pointer-events: none;
-  height: 1.45rem;
+  height: 23px;
   z-index: 2;
   opacity: 0;
   accent-color: transparent;
@@ -1074,9 +1076,9 @@
 .sf-slider input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: -0.5rem;
+  width: 18px;
+  height: 18px;
+  margin-top: -8px;
   border-radius: 999px;
   background: transparent;
   border: 0;
@@ -1098,8 +1100,8 @@
 }
 
 .sf-slider input[type="range"]::-moz-range-thumb {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: transparent;
   border: 0;
@@ -1137,7 +1139,7 @@
   color: #b0b0b0;
   font-size: 0.85em;
   line-height: 1;
-  padding-bottom: 0.05rem;
+  padding-bottom: 1px;
 }
 
 .sf-price-field .sf-field-label {
@@ -1150,7 +1152,7 @@
   border-radius: 6px;
   background: #fff;
   color: var(--sf-ink);
-  padding: 0.5rem 0.65rem;
+  padding: 8px 10px;
   font: inherit;
   font-weight: 500;
   text-align: left;
@@ -1174,9 +1176,9 @@
   grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.15rem;
-  padding-bottom: 0.15rem;
+  gap: 8px;
+  margin-top: 2px;
+  padding-bottom: 2px;
   color: #9a9a9a;
   font-size: 0.75em;
   font-weight: 400;

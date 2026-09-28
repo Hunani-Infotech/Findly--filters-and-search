@@ -98,7 +98,7 @@
 .sf-panel.sf-drawer-portal .sf-price {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
-  gap: 0.75rem 0.65rem !important;
+  gap: 12px 10px !important;
   align-items: center !important;
   width: 100% !important;
   max-width: 100% !important;
@@ -132,8 +132,8 @@
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  height: 1.7rem !important;
-  margin: 0.55rem 0 0.2rem !important;
+  height: 27px !important;
+  margin: 9px 0 3px !important;
   padding: 0 !important;
   overflow: visible !important;
   background: transparent !important;
@@ -188,7 +188,7 @@
   width: 100% !important;
   min-width: 0 !important;
   max-width: none !important;
-  height: 1.45rem !important;
+  height: 23px !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
@@ -218,9 +218,9 @@
 .sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-webkit-slider-thumb {
   appearance: none !important;
   -webkit-appearance: none !important;
-  width: 1.15rem !important;
-  height: 1.15rem !important;
-  margin-top: -0.5rem !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin-top: -8px !important;
   border: 0 !important;
   border-radius: 999px !important;
   background: transparent !important;
@@ -242,8 +242,8 @@
 #smart-filter-root .sf-slider input[type="range"]::-moz-range-thumb,
 #smart-filter-embed .sf-slider input[type="range"]::-moz-range-thumb,
 .sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-thumb {
-  width: 1.15rem !important;
-  height: 1.15rem !important;
+  width: 18px !important;
+  height: 18px !important;
   border: 0 !important;
   border-radius: 999px !important;
   background: transparent !important;

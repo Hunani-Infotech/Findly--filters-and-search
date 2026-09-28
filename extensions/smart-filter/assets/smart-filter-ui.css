@@ -129,7 +129,7 @@
 
 #smart-filter-root .sf-price,
 #smart-filter-embed .sf-price {
-  padding-inline-start: 1.15rem !important;
+  padding-inline-start: 18px !important;
 }
 
 #smart-filter-root .sf-facet.is-collapsed > .sf-options,
@@ -546,12 +546,12 @@
 
 #smart-filter-root .sf-price,
 #smart-filter-embed .sf-price {
-  gap: 0.75rem 0.65rem !important;
+  gap: 12px 10px !important;
 }
 
 #smart-filter-root .sf-price-field input[type="number"],
 #smart-filter-embed .sf-price-field input[type="number"] {
-  padding: 0.5rem 0.65rem !important;
+  padding: 8px 10px !important;
   border-radius: 6px !important;
 }
 
