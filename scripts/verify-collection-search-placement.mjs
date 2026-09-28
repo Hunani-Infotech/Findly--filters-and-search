@@ -219,6 +219,12 @@ function assertThemeContainerFit() {
   ) {
     fail("search shell must not treat generic body.search / collection queries as /search");
   }
+  if (
+    !gridJs.includes("liftSearchPageHeaderAboveLayout") ||
+    !gridJs.includes("wrapSearchResultsOnly")
+  ) {
+    fail("search layout must lift title/form above the sidebar so filters align with the product grid");
+  }
   if (!css.includes("sf-search-width") || !css.includes(".sf-search-width .page-width")) {
     fail("CSS nested width reset must be scoped to .sf-search-width only");
   }

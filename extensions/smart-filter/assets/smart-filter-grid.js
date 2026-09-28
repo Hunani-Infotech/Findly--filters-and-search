@@ -1416,6 +1416,174 @@
     return width;
   }
 
+  function isFindlyLayoutChrome(el) {
+    if (!el || !el.classList) return false;
+    return (
+      el.classList.contains("sf-toolbar") ||
+      el.classList.contains("sf-sort-host") ||
+      el.classList.contains("sf-search-host") ||
+      el.classList.contains("sf-pager") ||
+      el.classList.contains("sf-page-chips") ||
+      el.classList.contains("sf-total-count") ||
+      el.classList.contains("smart-filter") ||
+      el.classList.contains("sf-layout-aside") ||
+      el.classList.contains("sf-layout-main") ||
+      el.classList.contains("sf-collection-layout") ||
+      el.classList.contains("shopify-block")
+    );
+  }
+
+  function nodeContainsProductResults(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isProductGridLike(el) || isPageShellHost(el)) return true;
+    var id = String(el.id || "");
+    if (
+      id === "ProductGridContainer" ||
+      id === "product-grid" ||
+      id === "ProductGrid" ||
+      id === "CollectionProductGrid"
+    ) {
+      return true;
+    }
+    if (!el.querySelector) return false;
+    return Boolean(
+      el.querySelector(
+        "#product-grid, #ProductGrid, #ProductGridContainer, ul.product-grid, ol.product-grid," +
+          " .main-collection-grid, .sf-app-grid, results-list, .results-list",
+      ),
+    );
+  }
+
+  function isSearchPageHeaderEl(el, grid) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isFindlyLayoutChrome(el)) return false;
+    if (grid && el.contains && el.contains(grid)) return false;
+    if (nodeContainsProductResults(el)) return false;
+    if (el.classList) {
+      if (el.classList.contains("template-search__header")) return true;
+      if (el.classList.contains("main-search__header")) return true;
+      if (el.classList.contains("search-page__header")) return true;
+      if (el.classList.contains("search__header")) return true;
+      if (el.classList.contains("search-header")) return true;
+    }
+    if (el.getAttribute && el.getAttribute("data-sf-search-header") === "1") {
+      return true;
+    }
+    if (isThemeWidthContainer(el) && (!grid || !(el.contains && el.contains(grid)))) {
+      return true;
+    }
+    if (!el.querySelector) return false;
+    if (
+      el.querySelector(
+        "h1, h2, .h1, .h2, .title, .page-title, .search__title, .template-search__header",
+      )
+    ) {
+      return true;
+    }
+    var form = el.querySelector(
+      "form[action*='/search'], form.search, form.search-form",
+    );
+    if (
+      form &&
+      !form.closest(
+        "header, .header, .shopify-section-header, predictive-search, .predictive-search",
+      )
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /* Search only: move theme title/search form ABOVE the two-column layout so
+     the filter sidebar aligns with the product grid, not the page heading. */
+  function liftSearchPageHeaderAboveLayout(layout, widget) {
+    if (!layout || !layout.parentNode || !isSearchPageContext(widget)) return;
+    var parent = layout.parentNode;
+    var grid =
+      (widget && widget._gridParent) ||
+      collectionSearchGridEl(widget) ||
+      (layout.querySelector &&
+        layout.querySelector(
+          "#product-grid, #ProductGrid, #ProductGridContainer, ul.product-grid," +
+            " .sf-app-grid, results-list, .main-collection-grid",
+        ));
+    var main = layout.querySelector(".sf-layout-main");
+    if (!main || !main.children) return;
+    var toLift = [];
+    var i;
+    for (i = 0; i < main.children.length; i++) {
+      var child = main.children[i];
+      if (!child || child.nodeType !== 1) continue;
+      if (isFindlyLayoutChrome(child)) continue;
+      if (grid && child.contains && child.contains(grid)) break;
+      if (nodeContainsProductResults(child)) break;
+      if (isSearchPageHeaderEl(child, grid)) {
+        toLift.push(child);
+        continue;
+      }
+      /* Leading non-product block before the grid (theme-specific wrappers). */
+      if (!nodeContainsProductResults(child)) {
+        toLift.push(child);
+        continue;
+      }
+      break;
+    }
+    for (i = 0; i < toLift.length; i++) {
+      var node = toLift[i];
+      if (node.parentNode === parent) {
+        if (node.nextSibling === layout) continue;
+        parent.insertBefore(node, layout);
+        continue;
+      }
+      if (node.setAttribute) node.setAttribute("data-sf-search-header", "1");
+      parent.insertBefore(node, layout);
+    }
+  }
+
+  function wrapSearchResultsOnly(pageWidth, grid) {
+    if (!pageWidth || isProductGridLike(pageWidth)) return null;
+    var existing = null;
+    var i;
+    for (i = 0; i < pageWidth.children.length; i++) {
+      if (
+        pageWidth.children[i].classList &&
+        pageWidth.children[i].classList.contains("sf-collection-layout")
+      ) {
+        existing = pageWidth.children[i];
+        break;
+      }
+    }
+    if (existing) {
+      return existing.querySelector(".sf-layout-main") || existing;
+    }
+    var nested =
+      pageWidth.querySelector && pageWidth.querySelector(".sf-collection-layout");
+    if (nested) {
+      return nested.querySelector(".sf-layout-main") || nested;
+    }
+    var kids = [];
+    for (i = 0; i < pageWidth.children.length; i++) {
+      kids.push(pageWidth.children[i]);
+    }
+    var main = document.createElement("div");
+    main.className = "sf-layout-main";
+    var sawResults = false;
+    for (i = 0; i < kids.length; i++) {
+      var child = kids[i];
+      if (!sawResults && isSearchPageHeaderEl(child, grid)) {
+        if (child.setAttribute) child.setAttribute("data-sf-search-header", "1");
+        continue;
+      }
+      sawResults = true;
+      main.appendChild(child);
+    }
+    if (!main.firstChild) {
+      return wrapInsidePageWidth(pageWidth);
+    }
+    pageWidth.appendChild(main);
+    return main;
+  }
+
   function themeWidthChildContaining(pageWidth, grid) {
     if (!pageWidth || !grid || grid === pageWidth) return null;
     if (!pageWidth.contains(grid)) return null;
@@ -1552,14 +1720,20 @@
         child = themeWidthChildContaining(pageWidth, slot);
       }
       if (child && child !== pageWidth && !isThemeWidthContainer(child)) {
-        /* Search: keep title/form + results together in one main column. */
+        /* Search: wrap results only — leave title/form as siblings above layout. */
         if (
           pageWidth.classList &&
           pageWidth.classList.contains("sf-search-width")
         ) {
-          return wrapInsidePageWidth(pageWidth) || ensureBlockMain(child);
+          return wrapSearchResultsOnly(pageWidth, grid) || ensureBlockMain(child);
         }
         return ensureBlockMain(child);
+      }
+      if (
+        pageWidth.classList &&
+        pageWidth.classList.contains("sf-search-width")
+      ) {
+        return wrapSearchResultsOnly(pageWidth, grid) || ensureBlockMain(host);
       }
       return wrapInsidePageWidth(pageWidth) || ensureBlockMain(host);
     }
@@ -1752,6 +1926,7 @@
       }
       liftLayoutOutOfProductGrid(layout);
       normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
       var pageWidth =
         closestThemeWidth(
           (widget && widget._gridParent) || collectionSearchGridEl(widget),
@@ -1774,6 +1949,7 @@
         }
       }
       normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
       flattenHorizonCollectionWrapper(layout);
       if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
     } catch (err) {
@@ -1882,6 +2058,7 @@
     if (!pageWidth || isProductGridLike(pageWidth)) return;
     if (pageWidth.contains(layout) && layout !== pageWidth) {
       normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
       return;
     }
 
@@ -1904,6 +2081,7 @@
         layout.insertBefore(aside, layout.firstChild);
       }
       normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
       return;
     }
 
@@ -1918,6 +2096,7 @@
         if (wrapped.parentNode !== layout) layout.appendChild(wrapped);
       }
       normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
       return;
     }
     var slot = pageWidth.querySelector(
@@ -1936,6 +2115,7 @@
     }
     liftLayoutOutOfProductGrid(layout);
     normalizeLayoutShell(layout);
+    liftSearchPageHeaderAboveLayout(layout, widget);
   }
 
   function isLayoutUnsafeHost(el) {

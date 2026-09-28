@@ -2832,6 +2832,19 @@ results-list > .sf-toolbar {
   margin-inline: 0 !important;
 }
 
+/* Title / theme search form sit ABOVE the sidebar+grid layout. */
+.sf-search-width > [data-sf-search-header="1"],
+.sf-search-width > .template-search__header,
+.sf-search-width > .main-search__header,
+.sf-search-width > .search-page__header,
+.sf-search-width > .search__header {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-inline: 0 !important;
+  box-sizing: border-box;
+}
+
 .sf-layout-aside,
 .sf-layout-main {
   box-sizing: border-box;
