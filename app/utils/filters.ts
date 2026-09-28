@@ -59,7 +59,9 @@ export function collectOptionValueLabels(
     for (const [gid, label] of Object.entries(raw as Record<string, unknown>)) {
       if (typeof label !== "string") continue;
       const trimmed = label.trim();
-      if (!trimmed || map.has(gid)) continue;
+      if (!trimmed || trimmed.toLowerCase().startsWith("gid://") || map.has(gid)) {
+        continue;
+      }
       map.set(gid, trimmed);
     }
   }

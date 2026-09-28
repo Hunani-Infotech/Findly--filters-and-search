@@ -6164,7 +6164,7 @@
     for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
   }
 
-  function isFindlyLayoutChrome(el) {
+  function isFindlyLayoutShell(el) {
     if (!el || el.nodeType !== 1) return true;
     if (el === document.body || el === document.documentElement) return true;
     var cls = el.classList;
@@ -6206,11 +6206,11 @@
     var precise = scope.querySelector(
       "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
     );
-    if (precise && !isFindlyLayoutChrome(precise)) return precise;
+    if (precise && !isFindlyLayoutShell(precise)) return precise;
     var grid = widget && widget._gridParent;
     if (
       grid &&
-      !isFindlyLayoutChrome(grid) &&
+      !isFindlyLayoutShell(grid) &&
       (!main || main.contains(grid) || grid.contains(main))
     ) {
       return grid;
@@ -6363,7 +6363,7 @@
       parent = parent.parentNode;
       hops += 1;
     }
-    if (!parent || parent.nodeType !== 1 || isFindlyLayoutChrome(parent)) {
+    if (!parent || parent.nodeType !== 1 || isFindlyLayoutShell(parent)) {
       var fallbackGrid = document.querySelector(
         "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
       );
@@ -7603,6 +7603,24 @@
       if (stamp) {
         this._sfSettingsStamp = stamp;
         this._sfSettingsApplied = true;
+      }
+      /* Custom CSS lives here (companion) so schema JS stays under 100 KB.
+         Only touch the style tag when customCss is present — partial search
+         payloads must not wipe merchant CSS. */
+      if (settings && typeof settings === "object" && "customCss" in settings && this.root) {
+        var customCss =
+          typeof settings.customCss === "string" ? settings.customCss.trim() : "";
+        var customStyle = this.root.querySelector("style[data-findly-custom]");
+        if (customCss) {
+          if (!customStyle) {
+            customStyle = document.createElement("style");
+            customStyle.setAttribute("data-findly-custom", "");
+            this.root.appendChild(customStyle);
+          }
+          customStyle.textContent = customCss;
+        } else if (customStyle && customStyle.parentNode) {
+          customStyle.parentNode.removeChild(customStyle);
+        }
       }
       if (origApplySettings) return origApplySettings.apply(this, arguments);
     };

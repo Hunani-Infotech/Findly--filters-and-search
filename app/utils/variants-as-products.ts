@@ -1,4 +1,5 @@
 import type { ProductFacetRow } from "./filters";
+import { OPTION_VALUE_LABELS_KEY } from "./filters";
 
 export type StoredVariant = {
   id: string;
@@ -173,10 +174,15 @@ function rowFromGroup(
     product.imageUrl ||
     "";
   const label = primary.title || Object.values(primary.options).join(" / ");
+  const merged = mergeGroupOptions(group);
+  const labels = product.options?.[OPTION_VALUE_LABELS_KEY];
+  if (labels && typeof labels === "object" && !Array.isArray(labels)) {
+    (merged as Record<string, unknown>)[OPTION_VALUE_LABELS_KEY] = labels;
+  }
   return {
     ...product,
     title: label ? `${product.title} – ${label}` : product.title,
-    options: mergeGroupOptions(group),
+    options: merged as ProductFacetRow["options"],
     priceMin,
     priceMax,
     available: group.some((item) => item.available),

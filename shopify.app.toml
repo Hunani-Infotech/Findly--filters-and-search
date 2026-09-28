@@ -73,7 +73,7 @@ api_version = "2026-07"
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # read_products only: catalog sync is queries + webhooks. No product mutations in app runtime.
 # write_products omitted (least privilege). scripts/seed-dev-catalog.mjs is local-dev only.
-scopes = "read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets"
+scopes = "read_products,read_files,write_files,read_inventory,read_locations,read_content,read_markets,read_metaobjects"
 optional_scopes = [ "read_companies" ]
 use_legacy_install_flow = false
 

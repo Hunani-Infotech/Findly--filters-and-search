@@ -339,9 +339,17 @@ function assertWidgetJs() {
 }
 
 function assertCustomCssNotOnDocumentHead(widget) {
-  const idx = widget.indexOf("var customCss");
-  assert(idx !== -1, "smart-filter.js missing var customCss injection");
-  const block = widget.slice(idx, idx + 900);
+  const grid = readRepo(
+    "extensions",
+    "smart-filter",
+    "assets",
+    "smart-filter-grid.js",
+  );
+  const host =
+    widget.indexOf("var customCss") !== -1 ? widget : grid;
+  const idx = host.indexOf("var customCss");
+  assert(idx !== -1, "custom CSS injection missing (smart-filter.js or smart-filter-grid.js)");
+  const block = host.slice(idx, idx + 900);
   assert(
     !block.includes("document.head"),
     "custom CSS must not be written to document.head",
@@ -351,7 +359,7 @@ function assertCustomCssNotOnDocumentHead(widget) {
       block.includes("this.root.querySelector"),
     "custom CSS must be injected on the widget root, not <head>",
   );
-  if (widget.includes("document.head") && widget.includes("customCss")) {
+  if (host.includes("document.head") && host.includes("customCss")) {
     fail("custom CSS must not be written to document.head");
   }
   log.info("D8 custom CSS is not written to document.head");

@@ -2350,20 +2350,6 @@
       );
     }
 
-    var customCss =
-      typeof settings.customCss === "string" ? settings.customCss.trim() : "";
-    var customStyle = this.root.querySelector("style[data-findly-custom]");
-    if (customCss) {
-      if (!customStyle) {
-        customStyle = document.createElement("style");
-        customStyle.setAttribute("data-findly-custom", "");
-        this.root.appendChild(customStyle);
-      }
-      customStyle.textContent = customCss;
-    } else if (customStyle) {
-      customStyle.parentNode.removeChild(customStyle);
-    }
-
     if (typeof settings.showProductCounts === "boolean") {
       this.showCounts = settings.showProductCounts;
     }

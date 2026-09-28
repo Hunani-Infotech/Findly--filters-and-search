@@ -368,21 +368,18 @@ export function mapProductToFacet(
     );
     options[opt.name] = values;
     const optionValues = opt.optionValues ?? [];
-    const max = Math.max(values.length, optionValues.length);
-    for (let i = 0; i < max; i++) {
-      const ov = optionValues[i];
-      const raw = values[i] || "";
-      const name = String(ov?.name || "").trim();
-      if (!name || isMetaobjectGid(name)) continue;
-      const linked = String(ov?.linkedMetafieldValue || "").trim();
-      if (linked) optionLabels[linked] = name;
-      if (raw && isMetaobjectGid(raw)) optionLabels[raw] = name;
-    }
     for (const ov of optionValues) {
       const name = String(ov?.name || "").trim();
-      const linked = String(ov?.linkedMetafieldValue || "").trim();
       if (!name || isMetaobjectGid(name)) continue;
-      if (linked) optionLabels[linked] = name;
+      const linked = String(ov?.linkedMetafieldValue || "").trim();
+      if (linked && isMetaobjectGid(linked)) optionLabels[linked] = name;
+    }
+    const max = Math.max(values.length, optionValues.length);
+    for (let i = 0; i < max; i++) {
+      const raw = values[i] || "";
+      if (!raw || !isMetaobjectGid(raw) || optionLabels[raw]) continue;
+      const name = String(optionValues[i]?.name || "").trim();
+      if (name && !isMetaobjectGid(name)) optionLabels[raw] = name;
     }
   }
   if (Object.keys(optionLabels).length) {

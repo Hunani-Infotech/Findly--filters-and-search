@@ -17,7 +17,7 @@ import {
 } from "./filters.server";
 import {
   isMetaobjectGid,
-  resolveMetaobjectLabels,
+  resolveFilterValueLabels,
 } from "./metaobject-labels.server";
 import {
   applyFacetValueFilter,
@@ -139,7 +139,11 @@ async function resolveFacetMetaobjectLabels<
   T extends {
     values?: Array<{ value: string; label: string; [key: string]: unknown }> | null;
   },
->(shopDomain: string | null | undefined, facets: T[]): Promise<T[]> {
+>(
+  shopDomain: string | null | undefined,
+  facets: T[],
+  productGids: string[] = [],
+): Promise<T[]> {
   if (!shopDomain || !facets.length) return facets;
   const gids: string[] = [];
   for (const facet of facets) {
@@ -149,7 +153,11 @@ async function resolveFacetMetaobjectLabels<
     }
   }
   if (!gids.length) return facets;
-  const map = await resolveMetaobjectLabels(shopDomain, gids);
+  const map = await resolveFilterValueLabels({
+    shopDomain,
+    metaobjectGids: gids,
+    productGids,
+  });
   if (!map.size) return facets;
   return facets.map((facet) => ({
     ...facet,
@@ -796,6 +804,13 @@ async function buildFacetPayload(input: {
   const aggregations = await resolveFacetMetaobjectLabels(
     input.shopDomain,
     aggregationsRaw,
+    visibleRows
+      .filter((row) =>
+        JSON.stringify(row.options || {}).includes("gid://shopify/Metaobject"),
+      )
+      .map((row) => row.productGid)
+      .filter(Boolean)
+      .slice(0, 100),
   );
   const productCard = (product: (typeof filtered)[number]) => {
     const variantId = shopifyNumericId(product.variantGid || "");
@@ -902,7 +917,14 @@ async function loadSearchFilterPayload(input: {
         total: 0,
         locale: resolved.locale,
         i18n: resolved.chrome,
-        settings: { enableFiltersOnSearch: false },
+        settings: {
+          ...buildStorefrontWidgetSettings(
+            appSettings,
+            config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
+            listMetafieldSortOptions(mappings),
+          ),
+          enableFiltersOnSearch: false,
+        },
       },
       status: 200 as const,
     };
@@ -920,6 +942,11 @@ async function loadSearchFilterPayload(input: {
         total: 0,
         locale: resolved.locale,
         i18n: resolved.chrome,
+        settings: buildStorefrontWidgetSettings(
+          appSettings,
+          config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
+          listMetafieldSortOptions(mappings),
+        ),
       },
       status: 200 as const,
     };
@@ -935,6 +962,11 @@ async function loadSearchFilterPayload(input: {
         total: 0,
         locale: resolved.locale,
         i18n: resolved.chrome,
+        settings: buildStorefrontWidgetSettings(
+          appSettings,
+          config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
+          listMetafieldSortOptions(mappings),
+        ),
       },
       status: 200 as const,
     };

@@ -55,13 +55,31 @@ function assertStaticMarkers() {
     "assets",
     "smart-filter.js",
   );
+  const widgetGrid = readRepo(
+    "extensions",
+    "smart-filter",
+    "assets",
+    "smart-filter-grid.js",
+  );
+  /* Injection lives in the grid companion so schema JS stays under 100 KB. */
+  const cssHost =
+    widget.includes("data-findly-custom") && widget.includes("settings.customCss")
+      ? widget
+      : widgetGrid;
   if (
-    !widget.includes("data-findly-custom") ||
-    !widget.includes("settings.customCss")
+    !cssHost.includes("data-findly-custom") ||
+    !cssHost.includes("settings.customCss")
   ) {
-    fail("smart-filter.js must inject style[data-findly-custom] from settings.customCss");
+    fail(
+      "smart-filter-grid.js (or smart-filter.js) must inject style[data-findly-custom] from settings.customCss",
+    );
   }
-  if (widget.includes("document.head") && widget.includes("customCss")) {
+  const cssIdx = cssHost.indexOf("var customCss");
+  if (cssIdx === -1) {
+    fail("custom CSS injection missing var customCss");
+  }
+  const cssBlock = cssHost.slice(cssIdx, cssIdx + 900);
+  if (cssBlock.includes("document.head")) {
     fail("custom CSS must not be written to document.head");
   }
 
@@ -144,9 +162,30 @@ function assertSanitizer() {
     !generic.includes(":is(") ||
     !generic.includes("#findly-grid-host") ||
     !generic.includes(".sf-drawer-portal") ||
-    !generic.includes(".smart-filter")
+    !generic.includes(".smart-filter") ||
+    !generic.includes(".sf-collection-layout") ||
+    !generic.includes(".sf-layout-main") ||
+    !generic.includes(".sf-search-width")
   ) {
-    fail("generic .foo must match under expanded :is(...) including grid/drawer hosts");
+    fail(
+      "generic .foo must match under expanded :is(...) including grid/drawer/layout/search hosts",
+    );
+  }
+
+  const layoutOwned = scopeCustomCss(".sf-collection-layout .x { color: red }");
+  if (/\.smart-filter\s+\.sf-collection-layout\b/.test(layoutOwned)) {
+    fail(".sf-collection-layout owned-root must not be nested under .smart-filter");
+  }
+  if (!layoutOwned.trim().startsWith(".sf-collection-layout")) {
+    fail(".sf-collection-layout owned-root selector must be left unprefixed");
+  }
+
+  const searchWidthOwned = scopeCustomCss(".sf-search-width .x { color: red }");
+  if (/\.smart-filter\s+\.sf-search-width\b/.test(searchWidthOwned)) {
+    fail(".sf-search-width owned-root must not be nested under .smart-filter");
+  }
+  if (!searchWidthOwned.trim().startsWith(".sf-search-width")) {
+    fail(".sf-search-width owned-root selector must be left unprefixed");
   }
 
   const liquid = sanitizeProductListLiquid(

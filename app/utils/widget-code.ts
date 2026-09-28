@@ -12,6 +12,12 @@ const FINDLY_SCOPE_ROOTS = [
   ".sf-pager",
   ".sf-toolbar",
   ".sf-total-count",
+  /* Layout wrappers (collection + search Vertical) — not nested under .smart-filter */
+  ".sf-collection-layout",
+  ".sf-layout-main",
+  ".sf-layout-aside",
+  ".sf-search-width",
+  ".sf-og",
 ] as const;
 
 /**
