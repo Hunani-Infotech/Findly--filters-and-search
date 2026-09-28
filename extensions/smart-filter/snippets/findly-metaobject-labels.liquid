@@ -1,0 +1,110 @@
+{% comment %}
+  Build GID → display name map for list.metaobject_reference metafields
+  (shopify.size / shopify.color-pattern). Liquid can read metaobject
+  display names without the Admin read_metaobjects scope.
+{% endcomment %}
+<script>
+  window.__FINDLY_METAOBJECT_LABELS = window.__FINDLY_METAOBJECT_LABELS || {};
+</script>
+<script type="application/json" id="findly-metaobject-labels">
+{
+{%- assign sf_mo_first = true -%}
+{%- assign sf_mo_defs = "shopify--size,shopify--color-pattern" | split: "," -%}
+{%- for sf_mo_type in sf_mo_defs -%}
+  {%- assign sf_mo_bag = metaobjects[sf_mo_type] -%}
+  {%- if sf_mo_bag == blank -%}
+    {%- assign sf_mo_bag = shop.metaobjects[sf_mo_type] -%}
+  {%- endif -%}
+  {%- if sf_mo_bag != blank and sf_mo_bag.values != blank -%}
+    {%- for mo in sf_mo_bag.values -%}
+      {%- assign sf_mo_gid = mo.system.id | default: mo.id -%}
+      {%- if sf_mo_gid != blank -%}
+        {%- unless sf_mo_gid contains "gid://" -%}
+          {%- assign sf_mo_gid = sf_mo_gid | prepend: "gid://shopify/Metaobject/" -%}
+        {%- endunless -%}
+        {%- assign sf_mo_label = mo.display_name | default: mo.system.handle -%}
+        {%- if sf_mo_label == blank and mo.label != blank -%}
+          {%- assign sf_mo_label = mo.label.value | default: mo.label -%}
+        {%- endif -%}
+        {%- if sf_mo_label == blank and mo.name != blank -%}
+          {%- assign sf_mo_label = mo.name.value | default: mo.name -%}
+        {%- endif -%}
+        {%- if sf_mo_label != blank -%}
+          {%- unless sf_mo_first -%},{%- endunless -%}
+          {{ sf_mo_gid | json }}:{{ sf_mo_label | json }}
+          {%- assign sf_mo_first = false -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- assign sf_mo_products = collection.products -%}
+{%- if sf_mo_products == blank and search.results != blank -%}
+  {%- assign sf_mo_products = search.results -%}
+{%- endif -%}
+{%- for product in sf_mo_products -%}
+  {%- if product.object_type != blank and product.object_type != "product" -%}
+    {%- continue -%}
+  {%- endif -%}
+  {%- assign sf_mo_size = product.metafields.shopify.size.value -%}
+  {%- if sf_mo_size != blank -%}
+    {%- for mo in sf_mo_size -%}
+      {%- assign sf_mo_gid = mo.system.id | default: mo.id -%}
+      {%- if sf_mo_gid != blank -%}
+        {%- unless sf_mo_gid contains "gid://" -%}
+          {%- assign sf_mo_gid = sf_mo_gid | prepend: "gid://shopify/Metaobject/" -%}
+        {%- endunless -%}
+        {%- assign sf_mo_label = mo.display_name | default: mo.system.handle -%}
+        {%- if sf_mo_label == blank and mo.label != blank -%}
+          {%- assign sf_mo_label = mo.label.value | default: mo.label -%}
+        {%- endif -%}
+        {%- if sf_mo_label == blank and mo.name != blank -%}
+          {%- assign sf_mo_label = mo.name.value | default: mo.name -%}
+        {%- endif -%}
+        {%- if sf_mo_label != blank -%}
+          {%- unless sf_mo_first -%},{%- endunless -%}
+          {{ sf_mo_gid | json }}:{{ sf_mo_label | json }}
+          {%- assign sf_mo_first = false -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- assign sf_mo_color = product.metafields.shopify.color-pattern.value -%}
+  {%- if sf_mo_color != blank -%}
+    {%- for mo in sf_mo_color -%}
+      {%- assign sf_mo_gid = mo.system.id | default: mo.id -%}
+      {%- if sf_mo_gid != blank -%}
+        {%- unless sf_mo_gid contains "gid://" -%}
+          {%- assign sf_mo_gid = sf_mo_gid | prepend: "gid://shopify/Metaobject/" -%}
+        {%- endunless -%}
+        {%- assign sf_mo_label = mo.display_name | default: mo.system.handle -%}
+        {%- if sf_mo_label == blank and mo.label != blank -%}
+          {%- assign sf_mo_label = mo.label.value | default: mo.label -%}
+        {%- endif -%}
+        {%- if sf_mo_label == blank and mo.name != blank -%}
+          {%- assign sf_mo_label = mo.name.value | default: mo.name -%}
+        {%- endif -%}
+        {%- if sf_mo_label != blank -%}
+          {%- unless sf_mo_first -%},{%- endunless -%}
+          {{ sf_mo_gid | json }}:{{ sf_mo_label | json }}
+          {%- assign sf_mo_first = false -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endfor -%}
+}
+</script>
+<script>
+(function () {
+  var el = document.getElementById("findly-metaobject-labels");
+  if (!el) return;
+  try {
+    var map = JSON.parse(el.textContent || "{}");
+    var out = window.__FINDLY_METAOBJECT_LABELS || (window.__FINDLY_METAOBJECT_LABELS = {});
+    for (var k in map) {
+      if (Object.prototype.hasOwnProperty.call(map, k) && map[k]) out[k] = map[k];
+    }
+  } catch (e) {}
+})();
+</script>
