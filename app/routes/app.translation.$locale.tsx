@@ -7,6 +7,7 @@ import type {
 import { redirect, useFetcher, useLoaderData, useSearchParams } from "react-router";
 import { Card, Layout, Page } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { ContextualSaveBar } from "../components/contextual-save-bar";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
@@ -214,32 +215,20 @@ export default function TranslationLocalePage() {
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="translation-locale-save-bar"
+      open={dirty}
+      saving={busy}
+      onSave={save}
+      onDiscard={() => setDrafts(strings)}
+    />
     <Page
       title={lang.name}
       backAction={{
         content: "Translation",
         onAction: () => navigate("/app/translation"),
       }}
-      primaryAction={
-        dirty
-          ? {
-              content: "Save",
-              loading: busy,
-              onAction: save,
-            }
-          : undefined
-      }
-      secondaryActions={
-        dirty
-          ? [
-              {
-                content: "Discard",
-                disabled: busy,
-                onAction: () => setDrafts(strings),
-              },
-            ]
-          : undefined
-      }
     >
       <Layout>
         <Layout.Section>
@@ -307,6 +296,7 @@ export default function TranslationLocalePage() {
         </Layout.Section>
       </Layout>
     </Page>
+    </>
   );
 }
 

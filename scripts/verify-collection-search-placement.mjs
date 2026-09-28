@@ -207,6 +207,21 @@ function assertThemeContainerFit() {
   if (!css.includes(".page-width > .sf-collection-layout")) {
     fail("collection layout must fill the theme page-width, not sit outside it");
   }
+  if (!gridJs.includes("ensureSearchThemeWidthShell") || !gridJs.includes("sf-search-width")) {
+    fail("search pages must wrap title+results in a shared theme-width shell");
+  }
+  if (!gridJs.includes("pickSearchWidthClassName")) {
+    fail("search width shell must reuse the theme's page-width/container class");
+  }
+  if (
+    !gridJs.includes("isSearchPageContext") ||
+    gridJs.includes('body.classList.contains("search")')
+  ) {
+    fail("search shell must not treat generic body.search / collection queries as /search");
+  }
+  if (!css.includes("sf-search-width") || !css.includes(".sf-search-width .page-width")) {
+    fail("CSS nested width reset must be scoped to .sf-search-width only");
+  }
 }
 
 assertStatic();

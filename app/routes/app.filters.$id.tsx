@@ -57,6 +57,11 @@ import { useConfirmDelete } from "../components/confirm-delete-modal";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 import { isMutationBusy } from "../components/admin-loading";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 import { CollectionAppliesTo } from "../components/collection-applies-to";
 import { FilterOptionsTable } from "../components/filter-options-table";
 import {
@@ -533,6 +538,7 @@ export default function FilterTreeEditorPage() {
   }
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(config, loaderConfig);
   const rows = useMemo(
     () =>
       applyFacetSettingLabels(
@@ -669,6 +675,16 @@ export default function FilterTreeEditorPage() {
   const pageTitle = isAddMode ? "Add filter" : "Edit filter";
 
   return (
+    <>
+    <ContextualSaveBar
+      id="filter-edit-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("default-filter-form");
+      }}
+      onDiscard={() => setConfig(loaderConfig)}
+    />
     <Page
       title={pageTitle}
       backAction={{
@@ -706,17 +722,6 @@ export default function FilterTreeEditorPage() {
             ]
           : undefined
       }
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "default-filter-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>
@@ -849,6 +854,7 @@ export default function FilterTreeEditorPage() {
       </Layout>
       {dialog}
     </Page>
+    </>
   );
 }
 

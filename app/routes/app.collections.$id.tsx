@@ -36,6 +36,11 @@ import { storedFilterDisplayOrder } from "../utils/filter-option-rows";
 import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields, hasCollectionAssignment } from "../services/shop.server";
 import { toCollectionGid } from "../services/settings.server";
 import { isMutationBusy } from "../components/admin-loading";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { FilterOptionsGuide } from "../components/filter-options-guide";
@@ -338,6 +343,7 @@ export default function CollectionFilterConfigPage() {
   }
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(config, loaderConfig);
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -403,6 +409,16 @@ export default function CollectionFilterConfigPage() {
   }
 
   return (
+    <>
+    <ContextualSaveBar
+      id="collection-filters-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("collection-filter-form");
+      }}
+      onDiscard={() => setConfig(loaderConfig)}
+    />
     <Page
       title={data.collection.title}
       subtitle={
@@ -413,17 +429,6 @@ export default function CollectionFilterConfigPage() {
       backAction={{
         content: "Filters",
         onAction: () => navigate("/app/filters"),
-      }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "collection-filter-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
       }}
     >
       <Layout>
@@ -723,6 +728,7 @@ export default function CollectionFilterConfigPage() {
         </Layout.Section>
       </Layout>
     </Page>
+    </>
   );
 }
 

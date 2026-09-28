@@ -14,6 +14,11 @@ import {
 } from "@shopify/polaris";
 import { CatalogValuePicker } from "./catalog-value-picker";
 import { isMutationBusy } from "./admin-loading";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "./contextual-save-bar";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import type { CatalogValuesPage } from "../services/value-groups.server";
 
@@ -25,6 +30,20 @@ export type ValueGroupDraft = {
 };
 
 type CatalogPageData = CatalogValuesPage;
+
+type GroupPersistSnapshot = {
+  name: string;
+  sourceKey: string;
+  values: string[];
+};
+
+function groupSnapshot(
+  name: string,
+  sourceKey: string,
+  values: string[],
+): GroupPersistSnapshot {
+  return { name, sourceKey, values };
+}
 
 type PickerResponse =
   | ({ all: false; requestId: string } & CatalogPageData)
@@ -96,6 +115,31 @@ export function ValueGroupFormPage({
   const [selected, setSelected] = useState<string[]>(group?.values ?? []);
   const [query, setQuery] = useState(catalog.query);
   const [pageData, setPageData] = useState(catalog);
+  const [saved, setSaved] = useState(() =>
+    groupSnapshot(group?.name ?? "", catalog.sourceKey, group?.values ?? []),
+  );
+  const [seenGroup, setSeenGroup] = useState(group);
+  const [seenCatalogKey, setSeenCatalogKey] = useState(catalog.sourceKey);
+  if (group !== seenGroup || catalog.sourceKey !== seenCatalogKey) {
+    setSeenGroup(group);
+    setSeenCatalogKey(catalog.sourceKey);
+    const next = groupSnapshot(
+      group?.name ?? "",
+      group?.sourceKey ?? catalog.sourceKey,
+      group?.values ?? [],
+    );
+    setSaved(next);
+    setName(next.name);
+    setSourceKey(next.sourceKey);
+    setSelected(next.values);
+    setQuery(catalog.query);
+    setPageData(catalog);
+  }
+
+  const dirty = isDirtySnapshot(
+    groupSnapshot(name, sourceKey, selected),
+    saved,
+  );
 
   useEffect(() => {
     const data = pageFetcher.data;
@@ -133,6 +177,27 @@ export function ValueGroupFormPage({
         r: requestId,
       }),
     );
+  };
+
+  const discardChanges = () => {
+    setName(saved.name);
+    setSourceKey(saved.sourceKey);
+    setSelected(saved.values);
+    if (saved.sourceKey !== sourceKey) {
+      setQuery("");
+      setPageData((prev) => ({
+        ...prev,
+        sourceKey: saved.sourceKey,
+        values: [],
+        total: 0,
+        page: 0,
+        pageCount: 1,
+        showingFrom: 0,
+        showingTo: 0,
+        query: "",
+      }));
+      loadPage({ source: saved.sourceKey, page: 0, q: "" });
+    }
   };
 
   const handleSourceChange = (next: string) => {
@@ -196,6 +261,16 @@ export function ValueGroupFormPage({
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="value-group-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("value-group-form");
+      }}
+      onDiscard={discardChanges}
+    />
     <Page
       title={isEdit ? "Edit group" : "Add group"}
       backAction={{
@@ -214,17 +289,6 @@ export function ValueGroupFormPage({
             ]
           : undefined
       }
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "value-group-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>
@@ -290,5 +354,6 @@ export function ValueGroupFormPage({
       </Layout>
       {dialog}
     </Page>
+    </>
   );
 }

@@ -2810,9 +2810,26 @@ results-list > .sf-toolbar {
 .page-width > .sf-collection-layout,
 .page-width-desktop > .sf-collection-layout,
 .page-width--narrow > .sf-collection-layout,
-.container > .sf-collection-layout {
+.container > .sf-collection-layout,
+.sf-search-width > .sf-collection-layout {
   width: 100%;
   max-width: 100%;
+}
+
+/* Nested theme width boxes inside the search shell (title/form) must fill the
+   main column — search pages only via .sf-search-width (collections untouched). */
+.sf-search-width .page-width,
+.sf-search-width .page-width-desktop,
+.sf-search-width .page-width--narrow,
+.sf-search-width .page-width--compact,
+.sf-search-width .container:not(.container-fluid),
+.sf-search-width .Container,
+.sf-search-width .page-container,
+.sf-search-width .wrapper,
+.sf-search-width .template-search__header {
+  max-width: none !important;
+  width: 100% !important;
+  margin-inline: 0 !important;
 }
 
 .sf-layout-aside,

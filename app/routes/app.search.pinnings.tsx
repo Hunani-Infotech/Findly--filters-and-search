@@ -33,6 +33,11 @@ import { getAppSettings, saveSearchSettings } from "../services/settings.server"
 import { lastPageIndex, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 
 export { PinningsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -41,6 +46,11 @@ type PinningDraft = {
   query: string;
   handles: string;
 };
+
+/** Persistable fields only — omit UI-only id from dirty compare. */
+function pinningsPersistSnapshot(rows: PinningDraft[]) {
+  return rows.map(({ query, handles }) => ({ query, handles }));
+}
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,6 +116,10 @@ export default function SearchPinningsPage() {
   if (page !== slice.safePage) setPage(slice.safePage);
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(
+    pinningsPersistSnapshot(rows),
+    pinningsPersistSnapshot(data.rows),
+  );
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -129,20 +143,19 @@ export default function SearchPinningsPage() {
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="search-pinnings-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("search-pinnings-form");
+      }}
+      onDiscard={() => setRows(data.rows)}
+    />
     <Page
       title="Pinnings"
       backAction={{ content: "Search", onAction: () => navigate("/app/search") }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "search-pinnings-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>
@@ -242,6 +255,7 @@ export default function SearchPinningsPage() {
       </Layout>
       {dialog}
     </Page>
+    </>
   );
 }
 

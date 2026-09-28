@@ -33,6 +33,11 @@ import { getAppSettings, saveSearchSettings } from "../services/settings.server"
 import { lastPageIndex, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 
 export { RedirectsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -41,6 +46,11 @@ type RedirectDraft = {
   query: string;
   url: string;
 };
+
+/** Persistable fields only — omit UI-only id from dirty compare. */
+function redirectsPersistSnapshot(rows: RedirectDraft[]) {
+  return rows.map(({ query, url }) => ({ query, url }));
+}
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,6 +116,10 @@ export default function SearchRedirectsPage() {
   if (page !== slice.safePage) setPage(slice.safePage);
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(
+    redirectsPersistSnapshot(rows),
+    redirectsPersistSnapshot(data.rows),
+  );
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -129,20 +143,19 @@ export default function SearchRedirectsPage() {
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="search-redirects-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("search-redirects-form");
+      }}
+      onDiscard={() => setRows(data.rows)}
+    />
     <Page
       title="Redirects"
       backAction={{ content: "Search", onAction: () => navigate("/app/search") }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "search-redirects-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>
@@ -239,6 +252,7 @@ export default function SearchRedirectsPage() {
       </Layout>
       {dialog}
     </Page>
+    </>
   );
 }
 

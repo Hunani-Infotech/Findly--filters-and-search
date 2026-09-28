@@ -25,6 +25,11 @@ import {
 import { withEmbeddedParams } from "../utils/admin-path";
 import { hexFromColorName } from "../utils/color-autofill";
 import { CatalogValuePicker } from "./catalog-value-picker";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "./contextual-save-bar";
 import { useConfirmDelete } from "./confirm-delete-modal";
 import { isMutationBusy } from "./admin-loading";
 import type {
@@ -45,6 +50,50 @@ import {
 } from "../utils/facet-settings";
 
 const FALLBACK_SHOP_DOMAIN = "findly-test-store.myshopify.com";
+
+type OptionPersistSnapshot = {
+  key: string;
+  label: string;
+  displayType: FacetDisplayType;
+  valueMode: FacetValueMode;
+  prefix: string;
+  removePrefix: boolean;
+  selectedValues: string[];
+  urlHandle: string;
+  collectionTree: boolean;
+  collectionParents: Record<string, string>;
+  valueSortMode: FacetValueSortMode;
+  collapseByDefault: boolean;
+  enableValueSearch: boolean;
+  showMore: FacetShowMoreMode;
+  textTransform: FacetTextTransform;
+  autoRemovePrefixes: string;
+  tooltip: string;
+  matchMode: FacetMatchMode;
+};
+
+function optionSnapshotFromData(data: FilterOptionEditorData): OptionPersistSnapshot {
+  return {
+    key: data.optionKey,
+    label: data.label,
+    displayType: data.displayType,
+    valueMode: data.valueMode,
+    prefix: data.prefix,
+    removePrefix: data.removePrefix,
+    selectedValues: data.selectedValues,
+    urlHandle: data.urlHandle,
+    collectionTree: data.collectionTree,
+    collectionParents: data.collectionParents || {},
+    valueSortMode: data.valueSortMode,
+    collapseByDefault: data.collapseByDefault,
+    enableValueSearch: data.enableValueSearch,
+    showMore: data.showMore,
+    textTransform: data.textTransform,
+    autoRemovePrefixes: data.autoRemovePrefixes,
+    tooltip: data.tooltip,
+    matchMode: data.matchMode,
+  };
+}
 
 type PickerResponse =
   | ({ all: false; requestId: string } & FilterOptionCatalogPage)
@@ -130,6 +179,56 @@ export function FilterOptionEditorPage({
   const [matchMode, setMatchMode] = useState<FacetMatchMode>(data.matchMode);
   const [catalogQuery, setCatalogQuery] = useState(data.catalog.query);
   const [catalogPage, setCatalogPage] = useState(data.catalog);
+  const [saved, setSaved] = useState(() => optionSnapshotFromData(data));
+  const [loaderData, setLoaderData] = useState(data);
+  if (data !== loaderData) {
+    setLoaderData(data);
+    const next = optionSnapshotFromData(data);
+    setSaved(next);
+    setKey(next.key);
+    setLabel(next.label);
+    setDisplayType(next.displayType);
+    setValueMode(next.valueMode);
+    setPrefix(next.prefix);
+    setRemovePrefix(next.removePrefix);
+    setSelectedValues(next.selectedValues);
+    setUrlHandle(next.urlHandle);
+    setHandleTouched(data.mode === "edit");
+    setCollectionTree(next.collectionTree);
+    setCollectionParents(next.collectionParents);
+    setValueSortMode(next.valueSortMode);
+    setCollapseByDefault(next.collapseByDefault);
+    setEnableValueSearch(next.enableValueSearch);
+    setShowMore(next.showMore);
+    setTextTransform(next.textTransform);
+    setAutoRemovePrefixes(next.autoRemovePrefixes);
+    setTooltip(next.tooltip);
+    setMatchMode(next.matchMode);
+    setCatalogQuery(data.catalog.query);
+    setCatalogPage(data.catalog);
+  }
+
+  const currentSnapshot: OptionPersistSnapshot = {
+    key,
+    label,
+    displayType,
+    valueMode,
+    prefix,
+    removePrefix,
+    selectedValues,
+    urlHandle,
+    collectionTree,
+    collectionParents,
+    valueSortMode,
+    collapseByDefault,
+    enableValueSearch,
+    showMore,
+    textTransform,
+    autoRemovePrefixes,
+    tooltip,
+    matchMode,
+  };
+  const dirty = isDirtySnapshot(currentSnapshot, saved);
 
   useEffect(() => {
     const next = pageFetcher.data;
@@ -157,6 +256,47 @@ export function FilterOptionEditorPage({
         r: String(pageRequestId.current),
       }),
     );
+  };
+
+  const discardChanges = () => {
+    setKey(saved.key);
+    setLabel(saved.label);
+    setDisplayType(saved.displayType);
+    setValueMode(saved.valueMode);
+    setPrefix(saved.prefix);
+    setRemovePrefix(saved.removePrefix);
+    setSelectedValues(saved.selectedValues);
+    setUrlHandle(saved.urlHandle);
+    setHandleTouched(isEdit);
+    setShowHandleField(false);
+    setCollectionTree(saved.collectionTree);
+    setCollectionParents(saved.collectionParents);
+    setValueSortMode(saved.valueSortMode);
+    setCollapseByDefault(saved.collapseByDefault);
+    setEnableValueSearch(saved.enableValueSearch);
+    setShowMore(saved.showMore);
+    setTextTransform(saved.textTransform);
+    setAutoRemovePrefixes(saved.autoRemovePrefixes);
+    setTooltip(saved.tooltip);
+    setMatchMode(saved.matchMode);
+    if (saved.key !== key) {
+      setCatalogQuery("");
+      setCatalogPage({
+        sourceKey: saved.key,
+        values: [],
+        labels: {},
+        total: 0,
+        page: 0,
+        pageCount: 1,
+        showingFrom: 0,
+        showingTo: 0,
+        query: "",
+        collectionTreeItems: [],
+      });
+      if (saved.key) {
+        loadCatalogPage({ source: saved.key, page: 0, q: "" });
+      }
+    }
   };
 
   const sourceOptions = data.sources.length
@@ -303,6 +443,15 @@ export function FilterOptionEditorPage({
 
   return (
     <div className="findly-option-editor-page">
+    <ContextualSaveBar
+      id="filter-option-save-bar"
+      open={dirty && Boolean(key)}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("filter-option-form");
+      }}
+      onDiscard={discardChanges}
+    />
     <Page
       fullWidth
       title={isEdit ? "Edit filter option" : "Add filter option"}
@@ -322,17 +471,6 @@ export function FilterOptionEditorPage({
             ]
           : undefined
       }
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving || !key,
-        onAction: () => {
-          const form = document.getElementById(
-            "filter-option-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>

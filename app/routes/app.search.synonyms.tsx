@@ -34,6 +34,11 @@ import { getAppSettings, saveSearchSettings } from "../services/settings.server"
 import { lastPageIndex, slicePage } from "../utils/admin-list-page";
 import { AdminListPagination } from "../components/admin-list-pagination";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 
 export { SynonymsPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -42,6 +47,11 @@ type SynonymDraft = {
   terms: string;
   mode: "equivalence" | "inferred";
 };
+
+/** Persistable fields only — omit UI-only id from dirty compare. */
+function synonymsPersistSnapshot(rows: SynonymDraft[]) {
+  return rows.map(({ terms, mode }) => ({ terms, mode }));
+}
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -107,6 +117,10 @@ export default function SearchSynonymsPage() {
   if (page !== slice.safePage) setPage(slice.safePage);
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(
+    synonymsPersistSnapshot(rows),
+    synonymsPersistSnapshot(data.rows),
+  );
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -130,20 +144,19 @@ export default function SearchSynonymsPage() {
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="search-synonyms-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("search-synonyms-form");
+      }}
+      onDiscard={() => setRows(data.rows)}
+    />
     <Page
       title="Synonyms"
       backAction={{ content: "Search", onAction: () => navigate("/app/search") }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "search-synonyms-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
-      }}
     >
       <Layout>
         <Layout.Section>
@@ -252,6 +265,7 @@ export default function SearchSynonymsPage() {
       </Layout>
       {dialog}
     </Page>
+    </>
   );
 }
 

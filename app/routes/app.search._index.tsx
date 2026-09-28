@@ -60,6 +60,11 @@ import {
 } from "../utils/instant-search";
 import { getAppSettings, saveSearchSettings } from "../services/settings.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 
 export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -125,6 +130,18 @@ type SearchPageState = {
   suggestionCollectionHandles: string[];
   searchExtras: SearchExtras;
 };
+
+/** Persistable fields only — omit UI-only fieldOrder from dirty compare. */
+function searchPersistSnapshot(state: SearchPageState) {
+  return {
+    searchFields: state.searchFields,
+    showSuggestionsOnEmptyQuery: state.showSuggestionsOnEmptyQuery,
+    showSuggestionsOnNoResults: state.showSuggestionsOnNoResults,
+    suggestionProductHandles: state.suggestionProductHandles,
+    suggestionCollectionHandles: state.suggestionCollectionHandles,
+    searchExtras: state.searchExtras,
+  };
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const auth = await authenticateAdminAllowReviewBot(request);
@@ -218,6 +235,10 @@ export default function SearchPage() {
   }
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(
+    searchPersistSnapshot(state),
+    searchPersistSnapshot(data.settings),
+  );
   const selectedTabIndex = SEARCH_TABS.findIndex((tab) => tab.id === selectedTab);
 
   useEffect(() => {
@@ -276,20 +297,17 @@ export default function SearchPage() {
   };
 
   return (
-    <Page
-      title="Search"
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "search-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
+    <>
+    <ContextualSaveBar
+      id="search-settings-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("search-form");
       }}
-    >
+      onDiscard={() => setState(data.settings)}
+    />
+    <Page title="Search">
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
@@ -824,6 +842,7 @@ export default function SearchPage() {
         </Layout.Section>
       </Layout>
     </Page>
+    </>
   );
 }
 

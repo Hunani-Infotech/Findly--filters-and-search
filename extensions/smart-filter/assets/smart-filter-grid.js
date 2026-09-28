@@ -1232,6 +1232,9 @@
   function findThemeWidthNearMain(grid) {
     var fromGrid = closestThemeWidth(grid);
     if (fromGrid) return fromGrid;
+    var searchWidth = ensureSearchThemeWidthShell(grid);
+    if (searchWidth) return searchWidth;
+    if (!grid || !grid.nodeType) return null;
     var main = document.querySelector(
       "#MainContent, #main, #Main, main, [role='main']",
     );
@@ -1243,20 +1246,174 @@
       nodes = [];
     }
     var i;
-    var fallback = null;
     for (i = 0; i < nodes.length; i++) {
       if (!nodes[i] || isFullBleedHost(nodes[i])) continue;
-      if (!fallback) fallback = nodes[i];
+      /* Never return a header-only .page-width that does not contain the grid
+         (Dawn search: title lives in .page-width, #product-grid is a sibling). */
+      if (nodes[i].contains && nodes[i].contains(grid)) return nodes[i];
+    }
+    return null;
+  }
+
+  function isSearchPageContext(widget) {
+    /* Search TEMPLATE only — never treat collection in-grid search as /search. */
+    try {
+      var path = String((window.location && window.location.pathname) || "");
+      if (/\/search\/?$/i.test(path) || /^\/search\//i.test(path)) return true;
       if (
-        nodes[i].querySelector &&
-        nodes[i].querySelector(
-          "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid, results-list",
+        document.querySelector(
+          ".template-search, #main-search, .main-search, #SearchPage, .search-page," +
+            "[data-section-type='search'], [data-section-type='search-template']," +
+            "[data-section-type='search-results'], #shopify-section-main-search," +
+            ".shopify-section--main-search, [data-template='search']",
         )
       ) {
-        return nodes[i];
+        return true;
+      }
+      /* Liquid stamps data-search-query only on search templates. */
+      if (document.querySelector(".smart-filter[data-search-query]")) return true;
+      var body = document.body;
+      if (body && body.classList && body.classList.contains("template-search")) {
+        return true;
+      }
+      if (widget && widget.root && widget.root.getAttribute) {
+        if (widget.root.getAttribute("data-search-query") != null) return true;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  function isSearchShellEl(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.classList) {
+      if (node.classList.contains("sf-search-width")) return true;
+      if (node.classList.contains("template-search")) return true;
+      if (node.classList.contains("main-search")) return true;
+      if (node.classList.contains("search-page")) return true;
+      if (node.classList.contains("shopify-section--main-search")) return true;
+    }
+    var id = String(node.id || "").toLowerCase();
+    if (
+      id === "main-search" ||
+      id === "searchpage" ||
+      id === "search-page" ||
+      id === "shopify-section-main-search" ||
+      (id.indexOf("main-search") !== -1 && id.indexOf("predictive") === -1)
+    ) {
+      return true;
+    }
+    if (node.getAttribute) {
+      var sectionType = String(node.getAttribute("data-section-type") || "");
+      if (
+        sectionType === "search" ||
+        sectionType === "search-template" ||
+        sectionType === "search-results"
+      ) {
+        return true;
+      }
+      if (String(node.getAttribute("data-template") || "") === "search") {
+        return true;
       }
     }
-    return fallback;
+    return false;
+  }
+
+  function closestSearchShell(el) {
+    var node = el;
+    var hops = 0;
+    while (node && node.nodeType === 1 && hops < 16) {
+      if (isSearchShellEl(node)) return node;
+      if (isFullBleedHost(node) && node !== el && !isSearchShellEl(node)) {
+        /* Keep walking through main/section only if it looks like search. */
+        var sid = String(node.id || "").toLowerCase();
+        if (
+          node.classList &&
+          (node.classList.contains("shopify-section") || isFullBleedHost(node)) &&
+          sid.indexOf("search") !== -1 &&
+          sid.indexOf("predictive") === -1
+        ) {
+          return node;
+        }
+        if (!node.classList || !node.classList.contains("shopify-section")) break;
+      }
+      node = node.parentElement;
+      hops += 1;
+    }
+    try {
+      return document.querySelector(
+        ".template-search, #main-search, .main-search, #SearchPage, .search-page," +
+          "#shopify-section-main-search, .shopify-section--main-search," +
+          "[data-section-type='search'], [data-section-type='search-template']," +
+          "[data-section-type='search-results'], [data-template='search']",
+      );
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function pickSearchWidthClassName(shell) {
+    var sample =
+      (shell &&
+        shell.querySelector &&
+        shell.querySelector(
+          ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow," +
+            ".container:not(.container-fluid), .Container, .page-container, .wrapper",
+        )) ||
+      document.querySelector(THEME_WIDTH_SELECTOR);
+    if (sample && sample.classList) {
+      if (sample.classList.contains("page-width-desktop")) {
+        return "page-width-desktop sf-search-width";
+      }
+      if (sample.classList.contains("page-width--narrow")) {
+        return "page-width page-width--narrow sf-search-width";
+      }
+      if (sample.classList.contains("page-width")) {
+        return "page-width sf-search-width";
+      }
+      if (sample.classList.contains("container") && !sample.classList.contains("container-fluid")) {
+        return "container sf-search-width";
+      }
+      if (sample.classList.contains("Container")) return "Container sf-search-width";
+      if (sample.classList.contains("page-container")) {
+        return "page-container sf-search-width";
+      }
+      if (sample.classList.contains("wrapper")) return "wrapper sf-search-width";
+    }
+    return "page-width sf-search-width";
+  }
+
+  /* Search pages only: title/form often sit in a theme width box while the
+     product grid is a sibling. Wrap both in one shell so Vertical layout
+     matches collections. No-op on collection templates. */
+  function ensureSearchThemeWidthShell(grid) {
+    if (!grid || !isSearchPageContext()) return null;
+    if (closestThemeWidth(grid)) return null;
+    var existing =
+      (grid.closest && grid.closest(".sf-search-width")) ||
+      document.querySelector(".sf-search-width");
+    if (existing && existing.contains && existing.contains(grid)) {
+      return existing;
+    }
+    var shell = closestSearchShell(grid);
+    if (!shell || isThemeWidthContainer(shell)) return null;
+    if (shell.classList && shell.classList.contains("sf-search-width")) {
+      return shell;
+    }
+    var already =
+      shell.querySelector &&
+      shell.querySelector(
+        ":scope > .sf-search-width, :scope > .page-width.sf-search-width, :scope > .container.sf-search-width",
+      );
+    if (already && already.contains(grid)) return already;
+    /* Only wrap when the shell actually contains the results grid. */
+    if (!shell.contains(grid)) return null;
+    var width = document.createElement("div");
+    width.className = pickSearchWidthClassName(shell);
+    while (shell.firstChild) width.appendChild(shell.firstChild);
+    shell.appendChild(width);
+    return width;
   }
 
   function themeWidthChildContaining(pageWidth, grid) {
@@ -1368,6 +1525,13 @@
       (isThemeWidthContainer(host) ? host : closestThemeWidth(host));
     if (pageWidth && isProductGridLike(pageWidth)) pageWidth = null;
     if (!pageWidth) {
+      pageWidth = ensureSearchThemeWidthShell(grid || host);
+    }
+    if (!pageWidth) {
+      pageWidth = findThemeWidthNearMain(grid || host);
+    }
+    if (pageWidth && isProductGridLike(pageWidth)) pageWidth = null;
+    if (!pageWidth) {
       if (listingShell) return ensureBlockMain(listingShell);
       if (isFullBleedHost(host) && grid && host.contains && host.contains(grid)) {
         return ensureBlockMain(host);
@@ -1388,6 +1552,13 @@
         child = themeWidthChildContaining(pageWidth, slot);
       }
       if (child && child !== pageWidth && !isThemeWidthContainer(child)) {
+        /* Search: keep title/form + results together in one main column. */
+        if (
+          pageWidth.classList &&
+          pageWidth.classList.contains("sf-search-width")
+        ) {
+          return wrapInsidePageWidth(pageWidth) || ensureBlockMain(child);
+        }
         return ensureBlockMain(child);
       }
       return wrapInsidePageWidth(pageWidth) || ensureBlockMain(host);
@@ -1704,7 +1875,10 @@
     if (!layout || !layout.parentNode) return;
     var grid =
       (widget && widget._gridParent) || collectionSearchGridEl(widget);
-    var pageWidth = closestThemeWidth(grid) || findThemeWidthNearMain(grid);
+    var pageWidth =
+      closestThemeWidth(grid) ||
+      ensureSearchThemeWidthShell(grid) ||
+      findThemeWidthNearMain(grid);
     if (!pageWidth || isProductGridLike(pageWidth)) return;
     if (pageWidth.contains(layout) && layout !== pageWidth) {
       normalizeLayoutShell(layout);

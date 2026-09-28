@@ -34,6 +34,11 @@ import { mappedFacetsForAdmin, normalizeDisplayOrder, parseDisplayTypes, parseMa
 import { storedFilterDisplayOrder } from "../utils/filter-option-rows";
 import { getFilterConfig, getListFacetValueCatalog, getMetafieldMappings, saveFilterConfig, filterConfigPriceFields } from "../services/shop.server";
 import { isMutationBusy } from "../components/admin-loading";
+import {
+  ContextualSaveBar,
+  isDirtySnapshot,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 import { DisplayOrderList } from "../components/display-order-list";
 import { FacetValueSortEditor } from "../components/facet-value-sort";
 import { FilterOptionsGuide } from "../components/filter-options-guide";
@@ -267,6 +272,7 @@ export default function ShopDefaultFilterConfigPage() {
   }
 
   const saving = isMutationBusy(navigation);
+  const dirty = isDirtySnapshot(config, loaderConfig);
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -302,22 +308,21 @@ export default function ShopDefaultFilterConfigPage() {
   };
 
   return (
+    <>
+    <ContextualSaveBar
+      id="default-filters-save-bar"
+      open={dirty}
+      saving={saving}
+      onSave={() => {
+        requestFormSubmit("default-filter-form");
+      }}
+      onDiscard={() => setConfig(loaderConfig)}
+    />
     <Page
       title="Shop-wide default filters"
       backAction={{
         content: "Filters",
         onAction: () => navigate("/app/filters"),
-      }}
-      primaryAction={{
-        content: saving ? "Saving…" : "Save",
-        loading: saving,
-        disabled: saving,
-        onAction: () => {
-          const form = document.getElementById(
-            "default-filter-form",
-          ) as HTMLFormElement | null;
-          form?.requestSubmit();
-        },
       }}
     >
       <Layout>
@@ -617,6 +622,7 @@ export default function ShopDefaultFilterConfigPage() {
         </Layout.Section>
       </Layout>
     </Page>
+    </>
   );
 }
 

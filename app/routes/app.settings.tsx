@@ -69,6 +69,10 @@ import {
   type WidgetPosition,
 } from "../utils/app-settings";
 import { expandHexColor } from "../utils/hex-color";
+import {
+  ContextualSaveBar,
+  requestFormSubmit,
+} from "../components/contextual-save-bar";
 import { getAppSettings, saveAppSettings } from "../services/settings.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { SettingsMetafieldsCard } from "../components/settings-metafields-card";
@@ -637,38 +641,21 @@ export default function SettingsPage() {
           : "findly-settings-page"
       }
     >
+    <ContextualSaveBar
+      id="settings-save-bar"
+      open={!hidePageSave && dirty}
+      saving={saving}
+      onSave={() => requestFormSubmit("settings-form")}
+      onDiscard={() => setSettings(data.settings)}
+    />
     <Page
       title="Settings"
       subtitle="General, filter panel, and metafields."
       backAction={{ content: "Home", onAction: () => navigate("/app") }}
-      primaryAction={
-        hidePageSave || !dirty
-          ? undefined
-          : {
-              content: saving ? "Saving…" : "Save",
-              loading: saving,
-              disabled: saving,
-              onAction: () => {
-                const form = document.getElementById(
-                  "settings-form",
-                ) as HTMLFormElement | null;
-                form?.requestSubmit();
-              },
-            }
-      }
       secondaryActions={
         hidePageSave
           ? undefined
           : [
-              ...(dirty
-                ? [
-                    {
-                      content: "Discard",
-                      disabled: saving,
-                      onAction: () => setSettings(data.settings),
-                    },
-                  ]
-                : []),
               {
                 content: "Default filters",
                 onAction: () => navigate("/app/collections/default"),
