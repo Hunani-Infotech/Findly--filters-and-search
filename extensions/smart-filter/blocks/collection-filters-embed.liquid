@@ -18,11 +18,9 @@
 <script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
-<script src="{{ 'smart-filter-meta-labels.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter.min.js' | asset_url }}" defer></script>
-{% render 'findly-metaobject-labels' %}
 <script type="application/json" id="findly-embed-config">
 {
   "productGridSelector": {{ block.settings.product_grid_selector | json }},

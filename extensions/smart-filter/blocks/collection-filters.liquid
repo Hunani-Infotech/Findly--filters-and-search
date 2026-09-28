@@ -11,10 +11,8 @@
 <script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-grid.min.js' | asset_url }}" defer></script>
-<script src="{{ 'smart-filter-meta-labels.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
-{% render 'findly-metaobject-labels' %}
 {% assign sf_page_size = 16 %}
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
