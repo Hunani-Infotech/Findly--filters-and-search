@@ -44,7 +44,7 @@ export function indexedProductsLabel(data: {
 }) {
   if (data.indexingBlocked) {
     if (data.productCount > 0) {
-      return `Indexed products: ${data.productCount} (live Development does not index new products)`;
+      return `Indexed products: ${data.productCount} (live stores without a paid plan do not index new products)`;
     }
     return "Indexed products: none — choose Standard or Pro to index this catalog";
   }

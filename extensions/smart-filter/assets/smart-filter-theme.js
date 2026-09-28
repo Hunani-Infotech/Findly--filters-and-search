@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v10";
+  var STYLE_ID = "findly-theme-compat-v11";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -267,6 +267,7 @@
       "findly-theme-compat-v8",
       "findly-theme-compat-v9",
       "findly-theme-compat-v10",
+      "findly-theme-compat-v11",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -341,7 +342,16 @@
       ".collection-wrapper>.sf-collection-layout{grid-column:var(--centered,2 / -2)!important;width:auto!important;max-width:none!important;min-width:0!important}" +
       ".collection-wrapper--grid-full-width>.sf-collection-layout," +
       ".collection-wrapper:has(.collection-wrapper--full-width)>.sf-collection-layout{grid-column:var(--full-width,1 / -1)!important}" +
-      "@media(min-width:750px){" +
+      "@media(max-width:989px){" +
+      ".sf-collection-layout--left,.sf-collection-layout--right{" +
+      "display:block!important;grid-template-columns:none!important;gap:0!important}" +
+      ".sf-collection-layout--left>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
+      ".sf-collection-layout--right>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
+      ".sf-collection-layout--left>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
+      ".sf-collection-layout--right>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
+      "{display:none!important}" +
+      "}" +
+      "@media(min-width:990px){" +
       ".sf-collection-layout--left{display:grid!important;grid-template-columns:320px minmax(0,1fr)!important;align-items:start;gap:32px;width:100%!important}" +
       ".sf-collection-layout--right{display:grid!important;grid-template-columns:minmax(0,1fr) 320px!important;align-items:start;gap:32px;width:100%!important}" +
       ".sf-collection-layout--left>.sf-layout-main,.sf-collection-layout--right>.sf-layout-main{" +

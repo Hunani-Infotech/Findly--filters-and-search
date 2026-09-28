@@ -1,6 +1,7 @@
 import type { MetafieldFilterType } from "@prisma/client";
 import prisma from "../db.server";
 import { resolvePlanCaps } from "./billing.server";
+import { findShopByIdCached } from "../lib/shop-cache.server";
 import { SAMPLE_TEXT_MAX } from "../constants/limits";
 import {
   DEFAULT_NEW_APPLIES,
@@ -79,9 +80,10 @@ export function declaredMetafieldsFromMappings(
 }
 
 export async function loadSettingsMetafields(shopId: string) {
-  const [mappings, caps] = await Promise.all([
+  const [mappings, caps, shop] = await Promise.all([
     getMetafieldMappings(shopId),
     resolvePlanCaps(shopId),
+    findShopByIdCached(shopId),
   ]);
   const filterCount = mappings.filter((mapping) =>
     mappingAppliesToFilter(mapping),
@@ -91,6 +93,7 @@ export async function loadSettingsMetafields(shopId: string) {
     filterCount,
     filterLimit: caps.filterLimit,
     plan: caps.plan,
+    partnerDevelopment: Boolean(shop?.partnerDevelopment),
     overFilterLimit: filterCount > caps.filterLimit,
   };
 }

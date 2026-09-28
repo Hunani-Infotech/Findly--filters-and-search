@@ -251,6 +251,14 @@ function toSettingsState(settings: {
   };
 }
 
+/** Persistable fields only — omit UI-only select helpers from dirty compare. */
+function settingsPersistSnapshot(state: SettingsState) {
+  const { radiusChoice, titleSizeChoice, ...persisted } = state;
+  void radiusChoice;
+  void titleSizeChoice;
+  return JSON.stringify(persisted);
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const auth = await authenticateAdminAllowReviewBot(request);
   const tab = parseSettingsTab(new URL(request.url).searchParams.get("tab"));
@@ -262,6 +270,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         filterCount: 0,
         filterLimit: PLANS.free.filterLimit,
         plan: "free" as const,
+        partnerDevelopment: false,
         overFilterLimit: false,
       },
       settings: toSettingsState({ ...DEFAULT_APP_SETTINGS }),
@@ -505,6 +514,9 @@ export default function SettingsPage() {
   const showPreview =
     selectedTab === "general" || selectedTab === "panel";
   const hidePageSave = selectedTab === "metafields";
+  const dirty =
+    settingsPersistSnapshot(settings) !==
+    settingsPersistSnapshot(data.settings);
   const previewSettings = useMemo(
     () =>
       toWidgetPreviewSettings({
@@ -525,6 +537,7 @@ export default function SettingsPage() {
         hideSingleValueFacets: settings.hideSingleValueFacets,
         showRefineBy: settings.showRefineBy,
         autoApplyFilters: settings.autoApplyFilters,
+        customCss: settings.customCss,
       }),
     [
       settings.widgetPosition,
@@ -544,6 +557,7 @@ export default function SettingsPage() {
       settings.hideSingleValueFacets,
       settings.showRefineBy,
       settings.autoApplyFilters,
+      settings.customCss,
     ],
   );
 
@@ -628,7 +642,7 @@ export default function SettingsPage() {
       subtitle="General, filter panel, and metafields."
       backAction={{ content: "Home", onAction: () => navigate("/app") }}
       primaryAction={
-        hidePageSave
+        hidePageSave || !dirty
           ? undefined
           : {
               content: saving ? "Saving…" : "Save",
@@ -646,6 +660,15 @@ export default function SettingsPage() {
         hidePageSave
           ? undefined
           : [
+              ...(dirty
+                ? [
+                    {
+                      content: "Discard",
+                      disabled: saving,
+                      onAction: () => setSettings(data.settings),
+                    },
+                  ]
+                : []),
               {
                 content: "Default filters",
                 onAction: () => navigate("/app/collections/default"),
@@ -1247,7 +1270,7 @@ export default function SettingsPage() {
                         multiline={8}
                         value={settings.customCss}
                         disabled={saving}
-                        helpText="Scoped to the filter widget only. Does not change the theme header. Use --sf-accent to change the accent."
+                        helpText="Styles the filter widget and Findly product grid, sort, and drawer hosts. Does not style the theme header. Use --sf-accent to change the accent."
                         onChange={(value) =>
                           setSettings((s) => ({ ...s, customCss: value }))
                         }
@@ -1289,6 +1312,7 @@ export default function SettingsPage() {
                   initialRows={data.metafields.rows}
                   plan={data.metafields.plan}
                   filterLimit={data.metafields.filterLimit}
+                  partnerDevelopment={data.metafields.partnerDevelopment}
                 />
               </div>
             </BlockStack>

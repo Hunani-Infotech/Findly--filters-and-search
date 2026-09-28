@@ -1,5 +1,6 @@
 import { memo, type CSSProperties } from "react";
 import type { WidgetPosition } from "../types/search";
+import { sanitizeCustomCss, scopeCustomCss } from "../utils/widget-code";
 import styles from "./widget-preview.module.css";
 
 export type WidgetPreviewSettings = {
@@ -20,6 +21,8 @@ export type WidgetPreviewSettings = {
   hideSingleValueFacets?: boolean;
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
+  /** Merchant Custom CSS — sanitized + scoped for live preview. */
+  customCss?: string;
 };
 
 /** Pick only fields the look preview reads so unrelated edits skip its render. */
@@ -44,10 +47,15 @@ export function toWidgetPreviewSettings(
     hideSingleValueFacets: settings.hideSingleValueFacets,
     showRefineBy: settings.showRefineBy,
     autoApplyFilters: settings.autoApplyFilters,
+    customCss: settings.customCss,
   };
 }
 
 type LayoutPosition = WidgetPreviewSettings["widgetPosition"];
+
+function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
 
 function widgetStyle(settings: WidgetPreviewSettings): CSSProperties {
   const custom =
@@ -75,7 +83,7 @@ function Count({
   show: boolean;
 }) {
   if (!show) return null;
-  return <span className={styles.count}>({value})</span>;
+  return <span className={cx(styles.count, "sf-option-count")}>({value})</span>;
 }
 
 function LayoutThumb({ position }: { position: LayoutPosition }) {
@@ -181,32 +189,36 @@ function MiniProductGrid({
   return (
     <div className={styles.miniGridCol} aria-hidden="true">
       {showSearch || showSort || showTotal ? (
-        <div className={styles.toolbar}>
+        <div className={cx(styles.toolbar, "sf-toolbar")}>
           {showSearch ? (
-            <div className={styles.collectionSearch}>Search products</div>
+            <div className={cx(styles.collectionSearch, "sf-search-host")}>
+              Search products
+            </div>
           ) : (
             <div className={styles.toolbarSpacer} />
           )}
           {showSort || showTotal ? (
-            <div className={styles.toolbarEnd}>
+            <div className={cx(styles.toolbarEnd, "sf-toolbar-end")}>
               {showSort ? (
                 <div className={styles.sortRow}>
                   <span className={styles.sortLabel}>Sort by</span>
-                  <div className={styles.sortBy}>Featured</div>
+                  <div className={cx(styles.sortBy, "sf-sort-host")}>Featured</div>
                 </div>
               ) : null}
               {showTotal ? (
-                <div className={styles.totalCount}>163 products</div>
+                <div className={cx(styles.totalCount, "sf-total-count")}>
+                  163 products
+                </div>
               ) : null}
             </div>
           ) : null}
         </div>
       ) : null}
-      <div className={styles.miniGrid}>
-        <div className={styles.miniCard} />
-        <div className={styles.miniCard} />
-        <div className={styles.miniCard} />
-        <div className={styles.miniCard} />
+      <div id="findly-grid-host" className={cx(styles.miniGrid, "sf-app-grid")}>
+        <div className={cx(styles.miniCard, "sf-app-card")} />
+        <div className={cx(styles.miniCard, "sf-app-card")} />
+        <div className={cx(styles.miniCard, "sf-app-card")} />
+        <div className={cx(styles.miniCard, "sf-app-card")} />
       </div>
     </div>
   );
@@ -221,160 +233,200 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   const showRefine = settings.showRefineBy !== false;
   const hideSingle = Boolean(settings.hideSingleValueFacets);
   const offcanvas = settings.widgetPosition === "offcanvas";
-  const widgetClass = [
+  const layoutMod =
+    settings.widgetPosition === "right"
+      ? "smart-filter--right"
+      : settings.widgetPosition === "top"
+        ? "smart-filter--top"
+        : settings.widgetPosition === "offcanvas"
+          ? "smart-filter--offcanvas"
+          : "smart-filter--left";
+  const widgetClass = cx(
     styles.widget,
-    horizontal ? styles.widgetTop : "",
-    offcanvas ? styles.widgetOffcanvas : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    "smart-filter",
+    layoutMod,
+    horizontal && styles.widgetTop,
+    offcanvas && styles.widgetOffcanvas,
+  );
 
   return (
     <div className={widgetClass} style={widgetStyle(settings)} aria-hidden="true">
       {offcanvas ? <div className={styles.offcanvasBtn}>Filter</div> : null}
-      <p className={title ? styles.title : `${styles.title} ${styles.titleHidden}`}>
+      <p
+        className={cx(
+          styles.title,
+          "sf-title",
+          !title && styles.titleHidden,
+        )}
+      >
         {title}
       </p>
       {showRefine ? (
         <>
-          <div className={styles.filterBy}>
+          <div className={cx(styles.filterBy, "sf-header")}>
             <span className={styles.filterByLabel}>Filter by</span>
-            <span className={styles.clear}>Clear</span>
-          </div>
-          <div className={styles.chips}>
-            <span className={styles.chip}>
-              Availability: <span className={styles.chipStrong}>In stock</span>
-              <span className={styles.chipX}>×</span>
+            <span className={cx(styles.clear, "sf-clear", "sf-clear-all")}>
+              Clear
             </span>
-            <span className={styles.chip}>
+          </div>
+          <div className={cx(styles.chips, "sf-chips")}>
+            <span className={cx(styles.chip, "sf-chip")}>
+              Availability: <span className={styles.chipStrong}>In stock</span>
+              <span className={cx(styles.chipX, "sf-chip-remove")}>×</span>
+            </span>
+            <span className={cx(styles.chip, "sf-chip")}>
               Vendor: <span className={styles.chipStrong}>Cotton</span>
-              <span className={styles.chipX}>×</span>
+              <span className={cx(styles.chipX, "sf-chip-remove")}>×</span>
             </span>
           </div>
         </>
       ) : null}
-      <div className={styles.facets}>
-      <div className={styles.facet}>
-        <div className={styles.facetLabel}>
+      <div className={cx(styles.facets, "sf-facets")} data-facets="">
+      <div className={cx(styles.facet, "sf-facet")}>
+        <div className={cx(styles.facetLabel, "sf-facet-label")}>
           Availability
           <span
-            className={
-              collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
-            }
+            className={cx(
+              styles.chevron,
+              "sf-chevron",
+              collapsed && styles.chevronCollapsed,
+            )}
           />
         </div>
         {collapsed ? null : (
           <>
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={`${styles.check} ${styles.checkOn}`} />
-              <span className={styles.optionText}>In stock</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                In stock
+              </span>
               <Count value="12" show={counts} />
             </div>
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={styles.check} />
-              <span className={styles.optionText}>Out of stock</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                Out of stock
+              </span>
               <Count value="3" show={counts} />
             </div>
           </>
         )}
       </div>
-      <div className={styles.facet}>
-        <div className={styles.facetLabel}>
+      <div className={cx(styles.facet, "sf-facet")}>
+        <div className={cx(styles.facetLabel, "sf-facet-label")}>
           Vendor
           <span
-            className={
-              collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
-            }
+            className={cx(
+              styles.chevron,
+              "sf-chevron",
+              collapsed && styles.chevronCollapsed,
+            )}
           />
         </div>
         {collapsed ? null : (
           <>
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={`${styles.check} ${styles.checkOn}`} />
-              <span className={styles.optionText}>Cotton</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                Cotton
+              </span>
               <Count value="8" show={counts} />
             </div>
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={styles.check} />
-              <span className={styles.optionText}>Linen</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                Linen
+              </span>
               <Count value="5" show={counts} />
             </div>
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={styles.check} />
-              <span className={styles.optionText}>Wool</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                Wool
+              </span>
               <Count value="4" show={counts} />
             </div>
           </>
         )}
       </div>
       {hideSingle ? null : (
-        <div className={styles.facet}>
-          <div className={styles.facetLabel}>
+        <div className={cx(styles.facet, "sf-facet")}>
+          <div className={cx(styles.facetLabel, "sf-facet-label")}>
             Material
             <span
-              className={
-                collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
-              }
+              className={cx(
+                styles.chevron,
+                "sf-chevron",
+                collapsed && styles.chevronCollapsed,
+              )}
             />
           </div>
           {collapsed ? null : (
-            <div className={styles.option}>
+            <div className={cx(styles.option, "sf-option")}>
               <div className={styles.check} />
-              <span className={styles.optionText}>Cotton</span>
+              <span className={cx(styles.optionText, "sf-option-text")}>
+                Cotton
+              </span>
               <Count value="8" show={counts} />
             </div>
           )}
         </div>
       )}
-      <div className={styles.facet}>
-        <div className={styles.facetLabel}>
+      <div className={cx(styles.facet, "sf-facet")}>
+        <div className={cx(styles.facetLabel, "sf-facet-label")}>
           Price
           <span
-            className={
-              collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
-            }
+            className={cx(
+              styles.chevron,
+              "sf-chevron",
+              collapsed && styles.chevronCollapsed,
+            )}
           />
         </div>
         {collapsed ? null : (
           <>
-            <div className={styles.slider}>
-              <div className={styles.sliderFill} />
+            <div className={cx(styles.slider, "sf-slider")}>
+              <div className={cx(styles.sliderFill, "sf-slider-fill")} />
               <div className={`${styles.sliderThumb} ${styles.sliderThumbMin}`} />
               <div className={`${styles.sliderThumb} ${styles.sliderThumbMax}`} />
             </div>
-            <div className={styles.priceInputs}>
-              <div className={styles.priceBox}>20</div>
-              <div className={styles.priceBox}>180</div>
+            <div className={cx(styles.priceInputs, "sf-price")}>
+              <div className={cx(styles.priceBox, "sf-price-field")}>20</div>
+              <div className={cx(styles.priceBox, "sf-price-field")}>180</div>
             </div>
           </>
         )}
       </div>
-      <div className={styles.facet}>
-        <div className={styles.facetLabel}>
+      <div className={cx(styles.facet, "sf-facet")}>
+        <div className={cx(styles.facetLabel, "sf-facet-label")}>
           Length
           <span
-            className={
-              collapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron
-            }
+            className={cx(
+              styles.chevron,
+              "sf-chevron",
+              collapsed && styles.chevronCollapsed,
+            )}
           />
         </div>
         {collapsed ? null : (
           <>
-            <div className={styles.slider}>
-              <div className={styles.sliderFill} />
+            <div className={cx(styles.slider, "sf-slider")}>
+              <div className={cx(styles.sliderFill, "sf-slider-fill")} />
               <div className={`${styles.sliderThumb} ${styles.sliderThumbMin}`} />
               <div className={`${styles.sliderThumb} ${styles.sliderThumbMax}`} />
             </div>
-            <div className={styles.priceInputs}>
-              <div className={styles.priceBox}>10</div>
-              <div className={styles.priceBox}>100</div>
+            <div className={cx(styles.priceInputs, "sf-price")}>
+              <div className={cx(styles.priceBox, "sf-price-field")}>10</div>
+              <div className={cx(styles.priceBox, "sf-price-field")}>100</div>
             </div>
           </>
         )}
       </div>
       </div>
       {settings.autoApplyFilters === false ? (
-        <div className={styles.applyNow}>Apply now</div>
+        <div className={cx(styles.applyNow, "sf-apply-now", "sf-btn", "sf-btn-primary")}>
+          Apply now
+        </div>
       ) : null}
     </div>
   );
@@ -401,9 +453,18 @@ export const WidgetLookPreview = memo(function WidgetLookPreview({
       showTotal={settings.showTotalProductCount !== false}
     />
   );
+  const scopedCustomCss = settings.customCss?.trim()
+    ? scopeCustomCss(sanitizeCustomCss(settings.customCss))
+    : "";
 
   return (
     <div className={styles.preview}>
+      {scopedCustomCss ? (
+        <style
+          data-findly-preview-custom=""
+          dangerouslySetInnerHTML={{ __html: scopedCustomCss }}
+        />
+      ) : null}
       <div className={styles.stageHint}>
         Approximate look on the collection page. Theme fonts apply on the
         storefront.

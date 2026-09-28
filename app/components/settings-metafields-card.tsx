@@ -19,12 +19,7 @@ import type { MetafieldOwnerTypeValue } from "../utils/metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
 
 import { ADMIN_TABLE_PAGE_SIZE, lastPageIndex, slicePage } from "../utils/admin-list-page";
-
-const PLAN_LABELS: Record<string, string> = {
-  free: "Development",
-  standard: "Standard",
-  pro: "Pro",
-};
+import { planDisplayName } from "../constants/plans";
 
 const RESOURCE_OPTIONS = [
   { label: "Product", value: "PRODUCT" },
@@ -101,10 +96,12 @@ export function SettingsMetafieldsCard({
   initialRows,
   plan,
   filterLimit,
+  partnerDevelopment = false,
 }: {
   initialRows: SettingsMetafieldRow[];
   plan: string;
   filterLimit: number;
+  partnerDevelopment?: boolean;
 }) {
   const fetcher = useFetcher<FetcherData>();
   const shopify = useAppBridge();
@@ -280,7 +277,7 @@ export function SettingsMetafieldsCard({
           <Box padding="300" borderBlockStartWidth="025" borderColor="border">
             <Text as="p" variant="bodySm" tone="subdued">
               {`Showing ${slice.showingFrom}–${slice.showingTo} of ${rows.length}`}
-              {` · Filter metafields: ${filterCount}/${filterLimit} on ${PLAN_LABELS[plan] ?? plan}`}
+              {` · Filter metafields: ${filterCount}/${filterLimit} on ${planDisplayName(plan, { partnerDevelopment })}`}
             </Text>
           </Box>
         </>

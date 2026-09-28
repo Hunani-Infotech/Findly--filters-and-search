@@ -2,10 +2,51 @@ const WIDGET_SCOPE = ".smart-filter";
 const CUSTOM_CSS_MAX = 20000;
 const PRODUCT_LIST_LIQUID_MAX = 20000;
 
+/** Hosts merchant custom CSS may target; used as `:is(...)` when prefixing. */
+const FINDLY_SCOPE_ROOTS = [
+  ".smart-filter",
+  ".sf-drawer-portal",
+  "#findly-grid-host",
+  ".sf-sort-host",
+  ".sf-search-host",
+  ".sf-pager",
+  ".sf-toolbar",
+  ".sf-total-count",
+] as const;
+
+/**
+ * Selectors that already start at a Findly-owned host — do not prefix again.
+ * Includes `.sf-app-card` (product cards live outside `.smart-filter`).
+ */
+const OWNED_SELECTOR_ROOTS = [
+  ...FINDLY_SCOPE_ROOTS,
+  ".sf-app-card",
+] as const;
+
 const NESTED_AT = /^(media|supports|layer|container)$/i;
 const KEYFRAMES_AT = /^(-(webkit|moz|o)-)?keyframes$/i;
 const LEAK_LEADING =
   /^(?:html|body|header|:root|#shopify-section[\w-]*)(?=[\s.#:[>+~*,]|$)/i;
+const SELECTOR_BOUNDARY = /[\s.#:[>+~*,]/;
+
+function findlyScopePrefix(scope: string = WIDGET_SCOPE): string {
+  const roots =
+    scope === WIDGET_SCOPE
+      ? [...FINDLY_SCOPE_ROOTS]
+      : [scope, ...FINDLY_SCOPE_ROOTS.filter((r) => r !== scope)];
+  return `:is(${roots.join(", ")})`;
+}
+
+function startsWithOwnedRoot(sel: string): boolean {
+  for (const root of OWNED_SELECTOR_ROOTS) {
+    if (sel === root) return true;
+    if (sel.startsWith(root)) {
+      const next = sel.charAt(root.length);
+      if (!next || SELECTOR_BOUNDARY.test(next)) return true;
+    }
+  }
+  return false;
+}
 
 export function sanitizeCustomCss(value: unknown): string {
   try {
@@ -27,7 +68,7 @@ export function sanitizeCustomCss(value: unknown): string {
 export function scopeCustomCss(css: string, scope: string = WIDGET_SCOPE): string {
   try {
     if (!css || !css.trim()) return "";
-    return scopeBlock(css, scope).trim();
+    return scopeBlock(css, findlyScopePrefix(scope)).trim();
   } catch {
     return "";
   }
@@ -254,11 +295,15 @@ function prefixSelectorList(list: string, scope: string): string {
 function prefixSelector(raw: string, scope: string): string {
   const sel = raw.trim();
   if (!sel) return scope;
-  if (sel.startsWith(scope)) return sel;
+  if (sel.startsWith(scope) || startsWithOwnedRoot(sel)) return sel;
 
   const leak = sel.match(LEAK_LEADING);
   if (leak) {
-    return `${scope}${sel.slice(leak[0].length)}`;
+    const rest = sel.slice(leak[0].length).trim();
+    // `body .smart-filter` → keep owned root; bare `header` → scope only
+    if (!rest) return scope;
+    if (rest.startsWith(scope) || startsWithOwnedRoot(rest)) return rest;
+    return `${scope} ${rest}`;
   }
 
   return `${scope} ${sel}`;

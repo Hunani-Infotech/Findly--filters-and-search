@@ -65,9 +65,18 @@ function assertStaticMarkers() {
     fail("custom CSS must not be written to document.head");
   }
 
+  const widgetSettings = readRepo("app", "services", "widget-settings.server.ts");
+  if (
+    !widgetSettings.includes("scopeCustomCss") ||
+    !widgetSettings.includes("customCss:")
+  ) {
+    fail(
+      "widget-settings.server.ts must send scoped customCss on the storefront settings payload",
+    );
+  }
   const proxy = readRepo("app", "services", "proxy.server.ts");
-  if (!proxy.includes("scopeCustomCss") || !proxy.includes("customCss:")) {
-    fail("proxy.server.ts must send scoped customCss on the filter payload");
+  if (!proxy.includes("customCss") && !proxy.includes("settings")) {
+    fail("proxy.server.ts must expose settings (including customCss) on filter payload");
   }
 
   const schema = readRepo("prisma", "schema.prisma");
@@ -104,6 +113,40 @@ function assertSanitizer() {
   const already = scopeCustomCss(".smart-filter .title { color: blue }");
   if (already.includes(".smart-filter .smart-filter")) {
     fail("must not double-prefix .smart-filter selectors");
+  }
+
+  const bodyOwned = scopeCustomCss("body .smart-filter { padding: 0 }");
+  if (bodyOwned.includes(":is(") && bodyOwned.includes(") .smart-filter")) {
+    fail("body .smart-filter must collapse to owned .smart-filter, not nest under :is(...)");
+  }
+  if (!bodyOwned.trim().startsWith(".smart-filter")) {
+    fail("body .smart-filter must become .smart-filter { … }");
+  }
+
+  const appCard = scopeCustomCss(".sf-app-card { outline: 1px solid red }");
+  if (appCard.includes(".smart-filter .sf-app-card")) {
+    fail(".sf-app-card must not become .smart-filter .sf-app-card");
+  }
+  if (!appCard.trim().startsWith(".sf-app-card")) {
+    fail(".sf-app-card owned-root selector must be left unprefixed");
+  }
+
+  const gridHost = scopeCustomCss("#findly-grid-host .x { color: red }");
+  if (/\.smart-filter\s+#findly-grid-host\b/.test(gridHost)) {
+    fail("#findly-grid-host must not become .smart-filter #findly-grid-host");
+  }
+  if (!gridHost.trim().startsWith("#findly-grid-host")) {
+    fail("#findly-grid-host owned-root selector must be left unprefixed");
+  }
+
+  const generic = scopeCustomCss(".foo { color: red }");
+  if (
+    !generic.includes(":is(") ||
+    !generic.includes("#findly-grid-host") ||
+    !generic.includes(".sf-drawer-portal") ||
+    !generic.includes(".smart-filter")
+  ) {
+    fail("generic .foo must match under expanded :is(...) including grid/drawer hosts");
   }
 
   const liquid = sanitizeProductListLiquid(

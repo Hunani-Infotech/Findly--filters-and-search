@@ -1,7 +1,9 @@
 import prisma from "../db.server";
 import {
+  LIVE_UNPAID_PLAN_LABEL,
   PLANS,
   isPaidPlanKey,
+  planDisplayName,
   planKeyFromName,
   type PaidPlanKey,
   type PlanKey,
@@ -9,7 +11,13 @@ import {
 import { findShopByIdCached, findShopCached, rememberShop } from "../lib/shop-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
 
-export { PLANS, isPaidPlanKey, planKeyFromName };
+export {
+  LIVE_UNPAID_PLAN_LABEL,
+  PLANS,
+  isPaidPlanKey,
+  planDisplayName,
+  planKeyFromName,
+};
 export type { PaidPlanKey, PlanKey };
 
 export function isBillingTestMode() {
@@ -202,8 +210,9 @@ export async function enforcePlanLimits(shopId: string) {
 }
 
 /**
- * Development always has access; paid Standard/Pro unlock live catalog limits.
- * App use is never hard-blocked for billing — limits are enforced elsewhere.
+ * Unpaid shops resolve to plan key `free`. Development-store unlocks require
+ * Shopify `partnerDevelopment` (or local DEV_UNLOCK_LIMITS) — not the plan key alone.
+ * Paid Standard/Pro unlock live catalog limits. Limits are enforced elsewhere.
  */
 export async function ensureShopAccess(shopDomain: string) {
   const shop = await getOrCreateShop(shopDomain);
@@ -218,6 +227,29 @@ export async function ensureShopAccess(shopDomain: string) {
     shop,
     plan,
   };
+}
+
+/** True when this shop may use free Development features (not live unpaid). */
+export function isDevelopmentStoreAccess(shop: {
+  partnerDevelopment?: boolean | null;
+}): boolean {
+  return Boolean(shop.partnerDevelopment) || isDevUnlockLimits();
+}
+
+/** Admin-facing plan label for a shop row (Development vs No paid plan). */
+export function shopPlanDisplayName(shop: {
+  partnerDevelopment?: boolean | null;
+  subscription?: {
+    status: string;
+    trialEndsAt: Date | null;
+    planName?: string | null;
+  } | null;
+}): string {
+  const plan = getShopPlan(shop);
+  return planDisplayName(plan, {
+    partnerDevelopment: Boolean(shop.partnerDevelopment),
+    unlocked: isDevUnlockLimits(),
+  });
 }
 
 type GraphqlAdmin = {
@@ -278,7 +310,7 @@ export async function startStandardSubscriptionIfLive(
   await refreshPartnerDevelopment(admin, shop.id);
   const latest = await findShopByIdCached(shop.id);
   if (!latest) return null;
-  if (latest.partnerDevelopment || isDevUnlockLimits()) return null;
+  if (isDevelopmentStoreAccess(latest)) return null;
   if (hasActivePaidSubscription(latest.subscription)) return null;
   const status = (latest.subscription?.status ?? "").toUpperCase();
   if (status === "PENDING" || status === "ACCEPTED") return null;

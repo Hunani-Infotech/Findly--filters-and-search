@@ -29,8 +29,12 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { log } from "../lib/log.server";
-import { PLANS } from "../constants/plans";
-import { ensureShopAccess, resolvePlanCaps } from "../services/billing.server";
+import { PLANS, planDisplayName } from "../constants/plans";
+import {
+  ensureShopAccess,
+  resolvePlanCaps,
+  shopPlanDisplayName,
+} from "../services/billing.server";
 import prisma from "../db.server";
 import { queueFullSync } from "../sync/queue-full-sync";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
@@ -149,7 +153,8 @@ function emptyHomeData(shopDomain: string) {
   return {
     setup,
     plan: "free" as const,
-    planName: PLANS.free.name,
+    planName: planDisplayName("free", { partnerDevelopment: false }),
+    partnerDevelopment: false,
     trialDaysLeft: null,
     sync: {
       status: "PENDING",
@@ -227,7 +232,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       setup,
       plan,
-      planName: PLANS[plan].name,
+      planName: shopPlanDisplayName(shop),
+      partnerDevelopment: Boolean(shop.partnerDevelopment),
       trialDaysLeft,
       sync: {
         status: syncJob?.status ?? "PENDING",
@@ -532,7 +538,9 @@ export default function Home() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     {data.trialDaysLeft
                       ? `${data.trialDaysLeft} day${data.trialDaysLeft === 1 ? "" : "s"} left on ${data.planName}.`
-                      : `You are on ${data.planName}.`}
+                      : data.plan === "free" && !data.partnerDevelopment
+                        ? "No paid plan yet. Choose Standard or Pro to index your catalog."
+                        : `You are on ${data.planName}.`}
                   </Text>
                 </BlockStack>
                 <Link to={hrefFor("/app/billing")} className="findly-plain-btn">
@@ -566,7 +574,7 @@ export default function Home() {
                 {sync.indexingBlocked ? (
                   <Banner tone="warning" title="Choose a plan to index products">
                     <p>
-                      Live stores on Development do not index products.
+                      Live stores without a paid plan do not index products.
                       Standard allows {PLANS.standard.productLimit} products;
                       Pro allows {PLANS.pro.productLimit}. Collections can
                       still sync.{" "}

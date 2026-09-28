@@ -181,8 +181,8 @@ function assertSourceMarkers() {
   if (themeJs.includes("html.sf-og nav.pagination")) {
     fail("theme compat must keep theme pagination visible unless load more / infinite");
   }
-  if (!themeJs.includes("findly-theme-compat-v10")) {
-    fail("theme compat STYLE bump must be findly-theme-compat-v10");
+  if (!themeJs.includes("findly-theme-compat-v11")) {
+    fail("theme compat STYLE bump must be findly-theme-compat-v11");
   }
   if (!themeJs.includes("#AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed='1'])")) {
     fail("theme compat SHOW CSS must include Ajaxinate pagination");
@@ -206,8 +206,8 @@ function assertSourceMarkers() {
   if (!pagerJs.includes("var roots = findThemePagers()")) {
     fail("suppress/unhide must use findThemePagers so footer decoys are left alone");
   }
-  if (!grid.includes("findly-theme-bridge-v12")) {
-    fail("grid theme bridge must be findly-theme-bridge-v12");
+  if (!grid.includes("findly-theme-bridge-v14")) {
+    fail("grid theme bridge must be findly-theme-bridge-v14");
   }
   if (!grid.includes("THEME_PAGER_SEL_GRID") || !grid.includes("#AjaxinatePagination")) {
     fail("THEME_PAGER_SEL_GRID must include Ajaxinate pagination");

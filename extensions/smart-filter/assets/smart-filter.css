@@ -1756,8 +1756,11 @@ html.sf-filter-loading .sf-total-count::after {
 }
 
 @media (min-width: 750px) {
+  /* Hide native select when custom sort button is present (desktop only).
+     display:none beats theme toolbar select chrome that can leak past clip/opacity. */
   .sf-sort-trigger:has(.sf-sort-btn) .sf-sort-select,
   .sf-sort:has(.sf-sort-btn) .sf-sort-select {
+    display: none !important;
     position: absolute !important;
     width: 1px !important;
     height: 1px !important;
@@ -2952,7 +2955,27 @@ html.sf-pager-unneeded .ajaxinate-pagination {
   display: none !important;
 }
 
-@media (min-width: 750px) {
+/* Sidebar grid must match drawer breakpoint (≤989px portals filters).
+   Using 750px left an empty 320px aside column on tablet while drawer mode is on. */
+@media (max-width: 989px) {
+  .sf-collection-layout--left,
+  .sf-collection-layout--right {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  /* Hide emptied aside once toggle + panel have left for toolbar/drawer portal.
+     Keep aside if toggle/panel still live there (no toolbar host). */
+  .sf-collection-layout--left > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
+  .sf-collection-layout--right > .sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
+  .sf-collection-layout--left > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])),
+  .sf-collection-layout--right > .shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel])) {
+    display: none !important;
+  }
+}
+
+@media (min-width: 990px) {
   .sf-collection-layout--left {
     display: grid !important;
     grid-template-columns: 320px minmax(0, 1fr) !important;
@@ -3117,11 +3140,6 @@ html.sf-pager-unneeded .ajaxinate-pagination {
 }
 
 @media (min-width: 750px) {
-  .smart-filter--left,
-  .smart-filter--right {
-    max-width: 320px;
-  }
-
   .smart-filter--top {
     max-width: 100%;
     width: 100%;

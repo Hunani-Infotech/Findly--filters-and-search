@@ -164,7 +164,26 @@ function assertThemeContainerFit() {
   if (!gridJs.includes("grid-template-columns:320px minmax(0,1fr)")) {
     fail("left collection layout must use a 320px + remaining-width CSS grid");
   }
+  if (!gridJs.includes("@media(min-width:990px)") || !gridJs.includes("@media(max-width:989px)")) {
+    fail("sidebar grid must align with drawer breakpoint (990px / 989px), not 750px");
+  }
+  if (
+    !gridJs.includes(
+      ".sf-collection-layout--left>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))",
+    )
+  ) {
+    fail("tablet/mobile must hide emptied layout aside after drawer portal");
+  }
+  if (
+    !gridJs.includes("display:none!important;position:absolute!important") ||
+    !gridJs.includes(".sf-sort-trigger:has(.sf-sort-btn) .sf-sort-select")
+  ) {
+    fail("desktop sort must hide native select with display:none when custom button exists");
+  }
   const themeJs = read("extensions/smart-filter/assets/smart-filter-theme.js");
+  if (!themeJs.includes("@media(min-width:990px)")) {
+    fail("theme compat inject must use 990px sidebar grid with drawer mode");
+  }
   if (
     /sf-collection-layout--left,.sf-collection-layout--right\{[^}]*display:flex!important/.test(
       themeJs.replace(/\s+/g, ""),

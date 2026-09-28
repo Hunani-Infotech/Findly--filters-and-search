@@ -1,6 +1,10 @@
 /**
  * Plan catalog shared by admin UI and billing.
  * Keep this file free of `.server` imports so route components can use it.
+ *
+ * Plan key `free` is the unpaid catalog tier. Its subscription/catalog name
+ * stays "Development" for Shopify partner development stores only — never show
+ * that label for live unpaid shops (use `planDisplayName` instead).
  */
 export const PLANS = {
   free: {
@@ -35,11 +39,34 @@ export const PLANS = {
   },
 } as const;
 
+/** Merchant-facing label when a live shop has no paid subscription. */
+export const LIVE_UNPAID_PLAN_LABEL = "No paid plan";
+
 export type PlanKey = keyof typeof PLANS;
 export type PaidPlanKey = Exclude<PlanKey, "free">;
 
 export function isPaidPlanKey(key: string): key is PaidPlanKey {
   return key === "standard" || key === "pro";
+}
+
+/**
+ * Display name for admin UI.
+ * "Development" only when Shopify `shop.plan.partnerDevelopment` is true
+ * (or local DEV_UNLOCK_LIMITS treats the host as unlocked free).
+ * Live unpaid shops must not see "Development".
+ */
+export function planDisplayName(
+  planKey: PlanKey | string,
+  options?: { partnerDevelopment?: boolean; unlocked?: boolean },
+): string {
+  const key = (planKey in PLANS ? planKey : "free") as PlanKey;
+  if (key === "free") {
+    if (options?.partnerDevelopment || options?.unlocked) {
+      return PLANS.free.name;
+    }
+    return LIVE_UNPAID_PLAN_LABEL;
+  }
+  return PLANS[key].name;
 }
 
 /** Map a Shopify subscription name to a plan key (legacy "Findly Pro" still counts as Pro). */

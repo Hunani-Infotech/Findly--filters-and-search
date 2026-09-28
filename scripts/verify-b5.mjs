@@ -356,14 +356,26 @@ function assertThemeSeoAndUi() {
   if (!compliance.includes("purgeShopData")) {
     fail("compliance.server.ts missing purgeShopData");
   }
-  if (!billing.includes("appSubscriptionCreate") || !billing.includes("productLimit: 200")) {
-    fail("billing.server.ts missing Shopify Billing API / Standard caps");
-  }
-  if (!billing.includes("productLimit: 1000") || !billing.includes("19.99") || !billing.includes("11.99")) {
-    fail("billing.server.ts missing Standard 11.99 / Pro 19.99 caps / price");
+  if (!billing.includes("appSubscriptionCreate")) {
+    fail("billing.server.ts missing Shopify Billing API appSubscriptionCreate");
   }
   if (!billing.includes("startStandardSubscriptionIfLive") || !billing.includes("partnerDevelopment")) {
     fail("billing.server.ts missing live-install Standard charge or development unlock");
+  }
+  if (!billing.includes("shopPlanDisplayName") || !billing.includes("isDevelopmentStoreAccess")) {
+    fail("billing.server.ts missing Development vs live unpaid display helpers");
+  }
+  const plansConstants = read("app/constants/plans.ts");
+  if (!plansConstants.includes("planDisplayName") || !plansConstants.includes("LIVE_UNPAID_PLAN_LABEL")) {
+    fail("plans.ts must distinguish Development (partner stores) from live unpaid");
+  }
+  if (
+    !plansConstants.includes("productLimit: 200") ||
+    !plansConstants.includes("productLimit: 1000") ||
+    !plansConstants.includes("11.99") ||
+    !plansConstants.includes("19.99")
+  ) {
+    fail("plans.ts missing Standard 11.99 / Pro 19.99 caps / price");
   }
 }
 

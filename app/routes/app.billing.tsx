@@ -38,11 +38,13 @@ import {
   ensureShopAccess,
   isAllowedShopifyConfirmationUrl,
   isBillingTestMode,
+  isDevelopmentStoreAccess,
   isDevUnlockLimits,
   isPaidPlanKey,
   refreshPartnerDevelopment,
   syncActiveSubscriptions,
 } from "../services/billing.server";
+import { planDisplayName } from "../constants/plans";
 
 export { BillingPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -122,7 +124,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "cancel_to_free") {
     await refreshPartnerDevelopment(admin, shop.id);
     const { shop: latest } = await ensureShopAccess(session.shop);
-    if (!latest.partnerDevelopment) {
+    if (!isDevelopmentStoreAccess(latest)) {
       return {
         error:
           "Live stores cannot switch to the Development plan. Choose Standard or Pro.",
@@ -244,13 +246,17 @@ export default function BillingPage() {
   const pro = data.plans.pro;
   const currentPlan = data.plans[data.currentPlan];
   const onPaid = data.currentPlan !== "free";
-  const showFreePlan = data.partnerDevelopment;
+  const showFreePlan = data.partnerDevelopment || data.devUnlockLimits;
   const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
   const subStatus = data.subscription?.status
     ? data.subscription.status
-    : liveUnpaid
+    : liveUnpaid && !data.devUnlockLimits
       ? "Choose Standard or Pro"
       : "None (Free)";
+  const freePlanLabel = planDisplayName("free", {
+    partnerDevelopment: data.partnerDevelopment,
+    unlocked: data.devUnlockLimits,
+  });
   const productPct =
     data.usage.productLimit > 0
       ? Math.min(
@@ -323,9 +329,9 @@ export default function BillingPage() {
                     Plan details
                   </Text>
                   <Text as="p">
-                    {liveUnpaid ? "No paid plan yet" : currentPlan.name}
+                    {data.currentPlan === "free" ? freePlanLabel : currentPlan.name}
                   </Text>
-                  {liveUnpaid ? (
+                  {liveUnpaid && !data.devUnlockLimits ? (
                     <Text as="p" tone="subdued">
                       Status: {subStatus}. There is no free plan on live stores.
                     </Text>
