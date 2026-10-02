@@ -131,6 +131,23 @@ function assertSourceControlFlow(grid, filterJs) {
   ) {
     fail("must refuse painting into .sf-layout-main page shell");
   }
+  if (!grid.includes("function paintSearchAppGrid")) {
+    fail("paintSearchAppGrid must auto-paint search results like the console force-paint");
+  }
+  if (
+    !/isSearchPageContext\(self\)\s*\|\|\s*self\.searchQuery[\s\S]{0,120}paintSearchAppGrid/.test(
+      grid,
+    )
+  ) {
+    fail("fetchFilters must call paintSearchAppGrid on search pages");
+  }
+  if (
+    !/applyNativeAfterGrid[\s\S]{0,500}isSearchPageContext\(self\)\s*\|\|\s*self\.searchQuery/.test(
+      grid,
+    )
+  ) {
+    fail("applyNativeAfterGrid must no-op on search so it does not strip .sf-app-card");
+  }
   if (!grid.includes(":not(.sf-app-card):not(#findly-grid-host)")) {
     fail("loading hide CSS must keep .sf-app-card / #findly-grid-host visible");
   }
