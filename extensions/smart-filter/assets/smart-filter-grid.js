@@ -6919,7 +6919,9 @@
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
         if (shownNative > 0) return true;
-        return uniqueAllowedCount(sliced.handles) === 0;
+        /* Takeover hid Liquid cards but clones/cache missed — fall through to
+           origApply (.sf-app-card) so search/filter pages still show a grid. */
+        if (uniqueAllowedCount(sliced.handles) === 0) return true;
       }
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
@@ -7274,6 +7276,39 @@
         shown = countAllowedInHost(host, next);
       }
       if (needed > 0 && shown === 0) {
+        /* Takeover hid Liquid cards but cache/clones missed — fall through to
+           applyAppGrid (.sf-app-card) so search/filter pages still show a grid. */
+        if (
+          this.applyAppGrid &&
+          !(this.isAppGridMode && this.isAppGridMode())
+        ) {
+          this._skipPageSlice = true;
+          var painted = false;
+          try {
+            painted = this.applyAppGrid(
+              { products: this._lastProducts || [] },
+              next,
+              append,
+            );
+          } finally {
+            this._skipPageSlice = false;
+          }
+          shown = countAllowedInHost(host, next);
+          if (
+            painted ||
+            shown > 0 ||
+            (this._shownHandles && this._shownHandles.length)
+          ) {
+            if (!(this._shownHandles && this._shownHandles.length)) {
+              this._shownHandles = next.slice();
+            }
+            markGridPainted(this);
+            if (this.setGridBusy && !this._importingCards) {
+              this.setGridBusy(false);
+            }
+            return true;
+          }
+        }
         this._shownHandles = [];
         return false;
       }

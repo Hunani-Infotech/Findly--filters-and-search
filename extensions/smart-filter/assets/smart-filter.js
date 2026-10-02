@@ -3309,6 +3309,7 @@
     return (
       this.hasActiveFilters() ||
       Boolean(this.collectionQuery) ||
+      Boolean(this.searchQuery) ||
       Boolean(this.sortKey && this.sortKey !== this.defaultSort) ||
       this.hasVariantCards()
     );

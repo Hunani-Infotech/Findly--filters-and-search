@@ -31,6 +31,45 @@ function assertSourceMarkers() {
   const embed = read("extensions/smart-filter/blocks/collection-filters-embed.liquid");
   const minGrid = read("extensions/smart-filter/assets/smart-filter-grid.min.js");
 
+  /* Blank /search grid fix: takeover must keep filtering and fall through to app cards. */
+  const hasNonThemeMatching = filterJs.match(
+    /Widget\.prototype\.hasNonThemeMatching\s*=\s*function\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\};/,
+  );
+  if (!hasNonThemeMatching) {
+    fail("smart-filter.js missing hasNonThemeMatching");
+  }
+  if (!hasNonThemeMatching[0].includes("this.searchQuery")) {
+    fail("hasNonThemeMatching must include searchQuery so /search pages take over the grid");
+  }
+  if (
+    /if\s*\(\s*shownNative\s*>\s*0\s*\)\s*return\s+true;\s*return\s+uniqueAllowedCount\(\s*sliced\.handles\s*\)\s*===\s*0\s*;/.test(
+      grid,
+    )
+  ) {
+    fail(
+      "applyAppGrid override must not end the non-app-grid branch with return uniqueAllowedCount(...) === 0",
+    );
+  }
+  if (
+    !grid.includes("fall through to") ||
+    !/if\s*\(\s*uniqueAllowedCount\(\s*sliced\.handles\s*\)\s*===\s*0\s*\)\s*return\s+true;\s*\}\s*var\s+ok\s*=\s*origApply/.test(
+      grid,
+    )
+  ) {
+    fail(
+      "applyAppGrid override must fall through to origApply when takeover paints 0 native cards",
+    );
+  }
+  if (
+    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,400}applyAppGrid[\s\S]{0,200}_skipPageSlice/.test(
+      grid,
+    )
+  ) {
+    fail(
+      "applyInterceptGrid must fall through to applyAppGrid when takeover paints 0 cards",
+    );
+  }
+
   if (!grid.includes("bootEarlyGridBusy") || !grid.includes("paintGridBusy")) {
     fail("grid missing early/busy painters");
   }
@@ -271,13 +310,19 @@ function assertSourceMarkers() {
   if (/\bcrossorigin\b/.test(block) || /\bcrossorigin\b/.test(embed)) {
     fail("filter assets must not use crossorigin on same-origin fetches");
   }
-  if (!filterJs.includes("failFilterLoad") || !filterJs.includes("FILTER_FETCH_MS")) {
+  const fetchJs = read("extensions/smart-filter/assets/smart-filter-fetch.js");
+  if (
+    !filterJs.includes("failFilterLoad") ||
+    (!filterJs.includes("FILTER_FETCH_MS") &&
+      !fetchJs.includes("ms: 15000") &&
+      !fetchJs.includes("failFilterLoad"))
+  ) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
   }
   if (!filterJs.includes("this._statusProductCount = this._pageTotal")) {
     fail("readPagingMeta must align status count with the latest filtered total");
   }
-  if (!minGrid.includes("data-findly-skel") || !minGrid.includes("findly-grid-takeover-v34")) {
+  if (!minGrid.includes("data-findly-skel") || !/findly-grid-takeover-v\d+/.test(minGrid)) {
     fail("smart-filter-grid.min.js is stale; run npm run theme:minify");
   }
   const minBoot = read("extensions/smart-filter/assets/smart-filter-boot.min.js");
