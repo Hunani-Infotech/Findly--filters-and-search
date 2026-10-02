@@ -122,6 +122,18 @@ function assertSourceControlFlow(grid, filterJs) {
       "applyAppGrid must force .sf-app-card paint on synthetic #findly-grid-host / empty search host",
     );
   }
+  if (!grid.includes('el.querySelector("#findly-grid-host")')) {
+    fail("queryInnerCardGrid must discover #findly-grid-host inside .sf-layout-main");
+  }
+  if (
+    !grid.includes("Never paint into .sf-layout-main") &&
+    !grid.includes("Never mount cards on .sf-layout-main")
+  ) {
+    fail("must refuse painting into .sf-layout-main page shell");
+  }
+  if (!grid.includes(":not(.sf-app-card):not(#findly-grid-host)")) {
+    fail("loading hide CSS must keep .sf-app-card / #findly-grid-host visible");
+  }
   if (
     !/alreadyPaintedGrid\(this\)[\s\S]{0,400}isSyntheticGridHost\(parent\)/.test(
       grid,

@@ -42,7 +42,8 @@
     SKEL_ATTR +
     "='1']):not([data-findly-skel-host='1']):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count)" +
     ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)" +
-    ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)";
+    ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)" +
+    ":not(.sf-app-card):not(#findly-grid-host)";
   var GRID_BUSY_HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -127,9 +128,9 @@
     return parts.join(",") + "{position:relative;min-height:22rem}";
   }
   var BUSY_NESTED_CARD =
-    ":is(product-card,product-item,grid-item,li.grid__item,.grid__item,.product-card,.product-grid__item,.product-item,.grid-product,.grid-view-item,.product-block,.productitem,article.card,.sf-app-card,.card-wrapper,.card--product,.card-product,[data-product-card],.collection-product-card,.product-card-wrapper):not([" +
+    ":is(product-card,product-item,grid-item,li.grid__item,.grid__item,.product-card,.product-grid__item,.product-item,.grid-product,.grid-view-item,.product-block,.productitem,article.card,.card-wrapper,.card--product,.card-product,[data-product-card],.collection-product-card,.product-card-wrapper):not([" +
     SKEL_ATTR +
-    "='1'])";
+    "='1']):not(.sf-app-card)";
   function gridBusyNestedHideCss() {
     var i;
     var parts = [".findly-grid-is-busy " + BUSY_NESTED_CARD];
@@ -997,6 +998,7 @@
   function queryInnerCardGrid(el) {
     if (!el || !el.querySelector) return null;
     return (
+      el.querySelector("#findly-grid-host") ||
       el.querySelector("ul#product-grid") ||
       el.querySelector("#product-grid") ||
       el.querySelector("#ProductGrid") ||
@@ -1005,6 +1007,7 @@
       el.querySelector("[product-grid-view]") ||
       el.querySelector(".product-grid.main-collection-grid") ||
       el.querySelector(".main-collection-grid") ||
+      el.querySelector("div.product-grid") ||
       el.querySelector(".ProductList--grid") ||
       el.querySelector(".productgrid--items") ||
       el.querySelector(".grid--view-items") ||
@@ -6695,8 +6698,17 @@
 
       if (parent && isPageShellHost(parent)) {
         var fromShell = queryInnerCardGrid(parent);
-        if (fromShell) parent = fromShell;
+        if (fromShell && !isPageShellHost(fromShell) && !isResultsListEl(fromShell)) {
+          parent = fromShell;
+        } else if (isSearchPageContext(this) || Boolean(this.searchQuery)) {
+          /* Never paint into .sf-layout-main — use/create #findly-grid-host. */
+          parent = fallbackHost();
+        } else {
+          parent = null;
+        }
       }
+
+      if (parent && isPageShellHost(parent)) parent = null;
 
       if (parent) {
         if (
@@ -6947,6 +6959,10 @@
         parent = preferProductCardGrid(
           resolveCardHost(this.ensureGridParent()) || this._gridParent,
         );
+      }
+      /* Never mount cards on .sf-layout-main — that hides them via sf-app-grid CSS. */
+      if (parent && isPageShellHost(parent)) {
+        parent = fallbackHost();
       }
       if (parent && !isPageShellHost(parent)) this._gridParent = parent;
       /* Synthetic search host has no Liquid cards to clone — paint app cards. */
@@ -7674,6 +7690,7 @@
         if (shownForced > 0) {
           this._shownHandles = handles.slice();
           markGridPainted(this);
+          if (this.setGridBusy) this.setGridBusy(false);
           syncGridEmptyState(this, parent, handles, shownForced);
           placeCollectionSearchOnGrid(this);
           return;
