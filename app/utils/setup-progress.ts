@@ -3,7 +3,6 @@ export type SetupStepStatus = "complete" | "todo" | "optional";
 export const THEME_STEP_IDS = [
   "collection-filters",
   "product-search",
-  "instant-search",
 ] as const;
 
 export type ThemeStepId = (typeof THEME_STEP_IDS)[number];
@@ -26,14 +25,12 @@ export type ThemeEditorUrls = {
   collectionFilters: string;
   collectionFiltersEmbed: string;
   productSearch: string;
-  instantSearch: string;
 };
 
 export function emptyThemeSetupFlags(): ThemeSetupFlags {
   return {
     "collection-filters": false,
     "product-search": false,
-    "instant-search": false,
   };
 }
 
@@ -48,9 +45,6 @@ export function themeFlagsFromSteps(setup: SetupProgress): ThemeSetupFlags {
     ),
     "product-search": setup.themeSteps.some(
       (step) => step.id === "product-search" && step.status === "complete",
-    ),
-    "instant-search": setup.themeSteps.some(
-      (step) => step.id === "instant-search" && step.status === "complete",
     ),
   };
 }

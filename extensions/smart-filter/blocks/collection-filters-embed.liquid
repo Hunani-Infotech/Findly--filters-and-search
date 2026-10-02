@@ -1,7 +1,7 @@
 {% comment %}
   Body embed is enabled on every template. Schema stylesheet/javascript would
   inject on home/product/cart too — load all assets from Liquid on collection
-  and search only. Instant search is a separate app embed.
+  and search only.
 {% endcomment %}
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
 <link rel="stylesheet" href="{{ 'smart-filter-check.min.css' | asset_url }}" media="all">

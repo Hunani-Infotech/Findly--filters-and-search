@@ -280,7 +280,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await setThemeSetupFlags(shop.id, {
       "collection-filters": String(form.get("collection-filters")) === "true",
       "product-search": String(form.get("product-search")) === "true",
-      "instant-search": String(form.get("instant-search")) === "true",
     });
     return { ok: true, intent: "sync-theme-status" as const };
   }

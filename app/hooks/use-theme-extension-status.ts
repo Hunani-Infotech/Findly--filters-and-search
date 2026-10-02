@@ -40,7 +40,6 @@ export function useThemeExtensionStatus(
       formData.set("intent", "sync-theme-status");
       formData.set("collection-filters", String(flags["collection-filters"]));
       formData.set("product-search", String(flags["product-search"]));
-      formData.set("instant-search", String(flags["instant-search"]));
       submitRef.current(formData, { method: "POST" });
     };
 

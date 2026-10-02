@@ -4,7 +4,7 @@
 
 ## Product scope (current)
 
-**Shipped in repo:** collection filters, storefront search (Product search + Instant search), search extras (pinnings / synonyms / redirects), analytics dashboard, translation, integrations, Theme App Extension, Free / Standard / Pro billing, compliance webhooks.
+**Shipped in repo:** collection filters, storefront search (Product search block), search extras (pinnings / synonyms / redirects), analytics dashboard, translation, integrations, Theme App Extension, Free / Standard / Pro billing, compliance webhooks.
 
 ## Still out of scope for submit copy
 
@@ -26,7 +26,7 @@ Live Hostinger health and storefront QA are verified. Remaining gate: Partner Da
 | 7 | Admin: metafield mapping | **CODE COMPLETE** — Settings → Metafields |
 | 8 | Theme extension: static filter UI | **CODE COMPLETE** — Collection filters block + embed |
 | 9 | Theme extension: filter logic | **CODE COMPLETE** — `verify:b5` / storefront proxy |
-| 10 | Storefront search (solid basic — not AI) | **CODE COMPLETE** — Product search + Instant search + `/app/search` (pins / synonyms / redirects). Live theme clicks: AS-Q4 / AS-Q6 / AS-Q10–Q11 |
+| 10 | Storefront search (solid basic — not AI) | **CODE COMPLETE** — Product search + `/app/search` (pins / synonyms / redirects). Live theme clicks: AS-Q4 / AS-Q6 / AS-Q10–Q11 |
 | 11 | Billing | **CODE COMPLETE** — Free / Standard / Pro in `billing.server.ts`. Live charges: AS-B5–B7; production `BILLING_TEST_MODE=false` is AS-P4 |
 | 12 | Compliance webhooks | **CODE COMPLETE** — GDPR trio + uninstall. Live delivery: AS-C6 |
 | 13 | Manual QA (filters + search + theme) | **CODE GATE PASS** (`npm run verify:b5` → `STEPB5_OK`). Live theme clicks still required for final storefront sign-off (AS-Q*). |

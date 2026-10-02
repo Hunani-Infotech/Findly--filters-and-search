@@ -58,7 +58,6 @@ log.info(`apiKey=${apiKey ? `${apiKey.slice(0, 6)}…` : "(empty)"}`);
 log.info(`collectionFilters=${urls.collectionFilters}`);
 log.info(`collectionFiltersEmbed=${urls.collectionFiltersEmbed}`);
 log.info(`productSearch=${urls.productSearch}`);
-log.info(`instantSearch=${urls.instantSearch}`);
 
 if (
   apiKey &&

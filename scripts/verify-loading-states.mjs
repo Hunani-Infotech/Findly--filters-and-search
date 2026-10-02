@@ -25,8 +25,6 @@ function assertSourceMarkers() {
   const filterJs = read("extensions/smart-filter/assets/smart-filter.js");
   const searchJs = read("extensions/smart-filter/assets/smart-filter-search.js");
   const searchCss = read("extensions/smart-filter/assets/smart-filter-search.css");
-  const instantJs = read("extensions/smart-filter/assets/instant-search.js");
-  const instantCss = read("extensions/smart-filter/assets/instant-search.css");
 
   const pagerJs = read("extensions/smart-filter/assets/smart-filter-pager.js");
   const block = read("extensions/smart-filter/blocks/collection-filters.liquid");
@@ -96,9 +94,6 @@ function assertSourceMarkers() {
   }
   if (!searchJs.includes("renderSearchSkeletons") || !searchCss.includes("sf-search-skel-img")) {
     fail("search skeletons missing");
-  }
-  if (!instantJs.includes("showLoadingPanel") || !instantCss.includes("findly-instant-skel-card")) {
-    fail("instant-search skeletons missing");
   }
 
   if (!pagerJs.includes("_keepThemeCards = false")) {
@@ -326,9 +321,6 @@ function writeHarness() {
   const searchUrl = pathToFileURL(
     join(ROOT, "extensions/smart-filter/assets/smart-filter-search.js"),
   ).href;
-  const instantUrl = pathToFileURL(
-    join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
-  ).href;
   const html = `<!doctype html>
 <html>
 <body>
@@ -373,11 +365,9 @@ function writeHarness() {
     <div data-status></div>
     <ul data-results></ul>
   </div>
-  <div class="findly-instant" hidden></div>
   <script src="${bootUrl}"></script>
   <script src="${gridUrl}"></script>
   <script src="${searchUrl}"></script>
-  <script src="${instantUrl}"></script>
   <script>
     function report(ok, extra) {
       document.documentElement.setAttribute("data-load-ok", ok ? "1" : "0");

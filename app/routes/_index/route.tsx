@@ -15,7 +15,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Collection filters, storefront search, instant suggestions, metafield mapping, and GDPR-ready shop-scoped data for Shopify.",
+      "Collection filters, storefront search, metafield mapping, and GDPR-ready shop-scoped data for Shopify.",
   },
 ];
 
@@ -213,8 +213,8 @@ export default function App() {
             <span className={styles.stepNum}>3</span>
             <h3>Enable the theme blocks</h3>
             <p>
-              Add Collection filters to the collection template (and Instant
-              search as an app embed, if you use it) in the theme editor.
+              Add Collection filters to the collection template and Product
+              search on the search template (or header) in the theme editor.
               Placement, accent, and counts are configurable.
             </p>
           </li>
@@ -255,9 +255,9 @@ export default function App() {
           <article className={styles.tile}>
             <h3 className={styles.featureTitle}>Storefront search</h3>
             <p className={styles.featureCopy}>
-              Keyword product search through the Theme App Extension — instant
-              suggestions, pinnings, synonyms, and redirects from your indexed
-              catalog, not a separate search-engine UI.
+              Keyword product search through the Theme App Extension —
+              pinnings, synonyms, and redirects from your indexed catalog, not
+              a separate search-engine UI.
             </p>
             <div className={styles.searchSnip}>
               <span>Search products…</span>
@@ -268,9 +268,9 @@ export default function App() {
           <article>
             <h3 className={styles.featureTitle}>Theme App Extension</h3>
             <p className={styles.featureCopy}>
-              Collection filters app block, Product search block, and Instant
-              search embed. Async-loaded widget, scoped CSS, and basic styling:
-              position (left, right, or top), accent color, product counts, and
+              Collection filters app block and Product search block.
+              Async-loaded widget, scoped CSS, and basic styling: position
+              (left, right, or top), accent color, product counts, and
               collapse-by-default.
             </p>
           </article>

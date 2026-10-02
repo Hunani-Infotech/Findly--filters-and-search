@@ -90,31 +90,12 @@ function assertStaticMarkers() {
     fail("facet option lists must scroll only when they have many values");
   }
 
-  const instantJs = readFileSync(
-    join(ROOT, "extensions/smart-filter/assets/instant-search.js"),
-    "utf8",
-  );
-  if (
-    !instantJs.includes("function isCollectionSearchInput") ||
-    !instantJs.includes("shouldHandleInput") ||
-    !instantJs.includes("listing=1") ||
-    !instantJs.includes("findly:listing-suggest") ||
-    !instantJs.includes("restoreCachedResults")
-  ) {
-    fail("instant-search.js must attach suggestions to the collection search bar");
-  }
+  // Instant search app embed retired — skip instant-search.js attachment checks.
   if (!gridJs.includes("findly:listing-suggest")) {
     fail("collection search must publish listing suggestions from the same grid results");
   }
-  if (
-    !instantJs.includes("function isFacetValueSearchInput") ||
-    !instantJs.includes(".sf-facet-search") ||
-    !instantJs.includes("sf-facet-search-input")
-  ) {
-    fail("instant-search.js must ignore per-facet Search values inputs");
-  }
   if (!gridJs.includes("data-findly-ignore-instant")) {
-    fail("facet Search values inputs must opt out of instant product suggestions");
+    fail("facet Search values inputs must opt out of product suggestions");
   }
 }
 

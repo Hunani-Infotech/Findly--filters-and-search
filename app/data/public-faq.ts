@@ -30,7 +30,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "setup",
     question: "How do I show filters and search on the storefront?",
     answer:
-      "In the theme editor, add the Collection filters app block to collection (and search) templates. For storefront search, add the Product search block and/or enable Instant search as an app embed. Placement (left, right, or top), accent color, and product counts are set in Findly → Settings. You do not need custom theme code for the core widget.",
+      "In the theme editor, add the Collection filters app block to collection (and search) templates. For storefront search, add the Product search block. Placement (left, right, or top), accent color, and product counts are set in Findly → Settings. You do not need custom theme code for the core widget.",
   },
   {
     id: "theme-code",
@@ -65,7 +65,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "search",
     question: "How does storefront search work?",
     answer:
-      "Shoppers search your indexed catalog through the Theme App Extension — keyword product search with optional instant suggestions. Findly is not a separate search-engine site and does not use AI ranking. Configure fields, the instant widget, pinnings, synonyms, and redirects under Search in Admin.",
+      "Shoppers search your indexed catalog through the Theme App Extension — keyword product search via the Product search block. Findly is not a separate search-engine site and does not use AI ranking. Configure fields, pinnings, synonyms, and redirects under Search in Admin.",
   },
   {
     id: "search-extras",
@@ -77,9 +77,9 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     id: "instant-vs-block",
     category: "search",
-    question: "What is the difference between Product search and Instant search?",
+    question: "What happened to Instant search? How do I use Product search?",
     answer:
-      "Product search is a theme app block you place on a template (typically the search page) to show results in your theme. Instant search is an app embed that shows suggestions as shoppers type. You can use one or both.",
+      "The Instant search app embed has been removed. Use the Product search theme app block instead — place it on the search template (or header) in the theme editor. Pinnings, synonyms, and redirects under Findly → Search still apply to Product search.",
   },
   {
     id: "translation",

@@ -17,13 +17,11 @@ import {
   Button,
   Card,
   Checkbox,
-  ChoiceList,
   InlineStack,
   Layout,
   Page,
   ResourceItem,
   ResourceList,
-  Tabs,
   Tag,
   Text,
   TextField,
@@ -36,7 +34,6 @@ import { ensureShopAccess } from "../services/billing.server";
 import { DEFAULT_SEARCH_EXTRAS } from "../utils/instant-search";
 import { isMutationBusy } from "../components/admin-loading";
 import { CheckboxOrderList } from "../components/checkbox-order-list";
-import { InstantLayoutPicker } from "../components/instant-layout-picker";
 import {
   SEARCH_FIELD_KEYS,
   SEARCH_FIELD_LABELS,
@@ -46,16 +43,10 @@ import {
   type SearchFieldKey,
 } from "../utils/app-settings";
 import {
-  INSTANT_MAX_PRODUCTS_MAX,
-  INSTANT_MAX_PRODUCTS_MIN,
-  INSTANT_PRODUCT_STYLE_LABELS,
-  INSTANT_PRODUCT_STYLES,
   POPULAR_TERM_MAX,
   normalizePopularTerms,
-  parseMaxProducts,
   parseSearchExtras,
   normalizeStopWordList,
-  type InstantProductStyle,
   type SearchExtras,
 } from "../utils/instant-search";
 import { getAppSettings, saveSearchSettings } from "../services/settings.server";
@@ -67,13 +58,6 @@ import {
 } from "../components/contextual-save-bar";
 
 export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
-
-const SEARCH_TABS = [
-  { id: "settings", content: "Settings", panelID: "search-settings" },
-  { id: "instant", content: "Instant search widget", panelID: "search-instant" },
-] as const;
-
-type SearchTabId = (typeof SEARCH_TABS)[number]["id"];
 
 const PREFERENCES = [
   {
@@ -95,14 +79,6 @@ const PREFERENCES = [
     url: "/app/search/redirects",
   },
 ] as const;
-
-function parseSearchTab(value: unknown): SearchTabId {
-  return value === "instant" ? "instant" : "settings";
-}
-
-function tabPanelStyle(visible: boolean) {
-  return visible ? undefined : { display: "none" as const };
-}
 
 function orderedFieldKeys(enabled: SearchFieldKey[]): SearchFieldKey[] {
   const seen = new Set(enabled);
@@ -145,11 +121,9 @@ function searchPersistSnapshot(state: SearchPageState) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const auth = await authenticateAdminAllowReviewBot(request);
-  const tab = parseSearchTab(new URL(request.url).searchParams.get("tab"));
   if (auth.bot) {
     const searchFields = normalizeSearchFields(undefined);
     return {
-      tab,
       shopDomain: new URL(request.url).searchParams.get("shop") || "",
       settings: {
         searchFields,
@@ -169,7 +143,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const searchFields = normalizeSearchFields(settings.searchFields);
 
   return {
-    tab,
     shopDomain: session.shop,
     settings: {
       searchFields,
@@ -208,6 +181,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ),
     searchExtras: {
       ...incoming,
+      // Keep legacy instant.* settings if present in DB; embed UI is retired.
+      instant: current.searchExtras.instant,
       pinnings: current.searchExtras.pinnings,
       synonyms: current.searchExtras.synonyms,
       redirects: current.searchExtras.redirects,
@@ -226,7 +201,6 @@ export default function SearchPage() {
   const shopify = useAppBridge();
   const [state, setState] = useState<SearchPageState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);
-  const [selectedTab, setSelectedTab] = useState<SearchTabId>(data.tab);
   const [popularDraft, setPopularDraft] = useState("");
 
   if (data.settings !== loaderSettings) {
@@ -239,7 +213,6 @@ export default function SearchPage() {
     searchPersistSnapshot(state),
     searchPersistSnapshot(data.settings),
   );
-  const selectedTabIndex = SEARCH_TABS.findIndex((tab) => tab.id === selectedTab);
 
   useEffect(() => {
     if (actionData && "ok" in actionData && actionData.ok) {
@@ -310,535 +283,300 @@ export default function SearchPage() {
     <Page title="Search">
       <Layout>
         <Layout.Section>
-          <BlockStack gap="400">
-            <Tabs
-              tabs={[...SEARCH_TABS]}
-              selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
-              onSelect={(index) => {
-                const next = SEARCH_TABS[index];
-                if (!next) return;
-                setSelectedTab(next.id);
-              }}
-            />
-            <Form id="search-form" method="post" onSubmit={handleSubmit}>
-              <div
-                id="search-settings"
-                role="tabpanel"
-                style={tabPanelStyle(selectedTab === "settings")}
-              >
-                <BlockStack gap="400">
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Tools
-                      </Text>
-                      <Checkbox
-                        label="AI-Powered Search"
-                        checked={false}
-                        disabled
-                        helpText="Requires a Professional plan upgrade."
-                        onChange={() => undefined}
-                      />
-                      <Checkbox
-                        label="Fuzzy text search"
-                        checked={state.searchExtras.fuzzyTextSearch}
-                        disabled={saving}
-                        helpText="Small misspellings still match. Rules: 4–5 letters → 1 edit; 6+ letters → 2 edits. Example: shrt → shirt."
-                        onChange={(checked) =>
-                          patchExtras({ fuzzyTextSearch: checked })
-                        }
-                      />
-                      <Checkbox
-                        label="Spell check"
-                        checked={state.searchExtras.spellCheck}
-                        disabled={saving}
-                        helpText="When a typo is corrected, show Did you mean. This is edit-distance, not AI."
-                        onChange={(checked) =>
-                          patchExtras({ spellCheck: checked })
-                        }
-                      />
-                      <Checkbox
-                        label="Fallback search"
-                        checked={state.searchExtras.fallbackSearch}
-                        disabled={saving}
-                        helpText="If nothing matches all keywords, broaden the query to any remaining keyword."
-                        onChange={(checked) =>
-                          patchExtras({ fallbackSearch: checked })
-                        }
-                      />
-                      <TextField
-                        label="Stop words"
-                        value={state.searchExtras.stopWords.join("\n")}
-                        multiline={4}
-                        autoComplete="off"
-                        disabled={saving}
-                        helpText="Ignored in search queries (one per line). “the red shirt” searches red + shirt."
-                        onChange={(value) =>
-                          patchExtras({
-                            stopWords: normalizeStopWordList(value),
-                          })
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-
+          <Form id="search-form" method="post" onSubmit={handleSubmit}>
+            <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    Preferences
+                    Tools
                   </Text>
-                  <Card padding="0">
-                    <ResourceList
-                      resourceName={{
-                        singular: "preference",
-                        plural: "preferences",
-                      }}
-                      items={[...PREFERENCES]}
-                      renderItem={(item) => (
-                        <ResourceItem
-                          id={item.id}
-                          accessibilityLabel={`Open ${item.title}`}
+                  <Checkbox
+                    label="AI-Powered Search"
+                    checked={false}
+                    disabled
+                    helpText="Requires a Professional plan upgrade."
+                    onChange={() => undefined}
+                  />
+                  <Checkbox
+                    label="Fuzzy text search"
+                    checked={state.searchExtras.fuzzyTextSearch}
+                    disabled={saving}
+                    helpText="Small misspellings still match. Rules: 4–5 letters → 1 edit; 6+ letters → 2 edits. Example: shrt → shirt."
+                    onChange={(checked) =>
+                      patchExtras({ fuzzyTextSearch: checked })
+                    }
+                  />
+                  <Checkbox
+                    label="Spell check"
+                    checked={state.searchExtras.spellCheck}
+                    disabled={saving}
+                    helpText="When a typo is corrected, show Did you mean. This is edit-distance, not AI."
+                    onChange={(checked) =>
+                      patchExtras({ spellCheck: checked })
+                    }
+                  />
+                  <Checkbox
+                    label="Fallback search"
+                    checked={state.searchExtras.fallbackSearch}
+                    disabled={saving}
+                    helpText="If nothing matches all keywords, broaden the query to any remaining keyword."
+                    onChange={(checked) =>
+                      patchExtras({ fallbackSearch: checked })
+                    }
+                  />
+                  <TextField
+                    label="Stop words"
+                    value={state.searchExtras.stopWords.join("\n")}
+                    multiline={4}
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText="Ignored in search queries (one per line). “the red shirt” searches red + shirt."
+                    onChange={(value) =>
+                      patchExtras({
+                        stopWords: normalizeStopWordList(value),
+                      })
+                    }
+                  />
+                </BlockStack>
+              </Card>
+
+              <Text as="h2" variant="headingMd">
+                Preferences
+              </Text>
+              <Card padding="0">
+                <ResourceList
+                  resourceName={{
+                    singular: "preference",
+                    plural: "preferences",
+                  }}
+                  items={[...PREFERENCES]}
+                  renderItem={(item) => (
+                    <ResourceItem
+                      id={item.id}
+                      accessibilityLabel={`Open ${item.title}`}
+                      onClick={() => navigate(item.url)}
+                    >
+                      <InlineStack
+                        align="space-between"
+                        blockAlign="center"
+                        gap="400"
+                        wrap={false}
+                      >
+                        <BlockStack gap="050">
+                          <Text
+                            as="span"
+                            variant="bodyMd"
+                            fontWeight="semibold"
+                          >
+                            {item.title}
+                          </Text>
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {item.description}
+                          </Text>
+                        </BlockStack>
+                        <Button
+                          variant="plain"
                           onClick={() => navigate(item.url)}
                         >
-                          <InlineStack
-                            align="space-between"
-                            blockAlign="center"
-                            gap="400"
-                            wrap={false}
-                          >
-                            <BlockStack gap="050">
-                              <Text
-                                as="span"
-                                variant="bodyMd"
-                                fontWeight="semibold"
-                              >
-                                {item.title}
-                              </Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                {item.description}
-                              </Text>
-                            </BlockStack>
-                            <Button
-                              variant="plain"
-                              onClick={() => navigate(item.url)}
-                            >
-                              Open
-                            </Button>
-                          </InlineStack>
-                        </ResourceItem>
-                      )}
-                    />
-                  </Card>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Search relevance
-                      </Text>
-                      {state.searchFields.length === 0 ? (
-                        <Banner tone="warning">
-                          <p>
-                            Search will return no products until at least one
-                            field is enabled.
-                          </p>
-                        </Banner>
-                      ) : null}
-                      <CheckboxOrderList
-                        keys={state.fieldOrder}
-                        enabled={state.searchFields}
-                        labels={SEARCH_FIELD_LABELS}
-                        disabled={saving}
-                        helpText="Field order sets simple relevance; no synonym engine here. Drag a row to change priority. Arrow keys also work when a handle is focused. When Metafields is ticked, mapped metafields from Settings → Metafields are searched."
-                        onReorder={(next) =>
-                          setState((s) => {
-                            const fieldOrder = next.filter(
-                              (key): key is SearchFieldKey =>
-                                SEARCH_FIELD_KEYS.includes(
-                                  key as SearchFieldKey,
-                                ),
-                            );
-                            const enabled = new Set(s.searchFields);
-                            return {
-                              ...s,
-                              fieldOrder,
-                              searchFields: fieldOrder.filter((key) =>
-                                enabled.has(key),
-                              ),
-                            };
-                          })
-                        }
-                        onToggle={(key, checked) =>
-                          setState((s) => {
-                            const field = key as SearchFieldKey;
-                            if (!SEARCH_FIELD_KEYS.includes(field)) return s;
-                            const searchFields = checked
-                              ? s.fieldOrder.filter(
-                                  (item) =>
-                                    item === field ||
-                                    s.searchFields.includes(item),
-                                )
-                              : s.searchFields.filter((item) => item !== field);
-                            return { ...s, searchFields };
-                          })
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        No search result suggestions
-                      </Text>
-                      <Checkbox
-                        label="Show pinned suggestions when a search has no results"
-                        checked={state.showSuggestionsOnNoResults}
-                        disabled={saving}
-                        helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            showSuggestionsOnNoResults: checked,
-                          }))
-                        }
-                      />
-                      <TextField
-                        label="Pinned product handles"
-                        value={state.suggestionProductHandles.join("\n")}
-                        multiline={4}
-                        autoComplete="off"
-                        disabled={saving}
-                        helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
-                        onChange={(value) =>
-                          setState((s) => ({
-                            ...s,
-                            suggestionProductHandles: normalizeHandleList(value),
-                          }))
-                        }
-                      />
-                      <TextField
-                        label="Pinned collection handles"
-                        value={state.suggestionCollectionHandles.join("\n")}
-                        multiline={3}
-                        autoComplete="off"
-                        disabled={saving}
-                        helpText="Optional collection links shown with the same suggestion lists."
-                        onChange={(value) =>
-                          setState((s) => ({
-                            ...s,
-                            suggestionCollectionHandles:
-                              normalizeHandleList(value),
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Zero character suggestions
-                      </Text>
-                      <Checkbox
-                        label="Show pinned suggestions when the search box is empty"
-                        checked={state.showSuggestionsOnEmptyQuery}
-                        disabled={saving}
-                        helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            showSuggestionsOnEmptyQuery: checked,
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Suggestion dictionary
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Merchant-entered queries shown in Instant Search as
-                        shoppers type.
-                      </Text>
-                      <InlineStack gap="200" blockAlign="end" wrap={false}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <TextField
-                            label="Keyword"
-                            labelHidden
-                            placeholder="Shirt"
-                            value={popularDraft}
-                            autoComplete="off"
-                            disabled={
-                              saving ||
-                              state.searchExtras.popularSearchTerms.length >=
-                                POPULAR_TERM_MAX
-                            }
-                            onChange={setPopularDraft}
-                          />
-                        </div>
-                        <Button
-                          disabled={
-                            saving ||
-                            !popularDraft.trim() ||
-                            state.searchExtras.popularSearchTerms.length >=
-                              POPULAR_TERM_MAX
-                          }
-                          onClick={addPopularTerm}
-                        >
-                          Add
+                          Open
                         </Button>
                       </InlineStack>
-                      {state.searchExtras.popularSearchTerms.length === 0 ? (
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          No keywords selected.
-                        </Text>
-                      ) : (
-                        <InlineStack gap="200" wrap>
-                          {state.searchExtras.popularSearchTerms.map((term) => (
-                            <Tag
-                              key={term}
-                              onRemove={
-                                saving
-                                  ? undefined
-                                  : () =>
-                                      patchExtras({
-                                        popularSearchTerms:
-                                          state.searchExtras.popularSearchTerms.filter(
-                                            (item) => item !== term,
-                                          ),
-                                      })
-                              }
-                            >
-                              {term}
-                            </Tag>
-                          ))}
-                        </InlineStack>
-                      )}
-                    </BlockStack>
-                  </Card>
+                    </ResourceItem>
+                  )}
+                />
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Search relevance
+                  </Text>
+                  {state.searchFields.length === 0 ? (
+                    <Banner tone="warning">
+                      <p>
+                        Search will return no products until at least one
+                        field is enabled.
+                      </p>
+                    </Banner>
+                  ) : null}
+                  <CheckboxOrderList
+                    keys={state.fieldOrder}
+                    enabled={state.searchFields}
+                    labels={SEARCH_FIELD_LABELS}
+                    disabled={saving}
+                    helpText="Field order sets simple relevance; no synonym engine here. Drag a row to change priority. Arrow keys also work when a handle is focused. When Metafields is ticked, mapped metafields from Settings → Metafields are searched."
+                    onReorder={(next) =>
+                      setState((s) => {
+                        const fieldOrder = next.filter(
+                          (key): key is SearchFieldKey =>
+                            SEARCH_FIELD_KEYS.includes(
+                              key as SearchFieldKey,
+                            ),
+                        );
+                        const enabled = new Set(s.searchFields);
+                        return {
+                          ...s,
+                          fieldOrder,
+                          searchFields: fieldOrder.filter((key) =>
+                            enabled.has(key),
+                          ),
+                        };
+                      })
+                    }
+                    onToggle={(key, checked) =>
+                      setState((s) => {
+                        const field = key as SearchFieldKey;
+                        if (!SEARCH_FIELD_KEYS.includes(field)) return s;
+                        const searchFields = checked
+                          ? s.fieldOrder.filter(
+                              (item) =>
+                                item === field ||
+                                s.searchFields.includes(item),
+                            )
+                          : s.searchFields.filter((item) => item !== field);
+                        return { ...s, searchFields };
+                      })
+                    }
+                  />
                 </BlockStack>
-              </div>
+              </Card>
 
-              <div
-                id="search-instant"
-                role="tabpanel"
-                style={tabPanelStyle(selectedTab === "instant")}
-              >
-                <BlockStack gap="400">
-                  <Card>
-                    <BlockStack gap="300">
-                      <Checkbox
-                        label="Enable Instant Search widget"
-                        checked={state.searchExtras.instant.enabled}
-                        disabled={saving}
-                        helpText="Shows live product results while customers type in the store header search or the collection Search products bar. Does not apply to per-filter Search values boxes (those only filter that facet’s options)."
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                enabled: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    No search result suggestions
+                  </Text>
+                  <Checkbox
+                    label="Show pinned suggestions when a search has no results"
+                    checked={state.showSuggestionsOnNoResults}
+                    disabled={saving}
+                    helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
+                    onChange={(checked) =>
+                      setState((s) => ({
+                        ...s,
+                        showSuggestionsOnNoResults: checked,
+                      }))
+                    }
+                  />
+                  <TextField
+                    label="Pinned product handles"
+                    value={state.suggestionProductHandles.join("\n")}
+                    multiline={4}
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
+                    onChange={(value) =>
+                      setState((s) => ({
+                        ...s,
+                        suggestionProductHandles: normalizeHandleList(value),
+                      }))
+                    }
+                  />
+                  <TextField
+                    label="Pinned collection handles"
+                    value={state.suggestionCollectionHandles.join("\n")}
+                    multiline={3}
+                    autoComplete="off"
+                    disabled={saving}
+                    helpText="Optional collection links shown with the same suggestion lists."
+                    onChange={(value) =>
+                      setState((s) => ({
+                        ...s,
+                        suggestionCollectionHandles:
+                          normalizeHandleList(value),
+                      }))
+                    }
+                  />
+                </BlockStack>
+              </Card>
 
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Search widget layout
-                      </Text>
-                      <InstantLayoutPicker
-                        value={state.searchExtras.instant.layout}
-                        disabled={saving}
-                        onChange={(layout) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: { ...s.searchExtras.instant, layout },
-                            },
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Zero character suggestions
+                  </Text>
+                  <Checkbox
+                    label="Show pinned suggestions when the search box is empty"
+                    checked={state.showSuggestionsOnEmptyQuery}
+                    disabled={saving}
+                    helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
+                    onChange={(checked) =>
+                      setState((s) => ({
+                        ...s,
+                        showSuggestionsOnEmptyQuery: checked,
+                      }))
+                    }
+                  />
+                </BlockStack>
+              </Card>
 
-                  <Card>
-                    <BlockStack gap="300">
-                      <ChoiceList
-                        title="Search results"
-                        choices={INSTANT_PRODUCT_STYLES.map((style) => ({
-                          label: INSTANT_PRODUCT_STYLE_LABELS[style],
-                          value: style,
-                        }))}
-                        selected={[state.searchExtras.instant.productStyle]}
-                        disabled={saving}
-                        onChange={(selected) => {
-                          const productStyle =
-                            (selected[0] as InstantProductStyle) || "grid";
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                productStyle,
-                              },
-                            },
-                          }));
-                        }}
-                      />
-                      <Text as="h2" variant="headingMd">
-                        What to show
-                      </Text>
-                      <Checkbox
-                        label="Products"
-                        checked={state.searchExtras.instant.showProducts}
-                        disabled={saving}
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showProducts: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Collections"
-                        checked={state.searchExtras.instant.showCollections}
-                        disabled={saving}
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showCollections: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Blog Posts"
-                        checked={state.searchExtras.instant.showBlogPosts}
-                        disabled={saving}
-                        helpText="After a catalog sync, matching blog titles appear in Instant Search."
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showBlogPosts: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Pages"
-                        checked={state.searchExtras.instant.showPages}
-                        disabled={saving}
-                        helpText="After a catalog sync, matching page titles appear in Instant Search."
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showPages: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Suggestion dictionary
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Merchant-entered queries returned with Product search
+                    results as shoppers type.
+                  </Text>
+                  <InlineStack gap="200" blockAlign="end" wrap={false}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <TextField
-                        label="Maximum products"
-                        type="number"
-                        min={INSTANT_MAX_PRODUCTS_MIN}
-                        max={INSTANT_MAX_PRODUCTS_MAX}
+                        label="Keyword"
+                        labelHidden
+                        placeholder="Shirt"
+                        value={popularDraft}
                         autoComplete="off"
-                        value={String(state.searchExtras.instant.maxProducts)}
-                        disabled={saving}
-                        helpText={`Show between ${INSTANT_MAX_PRODUCTS_MIN} and ${INSTANT_MAX_PRODUCTS_MAX} products.`}
-                        onChange={(value) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                maxProducts: parseMaxProducts(value),
-                              },
-                            },
-                          }))
+                        disabled={
+                          saving ||
+                          state.searchExtras.popularSearchTerms.length >=
+                            POPULAR_TERM_MAX
                         }
+                        onChange={setPopularDraft}
                       />
-                      <Checkbox
-                        label="Show product price"
-                        checked={state.searchExtras.instant.showPrice}
-                        disabled={saving}
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showPrice: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                      <Checkbox
-                        label="Show product vendor"
-                        checked={state.searchExtras.instant.showVendor}
-                        disabled={saving}
-                        onChange={(checked) =>
-                          setState((s) => ({
-                            ...s,
-                            searchExtras: {
-                              ...s.searchExtras,
-                              instant: {
-                                ...s.searchExtras.instant,
-                                showVendor: checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                    </BlockStack>
-                  </Card>
-
-                  <Banner tone="info">
-                    <p>
-                      Instant search overlays the theme header search with live
-                      results. For a listing-page search bar on collection
-                      pages (including Catalog / collections/all), use Settings
-                      → Allow searching within collection pages.
-                    </p>
-                  </Banner>
+                    </div>
+                    <Button
+                      disabled={
+                        saving ||
+                        !popularDraft.trim() ||
+                        state.searchExtras.popularSearchTerms.length >=
+                          POPULAR_TERM_MAX
+                      }
+                      onClick={addPopularTerm}
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  {state.searchExtras.popularSearchTerms.length === 0 ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      No keywords selected.
+                    </Text>
+                  ) : (
+                    <InlineStack gap="200" wrap>
+                      {state.searchExtras.popularSearchTerms.map((term) => (
+                        <Tag
+                          key={term}
+                          onRemove={
+                            saving
+                              ? undefined
+                              : () =>
+                                  patchExtras({
+                                    popularSearchTerms:
+                                      state.searchExtras.popularSearchTerms.filter(
+                                        (item) => item !== term,
+                                      ),
+                                  })
+                          }
+                        >
+                          {term}
+                        </Tag>
+                      ))}
+                    </InlineStack>
+                  )}
                 </BlockStack>
-              </div>
-            </Form>
-          </BlockStack>
+              </Card>
+            </BlockStack>
+          </Form>
         </Layout.Section>
       </Layout>
     </Page>
@@ -860,16 +598,6 @@ export function shouldRevalidate({
   const method = formMethod?.toUpperCase();
   if (method && method !== "GET") return defaultShouldRevalidate;
   if (currentUrl.pathname === nextUrl.pathname) {
-    const currentTab = currentUrl.searchParams.get("tab") || "";
-    const nextTab = nextUrl.searchParams.get("tab") || "";
-    const restUnchanged = [...new Set([
-      ...currentUrl.searchParams.keys(),
-      ...nextUrl.searchParams.keys(),
-    ])].every((key) => {
-      if (key === "tab") return true;
-      return currentUrl.searchParams.get(key) === nextUrl.searchParams.get(key);
-    });
-    if (restUnchanged && currentTab !== nextTab) return false;
     if (currentUrl.search === nextUrl.search) return false;
   }
   return defaultShouldRevalidate;

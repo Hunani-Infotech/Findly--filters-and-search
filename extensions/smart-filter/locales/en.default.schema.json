@@ -78,9 +78,6 @@
         }
       }
     },
-    "instant_search": {
-      "name": "Instant search"
-    },
     "product_search": {
       "name": "Product search",
       "settings": {

@@ -1,5 +1,6 @@
 /**
- * E2 gate: Instant Search blogs/pages + suggestion dictionary.
+ * E2 gate: Search blogs/pages + suggestion dictionary.
+ * Instant search app embed was removed; skip instant-search.js UI gates.
  * Usage: npm run verify:e2
  */
 import "tsx/esm";
@@ -45,21 +46,10 @@ function assertStaticMarkers() {
 
   const proxy = readRepo("app", "services", "proxy.server.ts");
   if (!proxy.includes("searchPages") || !proxy.includes("searchArticles")) {
-    fail("proxy.server.ts must search pages and articles for Instant Search");
+    fail("proxy.server.ts must search pages and articles for search payloads");
   }
 
-  const widget = readRepo(
-    "extensions",
-    "smart-filter",
-    "assets",
-    "instant-search.js",
-  );
-  if (!widget.includes("showPages") || !widget.includes("showBlogPosts")) {
-    fail("instant-search.js must render pages and blog posts");
-  }
-  if (!widget.includes("Queries") || !widget.includes("data.queries")) {
-    fail("instant-search.js must render suggestion dictionary queries");
-  }
+  // Instant search app embed retired — do not require instant-search.js.
 
   const admin = readRepo("app", "routes", "app.search._index.tsx");
   if (!admin.includes("Suggestion dictionary")) {

@@ -63,14 +63,14 @@ function assertStaticMarkers() {
     fail('Search settings must mention "Stop words" or stopWords');
   }
 
-  const widget = readRepo(
+  const productSearch = readRepo(
     "extensions",
     "smart-filter",
     "assets",
-    "instant-search.js",
+    "smart-filter-search.js",
   );
-  if (!widget.includes("didYouMean")) {
-    fail("instant-search.js must include didYouMean");
+  if (!productSearch.includes("didYouMean")) {
+    fail("smart-filter-search.js must include didYouMean");
   }
 
   log.info("E4 static markers present");

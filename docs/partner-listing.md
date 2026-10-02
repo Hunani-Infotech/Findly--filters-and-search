@@ -10,7 +10,7 @@ Match `app/routes/app.tsx` NavMenu. Paste only the copy in this file.
 |---|---|---|---|
 | Home | `/app` | Yes | Onboarding, catalog sync popup, performance |
 | Filters | `/app/filters` | Yes | Filter sets, color swatches, value groups |
-| Search | `/app/search` | Yes | Search fields, instant widget, pinnings, synonyms, redirects |
+| Search | `/app/search` | Yes | Search fields, pinnings, synonyms, redirects |
 | Settings | `/app/settings` | Yes | Panel position, metafields |
 | Translation | `/app/translation` | Yes | Widget label locales |
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
@@ -49,7 +49,7 @@ Shoppers filter collections and search products in your theme. Add the widget as
 ### App details (≤500)
 
 ```
-Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword search, instant suggestions, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Development, Standard, and Pro.
+Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword product search, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Development, Standard, and Pro.
 ```
 
 ### Feature list (≤80 each)
@@ -57,7 +57,7 @@ Findly adds collection filters and storefront search via a theme app block. Enab
 1. Filter collections by price, availability, vendor, type, tags, and options.
 2. Map product metafields to filters and choose which collections they apply to.
 3. Add collection filters on Online Store 2.0 themes with a theme app block.
-4. Let shoppers search products with a search block and instant suggestions.
+4. Let shoppers search products with the Product search theme block.
 5. Pin products, map synonyms, and redirect searches from the Search pages.
 6. Set color swatches, grouped values, and left, right, or top filter placement.
 7. Translate widget labels. Review and wishlist apps stay in sync after filters.
@@ -67,7 +67,7 @@ Findly adds collection filters and storefront search via a theme app block. Enab
 
 1. Install Findly. Catalog sync starts; open Home → View details to check status or run a full sync.
 2. On Filters, enable a filter set. Choose price, availability, vendor, type, tags, options, and metafields.
-3. In the theme editor, add **Collection filters** on collection templates. Add **Product search** and/or **Instant search** for storefront search.
+3. In the theme editor, add **Collection filters** on collection templates. Add **Product search** for storefront search.
 4. Optional: Settings for panel look, Search for pins / synonyms / redirects, Translation for labels.
 
 ### Search terms (5)
@@ -75,7 +75,7 @@ Findly adds collection filters and storefront search via a theme app block. Enab
 1. product filters
 2. collection filters
 3. storefront search
-4. instant search
+4. product search
 5. metafield filters
 
 ### Integrations (up to 6)
@@ -147,8 +147,8 @@ Top features (add one per line):
 ```
 Collection filters via theme app block
 Filter price, vendor, type, tags, options
-Instant search as shoppers type
 Storefront product search block
+Pin products, synonyms, and redirects
 Color swatches and grouped values
 Left, right, or top filter panel
 All features on development stores
@@ -168,8 +168,8 @@ Top features:
 ```
 Collection filters via theme app block
 Filter price, vendor, type, tags, options
-Instant search as shoppers type
 Storefront product search block
+Pin products, synonyms, and redirects
 Color swatches and grouped values
 Left, right, or top filter panel
 Up to 200 synced products
@@ -188,7 +188,7 @@ Top features:
 
 ```
 Collection filters via theme app block
-Instant search and product search
+Storefront product search block
 Pin products, synonyms, and redirects
 Per-collection metafield filter maps
 Reviews and wishlists stay after Ajax
@@ -207,7 +207,7 @@ Up to 1,000 synced products
 | Screenshots | Capture from admin + storefront | 3–6 images, 1600×900 |
 | Feature media | Strong storefront frame or short video | Listing card |
 
-Suggested screenshots: Home, Filters, storefront collection filters, Instant search header, Search, Analytics.
+Suggested screenshots: Home, Filters, storefront collection filters, Product search, Search settings, Analytics.
 
 ---
 
@@ -226,5 +226,4 @@ Put real storefront password, collaborator code, screencast URL, and emergency p
 Theme steps for reviewers:
 
 1. Collection template → add **Collection filters** (preferred). App embeds → **Collection filters (app embed)** is the fallback; it loads assets only on collection/search pages.  
-2. App embeds → **Instant search** ON  
-3. Search template / header → **Product search** block
+2. Search template / header → **Product search** block

@@ -776,7 +776,7 @@ export default function SettingsPage() {
                         autoComplete="off"
                         disabled={saving}
                         multiline={2}
-                        helpText="Products with any of these tags are hidden from collection pages, search, and instant search. Example: hidden-product"
+                        helpText="Products with any of these tags are hidden from collection pages and search. Example: hidden-product"
                         placeholder="hidden-product"
                         onChange={(value) =>
                           setSettings((s) => ({

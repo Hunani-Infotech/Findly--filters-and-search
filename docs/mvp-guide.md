@@ -9,7 +9,7 @@ Launch product = collection filters + storefront search + Theme App Extension, p
 - Filter by price, availability, vendor, product type, tags, options, and mapped metafields
 - Per-collection / filter-set configuration in the admin dashboard
 - Mobile-responsive storefront filter widget (Theme App Extension)
-- Storefront Product search + Instant search (not AI ranking)
+- Storefront Product search (not AI ranking)
 - Search extras: pinnings, synonyms, redirects
 - Analytics dashboard (filter + search usage)
 - Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
@@ -52,7 +52,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 1. Scaffold the app with Shopify CLI, connect to a Partner account + dev store — **done**
 2. Metafield mapping, filter admin, Theme App Extension filters — **done in repo**
-3. Storefront search + Instant search + search extras — **done in repo**
+3. Storefront search + search extras — **done in repo**
 4. Catalog sync (bulk + webhooks) — **done in repo**; live proof: AS-Q1 / AS-Q2
 5. Billing API — Free / Standard / Pro — **done in repo**; live charges: AS-B5–B7
 6. Mandatory GDPR webhooks — **done in repo**; live delivery: AS-C6

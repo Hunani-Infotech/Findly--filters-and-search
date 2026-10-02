@@ -83,7 +83,7 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <code>read_content</code> — Online Store pages and blog articles
-            for instant search suggestions.
+            for storefront search suggestions.
           </li>
           <li>
             <code>read_markets</code> — market / presentment prices so price
@@ -128,7 +128,7 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>Content index.</strong> Page and article titles and handles
-            for instant search.
+            for storefront search.
           </li>
           <li>
             <strong>App configuration.</strong> Filter sets, metafield mappings,

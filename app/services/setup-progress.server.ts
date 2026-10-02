@@ -39,7 +39,6 @@ export function parseThemeSetupFlags(raw: unknown): ThemeSetupFlags {
   return {
     "collection-filters": setup["collection-filters"] === true,
     "product-search": setup["product-search"] === true,
-    "instant-search": setup["instant-search"] === true,
   };
 }
 
@@ -56,7 +55,6 @@ function setupExtrasPayload(extras: SetupExtras): Record<string, boolean> {
   return {
     "collection-filters": extras["collection-filters"],
     "product-search": extras["product-search"],
-    "instant-search": extras["instant-search"],
     guideDismissed: extras.guideDismissed,
     performance: extras.performance,
   };
@@ -72,14 +70,12 @@ export function themeEditorUrls(
       collectionFilters: `${editor}?template=collection`,
       collectionFiltersEmbed: `${editor}?context=apps&template=collection`,
       productSearch: `${editor}?template=search`,
-      instantSearch: `${editor}?context=apps`,
     };
   }
   return {
     collectionFilters: `${editor}?template=collection&addAppBlockId=${apiKey}/collection-filters&target=newAppsSection`,
     collectionFiltersEmbed: `${editor}?context=apps&template=collection&activateAppId=${apiKey}/collection-filters-embed`,
     productSearch: `${editor}?template=search&addAppBlockId=${apiKey}/product-search&target=newAppsSection`,
-    instantSearch: `${editor}?context=apps&activateAppId=${apiKey}/instant-search`,
   };
 }
 
@@ -274,7 +270,6 @@ export async function setThemeSetupFlags(
   const extras = parseSetupExtras(row.adminExtras);
   extras["collection-filters"] = flags["collection-filters"];
   extras["product-search"] = flags["product-search"];
-  extras["instant-search"] = flags["instant-search"];
   await persistSetupExtras(shopId, extras);
 }
 

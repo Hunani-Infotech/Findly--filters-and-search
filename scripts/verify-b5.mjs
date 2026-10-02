@@ -211,7 +211,7 @@ function assertThemeSeoAndUi() {
     collectionLiquid.includes("instant-search.min.js") ||
     collectionLiquid.includes("instant-search.css")
   ) {
-    fail("collection-filters.liquid must not load instant-search (separate app embed)");
+    fail("collection-filters.liquid must not load instant-search");
   }
   if (!collectionLiquid.includes('"stylesheet": "smart-filter.min.css"')) {
     fail("collection-filters.liquid schema stylesheet must be smart-filter.min.css");
@@ -235,7 +235,7 @@ function assertThemeSeoAndUi() {
     embedLiquid.includes("instant-search.min.js") ||
     embedLiquid.includes("instant-search.css")
   ) {
-    fail("collection-filters-embed.liquid must not load instant-search (separate app embed)");
+    fail("collection-filters-embed.liquid must not load instant-search");
   }
   const embedSchemaStart = embedLiquid.indexOf("{% schema %}");
   const embedSchema = embedSchemaStart === -1 ? "" : embedLiquid.slice(embedSchemaStart);
@@ -260,16 +260,7 @@ function assertThemeSeoAndUi() {
       "collection-filters-embed.liquid must load <link> and <script src> inside the collection/search page_type guard",
     );
   }
-  const instantJs = read("extensions/smart-filter/assets/instant-search.js");
-  if (
-    !instantJs.includes("suppressThemePredictive") ||
-    !instantJs.includes("predictive-search")
-  ) {
-    fail("instant search must bind any theme search input and hide native predictive results");
-  }
-  if (!instantJs.includes("showLoadingPanel") || !instantJs.includes("findly-instant-skel-card")) {
-    fail("instant search must show a loading panel while fetching");
-  }
+  // Instant search app embed retired — skip instant-search.js behavior checks.
   if (!filterCss.includes("max-width: 320px") && !filterCss.includes("max-width: 280px")) {
     fail("smart-filter.css sidebar must use px (Dawn 10px rem would shrink 18rem to 180px)");
   }

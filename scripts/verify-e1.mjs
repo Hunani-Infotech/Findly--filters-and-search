@@ -1,5 +1,7 @@
 /**
- * E1 gate: Instant Search widget payload + keyword hit via getSearchPayload.
+ * E1 gate: SearchExtras widget payload + keyword hit via getSearchPayload.
+ * Instant search app embed was removed; storefront gates for instant-search.*
+ * are intentionally skipped. Keeps proxy/admin payload checks for SearchExtras.
  * Usage: npm run verify:e1
  */
 import "tsx/esm";
@@ -23,40 +25,7 @@ function readRepo(...parts) {
 }
 
 function assertStaticMarkers() {
-  const liquid = readRepo(
-    "extensions",
-    "smart-filter",
-    "blocks",
-    "instant-search.liquid",
-  );
-  if (!liquid.includes('"target": "body"') || !liquid.includes("findly-instant")) {
-    fail("instant-search.liquid must be a body app embed with .findly-instant");
-  }
-  if (
-    (!liquid.includes("instant-search.js") &&
-      !liquid.includes("instant-search.min.js")) ||
-    !liquid.includes("instant-search.min.css")
-  ) {
-    fail("instant-search.liquid missing stylesheet/javascript assets");
-  }
-
-  const js = readRepo("extensions", "smart-filter", "assets", "instant-search.js");
-  if (!js.includes(".smart-filter-search") || !js.includes("widget=1")) {
-    fail("instant-search.js must ignore product-search and fetch widget=1");
-  }
-  if (!js.includes("isCollectionSearchInput") || !js.includes("listing=1")) {
-    fail("instant-search.js must suggest on the collection listing search bar");
-  }
-  if (!js.includes("AbortController") || !js.includes("maxProducts")) {
-    fail("instant-search.js missing AbortController or maxProducts limit");
-  }
-  if (js.includes("ensureInstantRoot") || js.includes('className = "findly-instant"')) {
-    fail("instant-search.js must not create a .findly-instant root; only boot when the app embed is present");
-  }
-  if (!js.includes('if (!roots.length) return')) {
-    fail("instant-search.js must skip boot when .findly-instant is absent");
-  }
-
+  // Instant search app embed retired — do not require instant-search.liquid/js.
   const searchBlock = readRepo(
     "extensions",
     "smart-filter",
@@ -68,8 +37,8 @@ function assertStaticMarkers() {
   }
 
   const setup = readRepo("app", "routes", "app.search._index.tsx");
-  if (!setup.includes("Instant search") || !setup.toLowerCase().includes("app embeds")) {
-    fail("Search settings must mention Instant search app embed");
+  if (!setup.includes("Pinnings") || !setup.includes("Synonyms")) {
+    fail("Search settings must keep pinnings / synonyms preferences");
   }
 
   log.info("E1 static markers present");
@@ -191,7 +160,7 @@ try {
   }
   log.info("empty query total 0");
 
-  log.success("STEPE1_OK instant widget payload + Shirt search");
+  log.success("STEPE1_OK searchExtras widget payload + Shirt search");
 } catch (error) {
   log.error(`STEPE1_FAIL ${error.message}`);
   if (error.stack) console.error(error.stack);

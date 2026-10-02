@@ -5,7 +5,6 @@ export const THEME_BLOCK_HANDLES = {
   collectionFilters: "collection-filters",
   collectionFiltersEmbed: "collection-filters-embed",
   productSearch: "product-search",
-  instantSearch: "instant-search",
 } as const;
 
 type ThemeBlockActivation = {
@@ -51,7 +50,6 @@ export function themeFlagsFromExtensions(raw: unknown): ThemeSetupFlags {
   return {
     "collection-filters": collectionOn,
     "product-search": blockIsActive(blocks, THEME_BLOCK_HANDLES.productSearch),
-    "instant-search": blockIsActive(blocks, THEME_BLOCK_HANDLES.instantSearch),
   };
 }
 
