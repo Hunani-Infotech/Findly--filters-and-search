@@ -4337,57 +4337,6 @@
   }
 
   /**
-   * Search pages with no Liquid product grid: guarantee #findly-grid-host exists
-   * and is filled with .sf-app-card nodes (same path as the storefront console fix).
-   */
-  function paintSearchAppGrid(widget, handles) {
-    if (!widget) return 0;
-    if (!(isSearchPageContext(widget) || widget.searchQuery)) return 0;
-    handles = Array.isArray(handles)
-      ? handles
-      : widget._visibleHandles || widget._shownHandles || [];
-    if (!handles.length) return 0;
-    if (!widget.applyAppGrid) return 0;
-
-    var host = document.getElementById(HOST_ID);
-    if (!host || isPageShellHost(host)) host = fallbackHost();
-    if (!host) return 0;
-    if (host.classList) {
-      host.classList.add("product-grid");
-    }
-    widget._gridParent = host;
-
-    var needed = uniqueAllowedCount(handles);
-    var shown = countAllowedInHost(host, handles);
-    if (needed > 0 && shown >= needed) {
-      markGridPainted(widget);
-      return shown;
-    }
-
-    widget._sfPaintedReq = -1;
-    widget._skipPageSlice = true;
-    try {
-      widget.applyAppGrid(
-        { products: widget._lastProducts || [] },
-        handles,
-        false,
-      );
-    } finally {
-      widget._skipPageSlice = false;
-    }
-
-    host = document.getElementById(HOST_ID) || widget._gridParent || host;
-    widget._gridParent = host;
-    shown = countAllowedInHost(host, handles);
-    if (shown > 0) {
-      widget._shownHandles = handles.slice();
-      markGridPainted(widget);
-      if (widget.setGridBusy) widget.setGridBusy(false);
-    }
-    return shown;
-  }
-
-  /**
    * Patch facet counts / checked state in place when the facet key set is unchanged.
    * Avoids full facetsEl.innerHTML rebuild on every filter click (major applyMs cost).
    */
@@ -4510,10 +4459,6 @@
     if (!self) return;
     if (self._importingCards) return;
     if (self._loadingPage || self._inflight) return;
-    /* Search app-card grid must not run native hide/strip — it wipes .sf-app-card. */
-    if (isSearchPageContext(self) || self.searchQuery) return;
-    if (isSyntheticGridHost(self._gridParent)) return;
-    if (self._appGridActive) return;
     /* Same filter cycle already painted — skip a second full hide/show/reorder pass. */
     if (alreadyPaintedGrid(self) && shouldTakeOverThemeCards(self)) return;
     if (self.isAppGridMode && self.isAppGridMode()) {
@@ -7487,26 +7432,21 @@
         return result.then(
           function (value) {
             if (self._reqId !== reqId) return value;
+            var host = preferProductCardGrid(resolveCardHost(self._gridParent));
             var handles = self._visibleHandles || self._shownHandles;
-            /* Search: always run the same guarantee path as the console force-paint. */
-            if (isSearchPageContext(self) || self.searchQuery) {
-              paintSearchAppGrid(self, handles);
-            } else {
-              var host = preferProductCardGrid(resolveCardHost(self._gridParent));
-              if (
-                shouldTakeOverThemeCards(self) &&
-                Array.isArray(handles) &&
-                handles.length &&
-                countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
-              ) {
-                fillMissingFilterCards(self, handles, host);
-              } else if (
-                !(self.isAppGridMode && self.isAppGridMode())
-              ) {
-                applyNativeAfterGrid(self);
-              } else if (self._gridParent && self.hideNativeGridCards) {
-                self.hideNativeGridCards(self._gridParent);
-              }
+            if (
+              shouldTakeOverThemeCards(self) &&
+              Array.isArray(handles) &&
+              handles.length &&
+              countAllowedInHost(host, handles) < uniqueAllowedCount(handles)
+            ) {
+              fillMissingFilterCards(self, handles, host);
+            } else if (
+              !(self.isAppGridMode && self.isAppGridMode())
+            ) {
+              applyNativeAfterGrid(self);
+            } else if (self._gridParent && self.hideNativeGridCards) {
+              self.hideNativeGridCards(self._gridParent);
             }
             if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
             mountFindlyPager(self);
