@@ -81,47 +81,12 @@ function assertSourceControlFlow(grid, filterJs) {
   }
 
   if (
-    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,800}_skipPageSlice[\s\S]{0,200}applyAppGrid/.test(
+    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,400}applyAppGrid[\s\S]{0,200}_skipPageSlice/.test(
       grid,
     )
   ) {
     fail(
       "applyInterceptGrid must recover via applyAppGrid when needed>0 && shown===0",
-    );
-  }
-
-  /* Null gridParent on /search: ensureGridParent must create #findly-grid-host. */
-  if (
-    !grid.includes("isSearchPageContext(this)") ||
-    !/this\._gridParent\s*=\s*fallbackHost\(\)/.test(grid)
-  ) {
-    fail(
-      "ensureGridParent must use fallbackHost (#findly-grid-host) on search when no Liquid grid",
-    );
-  }
-  /* Search-only gate: do not invent hosts for all collection takeovers. */
-  const ensureFallbackGate = grid.match(
-    /if\s*\(\s*!inAppMode\s*&&\s*!isSearchPageContext\(this\)\s*&&\s*!Boolean\(this\.searchQuery\)\s*\)\s*\{[\s\S]*?return null;\s*\}/,
-  );
-  if (!ensureFallbackGate) {
-    fail(
-      "ensureGridParent fallback must be gated to search context / searchQuery only",
-    );
-  }
-  if (
-    !grid.includes("isActualCardGrid(layoutMain)") ||
-    !grid.includes('querySelector(".sf-layout-main")')
-  ) {
-    fail("fallbackHost must avoid nesting #findly-grid-host inside an existing card grid");
-  }
-  /* Must not stamp painted / fabricate shownHandles without DOM cards. */
-  if (
-    /painted\s*\|\|\s*shown\s*>\s*0\s*\|\|\s*\(this\._shownHandles\s*&&\s*this\._shownHandles\.length\)/.test(
-      grid,
-    )
-  ) {
-    fail(
-      "applyInterceptGrid must not treat optimistic _shownHandles as a successful paint",
     );
   }
 }

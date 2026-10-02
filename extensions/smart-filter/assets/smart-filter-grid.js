@@ -722,29 +722,8 @@
 
   function fallbackHost() {
     var existing = document.getElementById(HOST_ID);
-    var layoutMain = document.querySelector(".sf-layout-main");
-    /* If .sf-layout-main is already the product grid, reuse it — never nest. */
-    if (
-      layoutMain &&
-      isActualCardGrid(layoutMain) &&
-      !isPageShellHost(layoutMain)
-    ) {
-      return existing || layoutMain;
-    }
-    if (existing) {
-      /* Keep the synthetic host inside the Findly results column when present. */
-      if (
-        layoutMain &&
-        isPageShellHost(layoutMain) &&
-        existing.parentNode !== layoutMain &&
-        !(layoutMain.contains && layoutMain.contains(existing))
-      ) {
-        layoutMain.appendChild(existing);
-      }
-      return existing;
-    }
+    if (existing) return existing;
     var main =
-      (layoutMain && isPageShellHost(layoutMain) && layoutMain) ||
       document.querySelector("#MainContent, #main, main, [role='main']") ||
       document.body;
     if (!main) return null;
@@ -1490,13 +1469,7 @@
     if (el.getAttribute && el.getAttribute("data-sf-search-header") === "1") {
       return true;
     }
-    /* Only treat theme-width wrappers as headers when we already know the grid.
-       With grid=null this used to lift the entire results column off .sf-layout-main. */
-    if (
-      grid &&
-      isThemeWidthContainer(el) &&
-      !(el.contains && el.contains(grid))
-    ) {
+    if (isThemeWidthContainer(el) && (!grid || !(el.contains && el.contains(grid)))) {
       return true;
     }
     if (!el.querySelector) return false;
@@ -1548,9 +1521,8 @@
         toLift.push(child);
         continue;
       }
-      /* Leading non-product block before the grid (theme-specific wrappers).
-         Without a known grid, stop — do not strip unknown search markup. */
-      if (grid && !nodeContainsProductResults(child)) {
+      /* Leading non-product block before the grid (theme-specific wrappers). */
+      if (!nodeContainsProductResults(child)) {
         toLift.push(child);
         continue;
       }
@@ -4140,10 +4112,12 @@
             widget._skipPageSlice = false;
           }
           shown = countAllowedInHost(parent, handles);
-          /* Only count cards actually in the host — do not trust stale handles. */
+          if (widget._shownHandles && widget._shownHandles.length) {
+            shown = Math.max(shown, uniqueAllowedCount(widget._shownHandles));
+          }
         }
         syncGridEmptyState(widget, parent, handles, shown);
-        if (shown > 0) markGridPainted(widget);
+        markGridPainted(widget);
       } finally {
         if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
         if (widget._reqId === reqId) {
@@ -6708,28 +6682,16 @@
         return parent;
       }
 
-      /* Search pages need a paint host when Liquid has no discoverable product
-         grid. Keep collection takeover on the discover-or-null path so we do
-         not invent a second grid beside a missed theme host. */
-      if (
-        !inAppMode &&
-        !isSearchPageContext(this) &&
-        !Boolean(this.searchQuery)
-      ) {
+      if (!inAppMode) {
         placeCollectionSearchOnGrid(this);
         return null;
       }
       if (results) {
-        var fromResults =
-          queryInnerCardGrid(results) ||
-          preferProductCardGrid(results) ||
-          null;
-        if (fromResults && !isPageShellHost(fromResults) && !isResultsListEl(fromResults)) {
-          this._gridParent = fromResults;
-          lockThemeGridTracks(this._gridParent);
-          placeCollectionSearchOnGrid(this);
-          return this._gridParent;
-        }
+        this._gridParent =
+          preferProductCardGrid(results) || results.parentElement;
+        lockThemeGridTracks(this._gridParent);
+        placeCollectionSearchOnGrid(this);
+        return this._gridParent;
       }
       this._gridParent = fallbackHost();
       lockThemeGridTracks(this._gridParent);
@@ -6939,11 +6901,6 @@
             (this.ensureGridParent && this.ensureGridParent()),
         ) || this._gridParent,
       );
-      if ((!parent || isPageShellHost(parent)) && this.ensureGridParent) {
-        parent = preferProductCardGrid(
-          resolveCardHost(this.ensureGridParent()) || this._gridParent,
-        );
-      }
       if (parent && !isPageShellHost(parent)) this._gridParent = parent;
       if (!(this.isAppGridMode && this.isAppGridMode())) {
         mountCachedCards(this, sliced.handles, parent);
@@ -7321,19 +7278,14 @@
       if (needed > 0 && shown === 0) {
         /* Takeover hid Liquid cards but cache/clones missed — fall through to
            applyAppGrid (.sf-app-card) so search/filter pages still show a grid. */
-        if (!host && this.ensureGridParent) {
-          host = preferProductCardGrid(
-            resolveCardHost(this.ensureGridParent()) || this._gridParent,
-          );
-          if (host && !isPageShellHost(host)) this._gridParent = host;
-        }
         if (
           this.applyAppGrid &&
           !(this.isAppGridMode && this.isAppGridMode())
         ) {
           this._skipPageSlice = true;
+          var painted = false;
           try {
-            this.applyAppGrid(
+            painted = this.applyAppGrid(
               { products: this._lastProducts || [] },
               next,
               append,
@@ -7341,13 +7293,15 @@
           } finally {
             this._skipPageSlice = false;
           }
-          host =
-            preferProductCardGrid(
-              resolveCardHost(this._gridParent) || this._gridParent,
-            ) || host;
           shown = countAllowedInHost(host, next);
-          if (shown > 0) {
-            this._shownHandles = next.slice();
+          if (
+            painted ||
+            shown > 0 ||
+            (this._shownHandles && this._shownHandles.length)
+          ) {
+            if (!(this._shownHandles && this._shownHandles.length)) {
+              this._shownHandles = next.slice();
+            }
             markGridPainted(this);
             if (this.setGridBusy && !this._importingCards) {
               this.setGridBusy(false);
@@ -7359,7 +7313,7 @@
         return false;
       }
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
-      if (shown > 0 || needed === 0) markGridPainted(this);
+      markGridPainted(this);
       /* Drop busy as soon as the page of cards is on screen — same cards, earlier paint feel. */
       if (
         shown >= needed &&

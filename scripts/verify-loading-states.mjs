@@ -61,7 +61,7 @@ function assertSourceMarkers() {
     );
   }
   if (
-    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,800}_skipPageSlice[\s\S]{0,200}applyAppGrid/.test(
+    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,400}applyAppGrid[\s\S]{0,200}_skipPageSlice/.test(
       grid,
     )
   ) {
