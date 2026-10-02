@@ -114,6 +114,23 @@ function assertSourceControlFlow(grid, filterJs) {
   ) {
     fail("fallbackHost must avoid nesting #findly-grid-host inside an existing card grid");
   }
+  if (
+    !grid.includes("isSyntheticGridHost") ||
+    !grid.includes("forceAppCards")
+  ) {
+    fail(
+      "applyAppGrid must force .sf-app-card paint on synthetic #findly-grid-host / empty search host",
+    );
+  }
+  if (
+    !/alreadyPaintedGrid\(this\)[\s\S]{0,400}isSyntheticGridHost\(parent\)/.test(
+      grid,
+    )
+  ) {
+    fail(
+      "syncProductGrid must not skip paint when synthetic/search host has 0 cards",
+    );
+  }
   /* Must not stamp painted / fabricate shownHandles without DOM cards. */
   if (
     /painted\s*\|\|\s*shown\s*>\s*0\s*\|\|\s*\(this\._shownHandles\s*&&\s*this\._shownHandles\.length\)/.test(

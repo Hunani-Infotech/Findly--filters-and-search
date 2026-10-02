@@ -720,6 +720,10 @@
     stripThemePageParam();
   }
 
+  function isSyntheticGridHost(el) {
+    return Boolean(el && el.id === HOST_ID);
+  }
+
   function fallbackHost() {
     var existing = document.getElementById(HOST_ID);
     var layoutMain = document.querySelector(".sf-layout-main");
@@ -6945,7 +6949,13 @@
         );
       }
       if (parent && !isPageShellHost(parent)) this._gridParent = parent;
-      if (!(this.isAppGridMode && this.isAppGridMode())) {
+      /* Synthetic search host has no Liquid cards to clone — paint app cards. */
+      var forceAppCards =
+        isSyntheticGridHost(parent) ||
+        (isSearchPageContext(this) &&
+          uniqueAllowedCount(sliced.handles) > 0 &&
+          countAllowedInHost(parent, sliced.handles) === 0);
+      if (!(this.isAppGridMode && this.isAppGridMode()) && !forceAppCards) {
         mountCachedCards(this, sliced.handles, parent);
         if (shouldTakeOverThemeCards(this) || Math.max(1, Number(this.page) || 1) > 1) {
           applyNativeFilterGrid(sliced.handles, parent);
@@ -7625,12 +7635,49 @@
         placeCollectionSearchOnGrid(this);
         return;
       }
-      /* afterGrid often re-enters here after applyInterceptGrid already painted. */
+      /* afterGrid often re-enters here after applyInterceptGrid already painted.
+         If the host is empty (common on synthetic search host), do not skip. */
       if (alreadyPaintedGrid(this) && !this._importingCards) {
         var shownFast = countAllowedInHost(parent, handles);
-        syncGridEmptyState(this, parent, handles, shownFast);
-        placeCollectionSearchOnGrid(this);
-        return;
+        if (
+          shownFast > 0 ||
+          !Array.isArray(handles) ||
+          !handles.length ||
+          (!isSyntheticGridHost(parent) && !isSearchPageContext(this))
+        ) {
+          syncGridEmptyState(this, parent, handles, shownFast);
+          placeCollectionSearchOnGrid(this);
+          return;
+        }
+        this._sfPaintedReq = -1;
+      }
+      /* Empty synthetic/search host: paint app cards directly. */
+      if (
+        parent &&
+        Array.isArray(handles) &&
+        handles.length &&
+        countAllowedInHost(parent, handles) === 0 &&
+        (isSyntheticGridHost(parent) || isSearchPageContext(this)) &&
+        this.applyAppGrid
+      ) {
+        this._skipPageSlice = true;
+        try {
+          this.applyAppGrid(
+            { products: this._lastProducts || [] },
+            handles,
+            false,
+          );
+        } finally {
+          this._skipPageSlice = false;
+        }
+        var shownForced = countAllowedInHost(parent, handles);
+        if (shownForced > 0) {
+          this._shownHandles = handles.slice();
+          markGridPainted(this);
+          syncGridEmptyState(this, parent, handles, shownForced);
+          placeCollectionSearchOnGrid(this);
+          return;
+        }
       }
       mountCachedCards(this, handles, parent);
       var shownBefore = countAllowedInHost(parent, handles);
