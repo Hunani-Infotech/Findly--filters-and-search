@@ -5514,10 +5514,42 @@
     }
   }
 
+  var ORPHAN_HIDE_BUILD = "orphan-hide-v2";
+  var ORPHAN_CARD_SEL =
+    THEME_CARD_HOST_SELECTOR +
+    ", .card, .card__inner, .card__content, .media-card, .product, .product-wrap, .grid-item, .collection-card";
+
+  function gridDebugEnabled() {
+    try {
+      if (window.__FINDLY_DEBUG_GRID) return true;
+      var q = String(window.location.search || "");
+      return /(?:^|[?&])findly_debug=1(?:&|$)/.test(q);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function gridLog() {
+    if (!gridDebugEnabled()) return;
+    var args = ["[Findly dual-grid " + ORPHAN_HIDE_BUILD + "]"].concat(
+      Array.prototype.slice.call(arguments),
+    );
+    try {
+      console.info.apply(console, args);
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function markOrphanHidden(node) {
-    if (!node || node.nodeType !== 1) return;
+    if (!node || node.nodeType !== 1) return false;
+    if (node.getAttribute("data-findly-orphan-hidden") === "1" && node.hidden) {
+      return false;
+    }
     hideEl(node);
     node.setAttribute("data-findly-orphan-hidden", "1");
+    node.setAttribute("data-findly-theme-hidden", "1");
+    return true;
   }
 
   function restoreOrphanThemeOutside() {
@@ -5528,7 +5560,31 @@
       if (!node) continue;
       showEl(node);
       node.removeAttribute("data-findly-orphan-hidden");
+      if (node.getAttribute("data-findly-theme-hidden") === "1") {
+        node.removeAttribute("data-findly-theme-hidden");
+      }
     }
+  }
+
+  function countThemeCardsIn(el) {
+    if (!el || !el.querySelectorAll) return 0;
+    var cards = el.querySelectorAll(ORPHAN_CARD_SEL);
+    var count = 0;
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      var node = cards[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (node.classList && node.classList.contains("sf-app-card")) continue;
+      if (node.closest && node.closest(".sf-app-card")) continue;
+      if (node.parentElement && node.parentElement.closest && node.parentElement.closest(ORPHAN_CARD_SEL)) {
+        /* keep outermost only */
+        var outer = resolveOuterThemeCard(node) || node;
+        if (outer !== node) continue;
+      }
+      if (!handleFromCard(node) && !gridHasProductLinks(node)) continue;
+      count += 1;
+    }
+    return count;
   }
 
   /** Theme product grids that are not the Findly host (dual-grid root cause). */
@@ -5547,25 +5603,12 @@
       if (hint.contains && excludeHost && hint.contains(excludeHost)) continue;
       if (isSkippedCardRegion(hint)) continue;
       if (hint.classList && hint.classList.contains("sf-app-grid")) continue;
-      if (
-        hint.querySelector &&
-        hint.querySelector(".sf-app-card, .smart-filter, #smart-filter-root, #smart-filter-embed")
-      ) {
-        continue;
+      /* Do not skip grids that contain Findly layout/filter — common after wrap. */
+      if (hint.querySelector && hint.querySelector(".sf-app-card")) {
+        var onlyApp = countThemeCardsIn(hint) === 0;
+        if (onlyApp) continue;
       }
-      var count = 0;
-      var cards = hint.querySelectorAll
-        ? hint.querySelectorAll(THEME_CARD_HOST_SELECTOR)
-        : [];
-      var c;
-      for (c = 0; c < cards.length; c++) {
-        var el = cards[c];
-        if (!el || el.nodeType !== 1) continue;
-        if (el.classList && el.classList.contains("sf-app-card")) continue;
-        if (el.closest && el.closest(".sf-app-card")) continue;
-        if (!handleFromCard(el) && !gridHasProductLinks(el)) continue;
-        count += 1;
-      }
+      var count = countThemeCardsIn(hint);
       if (count < 1 && gridHasProductLinks(hint)) {
         count = collectDirectThemeCards(hint).length;
       }
@@ -5574,7 +5617,87 @@
         bestCount = count;
       }
     }
-    return bestCount >= 1 ? preferProductCardGrid(best) : null;
+    if (bestCount >= 1) {
+      gridLog("reclaim theme grid", {
+        tag: best && best.tagName,
+        id: best && best.id,
+        className: best && String(best.className || "").slice(0, 80),
+        themeCards: bestCount,
+      });
+      return preferProductCardGrid(best);
+    }
+
+    /* Fallback: parent that owns the most Liquid product links outside host. */
+    var links = document.querySelectorAll('a[href*="/products/"]');
+    var tally = typeof Map !== "undefined" ? new Map() : null;
+    var legacy = [];
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || isSkippedCardRegion(link)) continue;
+      if (link.closest && link.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel")) {
+        continue;
+      }
+      if (excludeHost && excludeHost.contains(link)) continue;
+      var card = resolveOuterThemeCard(link) || link.parentElement;
+      var parent = card && card.parentElement;
+      if (!parent || parent === excludeHost) continue;
+      if (parent.id === HOST_ID) continue;
+      if (tally) {
+        tally.set(parent, (tally.get(parent) || 0) + 1);
+      } else {
+        var found = null;
+        var t;
+        for (t = 0; t < legacy.length; t++) {
+          if (legacy[t].parent === parent) {
+            found = legacy[t];
+            break;
+          }
+        }
+        if (!found) {
+          found = { parent: parent, count: 0 };
+          legacy.push(found);
+        }
+        found.count += 1;
+      }
+    }
+    if (tally) {
+      tally.forEach(function (count, parent) {
+        if (count > bestCount) {
+          best = parent;
+          bestCount = count;
+        }
+      });
+    } else {
+      for (i = 0; i < legacy.length; i++) {
+        if (legacy[i].count > bestCount) {
+          best = legacy[i].parent;
+          bestCount = legacy[i].count;
+        }
+      }
+    }
+    if (bestCount >= 2) {
+      gridLog("reclaim theme grid via link parents", {
+        tag: best && best.tagName,
+        id: best && best.id,
+        themeCards: bestCount,
+      });
+      return preferProductCardGrid(best);
+    }
+    gridLog("no live theme grid found", { excludeHostId: excludeHost && excludeHost.id });
+    return null;
+  }
+
+  function isFindlyOwnedNode(node, host) {
+    if (!node || node.nodeType !== 1) return true;
+    if (host && (host === node || host.contains(node))) return true;
+    if (node.id === HOST_ID) return true;
+    if (node.classList && node.classList.contains("sf-app-card")) return true;
+    if (node.closest) {
+      if (node.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel, .sf-pager, .sf-toolbar")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -5582,22 +5705,52 @@
    * Liquid cards often remain as a sibling grid. Hide those orphans.
    */
   function hideOrphanThemeOutside(host) {
-    if (!host || host.nodeType !== 1) return;
-    var nodes = document.querySelectorAll(THEME_CARD_HOST_SELECTOR);
+    if (!host || host.nodeType !== 1) {
+      gridLog("hideOrphan skipped: no host");
+      return { cards: 0, grids: 0, links: 0 };
+    }
+    var hiddenCards = 0;
+    var hiddenGrids = 0;
+    var hiddenLinks = 0;
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+
+    function hideOnce(node) {
+      if (!node || node.nodeType !== 1) return false;
+      if (seen) {
+        if (seen.has(node)) return false;
+        seen.add(node);
+      }
+      if (isFindlyOwnedNode(node, host)) return false;
+      if (isSkippedCardRegion(node)) return false;
+      if (markOrphanHidden(node)) return true;
+      return false;
+    }
+
+    var nodes = document.querySelectorAll(ORPHAN_CARD_SEL);
     var i;
     for (i = 0; i < nodes.length; i++) {
       var node = nodes[i];
-      if (!node || node.nodeType !== 1) continue;
-      if (host.contains(node)) continue;
-      if (node.classList && node.classList.contains("sf-app-card")) continue;
-      if (node.closest && node.closest(".sf-app-card")) continue;
-      if (node.closest && node.closest("#" + HOST_ID)) continue;
-      if (isSkippedCardRegion(node)) continue;
       var outer = resolveOuterThemeCard(node) || node;
-      if (host.contains(outer)) continue;
-      if (!handleFromCard(outer) && !gridHasProductLinks(outer)) continue;
-      markOrphanHidden(outer);
+      if (hideOnce(outer)) hiddenCards += 1;
     }
+
+    /* Product-link walk catches themes whose cards miss THEME_CARD_HOST_SELECTOR. */
+    var links = document.querySelectorAll('a[href*="/products/"]');
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || isFindlyOwnedNode(link, host) || isSkippedCardRegion(link)) continue;
+      var fromLink = resolveOuterThemeCard(link);
+      if (!fromLink) {
+        fromLink =
+          (link.closest &&
+            link.closest(
+              "li, article, product-card, product-item, .grid__item, .card-wrapper, .product-card, .product",
+            )) ||
+          link;
+      }
+      if (hideOnce(fromLink)) hiddenLinks += 1;
+    }
+
     var grids = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
     for (i = 0; i < grids.length; i++) {
       var grid = grids[i];
@@ -5606,17 +5759,20 @@
       if (grid.id === HOST_ID) continue;
       if (grid.classList && grid.classList.contains("sf-app-grid")) continue;
       if (isSkippedCardRegion(grid)) continue;
-      if (
-        grid.querySelector &&
-        grid.querySelector(
-          ".sf-app-card, .smart-filter, .sf-collection-layout, #smart-filter-root, #smart-filter-embed",
-        )
-      ) {
-        continue;
-      }
-      if (!gridHasProductLinks(grid)) continue;
-      markOrphanHidden(grid);
+      if (grid.querySelector && grid.querySelector(".sf-app-card")) continue;
+      if (!gridHasProductLinks(grid) && countThemeCardsIn(grid) < 1) continue;
+      if (hideOnce(grid)) hiddenGrids += 1;
     }
+
+    gridLog("hideOrphanThemeOutside", {
+      hostId: host.id || null,
+      hostClass: String(host.className || "").slice(0, 80),
+      hiddenCards: hiddenCards,
+      hiddenViaLinks: hiddenLinks,
+      hiddenGrids: hiddenGrids,
+      orphanMarkedNow: document.querySelectorAll("[data-findly-orphan-hidden='1']").length,
+    });
+    return { cards: hiddenCards, grids: hiddenGrids, links: hiddenLinks };
   }
 
   function shouldHideOrphanTheme(widget, parent) {
@@ -5631,6 +5787,62 @@
         parent.querySelector &&
         parent.querySelector(".sf-app-card"),
     );
+  }
+
+  function scheduleOrphanThemeHide(widget, host) {
+    if (!widget || !shouldHideOrphanTheme(widget, host)) return;
+    var target = host || widget._gridParent;
+    if (!target) return;
+    hideOrphanThemeOutside(target);
+    var delays = [50, 250, 800, 1600];
+    var d;
+    for (d = 0; d < delays.length; d++) {
+      (function (ms) {
+        window.setTimeout(function () {
+          if (!widget._appGridActive && !(widget._gridParent && widget._gridParent.id === HOST_ID)) {
+            return;
+          }
+          var live = widget._gridParent || target;
+          gridLog("scheduled orphan hide @" + ms + "ms");
+          hideOrphanThemeOutside(live);
+        }, ms);
+      })(delays[d]);
+    }
+  }
+
+  function installGridDebugApi() {
+    window.__FINDLY_GRID_DEBUG = {
+      build: ORPHAN_HIDE_BUILD,
+      hideOrphans: function () {
+        var w = window.__FINDLY_FILTER_WIDGET;
+        var host = (w && w._gridParent) || document.getElementById(HOST_ID);
+        window.__FINDLY_DEBUG_GRID = true;
+        return hideOrphanThemeOutside(host);
+      },
+      reclaim: function () {
+        var w = window.__FINDLY_FILTER_WIDGET;
+        window.__FINDLY_DEBUG_GRID = true;
+        return findLiveThemeProductGrid((w && w._gridParent) || null);
+      },
+      diagnose: function () {
+        window.__FINDLY_DEBUG_GRID = true;
+        var w = window.__FINDLY_FILTER_WIDGET;
+        var host = (w && w._gridParent) || document.getElementById(HOST_ID);
+        var orphan = document.querySelectorAll("[data-findly-orphan-hidden='1']").length;
+        var app = document.querySelectorAll(".sf-app-card").length;
+        var report = {
+          build: ORPHAN_HIDE_BUILD,
+          appGridActive: !!(w && w._appGridActive),
+          hostId: host && host.id,
+          appCards: app,
+          orphanMarked: orphan,
+          liveTheme: findLiveThemeProductGrid(host),
+        };
+        gridLog("diagnose", report);
+        return report;
+      },
+    };
+    gridLog("debug API ready — window.__FINDLY_GRID_DEBUG");
   }
 
   function listItemClassForGrid(parent, sample) {
@@ -5829,6 +6041,7 @@
         }
         if (self._appGridActive) {
           var parent = self._gridParent;
+          gridLog("mutation: re-hide orphan theme cards");
           if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
           else if (parent) hideOrphanThemeOutside(parent);
           return;
@@ -6967,7 +7180,7 @@
       if (origHide) origHide.call(this, parent);
       hideNestedThemeCards(parent);
       if (shouldHideOrphanTheme(this, parent || this._gridParent)) {
-        hideOrphanThemeOutside(parent || this._gridParent);
+        scheduleOrphanThemeHide(this, parent || this._gridParent);
       }
       setOwnsGrid(true);
     };
@@ -7077,8 +7290,13 @@
       if (parent && isGridHostEl(parent) && parent.classList) {
         restyleAppCardsAsThemeItems(parent);
       }
-      if (ok && shouldHideOrphanTheme(this, parent)) {
-        hideOrphanThemeOutside(parent);
+      if (ok && shouldHideOrphanTheme(this, parent || this._gridParent)) {
+        scheduleOrphanThemeHide(this, parent || this._gridParent);
+      } else if (
+        this._appGridActive ||
+        (parent && parent.querySelector && parent.querySelector(".sf-app-card"))
+      ) {
+        scheduleOrphanThemeHide(this, parent || this._gridParent);
       }
       setOwnsGrid(true);
       if (this.renderPager) this.renderPager();
@@ -8014,6 +8232,7 @@
 
   function install() {
     injectCss();
+    installGridDebugApi();
     bindFindlyChangeCapture();
     bindHashChange();
     bootEarlyGridBusy();
