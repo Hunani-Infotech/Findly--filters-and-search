@@ -3993,6 +3993,8 @@
     if (!widget) return;
     /* Keep _sfPaged so the numbered pager stays Findly-driven after
        returning to Liquid page 1. Clear All / empty hash still clear it. */
+    clearOrphanHideTimers(widget);
+    restoreOrphanThemeOutside();
     widget.page = 1;
     if (!isNativeThemeGridState(widget)) return;
     widget._sfNativeListing = true;
@@ -5514,10 +5516,8 @@
     }
   }
 
-  var ORPHAN_HIDE_BUILD = "orphan-hide-v2";
-  var ORPHAN_CARD_SEL =
-    THEME_CARD_HOST_SELECTOR +
-    ", .card, .card__inner, .card__content, .media-card, .product, .product-wrap, .grid-item, .collection-card";
+  /* dual-grid-v3: reclaim theme grid (standard A/B). Scoped rival hide only. */
+  var DUAL_GRID_BUILD = "dual-grid-v3";
 
   function gridDebugEnabled() {
     try {
@@ -5531,7 +5531,7 @@
 
   function gridLog() {
     if (!gridDebugEnabled()) return;
-    var args = ["[Findly dual-grid " + ORPHAN_HIDE_BUILD + "]"].concat(
+    var args = ["[Findly " + DUAL_GRID_BUILD + "]"].concat(
       Array.prototype.slice.call(arguments),
     );
     try {
@@ -5548,7 +5548,6 @@
     }
     hideEl(node);
     node.setAttribute("data-findly-orphan-hidden", "1");
-    node.setAttribute("data-findly-theme-hidden", "1");
     return true;
   }
 
@@ -5560,15 +5559,25 @@
       if (!node) continue;
       showEl(node);
       node.removeAttribute("data-findly-orphan-hidden");
-      if (node.getAttribute("data-findly-theme-hidden") === "1") {
-        node.removeAttribute("data-findly-theme-hidden");
+    }
+  }
+
+  function clearOrphanHideTimers(widget) {
+    if (!widget || !widget._sfOrphanHideTimers) return;
+    var i;
+    for (i = 0; i < widget._sfOrphanHideTimers.length; i++) {
+      try {
+        window.clearTimeout(widget._sfOrphanHideTimers[i]);
+      } catch (err) {
+        /* ignore */
       }
     }
+    widget._sfOrphanHideTimers = [];
   }
 
   function countThemeCardsIn(el) {
     if (!el || !el.querySelectorAll) return 0;
-    var cards = el.querySelectorAll(ORPHAN_CARD_SEL);
+    var cards = el.querySelectorAll(THEME_CARD_HOST_SELECTOR);
     var count = 0;
     var i;
     for (i = 0; i < cards.length; i++) {
@@ -5576,18 +5585,16 @@
       if (!node || node.nodeType !== 1) continue;
       if (node.classList && node.classList.contains("sf-app-card")) continue;
       if (node.closest && node.closest(".sf-app-card")) continue;
-      if (node.parentElement && node.parentElement.closest && node.parentElement.closest(ORPHAN_CARD_SEL)) {
-        /* keep outermost only */
-        var outer = resolveOuterThemeCard(node) || node;
-        if (outer !== node) continue;
-      }
-      if (!handleFromCard(node) && !gridHasProductLinks(node)) continue;
+      if (isSkippedCardRegion(node)) continue;
+      var outer = resolveOuterThemeCard(node) || node;
+      if (outer !== node) continue;
+      if (!handleFromCard(outer) && !gridHasProductLinks(outer)) continue;
       count += 1;
     }
     return count;
   }
 
-  /** Theme product grids that are not the Findly host (dual-grid root cause). */
+  /** Best Liquid product grid that is not the Findly synthetic host. */
   function findLiveThemeProductGrid(excludeHost) {
     var hints = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
     var best = null;
@@ -5602,15 +5609,18 @@
       }
       if (hint.contains && excludeHost && hint.contains(excludeHost)) continue;
       if (isSkippedCardRegion(hint)) continue;
-      if (hint.classList && hint.classList.contains("sf-app-grid")) continue;
-      /* Do not skip grids that contain Findly layout/filter — common after wrap. */
-      if (hint.querySelector && hint.querySelector(".sf-app-card")) {
-        var onlyApp = countThemeCardsIn(hint) === 0;
-        if (onlyApp) continue;
+      if (hint.classList && hint.classList.contains("sf-app-grid")) {
+        if (countThemeCardsIn(hint) === 0) continue;
       }
       var count = countThemeCardsIn(hint);
+      if (count < 1) {
+        var direct = collectDirectThemeCards(hint);
+        count = direct ? direct.length : 0;
+      }
       if (count < 1 && gridHasProductLinks(hint)) {
-        count = collectDirectThemeCards(hint).length;
+        /* Prefer grids that look like collection listings, not single teasers. */
+        var links = hint.querySelectorAll('a[href*="/products/"]');
+        count = links && links.length >= 2 ? links.length : 0;
       }
       if (count > bestCount) {
         best = hint;
@@ -5618,8 +5628,7 @@
       }
     }
     if (bestCount >= 1) {
-      gridLog("reclaim theme grid", {
-        tag: best && best.tagName,
+      gridLog("found live theme grid", {
         id: best && best.id,
         className: best && String(best.className || "").slice(0, 80),
         themeCards: bestCount,
@@ -5627,21 +5636,23 @@
       return preferProductCardGrid(best);
     }
 
-    /* Fallback: parent that owns the most Liquid product links outside host. */
-    var links = document.querySelectorAll('a[href*="/products/"]');
+    /* Fallback: common parent of Liquid product cards outside excludeHost. */
+    var nodes = document.querySelectorAll(THEME_CARD_HOST_SELECTOR);
     var tally = typeof Map !== "undefined" ? new Map() : null;
     var legacy = [];
-    for (i = 0; i < links.length; i++) {
-      var link = links[i];
-      if (!link || isSkippedCardRegion(link)) continue;
-      if (link.closest && link.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel")) {
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (node.classList && node.classList.contains("sf-app-card")) continue;
+      if (node.closest && node.closest(".sf-app-card, #" + HOST_ID)) continue;
+      if (isSkippedCardRegion(node)) continue;
+      if (excludeHost && excludeHost.contains(node)) continue;
+      var outer = resolveOuterThemeCard(node) || node;
+      var parent = outer && outer.parentElement;
+      if (!parent || parent.id === HOST_ID) continue;
+      if (excludeHost && (parent === excludeHost || excludeHost.contains(parent))) {
         continue;
       }
-      if (excludeHost && excludeHost.contains(link)) continue;
-      var card = resolveOuterThemeCard(link) || link.parentElement;
-      var parent = card && card.parentElement;
-      if (!parent || parent === excludeHost) continue;
-      if (parent.id === HOST_ID) continue;
       if (tally) {
         tally.set(parent, (tally.get(parent) || 0) + 1);
       } else {
@@ -5676,167 +5687,138 @@
       }
     }
     if (bestCount >= 2) {
-      gridLog("reclaim theme grid via link parents", {
-        tag: best && best.tagName,
+      gridLog("found theme grid via card parents", {
         id: best && best.id,
         themeCards: bestCount,
       });
       return preferProductCardGrid(best);
     }
-    gridLog("no live theme grid found", { excludeHostId: excludeHost && excludeHost.id });
+    gridLog("no live theme grid", { excludeId: excludeHost && excludeHost.id });
     return null;
   }
 
-  function isFindlyOwnedNode(node, host) {
-    if (!node || node.nodeType !== 1) return true;
-    if (host && (host === node || host.contains(node))) return true;
-    if (node.id === HOST_ID) return true;
-    if (node.classList && node.classList.contains("sf-app-card")) return true;
-    if (node.closest) {
-      if (node.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel, .sf-pager, .sf-toolbar")) {
-        return true;
+  /**
+   * Standard path: move app cards into the live theme grid so hideNativeGridCards
+   * + .sf-app-grid CSS apply in-place (no second listing).
+   */
+  function reclaimThemeGridHost(widget, current) {
+    if (!widget) return current || null;
+    var host = current || widget._gridParent;
+    var exclude = host && host.id === HOST_ID ? host : null;
+    var live = findLiveThemeProductGrid(exclude);
+    if (!live) return host || null;
+    if (host && host !== live) {
+      moveCardsToHost(host, live);
+      if (host.id === HOST_ID && host.classList) {
+        host.classList.remove("sf-app-grid");
       }
     }
-    return false;
+    showEl(live);
+    live.removeAttribute("data-findly-orphan-hidden");
+    widget._gridParent = live;
+    gridLog("reclaimed theme grid as _gridParent", {
+      id: live.id || null,
+      className: String(live.className || "").slice(0, 80),
+    });
+    return live;
   }
 
   /**
-   * When Findly paints into #findly-grid-host (or any .sf-app-grid), theme
-   * Liquid cards often remain as a sibling grid. Hide those orphans.
+   * Last resort only: when app cards remain on #findly-grid-host, hide the
+   * single competing Liquid grid — never document-wide product links/cards.
    */
-  function hideOrphanThemeOutside(host) {
-    if (!host || host.nodeType !== 1) {
-      gridLog("hideOrphan skipped: no host");
-      return { cards: 0, grids: 0, links: 0 };
+  function hideCompetingThemeGrid(host) {
+    if (!host || host.nodeType !== 1 || host.id !== HOST_ID) {
+      gridLog("scoped rival hide skipped (not synthetic host)", {
+        hostId: host && host.id,
+      });
+      return { grids: 0, cards: 0 };
+    }
+    if (!host.querySelector || !host.querySelector(".sf-app-card")) {
+      gridLog("scoped rival hide skipped (no app cards on host)");
+      return { grids: 0, cards: 0 };
+    }
+    var rival = findLiveThemeProductGrid(host);
+    if (!rival || rival === host || host.contains(rival) || rival.contains(host)) {
+      gridLog("scoped rival hide: no rival grid");
+      return { grids: 0, cards: 0 };
     }
     var hiddenCards = 0;
-    var hiddenGrids = 0;
-    var hiddenLinks = 0;
-    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
-
-    function hideOnce(node) {
-      if (!node || node.nodeType !== 1) return false;
-      if (seen) {
-        if (seen.has(node)) return false;
-        seen.add(node);
-      }
-      if (isFindlyOwnedNode(node, host)) return false;
-      if (isSkippedCardRegion(node)) return false;
-      if (markOrphanHidden(node)) return true;
-      return false;
-    }
-
-    var nodes = document.querySelectorAll(ORPHAN_CARD_SEL);
+    var cards = rival.querySelectorAll(THEME_CARD_HOST_SELECTOR);
     var i;
-    for (i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      var outer = resolveOuterThemeCard(node) || node;
-      if (hideOnce(outer)) hiddenCards += 1;
+    for (i = 0; i < cards.length; i++) {
+      var node = cards[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (node.classList && node.classList.contains("sf-app-card")) continue;
+      if (node.closest && node.closest(".sf-app-card")) continue;
+      if (markOrphanHidden(node)) hiddenCards += 1;
     }
-
-    /* Product-link walk catches themes whose cards miss THEME_CARD_HOST_SELECTOR. */
-    var links = document.querySelectorAll('a[href*="/products/"]');
-    for (i = 0; i < links.length; i++) {
-      var link = links[i];
-      if (!link || isFindlyOwnedNode(link, host) || isSkippedCardRegion(link)) continue;
-      var fromLink = resolveOuterThemeCard(link);
-      if (!fromLink) {
-        fromLink =
-          (link.closest &&
-            link.closest(
-              "li, article, product-card, product-item, .grid__item, .card-wrapper, .product-card, .product",
-            )) ||
-          link;
-      }
-      if (hideOnce(fromLink)) hiddenLinks += 1;
-    }
-
-    var grids = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
-    for (i = 0; i < grids.length; i++) {
-      var grid = grids[i];
-      if (!grid || grid.nodeType !== 1) continue;
-      if (grid === host || host.contains(grid) || grid.contains(host)) continue;
-      if (grid.id === HOST_ID) continue;
-      if (grid.classList && grid.classList.contains("sf-app-grid")) continue;
-      if (isSkippedCardRegion(grid)) continue;
-      if (grid.querySelector && grid.querySelector(".sf-app-card")) continue;
-      if (!gridHasProductLinks(grid) && countThemeCardsIn(grid) < 1) continue;
-      if (hideOnce(grid)) hiddenGrids += 1;
-    }
-
-    gridLog("hideOrphanThemeOutside", {
-      hostId: host.id || null,
-      hostClass: String(host.className || "").slice(0, 80),
+    var hiddenGrid = markOrphanHidden(rival) ? 1 : 0;
+    gridLog("scoped rival hide", {
+      rivalId: rival.id || null,
+      rivalClass: String(rival.className || "").slice(0, 80),
+      hiddenGrid: hiddenGrid,
       hiddenCards: hiddenCards,
-      hiddenViaLinks: hiddenLinks,
-      hiddenGrids: hiddenGrids,
-      orphanMarkedNow: document.querySelectorAll("[data-findly-orphan-hidden='1']").length,
     });
-    return { cards: hiddenCards, grids: hiddenGrids, links: hiddenLinks };
+    return { grids: hiddenGrid, cards: hiddenCards };
   }
 
-  function shouldHideOrphanTheme(widget, parent) {
-    if (!widget) return false;
-    if (widget._appGridActive) return true;
-    if (parent && parent.id === HOST_ID) return true;
-    if (parent && parent.classList && parent.classList.contains("sf-app-grid")) {
-      return true;
-    }
-    return Boolean(
-      parent &&
-        parent.querySelector &&
-        parent.querySelector(".sf-app-card"),
-    );
+  function shouldHideCompetingThemeGrid(widget, parent) {
+    if (!widget || !widget._appGridActive) return false;
+    var host = parent || widget._gridParent;
+    return Boolean(host && host.id === HOST_ID && host.querySelector && host.querySelector(".sf-app-card"));
   }
 
-  function scheduleOrphanThemeHide(widget, host) {
-    if (!widget || !shouldHideOrphanTheme(widget, host)) return;
+  function scheduleCompetingThemeHide(widget, host) {
+    if (!widget || !shouldHideCompetingThemeGrid(widget, host)) return;
     var target = host || widget._gridParent;
     if (!target) return;
-    hideOrphanThemeOutside(target);
-    var delays = [50, 250, 800, 1600];
+    clearOrphanHideTimers(widget);
+    hideCompetingThemeGrid(target);
+    widget._sfOrphanHideTimers = [];
+    var delays = [80, 400];
     var d;
     for (d = 0; d < delays.length; d++) {
       (function (ms) {
-        window.setTimeout(function () {
-          if (!widget._appGridActive && !(widget._gridParent && widget._gridParent.id === HOST_ID)) {
-            return;
-          }
-          var live = widget._gridParent || target;
-          gridLog("scheduled orphan hide @" + ms + "ms");
-          hideOrphanThemeOutside(live);
+        var id = window.setTimeout(function () {
+          if (!shouldHideCompetingThemeGrid(widget, widget._gridParent)) return;
+          gridLog("scheduled rival hide @" + ms + "ms");
+          hideCompetingThemeGrid(widget._gridParent || target);
         }, ms);
+        widget._sfOrphanHideTimers.push(id);
       })(delays[d]);
     }
   }
 
   function installGridDebugApi() {
     window.__FINDLY_GRID_DEBUG = {
-      build: ORPHAN_HIDE_BUILD,
+      build: DUAL_GRID_BUILD,
       hideOrphans: function () {
         var w = window.__FINDLY_FILTER_WIDGET;
         var host = (w && w._gridParent) || document.getElementById(HOST_ID);
         window.__FINDLY_DEBUG_GRID = true;
-        return hideOrphanThemeOutside(host);
+        return hideCompetingThemeGrid(host);
       },
       reclaim: function () {
         var w = window.__FINDLY_FILTER_WIDGET;
         window.__FINDLY_DEBUG_GRID = true;
-        return findLiveThemeProductGrid((w && w._gridParent) || null);
+        return reclaimThemeGridHost(w, w && w._gridParent);
       },
       diagnose: function () {
         window.__FINDLY_DEBUG_GRID = true;
         var w = window.__FINDLY_FILTER_WIDGET;
         var host = (w && w._gridParent) || document.getElementById(HOST_ID);
-        var orphan = document.querySelectorAll("[data-findly-orphan-hidden='1']").length;
-        var app = document.querySelectorAll(".sf-app-card").length;
+        var rival = findLiveThemeProductGrid(host && host.id === HOST_ID ? host : null);
         var report = {
-          build: ORPHAN_HIDE_BUILD,
+          build: DUAL_GRID_BUILD,
           appGridActive: !!(w && w._appGridActive),
+          isAppGridMode: !!(w && w.isAppGridMode && w.isAppGridMode()),
           hostId: host && host.id,
-          appCards: app,
-          orphanMarked: orphan,
-          liveTheme: findLiveThemeProductGrid(host),
+          hostClass: host && String(host.className || "").slice(0, 80),
+          appCards: document.querySelectorAll(".sf-app-card").length,
+          orphanMarked: document.querySelectorAll("[data-findly-orphan-hidden='1']").length,
+          rivalId: rival && rival.id,
+          rivalThemeCards: rival ? countThemeCardsIn(rival) : 0,
         };
         gridLog("diagnose", report);
         return report;
@@ -6041,9 +6023,16 @@
         }
         if (self._appGridActive) {
           var parent = self._gridParent;
-          gridLog("mutation: re-hide orphan theme cards");
+          if (parent && parent.id === HOST_ID) {
+            parent = reclaimThemeGridHost(self, parent) || parent;
+          }
+          gridLog("mutation: app-grid active", {
+            hostId: parent && parent.id,
+          });
           if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
-          else if (parent) hideOrphanThemeOutside(parent);
+          else if (shouldHideCompetingThemeGrid(self, parent)) {
+            hideCompetingThemeGrid(parent);
+          }
           return;
         }
         if (self.appGridTemplate && self.appGridTemplate()) {
@@ -6992,16 +6981,18 @@
       parent = preferProductCardGrid(parent);
 
       // Sticky #findly-grid-host often wins before the theme grid is in the DOM.
-      // Reclaim the real Liquid grid so we do not paint a second product list.
+      // Always prefer the live Liquid grid so app cards paint in-place (path A/B).
       if (!parent || parent.id === HOST_ID) {
-        var liveTheme = findLiveThemeProductGrid(parent);
-        if (liveTheme) parent = liveTheme;
+        parent = reclaimThemeGridHost(this, parent) || parent;
       }
 
       if (parent && inAppMode) {
         parent = preferProductCardGrid(pickBetterGridHost(parent));
         if (parent && isResultsListEl(parent)) {
           parent = preferProductCardGrid(parent.parentElement || parent);
+        }
+        if (!parent || parent.id === HOST_ID) {
+          parent = reclaimThemeGridHost(this, parent) || parent;
         }
       }
 
@@ -7027,20 +7018,19 @@
       }
 
       if (!inAppMode) {
-        placeCollectionSearchOnGrid(this);
-        return parent && parent.id === HOST_ID ? parent : null;
-      }
-      var themeBeforeFallback = findLiveThemeProductGrid(null);
-      if (themeBeforeFallback) {
-        if (this._gridParent && this._gridParent !== themeBeforeFallback) {
-          moveCardsToHost(this._gridParent, themeBeforeFallback);
+        /* Never keep #findly-grid-host when not in admin app-grid mode — returning
+           it blocks theme.discoverAnyThemeGrid() and causes dual listings. */
+        if (this._gridParent && this._gridParent.id === HOST_ID) {
+          this._gridParent = null;
         }
-        showEl(themeBeforeFallback);
-        themeBeforeFallback.removeAttribute("data-findly-orphan-hidden");
-        this._gridParent = themeBeforeFallback;
-        lockThemeGridTracks(this._gridParent);
         placeCollectionSearchOnGrid(this);
-        return this._gridParent;
+        return null;
+      }
+      parent = reclaimThemeGridHost(this, parent);
+      if (parent && parent.id !== HOST_ID) {
+        lockThemeGridTracks(parent);
+        placeCollectionSearchOnGrid(this);
+        return parent;
       }
       if (results) {
         this._gridParent =
@@ -7179,14 +7169,16 @@
     proto.hideNativeGridCards = function (parent) {
       if (origHide) origHide.call(this, parent);
       hideNestedThemeCards(parent);
-      if (shouldHideOrphanTheme(this, parent || this._gridParent)) {
-        scheduleOrphanThemeHide(this, parent || this._gridParent);
+      /* Scoped rival hide only when stuck on synthetic host with app cards. */
+      if (shouldHideCompetingThemeGrid(this, parent || this._gridParent)) {
+        scheduleCompetingThemeHide(this, parent || this._gridParent);
       }
       setOwnsGrid(true);
     };
 
     var origRestore = proto.restoreNativeGrid;
     proto.restoreNativeGrid = function () {
+      clearOrphanHideTimers(this);
       stripAppCards(document);
       restoreOrphanThemeOutside();
       if (origRestore) origRestore.call(this);
@@ -7283,6 +7275,10 @@
            origApply (.sf-app-card) so search/filter pages still show a grid. */
         if (uniqueAllowedCount(sliced.handles) === 0) return true;
       }
+      /* Before painting .sf-app-card: reclaim live theme grid so hideNativeGridCards
+         runs on the same parent as Liquid cards (standard path — no dual listing). */
+      parent = reclaimThemeGridHost(this, parent) || parent;
+      if (parent && !isPageShellHost(parent)) this._gridParent = parent;
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
         : false;
@@ -7290,13 +7286,9 @@
       if (parent && isGridHostEl(parent) && parent.classList) {
         restyleAppCardsAsThemeItems(parent);
       }
-      if (ok && shouldHideOrphanTheme(this, parent || this._gridParent)) {
-        scheduleOrphanThemeHide(this, parent || this._gridParent);
-      } else if (
-        this._appGridActive ||
-        (parent && parent.querySelector && parent.querySelector(".sf-app-card"))
-      ) {
-        scheduleOrphanThemeHide(this, parent || this._gridParent);
+      /* Last resort: synthetic host still in use → hide only that rival Liquid grid. */
+      if (ok && shouldHideCompetingThemeGrid(this, parent)) {
+        scheduleCompetingThemeHide(this, parent);
       }
       setOwnsGrid(true);
       if (this.renderPager) this.renderPager();
@@ -7778,6 +7770,7 @@
       this._sfPaged = false;
       this.page = 1;
       delete this._keepThemeCards;
+      clearOrphanHideTimers(this);
       if (origClear) origClear.apply(this, arguments);
       /* After facets reset — restore Liquid page 1 before/with the refetch. */
       prepareNativeListingRestore(this);
