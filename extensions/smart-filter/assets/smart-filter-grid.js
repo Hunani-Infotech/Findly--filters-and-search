@@ -5514,6 +5514,125 @@
     }
   }
 
+  function markOrphanHidden(node) {
+    if (!node || node.nodeType !== 1) return;
+    hideEl(node);
+    node.setAttribute("data-findly-orphan-hidden", "1");
+  }
+
+  function restoreOrphanThemeOutside() {
+    var nodes = document.querySelectorAll("[data-findly-orphan-hidden='1']");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node) continue;
+      showEl(node);
+      node.removeAttribute("data-findly-orphan-hidden");
+    }
+  }
+
+  /** Theme product grids that are not the Findly host (dual-grid root cause). */
+  function findLiveThemeProductGrid(excludeHost) {
+    var hints = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
+    var best = null;
+    var bestCount = 0;
+    var i;
+    for (i = 0; i < hints.length; i++) {
+      var hint = hints[i];
+      if (!hint || hint.nodeType !== 1) continue;
+      if (hint.id === HOST_ID) continue;
+      if (excludeHost && (hint === excludeHost || excludeHost.contains(hint))) {
+        continue;
+      }
+      if (hint.contains && excludeHost && hint.contains(excludeHost)) continue;
+      if (isSkippedCardRegion(hint)) continue;
+      if (hint.classList && hint.classList.contains("sf-app-grid")) continue;
+      if (
+        hint.querySelector &&
+        hint.querySelector(".sf-app-card, .smart-filter, #smart-filter-root, #smart-filter-embed")
+      ) {
+        continue;
+      }
+      var count = 0;
+      var cards = hint.querySelectorAll
+        ? hint.querySelectorAll(THEME_CARD_HOST_SELECTOR)
+        : [];
+      var c;
+      for (c = 0; c < cards.length; c++) {
+        var el = cards[c];
+        if (!el || el.nodeType !== 1) continue;
+        if (el.classList && el.classList.contains("sf-app-card")) continue;
+        if (el.closest && el.closest(".sf-app-card")) continue;
+        if (!handleFromCard(el) && !gridHasProductLinks(el)) continue;
+        count += 1;
+      }
+      if (count < 1 && gridHasProductLinks(hint)) {
+        count = collectDirectThemeCards(hint).length;
+      }
+      if (count > bestCount) {
+        best = hint;
+        bestCount = count;
+      }
+    }
+    return bestCount >= 1 ? preferProductCardGrid(best) : null;
+  }
+
+  /**
+   * When Findly paints into #findly-grid-host (or any .sf-app-grid), theme
+   * Liquid cards often remain as a sibling grid. Hide those orphans.
+   */
+  function hideOrphanThemeOutside(host) {
+    if (!host || host.nodeType !== 1) return;
+    var nodes = document.querySelectorAll(THEME_CARD_HOST_SELECTOR);
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || node.nodeType !== 1) continue;
+      if (host.contains(node)) continue;
+      if (node.classList && node.classList.contains("sf-app-card")) continue;
+      if (node.closest && node.closest(".sf-app-card")) continue;
+      if (node.closest && node.closest("#" + HOST_ID)) continue;
+      if (isSkippedCardRegion(node)) continue;
+      var outer = resolveOuterThemeCard(node) || node;
+      if (host.contains(outer)) continue;
+      if (!handleFromCard(outer) && !gridHasProductLinks(outer)) continue;
+      markOrphanHidden(outer);
+    }
+    var grids = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
+    for (i = 0; i < grids.length; i++) {
+      var grid = grids[i];
+      if (!grid || grid.nodeType !== 1) continue;
+      if (grid === host || host.contains(grid) || grid.contains(host)) continue;
+      if (grid.id === HOST_ID) continue;
+      if (grid.classList && grid.classList.contains("sf-app-grid")) continue;
+      if (isSkippedCardRegion(grid)) continue;
+      if (
+        grid.querySelector &&
+        grid.querySelector(
+          ".sf-app-card, .smart-filter, .sf-collection-layout, #smart-filter-root, #smart-filter-embed",
+        )
+      ) {
+        continue;
+      }
+      if (!gridHasProductLinks(grid)) continue;
+      markOrphanHidden(grid);
+    }
+  }
+
+  function shouldHideOrphanTheme(widget, parent) {
+    if (!widget) return false;
+    if (widget._appGridActive) return true;
+    if (parent && parent.id === HOST_ID) return true;
+    if (parent && parent.classList && parent.classList.contains("sf-app-grid")) {
+      return true;
+    }
+    return Boolean(
+      parent &&
+        parent.querySelector &&
+        parent.querySelector(".sf-app-card"),
+    );
+  }
+
   function listItemClassForGrid(parent, sample) {
     if (sample && sample.classList) {
       if (sample.classList.contains("grid__item")) return "grid__item";
@@ -5708,10 +5827,13 @@
           }
           return;
         }
-        if (self.appGridTemplate && self.appGridTemplate()) {
-          if (!self._appGridActive) return;
+        if (self._appGridActive) {
           var parent = self._gridParent;
           if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
+          else if (parent) hideOrphanThemeOutside(parent);
+          return;
+        }
+        if (self.appGridTemplate && self.appGridTemplate()) {
           return;
         }
         self._reapplyingGrid = true;
@@ -6656,6 +6778,13 @@
 
       parent = preferProductCardGrid(parent);
 
+      // Sticky #findly-grid-host often wins before the theme grid is in the DOM.
+      // Reclaim the real Liquid grid so we do not paint a second product list.
+      if (!parent || parent.id === HOST_ID) {
+        var liveTheme = findLiveThemeProductGrid(parent);
+        if (liveTheme) parent = liveTheme;
+      }
+
       if (parent && inAppMode) {
         parent = preferProductCardGrid(pickBetterGridHost(parent));
         if (parent && isResultsListEl(parent)) {
@@ -6668,7 +6797,7 @@
         if (fromShell) parent = fromShell;
       }
 
-      if (parent) {
+      if (parent && parent.id !== HOST_ID) {
         if (
           this._gridParent &&
           this._gridParent !== parent &&
@@ -6676,6 +6805,8 @@
         ) {
           moveCardsToHost(this._gridParent, parent);
         }
+        showEl(parent);
+        parent.removeAttribute("data-findly-orphan-hidden");
         this._gridParent = parent;
         lockThemeGridTracks(parent);
         placeCollectionSearchOnGrid(this);
@@ -6684,7 +6815,19 @@
 
       if (!inAppMode) {
         placeCollectionSearchOnGrid(this);
-        return null;
+        return parent && parent.id === HOST_ID ? parent : null;
+      }
+      var themeBeforeFallback = findLiveThemeProductGrid(null);
+      if (themeBeforeFallback) {
+        if (this._gridParent && this._gridParent !== themeBeforeFallback) {
+          moveCardsToHost(this._gridParent, themeBeforeFallback);
+        }
+        showEl(themeBeforeFallback);
+        themeBeforeFallback.removeAttribute("data-findly-orphan-hidden");
+        this._gridParent = themeBeforeFallback;
+        lockThemeGridTracks(this._gridParent);
+        placeCollectionSearchOnGrid(this);
+        return this._gridParent;
       }
       if (results) {
         this._gridParent =
@@ -6823,12 +6966,16 @@
     proto.hideNativeGridCards = function (parent) {
       if (origHide) origHide.call(this, parent);
       hideNestedThemeCards(parent);
+      if (shouldHideOrphanTheme(this, parent || this._gridParent)) {
+        hideOrphanThemeOutside(parent || this._gridParent);
+      }
       setOwnsGrid(true);
     };
 
     var origRestore = proto.restoreNativeGrid;
     proto.restoreNativeGrid = function () {
       stripAppCards(document);
+      restoreOrphanThemeOutside();
       if (origRestore) origRestore.call(this);
       applyNativeFilterGrid(null, this._gridParent);
       setOwnsGrid(false);
@@ -6929,6 +7076,9 @@
       parent = this._gridParent || parent;
       if (parent && isGridHostEl(parent) && parent.classList) {
         restyleAppCardsAsThemeItems(parent);
+      }
+      if (ok && shouldHideOrphanTheme(this, parent)) {
+        hideOrphanThemeOutside(parent);
       }
       setOwnsGrid(true);
       if (this.renderPager) this.renderPager();
