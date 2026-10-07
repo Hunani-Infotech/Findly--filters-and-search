@@ -5516,8 +5516,13 @@
     }
   }
 
-  /* dual-grid-v3: reclaim theme grid (standard A/B). Scoped rival hide only. */
-  var DUAL_GRID_BUILD = "dual-grid-v3";
+  /* dual-grid-v4: link-based theme grid discovery + scoped rival hide in main. */
+  var DUAL_GRID_BUILD = "dual-grid-v4";
+  var RIVAL_SKIP =
+    "header, footer, nav, cart-drawer, #CartDrawer, .cart-drawer, [data-cart-drawer]," +
+    " product-recommendations, .related-products, [data-related-products], .recently-viewed," +
+    " .predictive-search, .search-modal, [data-predictive-search], .quick-add-modal," +
+    " complementary-products, .complementary-products, .upsell, .cross-sell";
 
   function gridDebugEnabled() {
     try {
@@ -5575,28 +5580,51 @@
     widget._sfOrphanHideTimers = [];
   }
 
+  function mainListingScope() {
+    return (
+      document.querySelector(
+        "main, #MainContent, #main, [role='main'], #PageContainer, .main-content",
+      ) || document.body
+    );
+  }
+
+  function isRivalSkipRegion(el) {
+    if (!el || !el.closest) return false;
+    if (isSkippedCardRegion(el)) return true;
+    try {
+      return Boolean(el.closest(RIVAL_SKIP));
+    } catch (err) {
+      return false;
+    }
+  }
+
   function countThemeCardsIn(el) {
     if (!el || !el.querySelectorAll) return 0;
-    var cards = el.querySelectorAll(THEME_CARD_HOST_SELECTOR);
+    var links = el.querySelectorAll('a[href*="/products/"]');
+    var seen = {};
     var count = 0;
     var i;
-    for (i = 0; i < cards.length; i++) {
-      var node = cards[i];
-      if (!node || node.nodeType !== 1) continue;
-      if (node.classList && node.classList.contains("sf-app-card")) continue;
-      if (node.closest && node.closest(".sf-app-card")) continue;
-      if (isSkippedCardRegion(node)) continue;
-      var outer = resolveOuterThemeCard(node) || node;
-      if (outer !== node) continue;
-      if (!handleFromCard(outer) && !gridHasProductLinks(outer)) continue;
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || isRivalSkipRegion(link)) continue;
+      if (link.closest && link.closest(".sf-app-card, #" + HOST_ID)) continue;
+      var handle = handleFromHref(link.getAttribute("href"));
+      if (!handle || seen[handle]) continue;
+      seen[handle] = true;
       count += 1;
     }
     return count;
   }
 
-  /** Best Liquid product grid that is not the Findly synthetic host. */
+  /**
+   * Best Liquid product grid outside the Findly synthetic host.
+   * Uses product-link clustering (same idea as theme discoverAnyThemeGrid).
+   */
   function findLiveThemeProductGrid(excludeHost) {
-    var hints = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
+    var scope = mainListingScope();
+    if (!scope || !scope.querySelectorAll) return null;
+
+    var hints = scope.querySelectorAll(PRODUCT_GRID_SELECTOR);
     var best = null;
     var bestCount = 0;
     var i;
@@ -5608,27 +5636,18 @@
         continue;
       }
       if (hint.contains && excludeHost && hint.contains(excludeHost)) continue;
-      if (isSkippedCardRegion(hint)) continue;
-      if (hint.classList && hint.classList.contains("sf-app-grid")) {
-        if (countThemeCardsIn(hint) === 0) continue;
+      if (isRivalSkipRegion(hint)) continue;
+      if (hint.classList && hint.classList.contains("sf-app-grid") && countThemeCardsIn(hint) === 0) {
+        continue;
       }
       var count = countThemeCardsIn(hint);
-      if (count < 1) {
-        var direct = collectDirectThemeCards(hint);
-        count = direct ? direct.length : 0;
-      }
-      if (count < 1 && gridHasProductLinks(hint)) {
-        /* Prefer grids that look like collection listings, not single teasers. */
-        var links = hint.querySelectorAll('a[href*="/products/"]');
-        count = links && links.length >= 2 ? links.length : 0;
-      }
       if (count > bestCount) {
         best = hint;
         bestCount = count;
       }
     }
     if (bestCount >= 1) {
-      gridLog("found live theme grid", {
+      gridLog("found theme grid via PRODUCT_GRID_SELECTOR", {
         id: best && best.id,
         className: best && String(best.className || "").slice(0, 80),
         themeCards: bestCount,
@@ -5636,23 +5655,32 @@
       return preferProductCardGrid(best);
     }
 
-    /* Fallback: common parent of Liquid product cards outside excludeHost. */
-    var nodes = document.querySelectorAll(THEME_CARD_HOST_SELECTOR);
+    /* Link-parent cluster — works when theme markup misses product-grid classes. */
+    var links = scope.querySelectorAll('a[href*="/products/"]');
     var tally = typeof Map !== "undefined" ? new Map() : null;
     var legacy = [];
-    for (i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (!node || node.nodeType !== 1) continue;
-      if (node.classList && node.classList.contains("sf-app-card")) continue;
-      if (node.closest && node.closest(".sf-app-card, #" + HOST_ID)) continue;
-      if (isSkippedCardRegion(node)) continue;
-      if (excludeHost && excludeHost.contains(node)) continue;
-      var outer = resolveOuterThemeCard(node) || node;
-      var parent = outer && outer.parentElement;
-      if (!parent || parent.id === HOST_ID) continue;
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || isRivalSkipRegion(link)) continue;
+      if (link.closest && link.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel")) {
+        continue;
+      }
+      if (excludeHost && excludeHost.contains(link)) continue;
+      if (!handleFromHref(link.getAttribute("href"))) continue;
+      var card =
+        resolveOuterThemeCard(link) ||
+        (link.closest &&
+          link.closest(
+            "li, article, product-card, product-item, .grid__item, .card-wrapper, .product-card, .product",
+          )) ||
+        link;
+      if (excludeHost && excludeHost.contains(card)) continue;
+      var parent = card && card.parentElement;
+      if (!parent || parent.nodeType !== 1 || parent.id === HOST_ID) continue;
       if (excludeHost && (parent === excludeHost || excludeHost.contains(parent))) {
         continue;
       }
+      if (isRivalSkipRegion(parent)) continue;
       if (tally) {
         tally.set(parent, (tally.get(parent) || 0) + 1);
       } else {
@@ -5686,9 +5714,10 @@
         }
       }
     }
-    if (bestCount >= 2) {
-      gridLog("found theme grid via card parents", {
+    if (bestCount >= 1) {
+      gridLog("found theme grid via link parents", {
         id: best && best.id,
+        className: best && String(best.className || "").slice(0, 80),
         themeCards: bestCount,
       });
       return preferProductCardGrid(best);
@@ -5697,16 +5726,13 @@
     return null;
   }
 
-  /**
-   * Standard path: move app cards into the live theme grid so hideNativeGridCards
-   * + .sf-app-grid CSS apply in-place (no second listing).
-   */
   function reclaimThemeGridHost(widget, current) {
     if (!widget) return current || null;
     var host = current || widget._gridParent;
     var exclude = host && host.id === HOST_ID ? host : null;
     var live = findLiveThemeProductGrid(exclude);
     if (!live) return host || null;
+    if (live.id === HOST_ID) return host || null;
     if (host && host !== live) {
       moveCardsToHost(host, live);
       if (host.id === HOST_ID && host.classList) {
@@ -5723,9 +5749,41 @@
     return live;
   }
 
+  function hideRivalCardsInScope(host, rival) {
+    var hiddenCards = 0;
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+    var scope = rival || mainListingScope();
+    if (!scope || !scope.querySelectorAll) return 0;
+    var links = scope.querySelectorAll('a[href*="/products/"]');
+    var i;
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || isRivalSkipRegion(link)) continue;
+      if (host && host.contains(link)) continue;
+      if (link.closest && link.closest(".sf-app-card, #" + HOST_ID + ", .smart-filter, .sf-panel")) {
+        continue;
+      }
+      if (!handleFromHref(link.getAttribute("href"))) continue;
+      var card =
+        resolveOuterThemeCard(link) ||
+        (link.closest &&
+          link.closest(
+            "li, article, product-card, product-item, .grid__item, .card-wrapper, .product-card, .product",
+          )) ||
+        link;
+      if (!card || (host && host.contains(card))) continue;
+      if (seen) {
+        if (seen.has(card)) continue;
+        seen.add(card);
+      }
+      if (markOrphanHidden(card)) hiddenCards += 1;
+    }
+    return hiddenCards;
+  }
+
   /**
-   * Last resort only: when app cards remain on #findly-grid-host, hide the
-   * single competing Liquid grid — never document-wide product links/cards.
+   * When app cards remain on #findly-grid-host, hide the competing Liquid
+   * listing inside main only (not cart / header / recommendations).
    */
   function hideCompetingThemeGrid(host) {
     if (!host || host.nodeType !== 1 || host.id !== HOST_ID) {
@@ -5739,24 +5797,18 @@
       return { grids: 0, cards: 0 };
     }
     var rival = findLiveThemeProductGrid(host);
-    if (!rival || rival === host || host.contains(rival) || rival.contains(host)) {
-      gridLog("scoped rival hide: no rival grid");
-      return { grids: 0, cards: 0 };
-    }
     var hiddenCards = 0;
-    var cards = rival.querySelectorAll(THEME_CARD_HOST_SELECTOR);
-    var i;
-    for (i = 0; i < cards.length; i++) {
-      var node = cards[i];
-      if (!node || node.nodeType !== 1) continue;
-      if (node.classList && node.classList.contains("sf-app-card")) continue;
-      if (node.closest && node.closest(".sf-app-card")) continue;
-      if (markOrphanHidden(node)) hiddenCards += 1;
+    var hiddenGrid = 0;
+    if (rival && rival !== host && !host.contains(rival) && !rival.contains(host)) {
+      hiddenCards = hideRivalCardsInScope(host, rival);
+      if (markOrphanHidden(rival)) hiddenGrid = 1;
+    } else {
+      /* Still hide Liquid product cards in main outside the synthetic host. */
+      hiddenCards = hideRivalCardsInScope(host, mainListingScope());
     }
-    var hiddenGrid = markOrphanHidden(rival) ? 1 : 0;
     gridLog("scoped rival hide", {
-      rivalId: rival.id || null,
-      rivalClass: String(rival.className || "").slice(0, 80),
+      rivalId: rival && rival.id,
+      rivalClass: rival && String(rival.className || "").slice(0, 80),
       hiddenGrid: hiddenGrid,
       hiddenCards: hiddenCards,
     });
@@ -5766,7 +5818,12 @@
   function shouldHideCompetingThemeGrid(widget, parent) {
     if (!widget || !widget._appGridActive) return false;
     var host = parent || widget._gridParent;
-    return Boolean(host && host.id === HOST_ID && host.querySelector && host.querySelector(".sf-app-card"));
+    return Boolean(
+      host &&
+        host.id === HOST_ID &&
+        host.querySelector &&
+        host.querySelector(".sf-app-card"),
+    );
   }
 
   function scheduleCompetingThemeHide(widget, host) {
@@ -5776,7 +5833,7 @@
     clearOrphanHideTimers(widget);
     hideCompetingThemeGrid(target);
     widget._sfOrphanHideTimers = [];
-    var delays = [80, 400];
+    var delays = [50, 200, 600];
     var d;
     for (d = 0; d < delays.length; d++) {
       (function (ms) {
@@ -5817,7 +5874,8 @@
           hostClass: host && String(host.className || "").slice(0, 80),
           appCards: document.querySelectorAll(".sf-app-card").length,
           orphanMarked: document.querySelectorAll("[data-findly-orphan-hidden='1']").length,
-          rivalId: rival && rival.id,
+          rivalId: rival && (rival.id || null),
+          rivalClass: rival && String(rival.className || "").slice(0, 80),
           rivalThemeCards: rival ? countThemeCardsIn(rival) : 0,
         };
         gridLog("diagnose", report);
