@@ -15,6 +15,10 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chalk, log } from "./terminal-log.mjs";
+import {
+  resolveFindlyAppEnv,
+  shopifyAppConfigPath,
+} from "./findly-app-env.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const isWin = process.platform === "win32";
@@ -22,6 +26,9 @@ const children = [];
 let shuttingDown = false;
 
 loadDotEnv();
+if (!process.env.APP_ENV?.trim() && !process.env.FINDLY_APP_ENV?.trim()) {
+  process.env.APP_ENV = "development";
+}
 
 function loadDotEnv() {
   const envFile = path.join(root, ".env");
@@ -233,20 +240,24 @@ spawnTracked(
   },
 );
 
-log.info("[dev] Starting Shopify app…");
-spawnTracked(
-  process.execPath,
-  [
-    path.join(root, "node_modules", "@shopify", "cli", "bin", "run.js"),
-    "app",
-    "dev",
-    ...process.argv.slice(2),
-  ],
-  {
-    tag: "shopify",
-    inherit: true,
-  },
+const appEnv = resolveFindlyAppEnv();
+const shopifyConfig = shopifyAppConfigPath();
+log.info(
+  `[dev] APP_ENV=${appEnv} → shopify --config ${shopifyConfig}`,
 );
+const shopifyArgs = [
+  path.join(root, "node_modules", "@shopify", "cli", "bin", "run.js"),
+  "app",
+  "dev",
+  "--config",
+  shopifyConfig,
+  ...process.argv.slice(2),
+];
+log.info("[dev] Starting Shopify app…");
+spawnTracked(process.execPath, shopifyArgs, {
+  tag: "shopify",
+  inherit: true,
+});
 
 process.on("SIGINT", () => void shutdown(0));
 process.on("SIGTERM", () => void shutdown(0));

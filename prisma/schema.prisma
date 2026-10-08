@@ -85,7 +85,9 @@ model AppSettings {
   id               String  @id @default(cuid())
   shopId           String  @unique
   shop             Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  widgetPosition    String  @default("left") // left | right | top
+  widgetPosition    String  @default("left") // left | right | top | offcanvas
+  /// Off-canvas drawer edge: left (default) | right
+  offcanvasSide     String  @default("left")
   accentColor       String  @default("#1c1917")
   showProductCounts Boolean @default(true)
   /// Show the number of total products (“X products” status / theme count)

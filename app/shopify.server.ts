@@ -8,6 +8,7 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 import { log } from "./lib/log.server";
+import { resolveFindlyAppEnv } from "./utils/findly-app-env";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -104,6 +105,7 @@ function resolveAppUrl() {
 
 const appUrl = resolveAppUrl();
 log.info(`[shopify] appUrl=${appUrl || "(empty)"}`);
+log.info(`[shopify] APP_ENV=${resolveFindlyAppEnv()}`);
 
 if (process.env.NODE_ENV === "production") {
   if ((process.env.DEV_UNLOCK_LIMITS ?? "").toLowerCase() === "true") {

@@ -4472,6 +4472,39 @@
     return root.getAttribute && root.getAttribute("data-position") === "offcanvas";
   }
 
+  function drawerOpensFromRight(widget) {
+    if (!widget) return false;
+    // Derive only from position / offcanvasSide — never from data-drawer-side
+    // (that attr is write-only output from syncDrawerSideAttrs).
+    if (widget.position === "right") return true;
+    var root = widget.root;
+    if (root && root.classList && root.classList.contains("smart-filter--right")) {
+      return true;
+    }
+    if (isOffcanvasPosition(widget) && widget.offcanvasSide === "right") {
+      return true;
+    }
+    return false;
+  }
+
+  function syncDrawerSideAttrs(widget, panel) {
+    var side = drawerOpensFromRight(widget) ? "right" : "left";
+    if (widget && widget.root && widget.root.setAttribute) {
+      widget.root.setAttribute("data-drawer-side", side);
+    }
+    var target = panel;
+    if (!target && widget) {
+      target =
+        widget.panelEl ||
+        (widget.root && widget.root.querySelector
+          ? widget.root.querySelector("[data-drawer-panel]")
+          : null);
+    }
+    if (target && target.setAttribute) {
+      target.setAttribute("data-drawer-side", side);
+    }
+  }
+
   function shouldPortalDrawer(widget) {
     return isMobileDrawer() || isOffcanvasPosition(widget);
   }
@@ -5354,12 +5387,8 @@
 
   function applyPortaledPanelLayout(panel, widget) {
     if (!panel || !panel.style) return;
-    var right =
-      (widget &&
-        widget.root &&
-        widget.root.classList &&
-        widget.root.classList.contains("smart-filter--right")) ||
-      (widget && widget.position === "right");
+    var right = drawerOpensFromRight(widget);
+    syncDrawerSideAttrs(widget, panel);
     panel.style.setProperty("position", "fixed", "important");
     panel.style.setProperty("top", "0", "important");
     panel.style.setProperty("bottom", "0", "important");
@@ -8076,7 +8105,19 @@
           customStyle.parentNode.removeChild(customStyle);
         }
       }
-      if (origApplySettings) return origApplySettings.apply(this, arguments);
+      if (origApplySettings) origApplySettings.apply(this, arguments);
+      if (settings && typeof settings === "object") {
+        if ("offcanvasSide" in settings) {
+          this.offcanvasSide =
+            settings.offcanvasSide === "right" ? "right" : "left";
+        } else if (this.offcanvasSide == null) {
+          this.offcanvasSide = "left";
+        }
+        syncDrawerSideAttrs(this, liveDrawerPanel(this));
+        if (shouldPortalDrawer(this)) {
+          portalMobileDrawer(this);
+        }
+      }
     };
 
     var origHideChrome = proto.hideThemeDuplicateChrome;

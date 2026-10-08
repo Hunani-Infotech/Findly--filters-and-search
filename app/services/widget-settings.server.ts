@@ -28,6 +28,7 @@ export function buildStorefrontWidgetSettings(
       (appSettings as { paginationStyle?: unknown }).paginationStyle,
     ),
     widgetPosition: appSettings.widgetPosition,
+    offcanvasSide: appSettings.offcanvasSide === "right" ? "right" : "left",
     accentColor: appSettings.accentColor,
     widgetShadow: appSettings.widgetShadow,
     widgetRadius: appSettings.widgetRadius,

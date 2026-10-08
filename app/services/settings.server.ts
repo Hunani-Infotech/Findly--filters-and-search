@@ -8,6 +8,7 @@ import {
   normalizeSortOptions,
   parsePaginationStyle,
   parseSortOption,
+  parseOffcanvasSide,
   parseWidgetFontMode,
   parseWidgetPosition,
   parseWidgetRadius,
@@ -18,6 +19,7 @@ import {
   sanitizeWidgetTitle,
   sanitizeWidgetTitleColor,
   type HideOutOfStockMode,
+  type OffcanvasSide,
   type PaginationStyle,
   type SearchFieldKey,
   type SortOptionKey,
@@ -39,6 +41,7 @@ export { DEFAULT_APP_SETTINGS };
 
 export type AppSettingsInput = {
   widgetPosition?: WidgetPosition;
+  offcanvasSide?: OffcanvasSide;
   accentColor?: string;
   showProductCounts?: boolean;
   showTotalProductCount?: boolean;
@@ -179,6 +182,7 @@ function normalizeSettingsWrite(input: AppSettingsInput) {
 
   return {
     widgetPosition: parseWidgetPosition(input.widgetPosition),
+    offcanvasSide: parseOffcanvasSide(input.offcanvasSide),
     accentColor: sanitizeWidgetTitleColor(input.accentColor),
     widgetRadius: parseWidgetRadius(input.widgetRadius),
     widgetFontMode,
@@ -270,6 +274,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     create: {
       shopId,
       widgetPosition: n.widgetPosition,
+      offcanvasSide: n.offcanvasSide,
       accentColor: n.accentColor,
       showProductCounts: input.showProductCounts ?? true,
       showTotalProductCount: n.showTotalProductCount,
@@ -306,6 +311,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
     },
     update: {
       widgetPosition: n.widgetPosition,
+      ...patchIfPresent(
+        input.offcanvasSide !== undefined,
+        "offcanvasSide",
+        n.offcanvasSide,
+      ),
       accentColor: n.accentColor,
       showProductCounts: input.showProductCounts,
       ...patchIfPresent(
