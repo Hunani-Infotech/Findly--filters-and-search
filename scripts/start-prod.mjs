@@ -18,14 +18,22 @@ let web;
 let worker;
 let workerRestarted = false;
 
+function productionEnv(extra = {}) {
+  return {
+    ...process.env,
+    NODE_ENV: process.env.NODE_ENV || "production",
+    APP_ENV: "production",
+    ...extra,
+  };
+}
+
 function spawnWeb() {
   return spawn(node, ["server.js"], {
     cwd: root,
-    env: {
-      ...process.env,
+    env: productionEnv({
       START_WORKER: "0",
       FINDLY_MIGRATIONS_RAN: "1",
-    },
+    }),
     stdio: "inherit",
     windowsHide: false,
   });
@@ -34,7 +42,7 @@ function spawnWeb() {
 function spawnWorker() {
   return spawn(node, ["--import", "tsx", "app/workers/index.ts"], {
     cwd: root,
-    env: { ...process.env },
+    env: productionEnv(),
     stdio: "inherit",
     windowsHide: true,
   });

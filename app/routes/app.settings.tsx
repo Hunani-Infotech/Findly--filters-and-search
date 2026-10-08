@@ -35,6 +35,7 @@ import { isMutationBusy } from "../components/admin-loading";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   LayoutPicker,
+  OffcanvasSidePicker,
   WidgetLookPreview,
   toWidgetPreviewSettings,
 } from "../components/widget-preview";
@@ -57,6 +58,7 @@ import {
   normalizeSearchFields,
   normalizeSortOptions,
   parseHideOutOfStock,
+  parseOffcanvasSide,
   parseSortOption,
   parseWidgetFontMode,
   parseWidgetPosition,
@@ -64,6 +66,7 @@ import {
   parseWidgetTitleSize,
   resolveHideOutOfStock,
   type HideOutOfStockMode,
+  type OffcanvasSide,
   type SearchFieldKey,
   type SortOptionKey,
   type WidgetPosition,
@@ -134,6 +137,7 @@ function tabPanelStyle(visible: boolean) {
 
 type SettingsState = {
   widgetPosition: WidgetPosition;
+  offcanvasSide: OffcanvasSide;
   accentColor: string;
   showProductCounts: boolean;
   showTotalProductCount: boolean;
@@ -170,6 +174,7 @@ type SettingsState = {
 
 function toSettingsState(settings: {
   widgetPosition: string;
+  offcanvasSide?: string;
   accentColor: string;
   showProductCounts: boolean;
   showTotalProductCount?: boolean;
@@ -207,6 +212,7 @@ function toSettingsState(settings: {
   const widgetTitleSize = parseWidgetTitleSize(settings.widgetTitleSize);
   return {
     widgetPosition: parseWidgetPosition(settings.widgetPosition),
+    offcanvasSide: parseOffcanvasSide(settings.offcanvasSide),
     accentColor: settings.accentColor,
     showProductCounts: settings.showProductCounts,
     showTotalProductCount: settings.showTotalProductCount !== false,
@@ -293,6 +299,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     metafields,
     settings: toSettingsState({
       widgetPosition: settings.widgetPosition,
+      offcanvasSide: settings.offcanvasSide,
       accentColor: settings.accentColor,
       showProductCounts: settings.showProductCounts,
       showTotalProductCount: settings.showTotalProductCount,
@@ -393,6 +400,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const widgetPosition = parseWidgetPosition(form.get("widgetPosition"));
+  const offcanvasSide = parseOffcanvasSide(form.get("offcanvasSide"));
 
   let sortOptionsEnabled = [...DEFAULT_APP_SETTINGS.sortOptionsEnabled];
   const sortOptionsRaw = form.get("sortOptionsEnabled");
@@ -409,6 +417,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   await saveAppSettings(shop.id, {
     widgetPosition,
+    offcanvasSide,
     accentColor: String(form.get("accentColor") || DEFAULT_APP_SETTINGS.accentColor),
     showProductCounts:
       form.get("showProductCounts") === "true" ||
@@ -585,6 +594,7 @@ export default function SettingsPage() {
       return;
     }
     formData.set("widgetPosition", next.widgetPosition);
+    formData.set("offcanvasSide", next.offcanvasSide);
     formData.set("accentColor", next.accentColor);
     formData.set("showProductCounts", String(next.showProductCounts));
     formData.set("showTotalProductCount", String(next.showTotalProductCount));
@@ -957,6 +967,18 @@ export default function SettingsPage() {
                           setSettings((s) => ({ ...s, widgetPosition: value }))
                         }
                       />
+                      {settings.widgetPosition === "offcanvas" ? (
+                        <OffcanvasSidePicker
+                          value={settings.offcanvasSide || "left"}
+                          disabled={saving}
+                          onChange={(value) =>
+                            setSettings((s) => ({
+                              ...s,
+                              offcanvasSide: value,
+                            }))
+                          }
+                        />
+                      ) : null}
                       <Checkbox
                         label="Collapse filter groups by default"
                         checked={settings.collapseByDefault}

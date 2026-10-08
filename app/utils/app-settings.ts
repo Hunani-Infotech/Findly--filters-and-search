@@ -195,6 +195,16 @@ export function parseWidgetPosition(value: unknown): WidgetPosition {
     : "left";
 }
 
+export const OFFCANVAS_SIDES = ["left", "right"] as const;
+
+export type OffcanvasSide = (typeof OFFCANVAS_SIDES)[number];
+
+export function parseOffcanvasSide(value: unknown): OffcanvasSide {
+  return OFFCANVAS_SIDES.includes(value as OffcanvasSide)
+    ? (value as OffcanvasSide)
+    : "left";
+}
+
 export const SORT_OPTION_KEYS = [
   "manual",
   "title_asc",
@@ -244,6 +254,7 @@ export function parseSortOption(value: unknown): SortOptionKey {
 
 export const DEFAULT_APP_SETTINGS = {
   widgetPosition: "left" as WidgetPosition,
+  offcanvasSide: "left" as OffcanvasSide,
   accentColor: "#1c1917",
   showProductCounts: true,
   showTotalProductCount: true,

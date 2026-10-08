@@ -1,5 +1,5 @@
 import { memo, type CSSProperties } from "react";
-import type { WidgetPosition } from "../types/search";
+import type { OffcanvasSide, WidgetPosition } from "../types/search";
 import { sanitizeCustomCss, scopeCustomCss } from "../utils/widget-code";
 import styles from "./widget-preview.module.css";
 
@@ -173,6 +173,50 @@ export function LayoutPicker({
           </label>
         );
       })}
+    </div>
+  );
+}
+
+/** Compact Left/Right toggle — separate from the checkbox list below. */
+export function OffcanvasSidePicker({
+  value,
+  disabled = false,
+  onChange,
+}: {
+  value: OffcanvasSide;
+  disabled?: boolean;
+  onChange: (value: OffcanvasSide) => void;
+}) {
+  const side = value === "right" ? "right" : "left";
+  return (
+    <div className={styles.drawerSideRow}>
+      <span className={styles.drawerSideLabel}>Drawer side</span>
+      <div
+        className={`${styles.drawerSideToggle} ${
+          disabled ? styles.drawerSideToggleDisabled : ""
+        }`}
+        role="radiogroup"
+        aria-label="Off-canvas drawer side"
+      >
+        {(["left", "right"] as const).map((option) => {
+          const selected = side === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              className={`${styles.drawerSideBtn} ${
+                selected ? styles.drawerSideBtnSelected : ""
+              }`}
+              onClick={() => onChange(option)}
+            >
+              {option === "left" ? "Left" : "Right"}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { isFindlyDevelopment } from "./app/utils/findly-app-env";
 
 function normalizeUrl(value: string | undefined) {
   if (!value) return "";
@@ -54,7 +55,15 @@ if (host === "localhost") {
 
 export default defineConfig({
   server: {
-    allowedHosts: [host, "localhost", "127.0.0.1", "findly.srhwebagency.com"],
+    // Production Hostinger host always allowed. In development, also allow
+    // Shopify CLI Cloudflare tunnels (new subdomain every `app dev`).
+    allowedHosts: [
+      host,
+      "localhost",
+      "127.0.0.1",
+      "findly.srhwebagency.com",
+      ...(isFindlyDevelopment() ? [".trycloudflare.com" as const] : []),
+    ],
     cors: {
       preflightContinue: true,
     },
