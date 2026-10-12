@@ -2907,6 +2907,16 @@ results-list > .sf-toolbar {
   box-sizing: border-box;
 }
 
+/*
+ * Search adapt-to-image ratios (console: 139/224/248px) vs collection fixed ~310px.
+ * Variables only — Dawn already supplies .ratio::before; JS may also set inline.
+ */
+body.template-search .sf-collection-layout .sf-layout-main .card__inner.ratio,
+.sf-collection-layout .sf-layout-main .template-search__results .card__inner.ratio {
+  --ratio-percent: 125%;
+  --ratio: 0.8;
+}
+
 
 /* Title / theme search form sit ABOVE the sidebar+grid layout. */
 .sf-search-width > [data-sf-search-header="1"],

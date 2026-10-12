@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v37";
+  var STYLE_ID = "findly-grid-takeover-v38";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -475,6 +475,7 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v18") ||
       document.getElementById("findly-theme-bridge-v17") ||
       document.getElementById("findly-theme-bridge-v16") ||
       document.getElementById("findly-theme-bridge-v15") ||
@@ -492,13 +493,13 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v17") {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v18") {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v17";
+      bridge.id = "findly-theme-bridge-v18";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -1317,6 +1318,84 @@
   }
 
   /**
+   * Collection report: grid--3-col-desktop + card images ~310px.
+   * Search theme ships grid--4-col-desktop and often loses .ratio height.
+   * Align search listing to the collection card arrangement inside Findly layout.
+   */
+  function alignProductGridToCollection(host) {
+    host = resolveListingCardGrid(host) || preferProductCardGrid(host) || host;
+    if (!host || !host.classList) return host;
+    if (!host.closest || !host.closest(".sf-collection-layout .sf-layout-main")) {
+      return host;
+    }
+    var cls = String(host.className || "");
+    var desk = cls.match(/\bgrid--(\d+)-col-desktop\b/);
+    var cols = desk ? Number(desk[1]) || 0 : 0;
+    /* Prefer collection's 3-col desktop arrangement when search is 4+. */
+    if (cols >= 4 || (!desk && isSearchPageContext())) {
+      host.classList.remove(
+        "grid--4-col-desktop",
+        "grid--5-col-desktop",
+        "grid--6-col-desktop",
+      );
+      if (!host.classList.contains("grid--3-col-desktop")) {
+        host.classList.add("grid--3-col-desktop");
+      }
+      if (!host.classList.contains("grid--2-col-tablet-down")) {
+        host.classList.add("grid--2-col-tablet-down");
+      }
+      host.setAttribute("data-sf-aligned-cols", "3");
+    }
+    return host;
+  }
+
+  function normalizeCardMediaRatio(host) {
+    host = resolveListingCardGrid(host) || host;
+    if (!host || !host.querySelectorAll) return;
+    if (!host.closest || !host.closest(".sf-collection-layout .sf-layout-main")) {
+      return;
+    }
+    /*
+     * Collection: fixed ~248×310 (125%). Search Dawn often uses adapt-to-image
+     * inline --ratio-percent (console: 139 / 224 / 248). Force collection frame.
+     */
+    var TARGET = "125%";
+    var forceSearch =
+      isSearchPageContext() ||
+      Boolean(
+        host.closest &&
+          host.closest(
+            ".template-search__results, .template-search, [data-sf-search-grid]",
+          ),
+      );
+    var inners = host.querySelectorAll(".card__inner.ratio, .card__inner");
+    var i;
+    for (i = 0; i < inners.length; i++) {
+      var inner = inners[i];
+      if (!inner || !inner.style) continue;
+      if (!inner.classList.contains("ratio")) inner.classList.add("ratio");
+      var media = inner.querySelector(".card__media, .media");
+      var mediaH = 0;
+      var mediaW = 0;
+      try {
+        if (media) {
+          var mb = media.getBoundingClientRect();
+          mediaH = mb.height || 0;
+          mediaW = mb.width || 0;
+        }
+      } catch (err2) {
+        mediaH = 0;
+        mediaW = 0;
+      }
+      var collapsed = mediaW > 0 && mediaH > 0 && mediaH / mediaW < 1.05;
+      if (forceSearch || collapsed || !inner.style.getPropertyValue("--ratio-percent")) {
+        inner.style.setProperty("--ratio-percent", TARGET);
+        inner.style.setProperty("--ratio", "0.8");
+      }
+    }
+  }
+
+  /**
    * Dawn product ULs are display:flex; column classes size .grid__item with %.
    * After search remount, those % widths can fail and cards crush (~159px).
    * Only intervene when items are clearly too narrow vs the column class.
@@ -1388,6 +1467,8 @@
       host.style.setProperty("display", "flex", "important");
       host.style.setProperty("flex-wrap", "wrap");
       host.style.setProperty("justify-content", "flex-start");
+      host.style.setProperty("column-gap", gap > 0 ? gap + "px" : "8px");
+      host.style.setProperty("row-gap", gap > 0 ? gap + "px" : "8px");
     } catch (hostStyleErr) {
       /* ignore */
     }
@@ -1396,11 +1477,13 @@
         continue;
       }
       if (!isVisibleProductCard(items[i])) continue;
+      /* Match collection: flex 1 0 auto + max-width calc(33.33% - gap). */
       items[i].style.setProperty("width", widthExpr, "important");
       items[i].style.setProperty("max-width", widthExpr, "important");
-      items[i].style.setProperty("flex", "0 0 auto", "important");
+      items[i].style.setProperty("flex", "1 0 auto", "important");
       items[i].style.setProperty("box-sizing", "border-box");
     }
+    normalizeCardMediaRatio(host);
     return true;
   }
 
@@ -1435,6 +1518,7 @@
     if (isProductGridIdShell(host) || (isPageShellHost(host) && !isActualCardGrid(host))) {
       return;
     }
+    host = alignProductGridToCollection(host) || host;
     try {
       host.style.removeProperty("grid-template-columns");
       host.style.removeProperty("grid-template-rows");
@@ -1445,9 +1529,10 @@
     if (!snap) {
       if (dawnFlexColumnCount(host) >= 2) {
         ensureDawnFlexColumnWidths(host, true);
-        return;
+      } else {
+        ensureFallbackProductGridTracks(host);
       }
-      ensureFallbackProductGridTracks(host);
+      normalizeCardMediaRatio(host);
       return;
     }
     var display = String(snap.display || "");
@@ -1457,14 +1542,16 @@
       var inFilterMain =
         host.closest && host.closest(".sf-collection-layout .sf-layout-main");
       ensureDawnFlexColumnWidths(host, Boolean(inFilterMain));
+      normalizeCardMediaRatio(host);
       return;
     }
     if (display.indexOf("grid") === -1) {
       if (dawnFlexColumnCount(host) >= 2) {
         ensureDawnFlexColumnWidths(host, true);
-        return;
+      } else {
+        ensureFallbackProductGridTracks(host);
       }
-      ensureFallbackProductGridTracks(host);
+      normalizeCardMediaRatio(host);
       return;
     }
     if (snap.horizonCols) {
@@ -8133,8 +8220,33 @@
       parent = ensureToolbarInColumnMain(widget);
       loc = listingToolbarAnchor(widget);
       before = loc.before;
-      if (!parent || !isToolbarAnchorParent(parent)) return;
     }
+    /* Search console: toolbar path null — last-resort column main. */
+    if (!parent || !isToolbarAnchorParent(parent)) {
+      var layout = document.querySelector(".sf-collection-layout");
+      var mains =
+        layout &&
+        layout.querySelectorAll(".sf-layout-main");
+      var mi;
+      for (mi = 0; mains && mi < mains.length; mi++) {
+        if (isToolbarAnchorParent(mains[mi])) {
+          parent = mains[mi];
+          break;
+        }
+      }
+      if (parent && isToolbarAnchorParent(parent)) {
+        var shellHint =
+          (widget && widget._themeGridShell) ||
+          parent.querySelector(
+            "[data-findly-grid-shell='1'], #ProductGridContainer, #product-grid, .product-grid-container, .template-search__results",
+          );
+        before =
+          shellHint && parent.contains(shellHint)
+            ? shellHint
+            : parent.firstChild;
+      }
+    }
+    if (!parent || !isToolbarAnchorParent(parent)) return;
 
     var host = document.querySelector(".sf-toolbar");
     if (!host) {
