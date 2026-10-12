@@ -8,7 +8,13 @@ import {
   type PaidPlanKey,
   type PlanKey,
 } from "../constants/plans";
-import { findShopByIdCached, findShopCached, rememberShop } from "../lib/shop-cache.server";
+import {
+  findShopByIdCached,
+  findShopCached,
+  forgetShop,
+  forgetShopById,
+  rememberShop,
+} from "../lib/shop-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
 
 export {
@@ -209,6 +215,32 @@ export async function enforcePlanLimits(shopId: string) {
   return planUsageCache.wrap(shopId, () => loadPlanLimits(shopId));
 }
 
+/** Drop shop + plan-usage caches after any billing write. */
+export function clearBillingCaches(shop: { id: string; domain: string }) {
+  forgetShop(shop.domain);
+  forgetShopById(shop.id);
+  planUsageCache.del(shop.id);
+}
+
+/**
+ * Per-shop Postgres advisory lock around billing create/cancel/sync writes.
+ * Callers may run GraphQL + prisma writes inside `fn`; the xact lock is held
+ * until the transaction (and thus `fn`) completes.
+ */
+export async function withBillingLock<T>(
+  shopId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockKey = `billing:${shopId}`;
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+      return fn();
+    },
+    { maxWait: 10_000, timeout: 60_000 },
+  );
+}
+
 /**
  * Unpaid shops resolve to plan key `free`. Development-store unlocks require
  * Shopify `partnerDevelopment` (or local DEV_UNLOCK_LIMITS) — not the plan key alone.
@@ -259,6 +291,80 @@ type GraphqlAdmin = {
   ) => Promise<Response>;
 };
 
+export type ShopifyActiveSubscription = {
+  id: string;
+  name: string;
+  status: string;
+  test: boolean;
+  trialDays: number | null;
+  createdAt: string;
+  currentPeriodEnd: string | null;
+};
+
+const ACTIVE_SUBSCRIPTIONS_QUERY = `#graphql
+query ActiveSubscriptions {
+  currentAppInstallation {
+    activeSubscriptions {
+      id
+      name
+      status
+      test
+      trialDays
+      createdAt
+      currentPeriodEnd
+    }
+  }
+}`;
+
+/** Map Shopify subscription name → PaidPlanKey (unknown names → pro). */
+export function paidPlanKeyFromShopifyName(
+  name: string | null | undefined,
+): PaidPlanKey {
+  const resolved = planKeyFromName(name);
+  return resolved === "free" ? "pro" : resolved;
+}
+
+function shopifySubStatus(sub: { status?: string | null }): string {
+  return String(sub.status || "").toUpperCase();
+}
+
+function isShopifyActivePaid(sub: {
+  status?: string | null;
+  trialDays?: number | null;
+  createdAt?: string | null;
+}): boolean {
+  const status = shopifySubStatus(sub);
+  if (status === "ACTIVE" || status === "TRIAL") return true;
+  if (sub.trialDays && sub.createdAt) {
+    const trialEndsAt = new Date(
+      new Date(sub.createdAt).getTime() +
+        Number(sub.trialDays) * 24 * 60 * 60 * 1000,
+    );
+    if (trialEndsAt > new Date()) return true;
+  }
+  return false;
+}
+
+function isLocalPendingStatus(status: string | null | undefined): boolean {
+  const s = String(status || "").toUpperCase();
+  return s === "PENDING" || s === "ACCEPTED";
+}
+
+/** Query Shopify currentAppInstallation.activeSubscriptions (source of truth). */
+export async function fetchActiveSubscriptions(
+  admin: GraphqlAdmin,
+): Promise<ShopifyActiveSubscription[]> {
+  const response = await admin.graphql(ACTIVE_SUBSCRIPTIONS_QUERY);
+  const json = (await response.json()) as {
+    data?: {
+      currentAppInstallation?: {
+        activeSubscriptions?: ShopifyActiveSubscription[];
+      };
+    };
+  };
+  return json.data?.currentAppInstallation?.activeSubscriptions ?? [];
+}
+
 const SHOP_PARTNER_DEVELOPMENT_QUERY = `#graphql
 query ShopPartnerDevelopment {
   shop {
@@ -290,16 +396,62 @@ export async function refreshPartnerDevelopment(
       include: { subscription: true },
     });
     rememberShop(shop);
-    planUsageCache.del(shopId);
+    clearBillingCaches({ id: shop.id, domain: shop.domain });
     return partnerDevelopment;
   } catch {
     return null;
   }
 }
 
+async function loadShopDomain(shopId: string): Promise<string | null> {
+  const cached = await findShopByIdCached(shopId);
+  if (cached) return cached.domain;
+  const row = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { domain: true },
+  });
+  return row?.domain ?? null;
+}
+
+async function persistPendingSubscription(opts: {
+  shopId: string;
+  shopifySubscriptionId: string;
+  planKey: PaidPlanKey;
+  status: string;
+  confirmationUrl: string;
+}) {
+  const plan = PLANS[opts.planKey];
+  await prisma.subscription.upsert({
+    where: { shopId: opts.shopId },
+    create: {
+      shopId: opts.shopId,
+      shopifySubscriptionId: opts.shopifySubscriptionId,
+      planName: plan.name,
+      status: opts.status || "PENDING",
+      test: isBillingTestMode(),
+      productLimit: plan.productLimit,
+      filterLimit: plan.filterLimit,
+      confirmationUrl: opts.confirmationUrl,
+    },
+    update: {
+      shopifySubscriptionId: opts.shopifySubscriptionId,
+      planName: plan.name,
+      status: opts.status || "PENDING",
+      test: isBillingTestMode(),
+      productLimit: plan.productLimit,
+      filterLimit: plan.filterLimit,
+      confirmationUrl: opts.confirmationUrl,
+    },
+  });
+  await prisma.shop.update({
+    where: { id: opts.shopId },
+    data: { plan: plan.key },
+  });
+}
+
 /**
  * Live shops must start Standard immediately (no trial). Development stores stay free.
- * Returns a Shopify confirmation URL once; PENDING shops are not billed again here.
+ * Shopify-truth ACTIVE → null (no create/redirect). Local PENDING with saved URL → reuse.
  */
 export async function startStandardSubscriptionIfLive(
   admin: GraphqlAdmin,
@@ -311,45 +463,131 @@ export async function startStandardSubscriptionIfLive(
   const latest = await findShopByIdCached(shop.id);
   if (!latest) return null;
   if (isDevelopmentStoreAccess(latest)) return null;
-  if (hasActivePaidSubscription(latest.subscription)) return null;
-  const status = (latest.subscription?.status ?? "").toUpperCase();
-  if (status === "PENDING" || status === "ACCEPTED") return null;
 
-  const plan = PLANS.standard;
-  const result = await createAppSubscription(admin, returnUrl, "standard");
-  const errors = result?.userErrors ?? [];
-  if (errors.length || !result?.confirmationUrl) return null;
-  if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) return null;
+  return withBillingLock(latest.id, async () => {
+    const shopifySubs = await fetchActiveSubscriptions(admin);
+    const activePaid = shopifySubs.find((s) => isShopifyActivePaid(s));
+    if (activePaid) {
+      await syncActiveSubscriptionsUnlocked(admin, latest.id, shopifySubs);
+      return null;
+    }
 
-  if (result.appSubscription?.id) {
-    await prisma.subscription.upsert({
+    const local = await prisma.subscription.findUnique({
       where: { shopId: latest.id },
-      create: {
+    });
+    if (
+      local &&
+      isLocalPendingStatus(local.status) &&
+      local.confirmationUrl &&
+      isAllowedShopifyConfirmationUrl(local.confirmationUrl)
+    ) {
+      return { confirmationUrl: local.confirmationUrl };
+    }
+    if (local && isLocalPendingStatus(local.status)) {
+      // Pending charge exists but URL missing/invalid — never create another.
+      return null;
+    }
+
+    const result = await createAppSubscription(admin, returnUrl, "standard");
+    const errors = result?.userErrors ?? [];
+    if (errors.length || !result?.confirmationUrl) return null;
+    if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) return null;
+
+    if (result.appSubscription?.id) {
+      await persistPendingSubscription({
         shopId: latest.id,
         shopifySubscriptionId: result.appSubscription.id,
-        planName: plan.name,
+        planKey: "standard",
         status: result.appSubscription.status || "PENDING",
-        test: isBillingTestMode(),
-        productLimit: plan.productLimit,
-        filterLimit: plan.filterLimit,
-      },
-      update: {
-        shopifySubscriptionId: result.appSubscription.id,
-        planName: plan.name,
-        status: result.appSubscription.status || "PENDING",
-        test: isBillingTestMode(),
-        productLimit: plan.productLimit,
-        filterLimit: plan.filterLimit,
-      },
-    });
-    await prisma.shop.update({
-      where: { id: latest.id },
-      data: { plan: plan.key },
-    });
-    planUsageCache.del(latest.id);
-  }
+        confirmationUrl: result.confirmationUrl,
+      });
+      clearBillingCaches({ id: latest.id, domain: shopDomain });
+    }
 
-  return { confirmationUrl: result.confirmationUrl };
+    return { confirmationUrl: result.confirmationUrl };
+  });
+}
+
+export type StartOrReusePaidResult =
+  | { kind: "already_active" }
+  | { kind: "pending"; confirmationUrl: string }
+  | { kind: "created"; confirmationUrl: string }
+  | { kind: "error"; error: string };
+
+/**
+ * Billing-page upgrade/switch: sync Shopify first, reuse pending URL, or create.
+ * Never creates a charge when Shopify already has ACTIVE matching the requested plan.
+ */
+export async function startOrReusePaidSubscription(
+  admin: GraphqlAdmin,
+  shopId: string,
+  shopDomain: string,
+  returnUrl: string,
+  planKey: PaidPlanKey,
+): Promise<StartOrReusePaidResult> {
+  return withBillingLock(shopId, async () => {
+    const shopifySubs = await fetchActiveSubscriptions(admin);
+    const activePaid = shopifySubs.find((s) => isShopifyActivePaid(s));
+
+    if (activePaid) {
+      const activeKey = paidPlanKeyFromShopifyName(activePaid.name);
+      if (activeKey === planKey) {
+        await syncActiveSubscriptionsUnlocked(admin, shopId, shopifySubs);
+        return { kind: "already_active" };
+      }
+      // Different paid plan → create with replacementBehavior STANDARD (below).
+    }
+
+    const local = await prisma.subscription.findUnique({
+      where: { shopId },
+    });
+    if (
+      !activePaid &&
+      local &&
+      isLocalPendingStatus(local.status) &&
+      local.confirmationUrl &&
+      isAllowedShopifyConfirmationUrl(local.confirmationUrl)
+    ) {
+      return { kind: "pending", confirmationUrl: local.confirmationUrl };
+    }
+    if (!activePaid && local && isLocalPendingStatus(local.status)) {
+      return {
+        kind: "error",
+        error:
+          "A subscription approval is already pending. Finish or cancel it in Shopify Billing, then try again.",
+      };
+    }
+
+    const result = await createAppSubscription(admin, returnUrl, planKey);
+    const errors = result?.userErrors ?? [];
+    if (errors.length || !result?.confirmationUrl) {
+      return {
+        kind: "error",
+        error:
+          errors.map((e: { message: string }) => e.message).join("; ") ||
+          "Could not create subscription",
+      };
+    }
+    if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) {
+      return {
+        kind: "error",
+        error: "Unexpected billing confirmation URL from Shopify.",
+      };
+    }
+
+    if (result.appSubscription?.id) {
+      await persistPendingSubscription({
+        shopId,
+        shopifySubscriptionId: result.appSubscription.id,
+        planKey,
+        status: result.appSubscription.status || "PENDING",
+        confirmationUrl: result.confirmationUrl,
+      });
+      clearBillingCaches({ id: shopId, domain: shopDomain });
+    }
+
+    return { kind: "created", confirmationUrl: result.confirmationUrl };
+  });
 }
 
 export async function createAppSubscription(
@@ -416,29 +654,16 @@ export async function createAppSubscription(
   return json.data?.appSubscriptionCreate;
 }
 
-export async function syncActiveSubscriptions(
+/** Apply Shopify activeSubscriptions to local DB. Caller must hold withBillingLock. */
+async function syncActiveSubscriptionsUnlocked(
   admin: GraphqlAdmin,
   shopId: string,
+  prefetched?: ShopifyActiveSubscription[],
 ) {
-  const response = await admin.graphql(
-    `#graphql
-    query ActiveSubscriptions {
-      currentAppInstallation {
-        activeSubscriptions {
-          id
-          name
-          status
-          test
-          trialDays
-          createdAt
-          currentPeriodEnd
-        }
-      }
-    }`,
-  );
-  const json = await response.json();
-  const subs = json.data?.currentAppInstallation?.activeSubscriptions ?? [];
+  const subs =
+    prefetched ?? (await fetchActiveSubscriptions(admin));
   const active = subs[0];
+  const domain = await loadShopDomain(shopId);
 
   if (!active) {
     await prisma.subscription.upsert({
@@ -450,6 +675,7 @@ export async function syncActiveSubscriptions(
         test: isBillingTestMode(),
         productLimit: PLANS.free.productLimit,
         filterLimit: PLANS.free.filterLimit,
+        confirmationUrl: null,
       },
       update: {
         status: "CANCELLED",
@@ -457,13 +683,15 @@ export async function syncActiveSubscriptions(
         shopifySubscriptionId: null,
         productLimit: PLANS.free.productLimit,
         filterLimit: PLANS.free.filterLimit,
+        confirmationUrl: null,
       },
     });
     await prisma.shop.update({
       where: { id: shopId },
       data: { plan: PLANS.free.key },
     });
-    planUsageCache.del(shopId);
+    if (domain) clearBillingCaches({ id: shopId, domain });
+    else planUsageCache.del(shopId);
     return null;
   }
 
@@ -476,14 +704,20 @@ export async function syncActiveSubscriptions(
       : null;
 
   const planName = active.name ?? PLANS.pro.name;
-  const resolvedKey = planKeyFromName(planName);
-  const paidKey: PaidPlanKey = resolvedKey === "free" ? "pro" : resolvedKey;
+  const paidKey = paidPlanKeyFromShopifyName(planName);
   const paidPlan = PLANS[paidKey];
-  const status = String(active.status || "").toUpperCase();
+  const status = shopifySubStatus(active);
   const isPaid =
     status === "ACTIVE" ||
     status === "TRIAL" ||
     (trialEndsAt != null && trialEndsAt > new Date());
+  // No pending charge once Shopify reports ACTIVE/CANCELLED (or equivalent settled).
+  const clearPendingUrl =
+    status === "ACTIVE" ||
+    status === "CANCELLED" ||
+    status === "DECLINED" ||
+    status === "EXPIRED" ||
+    status === "FROZEN";
 
   const subscription = await prisma.subscription.upsert({
     where: { shopId },
@@ -496,6 +730,7 @@ export async function syncActiveSubscriptions(
       trialEndsAt,
       productLimit: paidPlan.productLimit,
       filterLimit: paidPlan.filterLimit,
+      confirmationUrl: null,
     },
     update: {
       shopifySubscriptionId: active.id,
@@ -505,6 +740,7 @@ export async function syncActiveSubscriptions(
       trialEndsAt,
       productLimit: paidPlan.productLimit,
       filterLimit: paidPlan.filterLimit,
+      ...(clearPendingUrl ? { confirmationUrl: null } : {}),
     },
   });
 
@@ -513,8 +749,18 @@ export async function syncActiveSubscriptions(
     data: { plan: isPaid ? paidKey : PLANS.free.key },
   });
 
-  planUsageCache.del(shopId);
+  if (domain) clearBillingCaches({ id: shopId, domain });
+  else planUsageCache.del(shopId);
   return subscription;
+}
+
+export async function syncActiveSubscriptions(
+  admin: GraphqlAdmin,
+  shopId: string,
+) {
+  return withBillingLock(shopId, () =>
+    syncActiveSubscriptionsUnlocked(admin, shopId),
+  );
 }
 
 /** Reset local billing to Free (same shape as a fresh install / cancelled sync). */
@@ -529,6 +775,7 @@ export async function applyLocalFreePlan(shopId: string) {
       productLimit: PLANS.free.productLimit,
       filterLimit: PLANS.free.filterLimit,
       shopifySubscriptionId: null,
+      confirmationUrl: null,
     },
     update: {
       status: "CANCELLED",
@@ -537,62 +784,85 @@ export async function applyLocalFreePlan(shopId: string) {
       productLimit: PLANS.free.productLimit,
       filterLimit: PLANS.free.filterLimit,
       trialEndsAt: null,
+      confirmationUrl: null,
     },
   });
   await prisma.shop.update({
     where: { id: shopId },
     data: { plan: PLANS.free.key },
   });
-  planUsageCache.del(shopId);
+  const domain = await loadShopDomain(shopId);
+  if (domain) clearBillingCaches({ id: shopId, domain });
+  else planUsageCache.del(shopId);
 }
 
 /**
  * Cancel an active Shopify app subscription (paid → Free).
+ * Resolves GID from Shopify activeSubscriptions (hint optional).
  * Does not use replacementBehavior — that is only for paid ↔ paid switches.
  */
 export async function cancelSubscription(
   admin: GraphqlAdmin,
   shopId: string,
-  subscriptionGid: string,
+  subscriptionGidHint?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const response = await admin.graphql(
-    `#graphql
-    mutation AppSubscriptionCancel($id: ID!) {
-      appSubscriptionCancel(id: $id) {
-        appSubscription {
-          id
-          status
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    { variables: { id: subscriptionGid } },
-  );
-  const json = await response.json();
-  const payload = json.data?.appSubscriptionCancel;
-  const errors = payload?.userErrors ?? [];
-  if (errors.length) {
-    return {
-      ok: false,
-      error:
-        errors.map((e: { message: string }) => e.message).join("; ") ||
-        "Could not cancel subscription",
-    };
-  }
-  if (json.errors?.length) {
-    return {
-      ok: false,
-      error:
-        json.errors.map((e: { message?: string }) => e.message || "GraphQL error").join("; ") ||
-        "Could not cancel subscription",
-    };
-  }
+  return withBillingLock(shopId, async () => {
+    const shopifySubs = await fetchActiveSubscriptions(admin);
+    const activePaid = shopifySubs.filter((s) => isShopifyActivePaid(s));
 
-  await applyLocalFreePlan(shopId);
-  // Re-read Shopify so a failed cancel that still left an active sub is corrected.
-  await syncActiveSubscriptions(admin, shopId);
-  return { ok: true };
+    let gid: string | undefined;
+    if (subscriptionGidHint) {
+      gid = activePaid.find((s) => s.id === subscriptionGidHint)?.id;
+    }
+    if (!gid && activePaid.length) {
+      gid = activePaid[0].id;
+    }
+
+    if (!gid) {
+      await applyLocalFreePlan(shopId);
+      return { ok: true };
+    }
+
+    const response = await admin.graphql(
+      `#graphql
+      mutation AppSubscriptionCancel($id: ID!) {
+        appSubscriptionCancel(id: $id) {
+          appSubscription {
+            id
+            status
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      { variables: { id: gid } },
+    );
+    const json = await response.json();
+    const payload = json.data?.appSubscriptionCancel;
+    const errors = payload?.userErrors ?? [];
+    if (errors.length) {
+      return {
+        ok: false,
+        error:
+          errors.map((e: { message: string }) => e.message).join("; ") ||
+          "Could not cancel subscription",
+      };
+    }
+    if (json.errors?.length) {
+      return {
+        ok: false,
+        error:
+          json.errors
+            .map((e: { message?: string }) => e.message || "GraphQL error")
+            .join("; ") || "Could not cancel subscription",
+      };
+    }
+
+    await applyLocalFreePlan(shopId);
+    // Re-read Shopify so a failed cancel that still left an active sub is corrected.
+    await syncActiveSubscriptionsUnlocked(admin, shopId);
+    return { ok: true };
+  });
 }

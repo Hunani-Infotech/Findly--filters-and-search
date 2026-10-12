@@ -15,9 +15,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const requestId = shopifyWebhookRequestId(request);
   try {
     const purged = await ensureShopPurged(shop, "shop/redact");
+    const status =
+      purged.mode === "queued"
+        ? "queued"
+        : purged.mode === "skipped"
+          ? "skipped_reinstalled"
+          : "redacted";
     await logComplianceEvent(shop, topic, {
       requestId,
-      status: purged.mode === "queued" ? "queued" : "redacted",
+      status,
     });
   } catch (error) {
     try {

@@ -262,17 +262,20 @@ export default function PrivacyPolicy() {
             </strong>{" "}
             — Shopify sends this after uninstall (typically within 48 hours)
             when the shop’s data must be erased. We try to queue a background
-            cleanup; if the queue is unavailable we delete tenant data in the webhook
-            process before responding. If that purge also fails we return an
-            error so Shopify retries. Audit status is queued, redacted, or
-            failed.
+            hard-delete; if the queue is unavailable we delete tenant data in
+            the webhook process before responding. If the merchant has
+            reinstalled (an offline app session exists again), we skip the
+            purge. If a purge fails we return an error so Shopify retries.
+            Audit status is queued, redacted, skipped_reinstalled, or failed.
           </li>
           <li>
             <strong>
               <code>app/uninstalled</code>
             </strong>{" "}
-            — we run the same guaranteed cleanup when the merchant uninstalls,
-            without waiting for <code>shop/redact</code>.
+            — we revoke sessions and mark the shop uninstalled. Catalog index,
+            settings, and billing mirror are retained until{" "}
+            <code>shop/redact</code> (or a confirmed non-reinstall cleanup). We
+            do not hard-delete on uninstall alone.
           </li>
         </ul>
         <p>
@@ -297,15 +300,18 @@ export default function PrivacyPolicy() {
             90 days on Development, 180 days on Standard and Pro.
           </li>
           <li>
-            <strong>After uninstall:</strong> we queue deletion of sessions and
-            all shop-scoped rows (products, collections, settings, mappings,
-            swatches, analytics, billing mirror). Pending queue jobs for that shop are
-            not used as a long-term store.
+            <strong>After uninstall:</strong> we revoke sessions, clear in-memory
+            caches, cancel pending catalog jobs for that shop, and set{" "}
+            <code>uninstalledAt</code>. Catalog index, settings, mappings, and
+            billing mirror are retained so a quick reinstall can resume without
+            an immediate hard-delete.
           </li>
           <li>
-            <strong>Shop redact:</strong> the same deletion path runs if any
-            tenant data is still present when Shopify sends{" "}
-            <code>shop/redact</code>.
+            <strong>Shop redact:</strong> when Shopify sends{" "}
+            <code>shop/redact</code>, we hard-delete shop-scoped rows
+            (products, collections, settings, mappings, analytics, billing
+            mirror) unless the merchant has reinstalled — we detect that by
+            an offline app session and skip the purge.
           </li>
           <li>
             <strong>Compliance audit logs:</strong> retained after purge for
@@ -343,7 +349,11 @@ export default function PrivacyPolicy() {
         <h2 id="choices">11. Your choices and requests</h2>
         <p>Merchants can:</p>
         <ul>
-          <li>Uninstall Findly, which starts deletion of shop-scoped data.</li>
+          <li>
+            Uninstall Findly, which revokes access and marks the shop for
+            deletion (hard-delete follows <code>shop/redact</code> unless you
+            reinstall).
+          </li>
           <li>
             Use Shopify Admin → Apps to review permissions, or Shopify’s
             customer data request / redaction tools (those trigger the webhooks

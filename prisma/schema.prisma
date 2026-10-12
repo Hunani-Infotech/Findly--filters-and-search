@@ -256,6 +256,8 @@ model Subscription {
   planName              String
   status                String
   shopifySubscriptionId String?
+  /// Shopify charge approval URL while status is PENDING; cleared when ACTIVE/CANCELLED.
+  confirmationUrl       String?
   productLimit          Int       @default(5000)
   filterLimit           Int       @default(25)
   test                  Boolean   @default(false)
@@ -450,6 +452,17 @@ model ComplianceRequest {
   createdAt  DateTime @default(now())
 
   @@index([shopDomain])
+}
+
+/// Dedup log for Shopify webhook deliveries (X-Shopify-Webhook-Id).
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhookId  String   @unique
+  shopDomain String
+  topic      String
+  createdAt  DateTime @default(now())
+
+  @@index([shopDomain, createdAt])
 }
 
 /// Postgres job queue (replaces BullMQ/Redis). Distinct from SyncJob (per-shop status).

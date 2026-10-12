@@ -18,6 +18,8 @@ export type SyncJobName =
   | "product.delete"
   | "collection.rebuild"
   | "shop.cleanup"
+  | "billing.syncFromShopify"
+  | "compliance.customersRedact"
   | "inventory.sync"
   | "variant.sync";
 
@@ -36,6 +38,7 @@ const DROP_IF_BUSY_JOBS: ReadonlySet<SyncJobName> = new Set([
   "shop.ingestBulk",
   "shop.cleanup",
   "shop.finalizeFullSync",
+  "billing.syncFromShopify",
 ]);
 
 /** Stable worker id for lockedBy — helps debug which process held a stale lock. */
@@ -193,7 +196,7 @@ export async function enqueueSyncJob(
   return insertJob(name, data, { jobKey, delay: opts?.delay });
 }
 
-const DEFAULT_ENQUEUE_TIMEOUT_MS = 2000;
+const DEFAULT_ENQUEUE_TIMEOUT_MS = 800;
 
 /** Reject if Postgres enqueue hangs (pooler / network blip). */
 export async function enqueueSyncJobWithTimeout(

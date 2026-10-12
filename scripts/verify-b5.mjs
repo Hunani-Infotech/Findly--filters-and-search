@@ -317,8 +317,21 @@ function assertThemeSeoAndUi() {
   if (/apiVersion:\s*ApiVersion\.October25/.test(shopifyServer)) {
     fail("shopify.server.ts still targets ApiVersion.October25");
   }
-  if (!uninstall.includes("ensureShopPurged")) {
-    fail("app/uninstalled handler must ensureShopPurged (queue + inline fallback)");
+  if (
+    !uninstall.includes("markShopUninstalled") ||
+    uninstall.includes("ensureShopPurged")
+  ) {
+    fail(
+      "app/uninstalled must call markShopUninstalled (soft-offboard), not ensureShopPurged",
+    );
+  }
+  if (
+    !compliance.includes("markShopUninstalled") ||
+    !compliance.includes("uninstalledAt")
+  ) {
+    fail(
+      "compliance.server.ts must markShopUninstalled / set uninstalledAt on uninstall",
+    );
   }
   if (!shopRedact.includes("ensureShopPurged")) {
     fail("shop/redact must ensureShopPurged (not enqueue-only)");
@@ -330,6 +343,19 @@ function assertThemeSeoAndUi() {
   ) {
     fail(
       "compliance.server.ts must queue cleanup, inline-purge on enqueue failure, and rethrow if purge fails",
+    );
+  }
+  // Rule 7: purgeShopData must refuse reinstalled shops (offline Session present).
+  const purgeFnMatch = compliance.match(
+    /export async function purgeShopData[\s\S]*?(?=export async function ensureShopPurged)/,
+  );
+  if (
+    !purgeFnMatch ||
+    !purgeFnMatch[0].includes("isOnline: false") ||
+    !purgeFnMatch[0].includes("reinstalled_or_active")
+  ) {
+    fail(
+      "purgeShopData must guard on offline Session and skip reinstalled_or_active shops",
     );
   }
   if (
@@ -346,14 +372,24 @@ function assertThemeSeoAndUi() {
   if (!dataRequest.includes("logComplianceEvent")) {
     fail("customers/data_request must log compliance (not a stub)");
   }
-  if (!customerRedact.includes("logComplianceEvent")) {
-    fail("customers/redact must log compliance (not a stub)");
+  if (!customerRedact.includes("tryRecordWebhookDelivery")) {
+    fail("customers/redact must dedupe via tryRecordWebhookDelivery");
   }
-  if (!customerRedact.includes("scrubCustomerData")) {
-    fail("customers/redact must scrub stored customer data, not only log");
+  if (!customerRedact.includes("compliance.customersRedact")) {
+    fail("customers/redact must enqueue compliance.customersRedact");
+  }
+  if (/await\s+scrubCustomerData/.test(customerRedact)) {
+    fail(
+      "customers/redact must not await scrubCustomerData on the request path",
+    );
   }
   if (!compliance.includes("scrubCustomerData")) {
     fail("compliance.server.ts missing scrubCustomerData");
+  }
+  if (compliance.includes("randomUUID()")) {
+    fail(
+      "logComplianceEvent must not fall back to randomUUID (stable webhook id / hash only)",
+    );
   }
   if (!compliance.includes("purgeShopData")) {
     fail("compliance.server.ts missing purgeShopData");
@@ -649,6 +685,22 @@ try {
   }
   if (!processors.includes("inventory.sync") || !processors.includes("variant.sync")) {
     fail("worker must process inventory.sync and variant.sync");
+  }
+  if (
+    !processors.includes("compliance.customersRedact") ||
+    !processors.includes("scrubCustomerData") ||
+    !processors.includes("logComplianceEvent")
+  ) {
+    fail(
+      "worker must process compliance.customersRedact (scrubCustomerData + logComplianceEvent)",
+    );
+  }
+  const queuesServer = read("app/lib/queues.server.ts");
+  if (!queuesServer.includes('"compliance.customersRedact"')) {
+    fail("queues.server.ts must declare SyncJobName compliance.customersRedact");
+  }
+  if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*800/.test(queuesServer)) {
+    fail("DEFAULT_ENQUEUE_TIMEOUT_MS must be 800 (catalog enqueue budget)");
   }
   if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
@@ -1134,6 +1186,30 @@ try {
       { key: `config:${SHOP_B}`, version: 1 },
     ],
     skipDuplicates: true,
+  });
+
+  // Rule 7: reinstalled shops (offline Session) must not be hard-deleted.
+  await prisma.session.create({
+    data: {
+      id: `offline_${SHOP_A}_b5`,
+      shop: SHOP_A,
+      state: "b5",
+      isOnline: false,
+      accessToken: "b5-test-token",
+    },
+  });
+  const skippedActive = await purgeShopData(SHOP_A);
+  if (skippedActive.deleted || skippedActive.skipped !== "reinstalled_or_active") {
+    fail("purgeShopData must skip shops with an offline Session (reinstalled)");
+  }
+  const stillThere = await prisma.shop.findUnique({ where: { domain: SHOP_A } });
+  if (!stillThere) fail("reinstalled shop must survive purgeShopData reinstall guard");
+
+  // No session + soft-mark → purge allowed (shop/redact / late cleanup).
+  await prisma.session.deleteMany({ where: { shop: SHOP_A } });
+  await prisma.shop.update({
+    where: { domain: SHOP_A },
+    data: { uninstalledAt: new Date() },
   });
 
   const purged = await purgeShopData(SHOP_A);

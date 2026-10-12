@@ -2,7 +2,11 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
-import { ensureShopAccess, syncActiveSubscriptions } from "../services/billing.server";
+import {
+  clearBillingCaches,
+  ensureShopAccess,
+  syncActiveSubscriptions,
+} from "../services/billing.server";
 import { withEmbeddedParamsFromRequest } from "../utils/admin-path";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -13,6 +17,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = auth;
   const { shop } = await ensureShopAccess(session.shop);
   await syncActiveSubscriptions(admin, shop.id);
+  // sync clears caches; refresh again so post-approval reads cannot see stale plan.
+  clearBillingCaches({ id: shop.id, domain: session.shop });
   return redirect(withEmbeddedParamsFromRequest(request, "/app/billing"));
 };
 

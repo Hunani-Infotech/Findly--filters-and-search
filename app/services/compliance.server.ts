@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import prisma from "../db.server";
 import {
   catalogCacheKey,
@@ -8,6 +8,7 @@ import {
 import { forgetShop } from "../lib/shop-cache.server";
 import { log } from "../lib/log.server";
 import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
+import { clearBillingCaches } from "./billing.server";
 
 export type ComplianceLogStatus = "received" | "acknowledged";
 
@@ -47,22 +48,80 @@ async function deleteShopCacheGenerations(shopDomain: string) {
 }
 
 /**
- * Hard-delete all tenant data for a shop domain (APP_UNINSTALLED / shop/redact).
+ * APP_UNINSTALLED soft-offboard: revoke tokens and mark the shop uninstalled.
+ * Does NOT hard-delete Shop, Subscription, catalog, or settings — those wait
+ * for shop/redact / shop.cleanup. Late cleanup skips if an offline Session
+ * exists again (merchant reinstalled).
+ */
+export async function markShopUninstalled(shopDomain: string) {
+  await prisma.session.deleteMany({ where: { shop: shopDomain } });
+
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    select: { id: true, domain: true, uninstalledAt: true },
+  });
+
+  if (!shop) {
+    forgetShop(shopDomain);
+    log.info(
+      `[compliance] markShopUninstalled: no Shop row for ${shopDomain}; sessions revoked`,
+    );
+    return { marked: false as const };
+  }
+
+  clearBillingCaches({ id: shop.id, domain: shop.domain });
+
+  const queueDeleted = await deleteShopQueueJobs(shopDomain);
+
+  await prisma.shop.updateMany({
+    where: { domain: shopDomain },
+    data: { uninstalledAt: new Date() },
+  });
+
+  log.success(
+    `[compliance] markShopUninstalled: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
+      shop.uninstalledAt ? "; already marked" : ""
+    })`,
+  );
+  return { marked: true as const, shopId: shop.id };
+}
+
+/**
+ * Hard-delete all tenant data for a shop domain (shop/redact / shop.cleanup).
  * ComplianceRequest rows are kept (keyed by shopDomain, no FK) for audit.
  * Those rows never contain the raw customer webhook body.
+ *
+ * Reinstall guard: abort only when an offline Session exists (proof the app
+ * was reinstalled). Do not require uninstalledAt — shop/redact must still
+ * erase data if the uninstall soft-mark webhook was missed.
  *
  * Order: drop QueueJobs first so SKIP LOCKED cannot claim orphaned jobs that
  * would re-write catalog/cache after Shop is gone; then CacheGeneration keys;
  * then FK-cascaded Shop rows.
  */
 export async function purgeShopData(shopDomain: string) {
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: shopDomain, isOnline: false },
+    select: { id: true },
+  });
+  if (offlineSession) {
+    log.warn(
+      `[compliance] purgeShopData: abort for ${shopDomain} — offline Session exists (reinstalled)`,
+    );
+    return { deleted: false as const, skipped: "reinstalled_or_active" as const };
+  }
+
   const shop = await prisma.shop.findUnique({
     where: { domain: shopDomain },
     include: { subscription: true },
   });
 
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
-  forgetShop(shopDomain);
+  if (shop) {
+    clearBillingCaches({ id: shop.id, domain: shop.domain });
+  } else {
+    forgetShop(shopDomain);
+  }
 
   // Always scrub non-FK leftovers (idempotent when Shop is already gone).
   const queueDeleted = await deleteShopQueueJobs(shopDomain);
@@ -75,7 +134,7 @@ export async function purgeShopData(shopDomain: string) {
     return { deleted: false as const };
   }
 
-  // Audit #11: uninstall/redact — compare with afterAuth billing-audit line after reinstall.
+  // Audit #11: redact — compare with afterAuth billing-audit line after reinstall.
   log.info(
     `[compliance] billing-audit before-purge shop=${shopDomain} plan=${shop.plan} subStatus=${shop.subscription?.status ?? "none"} subPlan=${shop.subscription?.planName ?? "none"} shopifySubId=${shop.subscription?.shopifySubscriptionId ?? "none"}`,
   );
@@ -100,29 +159,42 @@ export async function purgeShopData(shopDomain: string) {
   return { deleted: true as const, shopId: shop.id };
 }
 
-export type ShopPurgeMode = "queued" | "inline";
+export type ShopPurgeMode = "queued" | "inline" | "skipped";
 
 /**
- * GDPR / uninstall deletion must not depend on the background worker being up.
+ * shop/redact hard-delete path. Must not depend on the background worker being up.
+ * APP_UNINSTALLED uses markShopUninstalled instead — do not call this on uninstall.
  *
- * Failure modes:
- * 1. Postgres queue accepts the job within 2s → worker runs purgeShopData. 200.
- * 2. Enqueue throws or times out (DB blip) → purgeShopData runs in this
- *    process, then 200. Logged as "enqueue failed … running inline purge".
- * 3. Inline purge also throws (Postgres down) → error is rethrown so the
- *    webhook returns 5xx and Shopify retries. Logged as "inline purge FAILED".
+ * Skip only when an offline Session exists (app reinstalled). If uninstall
+ * soft-mark was missed but tokens are gone, purge still runs for GDPR.
+ *
+ * Failure modes when purge proceeds:
+ * 1. Postgres queue accepts the job within 800ms → worker runs purgeShopData. 200.
+ * 2. Enqueue throws or times out → purgeShopData runs inline (reinstall guard applies).
+ * 3. Inline purge also throws → error rethrown so webhook 5xx and Shopify retries.
  *
  * purgeShopData is idempotent, so a late queue add after a timeout is safe.
  */
 export async function ensureShopPurged(
   shopDomain: string,
-  source: "app/uninstalled" | "shop/redact",
+  source: "shop/redact" = "shop/redact",
 ): Promise<{ mode: ShopPurgeMode; deleted?: boolean }> {
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: shopDomain, isOnline: false },
+    select: { id: true },
+  });
+  if (offlineSession) {
+    log.warn(
+      `[compliance] ${source}: skip purge for ${shopDomain} — offline Session exists (reinstalled)`,
+    );
+    return { mode: "skipped" };
+  }
+
   try {
     await enqueueSyncJobWithTimeout(
       "shop.cleanup",
       { shop: shopDomain },
-      { jobId: `${shopDomain}:shop.cleanup`, timeoutMs: 2000 },
+      { jobId: `${shopDomain}:shop.cleanup`, timeoutMs: 800 },
     );
     log.success(
       `[compliance] ${source}: queued shop.cleanup for ${shopDomain}`,
@@ -136,6 +208,12 @@ export async function ensureShopPurged(
     );
     try {
       const result = await purgeShopData(shopDomain);
+      if ("skipped" in result && result.skipped) {
+        log.warn(
+          `[compliance] ${source}: inline purge skipped (${result.skipped}) for ${shopDomain}`,
+        );
+        return { mode: "skipped" };
+      }
       log.success(
         `[compliance] ${source}: inline purge ${
           result.deleted ? "deleted tenant data" : "no Shop row (already gone)"
@@ -237,11 +315,13 @@ export async function logComplianceEvent(
   topic: string,
   meta: ComplianceLogMeta = {},
 ) {
+  // Prefer caller-supplied webhook id. Never randomUUID — retries must upsert
+  // the same ComplianceRequest row (Rule 6).
+  const trimmed =
+    typeof meta.requestId === "string" ? meta.requestId.trim().slice(0, 128) : "";
   const requestId =
-    (typeof meta.requestId === "string" ? meta.requestId.trim() : "").slice(
-      0,
-      128,
-    ) || randomUUID();
+    trimmed ||
+    createHash("sha256").update(`${topic}:${shopDomain}`).digest("hex");
   const status =
     (typeof meta.status === "string" ? meta.status.trim() : "").slice(0, 40) ||
     "acknowledged";

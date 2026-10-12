@@ -27,6 +27,13 @@ export function forgetShop(domain: string) {
   if (hit) shopByIdCache.delete(hit.value.id);
 }
 
+/** Clear both domain and id cache entries for a shop id. */
+export function forgetShopById(shopId: string) {
+  const hit = shopByIdCache.get(shopId);
+  shopByIdCache.delete(shopId);
+  if (hit) shopCache.delete(hit.value.domain);
+}
+
 export async function findShopCached(
   domain: string,
 ): Promise<ShopWithSubscription | null> {

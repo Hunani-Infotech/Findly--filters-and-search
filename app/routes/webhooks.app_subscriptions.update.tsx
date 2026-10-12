@@ -1,71 +1,60 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { ensureShop } from "../services/shop.server";
-import {
-  PLANS,
-  hasActivePaidSubscription,
-  planKeyFromName,
-} from "../services/billing.server";
+import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
 import { log } from "../lib/log.server";
+import {
+  resolveWebhookDeliveryId,
+  tryRecordWebhookDelivery,
+} from "../services/webhook-delivery.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const shopRow = await ensureShop(shop);
-  const body = payload as {
-    app_subscription?: {
-      admin_graphql_api_id?: string;
-      name?: string;
-      status?: string;
-      admin_graphql_api_shop_id?: string;
-    };
-  };
+  const webhookId = resolveWebhookDeliveryId({
+    request,
+    topic,
+    shopDomain: shop,
+    payload,
+  });
 
-  const sub = body.app_subscription;
-  if (sub?.status) {
-    const status = String(sub.status).toUpperCase();
-    const isPaid =
-      status === "ACTIVE" ||
-      status === "TRIAL" ||
-      status === "ACCEPTED" ||
-      status === "PENDING";
-    const planName = isPaid
-      ? sub.name || PLANS.pro.name
-      : PLANS.free.name;
-    const resolvedKey = isPaid ? planKeyFromName(planName) : "free";
-    const paidKey = resolvedKey === "free" && isPaid ? "pro" : resolvedKey;
-    const limits = PLANS[paidKey];
+  const recorded = await tryRecordWebhookDelivery({
+    webhookId,
+    shopDomain: shop,
+    topic,
+  });
+  if (recorded === "duplicate") {
+    log.info(
+      `[billing] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
+    );
+    return new Response(null, { status: 200 });
+  }
 
-    const subscription = await prisma.subscription.upsert({
-      where: { shopId: shopRow.id },
-      create: {
-        shopId: shopRow.id,
-        shopifySubscriptionId: sub.admin_graphql_api_id,
-        planName,
-        status: sub.status,
-        productLimit: limits.productLimit,
-        filterLimit: limits.filterLimit,
-      },
-      update: {
-        shopifySubscriptionId: sub.admin_graphql_api_id,
-        planName,
-        status: sub.status,
-        productLimit: limits.productLimit,
-        filterLimit: limits.filterLimit,
-      },
+  const jobData = { shop, webhookId };
+  const jobId = `${shop}:billing.syncFromShopify`;
+
+  try {
+    await enqueueSyncJobWithTimeout("billing.syncFromShopify", jobData, {
+      jobId,
+      timeoutMs: 800,
     });
-
-    const planKey = hasActivePaidSubscription(subscription)
-      ? paidKey === "free"
-        ? PLANS.pro.key
-        : paidKey
-      : PLANS.free.key;
-
-    await prisma.shop.update({
-      where: { id: shopRow.id },
-      data: { plan: planKey },
+    log.success(
+      `[billing] queued billing.syncFromShopify for ${shop} webhookId=${webhookId}`,
+    );
+  } catch (enqueueError) {
+    const reason =
+      enqueueError instanceof Error
+        ? enqueueError.message
+        : String(enqueueError);
+    log.warn(
+      `[billing] enqueue failed for ${shop} (${reason}); fire-and-forget inline sync`,
+    );
+    const { runSyncJobInline } = await import("../workers/processors");
+    void runSyncJobInline("billing.syncFromShopify", jobData).catch((error) => {
+      log.error(
+        `[billing] inline billing.syncFromShopify failed for ${shop}`,
+        error,
+      );
     });
   }
 

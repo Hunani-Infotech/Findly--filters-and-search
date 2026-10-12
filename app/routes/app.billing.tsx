@@ -24,8 +24,6 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { appUrl, authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
-import prisma from "../db.server";
-import { forgetShop } from "../lib/shop-cache.server";
 import {
   embeddedAdminAppUrl,
   withEmbeddedParamsFromRequest,
@@ -33,7 +31,7 @@ import {
 import {
   PLANS,
   cancelSubscription,
-  createAppSubscription,
+  clearBillingCaches,
   enforcePlanLimits,
   ensureShopAccess,
   isAllowedShopifyConfirmationUrl,
@@ -42,6 +40,7 @@ import {
   isDevUnlockLimits,
   isPaidPlanKey,
   refreshPartnerDevelopment,
+  startOrReusePaidSubscription,
   syncActiveSubscriptions,
 } from "../services/billing.server";
 import { planDisplayName } from "../constants/plans";
@@ -80,7 +79,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     try {
       await syncActiveSubscriptions(admin, shop.id);
       lastBillingSyncAt.set(shop.id, Date.now());
-      forgetShop(session.shop);
+      clearBillingCaches({ id: shop.id, domain: session.shop });
       shop = (await ensureShopAccess(session.shop)).shop;
     } catch {
       // ignore refresh errors in loader
@@ -130,18 +129,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           "Live stores cannot switch to the Development plan. Choose Standard or Pro.",
       };
     }
-    const subId = latest.subscription?.shopifySubscriptionId;
-    if (!subId) {
-      return {
-        error:
-          "No active Shopify subscription id on file. Open Pricing again to refresh, or cancel from Shopify Settings → Billing.",
-      };
-    }
-    const result = await cancelSubscription(admin, shop.id, subId);
+    const result = await cancelSubscription(
+      admin,
+      shop.id,
+      latest.subscription?.shopifySubscriptionId,
+    );
     if (!result.ok) {
       return { error: result.error };
     }
-    forgetShop(session.shop);
+    clearBillingCaches({ id: shop.id, domain: session.shop });
     lastBillingSyncAt.delete(shop.id);
     return redirect(
       withEmbeddedParamsFromRequest(request, "/app/billing?notice=downgraded"),
@@ -153,54 +149,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Choose Standard or Pro to start a Shopify charge." };
   }
 
-  const plan = PLANS[requested];
-  // Development: no AppSubscriptionCreate — Standard and Pro create a charge.
   // Top window must stay on admin.shopify.com (not the Hostinger app origin).
   const returnUrl =
     embeddedAdminAppUrl(session.shop, "/app/billing") ??
     `${appUrl.replace(/\/$/, "")}/app/billing?shop=${encodeURIComponent(session.shop)}`;
 
-  const result = await createAppSubscription(admin, returnUrl, requested);
-  const errors = result?.userErrors ?? [];
-  if (errors.length || !result?.confirmationUrl) {
-    return {
-      error:
-        errors.map((e: { message: string }) => e.message).join("; ") ||
-        "Could not create subscription",
-    };
-  }
-
-  if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) {
-    return { error: "Unexpected billing confirmation URL from Shopify." };
-  }
+  const result = await startOrReusePaidSubscription(
+    admin,
+    shop.id,
+    session.shop,
+    returnUrl,
+    requested,
+  );
 
   lastBillingSyncAt.delete(shop.id);
 
-  if (result.appSubscription?.id) {
-    await prisma.subscription.upsert({
-      where: { shopId: shop.id },
-      create: {
-        shopId: shop.id,
-        shopifySubscriptionId: result.appSubscription.id,
-        planName: plan.name,
-        status: result.appSubscription.status || "PENDING",
-        test: isBillingTestMode(),
-        productLimit: plan.productLimit,
-        filterLimit: plan.filterLimit,
-      },
-      update: {
-        shopifySubscriptionId: result.appSubscription.id,
-        planName: plan.name,
-        status: result.appSubscription.status || "PENDING",
-        test: isBillingTestMode(),
-        productLimit: plan.productLimit,
-        filterLimit: plan.filterLimit,
-      },
-    });
-    await prisma.shop.update({
-      where: { id: shop.id },
-      data: { plan: plan.key },
-    });
+  if (result.kind === "already_active") {
+    return redirect(
+      withEmbeddedParamsFromRequest(
+        request,
+        "/app/billing?notice=already_on_plan",
+      ),
+    );
+  }
+  if (result.kind === "error") {
+    return { error: result.error };
+  }
+  if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) {
+    return { error: "Unexpected billing confirmation URL from Shopify." };
   }
 
   return shopifyRedirect(result.confirmationUrl, { target: "_top" });
@@ -230,6 +206,9 @@ export default function BillingPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("notice") === "downgraded") {
       shopify.toast.show("You are on the Development plan.");
+    }
+    if (params.get("notice") === "already_on_plan") {
+      shopify.toast.show("You are already on this plan.");
     }
   }, [shopify]);
 
@@ -423,23 +402,25 @@ export default function BillingPage() {
                     </List.Item>
                     <List.Item>Starts on install. No trial.</List.Item>
                   </List>
-                  <Button
-                    loading={upgradingPlan === "standard"}
-                    disabled={Boolean(upgradingPlan) || cancelling}
-                    onClick={() =>
-                      fetcher.submit({ plan: "standard" }, { method: "POST" })
-                    }
-                  >
-                    {upgradingPlan === "standard"
-                      ? "Redirecting to Shopify…"
-                      : data.currentPlan === "standard"
-                        ? "Manage / resubscribe"
+                  {data.currentPlan === "standard" ? (
+                    <Button disabled>Current plan</Button>
+                  ) : (
+                    <Button
+                      loading={upgradingPlan === "standard"}
+                      disabled={Boolean(upgradingPlan) || cancelling}
+                      onClick={() =>
+                        fetcher.submit({ plan: "standard" }, { method: "POST" })
+                      }
+                    >
+                      {upgradingPlan === "standard"
+                        ? "Redirecting to Shopify…"
                         : data.currentPlan === "pro"
                           ? "Switch to Standard"
                           : liveUnpaid
                             ? "Choose Standard"
                             : "Upgrade to Standard"}
-                  </Button>
+                    </Button>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -465,22 +446,24 @@ export default function BillingPage() {
                     </List.Item>
                     <List.Item>Billed every 30 days. No trial.</List.Item>
                   </List>
-                  <Button
-                    variant="primary"
-                    loading={upgradingPlan === "pro"}
-                    disabled={Boolean(upgradingPlan) || cancelling}
-                    onClick={() =>
-                      fetcher.submit({ plan: "pro" }, { method: "POST" })
-                    }
-                  >
-                    {upgradingPlan === "pro"
-                      ? "Redirecting to Shopify…"
-                      : data.currentPlan === "pro"
-                        ? "Manage / resubscribe"
+                  {data.currentPlan === "pro" ? (
+                    <Button disabled>Current plan</Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      loading={upgradingPlan === "pro"}
+                      disabled={Boolean(upgradingPlan) || cancelling}
+                      onClick={() =>
+                        fetcher.submit({ plan: "pro" }, { method: "POST" })
+                      }
+                    >
+                      {upgradingPlan === "pro"
+                        ? "Redirecting to Shopify…"
                         : liveUnpaid
                           ? "Choose Pro"
                           : "Upgrade to Pro"}
-                  </Button>
+                    </Button>
+                  )}
                 </BlockStack>
               </Card>
             </InlineGrid>

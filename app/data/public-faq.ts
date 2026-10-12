@@ -135,7 +135,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "privacy",
     question: "How does Findly handle GDPR and uninstall?",
     answer:
-      "Mandatory Shopify compliance webhooks are implemented: customer data request, customer redact, shop redact, and app uninstall. After uninstall, shop-scoped data is deleted as described in the Privacy Policy — not left as empty stubs.",
+      "Mandatory Shopify compliance webhooks are implemented: customer data request, customer redact, shop redact, and app uninstall. On uninstall we revoke sessions and mark the shop uninstalled; catalog and settings are retained until shop/redact. shop/redact hard-deletes tenant data unless the merchant has reinstalled (we skip purge when an offline app session exists again). Details are in the Privacy Policy.",
   },
   {
     id: "contact",
