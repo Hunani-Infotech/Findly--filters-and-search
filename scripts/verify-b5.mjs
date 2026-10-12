@@ -498,6 +498,29 @@ function assertThemeSeoAndUi() {
   if (!billing.includes("startStandardSubscriptionIfLive") || !billing.includes("partnerDevelopment")) {
     fail("billing.server.ts missing live-install Standard charge or development unlock");
   }
+  // D-2 / D-3 / D-4 data + caching checklist.
+  if (
+    !billing.includes("logBillingAudit") ||
+    !billing.includes("[billing-audit]")
+  ) {
+    fail("D-4: billing.server.ts must logBillingAudit for create/sync/cancel/demote");
+  }
+  if (
+    !billing.includes("limitsGraceUntil") ||
+    !billing.includes("resolveCapsWithGrace") ||
+    !billing.includes("LIMITS_GRACE_MS")
+  ) {
+    fail("D-3: billing must retain paid limits via limitsGraceUntil / resolveCapsWithGrace");
+  }
+  if (
+    !billing.includes("findShopByIdFresh") ||
+    !read("app/lib/shop-cache.server.ts").includes("findShopByIdFresh")
+  ) {
+    fail("D-2: resolvePlanCaps/loadPlanLimits must use findShopByIdFresh (DB, not process cache)");
+  }
+  if (!read("prisma/schema.prisma").includes("limitsGraceUntil")) {
+    fail("D-3: Subscription.limitsGraceUntil must exist in schema");
+  }
   if (!billing.includes("shopPlanDisplayName") || !billing.includes("isDevelopmentStoreAccess")) {
     fail("billing.server.ts missing Development vs live unpaid display helpers");
   }

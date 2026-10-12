@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import prisma from "../db.server";
 import {
   LIVE_UNPAID_PLAN_LABEL,
@@ -10,12 +11,39 @@ import {
 } from "../constants/plans";
 import {
   findShopByIdCached,
+  findShopByIdFresh,
   findShopCached,
   forgetShop,
   forgetShopById,
   rememberShop,
 } from "../lib/shop-cache.server";
 import { createTtlCache } from "../lib/read-cache.server";
+import { log } from "../lib/log.server";
+
+/** D-3: keep last-known paid storefront caps for 24h after a paid→empty sync. */
+const LIMITS_GRACE_MS = 24 * 60 * 60 * 1000;
+
+export type BillingAuditAction = "create" | "sync" | "cancel" | "demote";
+
+/** D-4: structured billing audit line (shop, sub id, status, request id). */
+export function logBillingAudit(fields: {
+  shop: string;
+  action: BillingAuditAction;
+  shopifySubscriptionId?: string | null;
+  status: string;
+  requestId?: string | null;
+}) {
+  const requestId =
+    (fields.requestId && String(fields.requestId).trim()) || "none";
+  log.info(
+    `[billing-audit] shop=${fields.shop} action=${fields.action} shopifySubscriptionId=${fields.shopifySubscriptionId ?? "none"} status=${fields.status} requestId=${requestId}`,
+  );
+}
+
+/** Correlate multi-step admin billing writes when no Shopify webhook id exists. */
+export function newBillingRequestId(): string {
+  return randomUUID().slice(0, 8);
+}
 
 export {
   LIVE_UNPAID_PLAN_LABEL,
@@ -137,13 +165,48 @@ export function getShopPlan(shop: {
   return fromName === "free" ? "pro" : fromName;
 }
 
+/**
+ * D-3: when plan is free but limitsGraceUntil is in the future, keep last paid caps.
+ * Does not treat the shop as paid for billing UI / approve gates.
+ */
+function resolveCapsWithGrace(
+  shop: {
+    partnerDevelopment?: boolean;
+    subscription?: {
+      productLimit?: number | null;
+      filterLimit?: number | null;
+      limitsGraceUntil?: Date | null;
+    } | null;
+  } | null,
+  planKey: PlanKey,
+): { productLimit: number; filterLimit: number; unlocked: boolean } {
+  const caps = resolveNumericCaps(shop, planKey);
+  if (planKey !== "free" || caps.unlocked) return caps;
+  const graceUntil = shop?.subscription?.limitsGraceUntil;
+  if (!graceUntil || graceUntil <= new Date()) return caps;
+  const storedProducts = shop?.subscription?.productLimit ?? 0;
+  const storedFilters = shop?.subscription?.filterLimit ?? 0;
+  if (
+    storedProducts <= PLANS.free.productLimit &&
+    storedFilters <= PLANS.free.filterLimit
+  ) {
+    return caps;
+  }
+  return {
+    productLimit: storedProducts,
+    filterLimit: storedFilters,
+    unlocked: false,
+  };
+}
+
 /** Plan caps only — no catalog COUNT. Use on storefront/admin reads. */
 export async function resolvePlanCaps(shopId: string): Promise<{
   plan: PlanKey;
   filterLimit: number;
   productLimit: number;
 }> {
-  const shop = await findShopByIdCached(shopId);
+  // D-2: read Shop+Subscription from DB (not per-process shop cache).
+  const shop = await findShopByIdFresh(shopId);
   if (!shop) {
     return {
       plan: "free",
@@ -152,7 +215,7 @@ export async function resolvePlanCaps(shopId: string): Promise<{
     };
   }
   const planKey = getShopPlan(shop);
-  const caps = resolveNumericCaps(shop, planKey);
+  const caps = resolveCapsWithGrace(shop, planKey);
   return {
     plan: planKey,
     filterLimit: caps.filterLimit,
@@ -165,13 +228,14 @@ export async function resolveFilterLimit(shopId: string): Promise<number> {
 }
 
 async function loadPlanLimits(shopId: string) {
-  const shop = await findShopByIdCached(shopId);
+  // D-2: plan enforcement uses fresh DB row (shared across web/worker).
+  const shop = await findShopByIdFresh(shopId);
   if (!shop) {
     throw new Error(`Shop not found: ${shopId}`);
   }
 
   const planKey = getShopPlan(shop);
-  const caps = resolveNumericCaps(shop, planKey);
+  const caps = resolveCapsWithGrace(shop, planKey);
   const productLimit = caps.productLimit;
   const filterLimit = caps.filterLimit;
   const unlocked = caps.unlocked;
@@ -536,33 +600,45 @@ async function persistPendingSubscription(opts: {
   planKey: PaidPlanKey;
   status: string;
   confirmationUrl: string;
+  requestId?: string;
 }) {
   const plan = PLANS[opts.planKey];
+  const status = opts.status || "PENDING";
   await prisma.subscription.upsert({
     where: { shopId: opts.shopId },
     create: {
       shopId: opts.shopId,
       shopifySubscriptionId: opts.shopifySubscriptionId,
       planName: plan.name,
-      status: opts.status || "PENDING",
+      status,
       test: isBillingTestMode(),
       productLimit: plan.productLimit,
       filterLimit: plan.filterLimit,
       confirmationUrl: opts.confirmationUrl,
+      limitsGraceUntil: null,
     },
     update: {
       shopifySubscriptionId: opts.shopifySubscriptionId,
       planName: plan.name,
-      status: opts.status || "PENDING",
+      status,
       test: isBillingTestMode(),
       productLimit: plan.productLimit,
       filterLimit: plan.filterLimit,
       confirmationUrl: opts.confirmationUrl,
+      limitsGraceUntil: null,
     },
   });
   await prisma.shop.update({
     where: { id: opts.shopId },
     data: { plan: plan.key },
+  });
+  const domain = (await loadShopDomain(opts.shopId)) ?? opts.shopId;
+  logBillingAudit({
+    shop: domain,
+    action: "create",
+    shopifySubscriptionId: opts.shopifySubscriptionId,
+    status,
+    requestId: opts.requestId,
   });
 }
 
@@ -583,12 +659,16 @@ export async function startStandardSubscriptionIfLive(
   if (isDevelopmentStoreAccess(latest)) return null;
 
   return withBillingLock(latest.id, async () => {
+    const requestId = newBillingRequestId();
     // B-1: query Shopify before any appSubscriptionCreate.
     const shopifySubs = await fetchActiveSubscriptions(admin);
     const decision = decideChargeFromActiveSubscriptions(shopifySubs);
     if (decision.action === "stop_any_active") {
       // Any ACTIVE paid → never create another install kickoff charge.
-      await syncActiveSubscriptionsUnlocked(admin, latest.id, shopifySubs);
+      await syncActiveSubscriptionsUnlocked(admin, latest.id, {
+        prefetched: shopifySubs,
+        requestId,
+      });
       return null;
     }
 
@@ -620,6 +700,7 @@ export async function startStandardSubscriptionIfLive(
         planKey: "standard",
         status: result.appSubscription.status || "PENDING",
         confirmationUrl: result.confirmationUrl,
+        requestId,
       });
       clearBillingCaches({ id: latest.id, domain: shopDomain });
     }
@@ -650,12 +731,16 @@ export async function startOrReusePaidSubscription(
   planKey: PaidPlanKey,
 ): Promise<StartOrReusePaidResult> {
   return withBillingLock(shopId, async () => {
+    const requestId = newBillingRequestId();
     // B-1: query Shopify before any appSubscriptionCreate.
     const shopifySubs = await fetchActiveSubscriptions(admin);
     const decision = decideChargeFromActiveSubscriptions(shopifySubs, planKey);
 
     if (decision.action === "stop_same_plan") {
-      await syncActiveSubscriptionsUnlocked(admin, shopId, shopifySubs);
+      await syncActiveSubscriptionsUnlocked(admin, shopId, {
+        prefetched: shopifySubs,
+        requestId,
+      });
       return { kind: "already_active" };
     }
 
@@ -706,6 +791,7 @@ export async function startOrReusePaidSubscription(
         planKey,
         status: result.appSubscription.status || "PENDING",
         confirmationUrl: result.confirmationUrl,
+        requestId,
       });
       clearBillingCaches({ id: shopId, domain: shopDomain });
     }
@@ -786,14 +872,41 @@ export async function createAppSubscription(
 async function syncActiveSubscriptionsUnlocked(
   admin: GraphqlAdmin,
   shopId: string,
-  prefetched?: ShopifyActiveSubscription[],
+  options?: {
+    prefetched?: ShopifyActiveSubscription[];
+    requestId?: string;
+  },
 ) {
+  const requestId = options?.requestId ?? newBillingRequestId();
   const subs =
-    prefetched ?? (await fetchActiveSubscriptions(admin));
+    options?.prefetched ?? (await fetchActiveSubscriptions(admin));
   const active = subs[0];
   const domain = await loadShopDomain(shopId);
+  const shopLabel = domain ?? shopId;
 
   if (!active) {
+    const existing = await prisma.subscription.findUnique({
+      where: { shopId },
+    });
+    const wasPaid = hasActivePaidSubscription(existing);
+    const graceActive =
+      existing?.limitsGraceUntil != null &&
+      existing.limitsGraceUntil > new Date();
+
+    // D-3: paid→empty keeps last paid limits for 24h; do not refresh an active grace.
+    let productLimit = PLANS.free.productLimit;
+    let filterLimit = PLANS.free.filterLimit;
+    let limitsGraceUntil: Date | null = null;
+    if (wasPaid) {
+      productLimit = existing!.productLimit;
+      filterLimit = existing!.filterLimit;
+      limitsGraceUntil = new Date(Date.now() + LIMITS_GRACE_MS);
+    } else if (graceActive) {
+      productLimit = existing!.productLimit;
+      filterLimit = existing!.filterLimit;
+      limitsGraceUntil = existing!.limitsGraceUntil;
+    }
+
     await prisma.subscription.upsert({
       where: { shopId },
       create: {
@@ -801,17 +914,19 @@ async function syncActiveSubscriptionsUnlocked(
         planName: PLANS.free.name,
         status: "CANCELLED",
         test: isBillingTestMode(),
-        productLimit: PLANS.free.productLimit,
-        filterLimit: PLANS.free.filterLimit,
+        productLimit,
+        filterLimit,
         confirmationUrl: null,
+        limitsGraceUntil,
       },
       update: {
         status: "CANCELLED",
         planName: PLANS.free.name,
         shopifySubscriptionId: null,
-        productLimit: PLANS.free.productLimit,
-        filterLimit: PLANS.free.filterLimit,
+        productLimit,
+        filterLimit,
         confirmationUrl: null,
+        limitsGraceUntil,
       },
     });
     await prisma.shop.update({
@@ -820,6 +935,13 @@ async function syncActiveSubscriptionsUnlocked(
     });
     if (domain) clearBillingCaches({ id: shopId, domain });
     else planUsageCache.del(shopId);
+    logBillingAudit({
+      shop: shopLabel,
+      action: "sync",
+      shopifySubscriptionId: null,
+      status: "CANCELLED",
+      requestId,
+    });
     return null;
   }
 
@@ -859,6 +981,7 @@ async function syncActiveSubscriptionsUnlocked(
       productLimit: paidPlan.productLimit,
       filterLimit: paidPlan.filterLimit,
       confirmationUrl: null,
+      limitsGraceUntil: null,
     },
     update: {
       shopifySubscriptionId: active.id,
@@ -868,6 +991,7 @@ async function syncActiveSubscriptionsUnlocked(
       trialEndsAt,
       productLimit: paidPlan.productLimit,
       filterLimit: paidPlan.filterLimit,
+      limitsGraceUntil: null,
       ...(clearPendingUrl ? { confirmationUrl: null } : {}),
     },
   });
@@ -879,15 +1003,25 @@ async function syncActiveSubscriptionsUnlocked(
 
   if (domain) clearBillingCaches({ id: shopId, domain });
   else planUsageCache.del(shopId);
+  logBillingAudit({
+    shop: shopLabel,
+    action: "sync",
+    shopifySubscriptionId: active.id,
+    status: active.status,
+    requestId,
+  });
   return subscription;
 }
 
 export async function syncActiveSubscriptions(
   admin: GraphqlAdmin,
   shopId: string,
+  opts?: { requestId?: string },
 ) {
   return withBillingLock(shopId, () =>
-    syncActiveSubscriptionsUnlocked(admin, shopId),
+    syncActiveSubscriptionsUnlocked(admin, shopId, {
+      requestId: opts?.requestId,
+    }),
   );
 }
 
@@ -904,7 +1038,10 @@ export async function reconcileBillingFromShopify(
 }
 
 /** Reset local billing to Free (same shape as a fresh install / cancelled sync). */
-export async function applyLocalFreePlan(shopId: string) {
+export async function applyLocalFreePlan(
+  shopId: string,
+  opts?: { requestId?: string },
+) {
   await prisma.subscription.upsert({
     where: { shopId },
     create: {
@@ -916,6 +1053,7 @@ export async function applyLocalFreePlan(shopId: string) {
       filterLimit: PLANS.free.filterLimit,
       shopifySubscriptionId: null,
       confirmationUrl: null,
+      limitsGraceUntil: null,
     },
     update: {
       status: "CANCELLED",
@@ -925,6 +1063,7 @@ export async function applyLocalFreePlan(shopId: string) {
       filterLimit: PLANS.free.filterLimit,
       trialEndsAt: null,
       confirmationUrl: null,
+      limitsGraceUntil: null,
     },
   });
   await prisma.shop.update({
@@ -934,6 +1073,13 @@ export async function applyLocalFreePlan(shopId: string) {
   const domain = await loadShopDomain(shopId);
   if (domain) clearBillingCaches({ id: shopId, domain });
   else planUsageCache.del(shopId);
+  logBillingAudit({
+    shop: domain ?? shopId,
+    action: "demote",
+    shopifySubscriptionId: null,
+    status: "CANCELLED",
+    requestId: opts?.requestId,
+  });
 }
 
 /**
@@ -947,6 +1093,8 @@ export async function cancelSubscription(
   subscriptionGidHint?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return withBillingLock(shopId, async () => {
+    const requestId = newBillingRequestId();
+    const shopLabel = (await loadShopDomain(shopId)) ?? shopId;
     const shopifySubs = await fetchActiveSubscriptions(admin);
     const activePaid = shopifySubs.filter((s) => isShopifyActivePaid(s));
 
@@ -959,7 +1107,14 @@ export async function cancelSubscription(
     }
 
     if (!gid) {
-      await applyLocalFreePlan(shopId);
+      logBillingAudit({
+        shop: shopLabel,
+        action: "cancel",
+        shopifySubscriptionId: null,
+        status: "CANCELLED",
+        requestId,
+      });
+      await applyLocalFreePlan(shopId, { requestId });
       return { ok: true };
     }
 
@@ -1000,9 +1155,20 @@ export async function cancelSubscription(
       };
     }
 
-    await applyLocalFreePlan(shopId);
+    const cancelledStatus =
+      payload?.appSubscription?.status != null
+        ? String(payload.appSubscription.status)
+        : "CANCELLED";
+    logBillingAudit({
+      shop: shopLabel,
+      action: "cancel",
+      shopifySubscriptionId: gid,
+      status: cancelledStatus,
+      requestId,
+    });
+    await applyLocalFreePlan(shopId, { requestId });
     // Re-read Shopify so a failed cancel that still left an active sub is corrected.
-    await syncActiveSubscriptionsUnlocked(admin, shopId);
+    await syncActiveSubscriptionsUnlocked(admin, shopId, { requestId });
     return { ok: true };
   });
 }

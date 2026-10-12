@@ -262,6 +262,8 @@ model Subscription {
   filterLimit           Int       @default(25)
   test                  Boolean   @default(false)
   trialEndsAt           DateTime?
+  /// D-3: after paid→empty sync, keep last paid product/filter limits until this time.
+  limitsGraceUntil      DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }

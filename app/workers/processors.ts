@@ -44,7 +44,9 @@ async function syncBillingFromShopify(shopDomain: string, webhookId?: string) {
     const shopRow = await ensureShop(shopDomain);
     const { unauthenticated } = await import("../shopify.server");
     const { admin } = await unauthenticated.admin(shopDomain);
-    await syncActiveSubscriptions(admin, shopRow.id);
+    await syncActiveSubscriptions(admin, shopRow.id, {
+      requestId: webhookId,
+    });
     log.success(`[billing] syncFromShopify ok for ${shopDomain}${tag}`);
   } catch (error) {
     // Uninstalled / offline session gone — complete job (no useful retry).

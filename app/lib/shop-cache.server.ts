@@ -89,3 +89,13 @@ export async function findShopByIdCached(
   if (shop) rememberShop(shop);
   return shop;
 }
+
+/** D-2: plan/caps reads bypass per-process cache (web ↔ worker). */
+export async function findShopByIdFresh(
+  shopId: string,
+): Promise<ShopWithSubscription | null> {
+  return prisma.shop.findUnique({
+    where: { id: shopId },
+    include: { subscription: true },
+  });
+}
