@@ -197,24 +197,25 @@ async function loadSetupProgress(
       status: themeStatus(flags["collection-filters"]),
       external: true,
     },
-    {
-      id: "product-search",
-      number: 4,
-      title: "Add Product search",
-      description:
-        "In the theme editor, add Product search to the search template (or header), then save.",
-      href: editorUrls.productSearch,
-      actionLabel: flags["product-search"]
-        ? "Open search editor"
-        : "Open theme editor",
-      status: themeStatus(flags["product-search"]),
-      external: true,
-    },
+    // Product search setup step temporarily disabled (theme conflict).
+    // {
+    //   id: "product-search",
+    //   number: 4,
+    //   title: "Add Product search",
+    //   description:
+    //     "In the theme editor, add Product search to the search template (or header), then save.",
+    //   href: editorUrls.productSearch,
+    //   actionLabel: flags["product-search"]
+    //     ? "Open search editor"
+    //     : "Open theme editor",
+    //   status: themeStatus(flags["product-search"]),
+    //   external: true,
+    // },
   ];
 
   const performanceStep: SetupStep = {
     id: "performance",
-    number: 5,
+    number: 4,
     title: "Check performance",
     description:
       "See how shoppers use search and filters. Counts stay at zero until the widgets are live on the storefront.",

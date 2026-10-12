@@ -1,3 +1,8 @@
+{% comment %}
+  Product search UI temporarily disabled (theme conflict).
+  Keep schema so existing theme placements do not error; render nothing.
+{% endcomment %}
+{% if false %}
 <script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
 <div
@@ -48,6 +53,7 @@
   <ul class="sf-search-results sf-search-collections" data-suggest-collections role="list" hidden></ul>
   <ul class="sf-search-results" data-results role="list"></ul>
 </div>
+{% endif %}
 
 {% schema %}
 {

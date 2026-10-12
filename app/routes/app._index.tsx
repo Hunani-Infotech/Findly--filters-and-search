@@ -107,20 +107,21 @@ function emptyHomeData(shopDomain: string) {
       status: "todo",
       external: true,
     },
-    {
-      id: "product-search",
-      number: 4,
-      title: "Add Product search",
-      description:
-        "In the theme editor, add Product search to the search template (or header), then save.",
-      href: editorUrls.productSearch,
-      actionLabel: "Open theme editor",
-      status: "todo",
-      external: true,
-    },
+    // Product search setup step temporarily disabled (theme conflict).
+    // {
+    //   id: "product-search",
+    //   number: 4,
+    //   title: "Add Product search",
+    //   description:
+    //     "In the theme editor, add Product search to the search template (or header), then save.",
+    //   href: editorUrls.productSearch,
+    //   actionLabel: "Open theme editor",
+    //   status: "todo",
+    //   external: true,
+    // },
     {
       id: "performance",
-      number: 5,
+      number: 4,
       title: "Check performance",
       description:
         "See how shoppers use search and filters. Counts stay at zero until the widgets are live.",
@@ -130,7 +131,8 @@ function emptyHomeData(shopDomain: string) {
     },
   ];
   const themeSteps = steps.filter(
-    (step) => step.id === "collection-filters" || step.id === "product-search",
+    (step) => step.id === "collection-filters",
+    // || step.id === "product-search" // temporarily disabled
   );
   const setup: SetupProgress = {
     shopDomain: shopDomain || "example.myshopify.com",
@@ -332,11 +334,12 @@ export default function Home() {
   const embedReady = setup.themeSteps.some(
     (step) => step.id === "collection-filters" && step.status === "complete",
   );
-  const searchReady = setup.themeSteps.some(
-    (step) => step.id === "product-search" && step.status === "complete",
-  );
+  // Product search home card temporarily disabled (theme conflict).
+  // const searchReady = setup.themeSteps.some(
+  //   (step) => step.id === "product-search" && step.status === "complete",
+  // );
   const embedStep = setup.themeSteps.find((step) => step.id === "collection-filters");
-  const searchStep = setup.themeSteps.find((step) => step.id === "product-search");
+  // const searchStep = setup.themeSteps.find((step) => step.id === "product-search");
   const wasShowingGuide = useRef(setup.showGuide);
   const queuedOk = Boolean(
     syncFetcher.data?.intent === "sync" && syncFetcher.data.ok,
@@ -468,7 +471,7 @@ export default function Home() {
             ) : null}
 
             {!setup.showGuide ? (
-              <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+              <InlineGrid columns={{ xs: 1, md: 1 }} gap="400">
                 <Card>
                   <BlockStack gap="200">
                     <InlineStack align="space-between" blockAlign="center" wrap gap="200">
@@ -499,6 +502,7 @@ export default function Home() {
                     </InlineStack>
                   </BlockStack>
                 </Card>
+                {/* Product search home card temporarily disabled (theme conflict).
                 <Card>
                   <BlockStack gap="200">
                     <InlineStack align="space-between" blockAlign="center" wrap gap="200">
@@ -525,6 +529,7 @@ export default function Home() {
                     </InlineStack>
                   </BlockStack>
                 </Card>
+                */}
               </InlineGrid>
             ) : null}
 
