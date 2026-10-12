@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v38";
+  var STYLE_ID = "findly-grid-takeover-v39";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -556,7 +556,29 @@
         "{flex:1 1 100%;width:100%;max-width:100%;order:20}" +
         ".sf-layout-main .product-grid,.sf-layout-main ul.product-grid," +
         ".sf-layout-main ol.product-grid,.sf-layout-main .main-collection-grid," +
-        ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:stretch!important}" +
+        ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:flex-start!important}" +
+        "@media screen and (min-width:990px){" +
+        ".sf-collection-layout .sf-layout-main .grid--3-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--3-col-desktop>li" +
+        "{width:calc(33.33% - var(--grid-desktop-horizontal-spacing,8px)*2/3)!important;" +
+        "max-width:calc(33.33% - var(--grid-desktop-horizontal-spacing,8px)*2/3)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}" +
+        ".sf-collection-layout .sf-layout-main .grid--4-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--4-col-desktop>li" +
+        "{width:calc(25% - var(--grid-desktop-horizontal-spacing,8px)*3/4)!important;" +
+        "max-width:calc(25% - var(--grid-desktop-horizontal-spacing,8px)*3/4)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}" +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>li" +
+        "{width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "max-width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}}" +
+        "@media screen and (min-width:750px) and (max-width:989px){" +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-tablet-down>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-tablet-down>li" +
+        "{width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "max-width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}}" +
         "results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)," +
         ".product-grid-container:has(.sf-collection-layout):not(.product-grid):not(.main-collection-grid)" +
         "{display:block!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important}" +
@@ -1434,6 +1456,18 @@
       if (isVisibleProductCard(kid)) visible.push(kid);
     }
     if (!visible.length) return false;
+    /*
+     * Lone / partial rows often stretch (live search: 1 card → 100% width).
+     * Always re-lock when fewer visible cards than columns inside Findly layout.
+     */
+    if (
+      !force &&
+      visible.length < cols &&
+      host.closest &&
+      host.closest(".sf-collection-layout .sf-layout-main")
+    ) {
+      force = true;
+    }
     if (!force) {
       var sampleW = 0;
       try {
@@ -1442,8 +1476,8 @@
         sampleW = 0;
       }
       var expected = hostW / cols;
-      /* Healthy Dawn flex already has ~25% slots — leave it alone. */
-      if (sampleW >= expected * 0.55) return false;
+      /* Healthy = near one column. Too narrow OR too wide both need a fix. */
+      if (sampleW >= expected * 0.55 && sampleW <= expected * 1.35) return false;
     }
     var gap = 0;
     try {
@@ -1486,6 +1520,9 @@
       items[i].style.setProperty("width", widthExpr, "important");
       items[i].style.setProperty("max-width", widthExpr, "important");
       items[i].style.setProperty("flex", "0 0 auto", "important");
+      items[i].style.setProperty("flex-grow", "0", "important");
+      items[i].style.setProperty("flex-shrink", "0", "important");
+      items[i].style.setProperty("flex-basis", "auto", "important");
       items[i].style.setProperty("box-sizing", "border-box");
     }
     normalizeCardMediaRatio(host);
