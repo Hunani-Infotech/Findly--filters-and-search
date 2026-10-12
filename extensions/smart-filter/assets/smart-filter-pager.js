@@ -653,6 +653,279 @@
     return 0;
   }
 
+  /**
+   * Pagination scroll (standard PLP):
+   * Smooth window.scrollTo is cancelled when AJAX rebuild collapses grid height.
+   * Instant-jump on click, then re-assert after paint once layout is stable.
+   */
+  var _listingScrollTimer = 0;
+  var _listingScrollRaf = 0;
+
+  function prefersReducedMotion() {
+    try {
+      return (
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function stickyHeaderOffset() {
+    var sel =
+      "sticky-header, .section-header.shopify-section-header-sticky," +
+      " .shopify-section-header-sticky, #shopify-section-header," +
+      " header.header, .header-wrapper, [data-sticky-header]";
+    var nodes = document.querySelectorAll(sel);
+    var max = 0;
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || !el.getBoundingClientRect) continue;
+      try {
+        var cs = window.getComputedStyle(el);
+        var pos = cs.position || "";
+        if (pos !== "sticky" && pos !== "fixed") continue;
+        var h = el.getBoundingClientRect().height || 0;
+        if (h > max) max = h;
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    return Math.min(160, Math.max(0, Math.round(max)));
+  }
+
+  function listingScrollTarget(widget) {
+    var candidates = [
+      document.querySelector(".sf-toolbar"),
+      document.querySelector(".sf-collection-layout .sf-layout-main"),
+      widget && widget._themeGridShell,
+      document.querySelector(
+        "#ProductGridContainer, [data-findly-grid-shell='1'], .product-grid-container",
+      ),
+      document.querySelector(
+        ".sf-collection-layout #product-grid, .sf-layout-main #product-grid",
+      ),
+      document.querySelector(".sf-collection-layout"),
+    ];
+    var i;
+    for (i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (!el || !el.getBoundingClientRect) continue;
+      try {
+        if ((el.getBoundingClientRect().width || 0) < 1) continue;
+      } catch (err) {
+        continue;
+      }
+      return el;
+    }
+    return null;
+  }
+
+  function scrollRootFor(el) {
+    var node = el && el.parentElement;
+    while (node && node !== document.body && node !== document.documentElement) {
+      try {
+        var cs = window.getComputedStyle(node);
+        var oy = cs.overflowY || cs.overflow || "";
+        if (
+          (oy === "auto" || oy === "scroll" || oy === "overlay") &&
+          node.scrollHeight > node.clientHeight + 1
+        ) {
+          return node;
+        }
+      } catch (err) {
+        /* ignore */
+      }
+      node = node.parentElement;
+    }
+    return (
+      document.scrollingElement ||
+      document.documentElement ||
+      document.body
+    );
+  }
+
+  function readScrollTop(root) {
+    if (!root) return 0;
+    if (root === document.documentElement || root === document.body || root === document.scrollingElement) {
+      return (
+        window.pageYOffset ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop ||
+        0
+      );
+    }
+    return root.scrollTop || 0;
+  }
+
+  function writeScrollTop(root, top, behavior) {
+    top = Math.max(0, Math.round(top));
+    var isWindow =
+      !root ||
+      root === document.documentElement ||
+      root === document.body ||
+      root === document.scrollingElement;
+    try {
+      if (isWindow && typeof window.scrollTo === "function") {
+        window.scrollTo({ top: top, left: 0, behavior: behavior || "auto" });
+        return;
+      }
+    } catch (err) {
+      try {
+        window.scrollTo(0, top);
+        return;
+      } catch (err2) {
+        /* fall through */
+      }
+    }
+    if (!isWindow && root) {
+      try {
+        if (typeof root.scrollTo === "function") {
+          root.scrollTo({ top: top, left: 0, behavior: behavior || "auto" });
+        } else {
+          root.scrollTop = top;
+        }
+        return;
+      } catch (err3) {
+        try {
+          root.scrollTop = top;
+        } catch (err4) {
+          /* ignore */
+        }
+      }
+    }
+    try {
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
+    } catch (err5) {
+      /* ignore */
+    }
+  }
+
+  function listingScrollTop(widget) {
+    var target = listingScrollTarget(widget);
+    var root = scrollRootFor(target);
+    if (!target) return { root: root, top: 0 };
+    var top = 0;
+    try {
+      var rect = target.getBoundingClientRect();
+      if (
+        root === document.documentElement ||
+        root === document.body ||
+        root === document.scrollingElement
+      ) {
+        top =
+          readScrollTop(root) + rect.top - stickyHeaderOffset() - 12;
+      } else {
+        var rootRect = root.getBoundingClientRect();
+        top =
+          readScrollTop(root) + (rect.top - rootRect.top) - 12;
+      }
+    } catch (err) {
+      top = 0;
+    }
+    return { root: root, top: Math.max(0, Math.round(top)) };
+  }
+
+  function cancelListingScroll() {
+    if (_listingScrollTimer) {
+      try {
+        clearTimeout(_listingScrollTimer);
+      } catch (err) {
+        /* ignore */
+      }
+      _listingScrollTimer = 0;
+    }
+    if (_listingScrollRaf) {
+      try {
+        cancelAnimationFrame(_listingScrollRaf);
+      } catch (err2) {
+        /* ignore */
+      }
+      _listingScrollRaf = 0;
+    }
+  }
+
+  function scrollListingIntoView(widget, opts) {
+    opts = opts || {};
+    var mode = opts.mode || "auto";
+    var dest = listingScrollTop(widget);
+    var current = readScrollTop(dest.root);
+    if (Math.abs(current - dest.top) < 4) return;
+    var behavior =
+      mode === "smooth" && !prefersReducedMotion() ? "smooth" : "auto";
+    /* Interrupt any in-flight smooth scroll, then apply the chosen behavior. */
+    if (behavior === "smooth") {
+      writeScrollTop(dest.root, current, "auto");
+    }
+    writeScrollTop(dest.root, dest.top, behavior);
+  }
+
+  function scheduleListingScroll(widget, opts) {
+    opts = opts || {};
+    cancelListingScroll();
+    var run = function () {
+      _listingScrollRaf = 0;
+      _listingScrollTimer = 0;
+      try {
+        scrollListingIntoView(widget, opts);
+      } catch (err) {
+        /* ignore */
+      }
+      /* Images / theme layout can shift height; one correction after settle. */
+      if (opts.correct !== false) {
+        _listingScrollTimer = setTimeout(function () {
+          _listingScrollTimer = 0;
+          try {
+            scrollListingIntoView(widget, { mode: "auto" });
+          } catch (err2) {
+            /* ignore */
+          }
+        }, 120);
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      _listingScrollRaf = requestAnimationFrame(function () {
+        _listingScrollRaf = requestAnimationFrame(run);
+      });
+    } else {
+      _listingScrollTimer = setTimeout(run, 32);
+    }
+  }
+
+  function markListingScroll(widget) {
+    if (!widget) return;
+    widget._sfNeedsListingScroll = true;
+    /*
+     * Jump immediately so the viewport is not stuck on the old pager while
+     * the grid rebuilds. (Smooth scroll here is cancelled by height collapse.)
+     */
+    try {
+      scrollListingIntoView(widget, { mode: "auto" });
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function flushListingScroll(widget) {
+    if (!widget || !widget._sfNeedsListingScroll) return;
+    widget._sfNeedsListingScroll = false;
+    /*
+     * After paint: re-measure and scroll again. Use smooth only when still far
+     * from the target; otherwise auto-correct residual layout shift.
+     */
+    var dest = listingScrollTop(widget);
+    var current = readScrollTop(dest.root);
+    var distance = Math.abs(current - dest.top);
+    scheduleListingScroll(widget, {
+      mode:
+        distance > 80 && !prefersReducedMotion() ? "smooth" : "auto",
+      correct: true,
+    });
+  }
+
   function bindThemePagerClicks() {
     if (window.__findlyThemePagerBound) return;
     window.__findlyThemePagerBound = true;
@@ -728,6 +1001,7 @@
     proto.goToPage = function (page) {
       var next = Math.max(1, Math.floor(Number(page) || 1));
       var current = Math.max(1, Number(this.page) || 1);
+      var self = this;
       this._sfPaged = true;
       if (next !== current || this._inflight || this._loadingPage) {
         this._loadingPage = false;
@@ -739,7 +1013,42 @@
           delete this._keepThemeCards;
         }
       }
+      if (next !== current) {
+        markListingScroll(this);
+        /* Fallback if setGridBusy(false) never fires (cached / skipped busy). */
+        try {
+          if (this._sfScrollFallbackTimer) {
+            clearTimeout(this._sfScrollFallbackTimer);
+          }
+        } catch (clearErr) {
+          /* ignore */
+        }
+        this._sfScrollFallbackTimer = setTimeout(function () {
+          self._sfScrollFallbackTimer = 0;
+          if (self._sfNeedsListingScroll) flushListingScroll(self);
+        }, 450);
+      }
       if (origGoToPage) return origGoToPage.call(this, next);
+    };
+
+    var origSetGridBusy = proto.setGridBusy;
+    proto.setGridBusy = function (busy) {
+      var parent = this._gridParent || this.ensureGridParent && this.ensureGridParent();
+      var wasBusy =
+        parent && parent.classList && parent.classList.contains("sf-grid-busy");
+      if (origSetGridBusy) origSetGridBusy.call(this, busy);
+      /* After new page paints, smooth-scroll onto a stable layout. */
+      if (wasBusy && !busy && this._sfNeedsListingScroll) {
+        try {
+          if (this._sfScrollFallbackTimer) {
+            clearTimeout(this._sfScrollFallbackTimer);
+            this._sfScrollFallbackTimer = 0;
+          }
+        } catch (clearErr) {
+          /* ignore */
+        }
+        flushListingScroll(this);
+      }
     };
 
     proto.syncThemePager = function () {
