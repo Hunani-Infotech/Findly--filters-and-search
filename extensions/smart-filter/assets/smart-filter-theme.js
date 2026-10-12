@@ -443,7 +443,17 @@
     if (!hasFilter && String(form.getAttribute("id") || "").indexOf("Facet") === -1) {
       return;
     }
-    form.parentNode.insertBefore(mount, form);
+    try {
+      if (mount.parentNode !== form.parentNode || mount.nextSibling !== form) {
+        form.parentNode.insertBefore(mount, form);
+      }
+    } catch (err) {
+      try {
+        if (form.parentNode) form.parentNode.appendChild(mount);
+      } catch (err2) {
+        /* theme form lift is best-effort */
+      }
+    }
     widget._gridParent = null;
   }
 

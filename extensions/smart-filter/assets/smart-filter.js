@@ -985,14 +985,18 @@
   ].join(", ");
   var THEME_BRIDGE_STYLE_ID = "findly-theme-bridge";
   var GRID_HINT_SELECTOR = [
-    "#product-grid",
-    "[data-id='product-grid']",
-    "[data-product-grid]",
+    "ul#product-grid",
+    "ol#product-grid",
     "ul.product-grid",
+    "ol.product-grid",
     "ul[id*='product-grid']",
     "ul[class*='product-grid']",
-    ".product-grid",
+    "[data-id='product-grid']",
+    "[data-product-grid]",
     "[product-grid-view]",
+    ".grid.product-grid",
+    "#product-grid",
+    ".product-grid",
     "#ProductGridContainer",
     "#CollectionProductGrid",
     "#CollectionAjaxContent",

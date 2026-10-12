@@ -8,19 +8,21 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v36";
+  var STYLE_ID = "findly-grid-takeover-v37";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
   var SKEL_ATTR = "data-findly-skel";
   var SKEL_COUNT = 8;
+  /* Card grids only — never target Dawn search DIV#product-grid shell here. */
   var PRODUCT_GRID_START_CSS =
     ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
-    ".sf-collection-layout #product-grid,.sf-og #product-grid," +
-    ".sf-collection-layout #ProductGrid,.sf-og #ProductGrid," +
+    ".sf-collection-layout ul#product-grid,.sf-og ul#product-grid," +
+    ".sf-collection-layout ol#product-grid,.sf-og ol#product-grid," +
+    ".sf-collection-layout ul#ProductGrid,.sf-og ul#ProductGrid," +
+    ".sf-collection-layout ol#ProductGrid,.sf-og ol#ProductGrid," +
     ".sf-collection-layout ul.product-grid,.sf-og ul.product-grid," +
     ".sf-collection-layout ol.product-grid,.sf-og ol.product-grid," +
-    ".sf-collection-layout .product-grid,.sf-og .product-grid," +
     ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid," +
     ".sf-collection-layout results-list>.main-collection-grid,.sf-og results-list>.main-collection-grid" +
     "{justify-content:start!important;width:100%!important;max-width:100%!important}";
@@ -30,13 +32,30 @@
     ".collection-wrapper results-list:not(.product-grid):not(.main-collection-grid):not([product-grid-view])" +
     "{display:block!important;width:100%;min-width:0}";
   var PRODUCT_GRID_KEEP_CSS =
-    ".sf-collection-layout .product-grid,.sf-og .product-grid," +
     ".sf-collection-layout ul.product-grid,.sf-og ul.product-grid," +
     ".sf-collection-layout ol.product-grid,.sf-og ol.product-grid," +
     ".sf-collection-layout .main-collection-grid,.sf-og .main-collection-grid," +
-    ".sf-collection-layout #product-grid,.sf-og #product-grid," +
-    ".sf-collection-layout #ProductGrid,.sf-og #ProductGrid" +
+    ".sf-collection-layout ul#product-grid,.sf-og ul#product-grid," +
+    ".sf-collection-layout ol#product-grid,.sf-og ol#product-grid," +
+    ".sf-collection-layout ul#ProductGrid,.sf-og ul#ProductGrid," +
+    ".sf-collection-layout ol#ProductGrid,.sf-og ol#ProductGrid," +
+    ".sf-collection-layout .sf-app-grid,.sf-og .sf-app-grid" +
     "{width:100%!important;max-width:100%!important;min-width:0!important}";
+  /* Listing shells (Dawn search DIV#product-grid) fill the main column only. */
+  var PRODUCT_GRID_SHELL_CSS =
+    ".sf-collection-layout .sf-layout-main{width:100%!important;max-width:none!important;min-width:0!important}" +
+    ".sf-layout-main>#product-grid,.sf-layout-main>#ProductGrid," +
+    ".sf-layout-main>.product-grid-container,.sf-layout-main>[data-findly-grid-shell='1']," +
+    ".sf-layout-main>.template-search__results," +
+    ".sf-collection-layout .sf-layout-main>#product-grid," +
+    ".sf-collection-layout .sf-layout-main>#ProductGridContainer," +
+    ".sf-collection-layout .sf-layout-main>[data-findly-grid-shell='1']" +
+    "{display:block!important;width:100%!important;max-width:none!important;min-width:0;box-sizing:border-box}" +
+    ".sf-collection-layout .sf-layout-main ul.product-grid," +
+    ".sf-collection-layout .sf-layout-main ol.product-grid," +
+    ".sf-collection-layout .sf-layout-main .sf-app-grid," +
+    ".sf-collection-layout .sf-layout-main .main-collection-grid" +
+    "{width:100%!important;max-width:none!important;min-width:0;box-sizing:border-box}";
   var GRID_RESULT_HIDE =
     ":not([" +
     SKEL_ATTR +
@@ -180,6 +199,10 @@
     ".findly-grid-skel-line.is-short{width:42%;margin-top:.4rem}" +
     "[" + SKEL_ATTR + "='1'] .findly-grid-skel-img,[" + SKEL_ATTR + "='1'] .findly-grid-skel-line{" +
     "animation:sf-skeleton-pulse 1.1s ease-in-out infinite}" +
+    /* Theme-native loader (Dawn/Horizon .loading-overlay) — keep merchant default UX. */
+    "[data-findly-theme-loader='1']{display:flex!important;visibility:visible!important;opacity:1!important;" +
+    "pointer-events:none;z-index:2}" +
+    "[data-findly-theme-loading='1']{position:relative}" +
     "#" +
     "findly-grid-empty,.sf-grid-empty{grid-column:1/-1;width:100%;min-height:12rem;display:flex;flex-direction:column;" +
     "align-items:center;justify-content:center;text-align:center;padding:2.5rem 1.5rem;box-sizing:border-box}" +
@@ -229,14 +252,16 @@
   var RESULTS_LIST_SELECTOR =
     "results-list, .results-list, #ResultsList, [data-results-list]";
   var PRODUCT_GRID_SELECTOR = [
-    "#product-grid",
-    "#ProductGrid",
+    "ul#product-grid",
+    "ol#product-grid",
     "ul.product-grid",
     "ol.product-grid",
+    ".grid.product-grid",
     "[data-id='product-grid']",
     "[data-product-grid]",
     "[product-grid-view]",
-    ".grid.product-grid",
+    "#product-grid",
+    "#ProductGrid",
     ".product-grid",
     "ul[id*='product-grid']",
     "ul[class*='product-grid']",
@@ -450,6 +475,9 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v17") ||
+      document.getElementById("findly-theme-bridge-v16") ||
+      document.getElementById("findly-theme-bridge-v15") ||
       document.getElementById("findly-theme-bridge-v14") ||
       document.getElementById("findly-theme-bridge-v13") ||
       document.getElementById("findly-theme-bridge-v12") ||
@@ -464,20 +492,25 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v14") {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v17") {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v14";
+      bridge.id = "findly-theme-bridge-v17";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
         ".sf-collection-layout{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;margin-inline:0}" +
         ".page-width>.sf-collection-layout,.page-width-desktop>.sf-collection-layout," +
-        ".page-width--narrow>.sf-collection-layout,.container>.sf-collection-layout,.Container>.sf-collection-layout" +
+        ".page-width--narrow>.sf-collection-layout,.container>.sf-collection-layout,.Container>.sf-collection-layout," +
+        ".sf-theme-width>.sf-collection-layout,.sf-search-width>.sf-collection-layout" +
         "{width:100%!important;max-width:100%!important;margin-left:0;margin-right:0}" +
+        ".sf-theme-width.page-width,.sf-theme-width.page-width-desktop," +
+        ".sf-theme-width.page-width--narrow,.sf-theme-width.container" +
+        "{width:100%;box-sizing:border-box}" +
+        PRODUCT_GRID_SHELL_CSS +
         ".sf-layout-aside,.sf-layout-main{box-sizing:border-box;min-width:0}" +
         ".sf-layout-main:not(ul):not(ol):not(results-list):not(.product-grid):not(.main-collection-grid):not(product-list)" +
         "{display:block;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
@@ -496,6 +529,14 @@
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
         ".sf-layout-main>.collection-wrapper,.sf-collection-layout .collection-wrapper" +
         "{width:100%;max-width:100%;min-width:0}" +
+        /* Search parity with collection: keep theme product section shells full-width. */
+        ".sf-layout-main>#ProductGridContainer,.sf-layout-main>#CollectionProductGrid," +
+        ".sf-layout-main>#CollectionAjaxContent,.sf-layout-main>.product-grid-container," +
+        ".sf-layout-main>.collection:not(.sf-collection-layout)," +
+        ".sf-layout-main>[data-findly-grid-shell='1']" +
+        "{display:block;width:100%!important;max-width:100%!important;min-width:0;box-sizing:border-box}" +
+        ".sf-layout-main .collection:not(.sf-collection-layout)" +
+        "{width:100%!important;max-width:100%!important;min-width:0}" +
         ".product-grid>.sf-toolbar,.product-grid>.sf-pager,.product-grid>.sf-sort-host,.product-grid>.sf-search-host," +
         "ul.product-grid>.sf-toolbar,ul.product-grid>.sf-pager,ul.product-grid>.sf-sort-host," +
         ".main-collection-grid>.sf-toolbar,.main-collection-grid>.sf-pager,.main-collection-grid>.sf-sort-host," +
@@ -643,6 +684,7 @@
         ".collection-wrapper:has([data-findly-theme-hidden='1']) .main-collection-grid," +
         "results-list:has(> [data-findly-theme-hidden='1']) .main-collection-grid{grid-column:1/-1}" +
         RESULTS_LIST_BLOCK_CSS +
+        PRODUCT_GRID_SHELL_CSS +
         PRODUCT_GRID_KEEP_CSS +
         PRODUCT_GRID_START_CSS +
         ".smart-filter .sf-option input[type=checkbox]," +
@@ -672,16 +714,18 @@
       document.getElementById("findly-catalog-grid-v12") ||
       document.getElementById("findly-catalog-grid-v13") ||
       document.getElementById("findly-catalog-grid-v14") ||
-      document.getElementById("findly-catalog-grid-v15");
+      document.getElementById("findly-catalog-grid-v15") ||
+      document.getElementById("findly-catalog-grid-v16");
     if (oldCatalog && oldCatalog.parentNode) oldCatalog.parentNode.removeChild(oldCatalog);
-    if (document.getElementById("findly-catalog-grid-v16")) return;
+    if (document.getElementById("findly-catalog-grid-v17")) return;
     var catalog = document.createElement("style");
-    catalog.id = "findly-catalog-grid-v16";
+    catalog.id = "findly-catalog-grid-v17";
     catalog.textContent =
       "#" +
       CARD_TRAY_ID +
       "{display:none!important;position:absolute;left:-9999px;width:0;height:0;overflow:hidden}" +
       RESULTS_LIST_BLOCK_CSS +
+      PRODUCT_GRID_SHELL_CSS +
       PRODUCT_GRID_KEEP_CSS +
       PRODUCT_GRID_START_CSS +
       GRID_BUSY_CSS +
@@ -946,8 +990,40 @@
     return false;
   }
 
+  /**
+   * Dawn search: #product-grid is often a DIV.template-search__results.page-width
+   * wrapping an anonymous ul.grid.product-grid. Collection pages put the id on the UL.
+   * Treating the DIV as the card grid breaks tracks, width host detection, and layout.
+   */
+  function isProductGridIdShell(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var id = String(el.id || "");
+    if (id !== "product-grid" && id !== "ProductGrid") return false;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (tag === "ul" || tag === "ol") return false;
+    if (el.querySelector) {
+      if (
+        el.querySelector(
+          "ul.product-grid, ol.product-grid, ul.grid.product-grid, ol.grid.product-grid, .grid.product-grid",
+        )
+      ) {
+        return true;
+      }
+    }
+    var cls = el.classList;
+    if (!cls) return tag !== "ul" && tag !== "ol";
+    return (
+      cls.contains("page-width") ||
+      cls.contains("page-width-desktop") ||
+      cls.contains("template-search__results") ||
+      cls.contains("collection") ||
+      cls.contains("product-grid-container")
+    );
+  }
+
   function isProductGridLike(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isProductGridIdShell(el)) return false;
     if (isListHost(el) || isResultsListEl(el)) return true;
     var tag = String(el.tagName || "").toLowerCase();
     if (
@@ -971,12 +1047,14 @@
 
   function queryInnerCardGrid(el) {
     if (!el || !el.querySelector) return null;
+    /* Prefer real list grids before bare #product-grid (Dawn search shell DIV). */
     return (
       el.querySelector("ul#product-grid") ||
-      el.querySelector("#product-grid") ||
-      el.querySelector("#ProductGrid") ||
+      el.querySelector("ol#product-grid") ||
       el.querySelector("ul.product-grid") ||
       el.querySelector("ol.product-grid") ||
+      el.querySelector("ul.grid.product-grid, ol.grid.product-grid") ||
+      el.querySelector(".grid.product-grid") ||
       el.querySelector("[product-grid-view]") ||
       el.querySelector(".product-grid.main-collection-grid") ||
       el.querySelector(".main-collection-grid") ||
@@ -984,12 +1062,18 @@
       el.querySelector(".productgrid--items") ||
       el.querySelector(".grid--view-items") ||
       el.querySelector(".ProductList") ||
-      el.querySelector("[data-product-grid]")
+      el.querySelector("[data-product-grid]") ||
+      (function () {
+        var byId = el.querySelector("#product-grid, #ProductGrid");
+        if (byId && byId !== el && !isProductGridIdShell(byId)) return byId;
+        return null;
+      })()
     );
   }
 
   function isPageShellHost(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (isProductGridIdShell(el)) return true;
     var id = String(el.id || "");
     if (id === "ProductGridContainer" || id === "CollectionProductGrid") {
       return true;
@@ -998,6 +1082,9 @@
     if (cls) {
       if (cls.contains("collection-wrapper")) return true;
       if (cls.contains("product-grid-container") && !cls.contains("product-grid")) {
+        return true;
+      }
+      if (cls.contains("template-search__results") && !isProductGridLike(el)) {
         return true;
       }
       if (cls.contains("sf-collection-layout")) return true;
@@ -1016,10 +1103,15 @@
 
   function isActualCardGrid(el) {
     if (!el || el.nodeType !== 1 || isPageShellHost(el)) return false;
+    if (isProductGridIdShell(el)) return false;
     if (el.getAttribute && el.getAttribute("product-grid-view") != null) {
       return true;
     }
-    if (el.id === "product-grid" || el.id === "ProductGrid") return true;
+    var tag = String(el.tagName || "").toLowerCase();
+    if (el.id === "product-grid" || el.id === "ProductGrid") {
+      /* Id on UL/OL = collection Dawn. Id on DIV shell = search — not a card grid. */
+      return tag === "ul" || tag === "ol";
+    }
     var cls = el.classList;
     if (cls) {
       if (cls.contains("product-grid") || cls.contains("main-collection-grid")) {
@@ -1038,6 +1130,13 @@
 
   function preferProductCardGrid(el) {
     if (!el || el.nodeType !== 1) return el;
+    if (isProductGridIdShell(el) || isPageShellHost(el)) {
+      var fromShell = queryInnerCardGrid(el);
+      if (fromShell && fromShell !== el) {
+        captureThemeGridLayout(fromShell);
+        return fromShell;
+      }
+    }
     if (isActualCardGrid(el)) {
       captureThemeGridLayout(el);
       return el;
@@ -1123,15 +1222,23 @@
     if (!host || !host.style || typeof host.style.setProperty !== "function") {
       return;
     }
-    if (isResultsListEl(host) || isPageShellHost(host)) return;
+    if (isResultsListEl(host) || isPageShellHost(host) || isProductGridIdShell(host)) {
+      return;
+    }
     var id = host.id || "";
     var looksLikeGrid =
       isProductGridLike(host) ||
       (host.classList && host.classList.contains("sf-app-grid")) ||
-      id === "product-grid" ||
-      id === "ProductGrid" ||
+      ((id === "product-grid" || id === "ProductGrid") &&
+        (String(host.tagName || "").toLowerCase() === "ul" ||
+          String(host.tagName || "").toLowerCase() === "ol")) ||
       id === "findly-grid-host";
     if (!looksLikeGrid) return;
+    /* Prefer Dawn class column counts over generic auto-fill so search matches collection. */
+    if (dawnFlexColumnCount(host) >= 2) {
+      ensureDawnFlexColumnWidths(host, true);
+      return;
+    }
     try {
       if (typeof window.getComputedStyle !== "function") {
         host.style.setProperty(
@@ -1157,9 +1264,175 @@
     }
   }
 
+  function dawnFlexColumnCount(host) {
+    if (!host || !host.classList) return 0;
+    var cls = String(host.className || "");
+    var desk = cls.match(/\bgrid--(\d+)-col-desktop\b/);
+    var tablet = cls.match(/\bgrid--(\d+)-col-tablet(?:-down)?\b/);
+    var mobile = cls.match(/\bgrid--(\d+)-col-mobile\b/);
+    try {
+      if (
+        desk &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(min-width: 990px)").matches
+      ) {
+        return Math.max(1, Number(desk[1]) || 0);
+      }
+      if (
+        tablet &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(min-width: 750px)").matches
+      ) {
+        return Math.max(1, Number(tablet[1]) || 0);
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    if (desk) return Math.max(1, Number(desk[1]) || 0);
+    if (tablet) return Math.max(1, Number(tablet[1]) || 0);
+    if (mobile) return Math.max(1, Number(mobile[1]) || 0);
+    return 0;
+  }
+
+  function isVisibleProductCard(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.hidden || (el.hasAttribute && el.hasAttribute("hidden"))) return false;
+    if (el.getAttribute && el.getAttribute("aria-hidden") === "true") return false;
+    if (el.getAttribute && el.getAttribute("data-smart-filter-hidden") === "true") {
+      return false;
+    }
+    if (el.getAttribute && el.getAttribute("data-findly-theme-hidden") === "1") {
+      return false;
+    }
+    if (el.getAttribute && el.getAttribute(SKEL_ATTR) === "1") return false;
+    try {
+      if (typeof window.getComputedStyle === "function") {
+        var cs = window.getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden") return false;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return true;
+  }
+
+  /**
+   * Dawn product ULs are display:flex; column classes size .grid__item with %.
+   * After search remount, those % widths can fail and cards crush (~159px).
+   * Only intervene when items are clearly too narrow vs the column class.
+   */
+  function ensureDawnFlexColumnWidths(host, force) {
+    if (!host || !host.children) return false;
+    if (isPageShellHost(host) || isProductGridIdShell(host)) return false;
+    var cols = dawnFlexColumnCount(host);
+    if (cols < 2) return false;
+    var hostW = hostLayoutWidth(host);
+    if (hostW < 120) return false;
+    var items = [];
+    var visible = [];
+    var i;
+    for (i = 0; i < host.children.length; i++) {
+      var kid = host.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (typeof isGridChrome === "function" && isGridChrome(kid)) continue;
+      if (kid.getAttribute && kid.getAttribute(SKEL_ATTR) === "1") continue;
+      if (kid.id === CARD_TRAY_ID || kid.id === EMPTY_ID) continue;
+      items.push(kid);
+      if (isVisibleProductCard(kid)) visible.push(kid);
+    }
+    if (!visible.length) return false;
+    if (!force) {
+      var sampleW = 0;
+      try {
+        sampleW = visible[0].getBoundingClientRect().width || 0;
+      } catch (err) {
+        sampleW = 0;
+      }
+      var expected = hostW / cols;
+      /* Healthy Dawn flex already has ~25% slots — leave it alone. */
+      if (sampleW >= expected * 0.55) return false;
+    }
+    var gap = 0;
+    try {
+      if (typeof window.getComputedStyle === "function") {
+        var cs = window.getComputedStyle(host);
+        gap = parseFloat(cs.columnGap || cs.gap) || 0;
+      }
+    } catch (gapErr) {
+      gap = 0;
+    }
+    /*
+     * Count VISIBLE cards only. A hidden 4th LI kept us at 25% widths with
+     * 3 search hits and a ~192px empty gap (console verify: rightGapPx).
+     */
+    var effectiveCols = cols;
+    if (
+      visible.length > 0 &&
+      visible.length < cols &&
+      host.closest &&
+      host.closest(".sf-collection-layout .sf-layout-main")
+    ) {
+      effectiveCols = Math.max(1, visible.length);
+    }
+    var frac = 100 / effectiveCols;
+    var spacingShare =
+      gap > 0 ? (gap * (effectiveCols - 1)) / effectiveCols : 0;
+    var widthExpr =
+      spacingShare > 0
+        ? "calc(" + frac + "% - " + spacingShare + "px)"
+        : frac + "%";
+    try {
+      host.style.setProperty("width", "100%", "important");
+      host.style.setProperty("max-width", "100%", "important");
+      host.style.setProperty("box-sizing", "border-box");
+      host.style.setProperty("display", "flex", "important");
+      host.style.setProperty("flex-wrap", "wrap");
+      host.style.setProperty("justify-content", "flex-start");
+    } catch (hostStyleErr) {
+      /* ignore */
+    }
+    for (i = 0; i < items.length; i++) {
+      if (!items[i].style || typeof items[i].style.setProperty !== "function") {
+        continue;
+      }
+      if (!isVisibleProductCard(items[i])) continue;
+      items[i].style.setProperty("width", widthExpr, "important");
+      items[i].style.setProperty("max-width", widthExpr, "important");
+      items[i].style.setProperty("flex", "0 0 auto", "important");
+      items[i].style.setProperty("box-sizing", "border-box");
+    }
+    return true;
+  }
+
+  function clearThemeGridSnap(host) {
+    if (!host) return;
+    try {
+      if (themeGridSnaps && typeof themeGridSnaps.delete === "function") {
+        themeGridSnaps.delete(host);
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      if (host._sfGridSnap) host._sfGridSnap = null;
+    } catch (err2) {
+      /* ignore */
+    }
+  }
+
+  function tracksLookLikeAbsolutePixels(value) {
+    var text = String(value || "").trim();
+    if (!text || !/px/i.test(text)) return false;
+    if (/fr|%|minmax|auto|repeat/i.test(text)) return false;
+    return true;
+  }
+
   function lockThemeGridTracks(host) {
-    host = preferProductCardGrid(host) || host;
+    host = resolveListingCardGrid(host) || preferProductCardGrid(host) || host;
     if (!host || !host.style || typeof host.style.setProperty !== "function") {
+      return;
+    }
+    if (isProductGridIdShell(host) || (isPageShellHost(host) && !isActualCardGrid(host))) {
       return;
     }
     try {
@@ -1170,25 +1443,111 @@
     }
     var snap = captureThemeGridLayout(host);
     if (!snap) {
+      if (dawnFlexColumnCount(host) >= 2) {
+        ensureDawnFlexColumnWidths(host, true);
+        return;
+      }
       ensureFallbackProductGridTracks(host);
       return;
     }
     var display = String(snap.display || "");
     if (display.indexOf("flex") !== -1) {
       if (snap.flexWrap) host.style.setProperty("flex-wrap", snap.flexWrap);
+      /* Inside filter layout, always recompute so partial search rows fill width. */
+      var inFilterMain =
+        host.closest && host.closest(".sf-collection-layout .sf-layout-main");
+      ensureDawnFlexColumnWidths(host, Boolean(inFilterMain));
       return;
     }
     if (display.indexOf("grid") === -1) {
+      if (dawnFlexColumnCount(host) >= 2) {
+        ensureDawnFlexColumnWidths(host, true);
+        return;
+      }
       ensureFallbackProductGridTracks(host);
       return;
     }
     if (snap.horizonCols) {
       host.style.setProperty("--product-grid-columns-desktop", snap.horizonCols);
     }
+    var inFilterMain =
+      host.closest && host.closest(".sf-collection-layout .sf-layout-main");
+    var dawnCols = dawnFlexColumnCount(host);
+    /* Stale full-bleed px snaps break search/collection after sidebar narrows —
+       prefer Dawn class columns or Horizon vars instead. */
+    if (
+      tracksLookLikeAbsolutePixels(snap.gridTemplateColumns) &&
+      dawnCols >= 2
+    ) {
+      clearThemeGridSnap(host);
+      ensureDawnFlexColumnWidths(host, true);
+      return;
+    }
+    if (inFilterMain && dawnCols >= 2) {
+      var visible = 0;
+      var ci;
+      for (ci = 0; ci < host.children.length; ci++) {
+        var kid = host.children[ci];
+        if (!kid || kid.nodeType !== 1) continue;
+        if (typeof isGridChrome === "function" && isGridChrome(kid)) continue;
+        if (kid.id === CARD_TRAY_ID || kid.id === EMPTY_ID) continue;
+        if (!isVisibleProductCard(kid)) continue;
+        visible += 1;
+      }
+      if (visible > 0 && visible < dawnCols) {
+        host.style.setProperty("width", "100%", "important");
+        host.style.setProperty("max-width", "100%", "important");
+        host.style.setProperty(
+          "grid-template-columns",
+          "repeat(" + visible + ", minmax(0, 1fr))",
+        );
+        ensureDawnFlexColumnWidths(host, true);
+        return;
+      }
+    }
     if (tracksLookUsable(snap.gridTemplateColumns)) {
       host.style.setProperty("grid-template-columns", snap.gridTemplateColumns);
     } else if (!snap.horizonCols) {
-      ensureFallbackProductGridTracks(host);
+      if (dawnCols >= 2) {
+        ensureDawnFlexColumnWidths(host, true);
+      } else {
+        ensureFallbackProductGridTracks(host);
+      }
+    }
+  }
+
+  function scheduleRelockProductGridTracks(widget) {
+    if (!widget) return;
+    if (widget._relockTracksScheduled) return;
+    widget._relockTracksScheduled = true;
+    var run = function () {
+      widget._relockTracksScheduled = false;
+      ensureToolbarInColumnMain(widget);
+      var host =
+        resolveListingCardGrid(widget._gridParent) ||
+        resolveListingCardGrid(collectionSearchGridEl(widget)) ||
+        resolveListingCardGrid(
+          liveProductGridIn(document.querySelector(".sf-collection-layout")),
+        );
+      if (!host) return;
+      widget._gridParent = host;
+      /* Drop only full-bleed px snaps taken before the sidebar narrowed. */
+      var snap = readCachedGridSnap(host);
+      if (snap && tracksLookLikeAbsolutePixels(snap.gridTemplateColumns)) {
+        clearThemeGridSnap(host);
+      }
+      lockThemeGridTracks(host);
+      /* Always force fill after sidebar layout on search/collection filter pages. */
+      if (host.closest && host.closest(".sf-collection-layout .sf-layout-main")) {
+        ensureDawnFlexColumnWidths(host, true);
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(run);
+      });
+    } else {
+      setTimeout(run, 48);
     }
   }
 
@@ -1196,6 +1555,23 @@
     if (!el || el.nodeType !== 1 || isFullBleedHost(el)) return false;
     if (!el.classList) return false;
     if (el.classList.contains("sf-collection-layout")) return false;
+    /* Peeled outer shell — never the listing node itself. */
+    if (
+      el.classList.contains("sf-theme-width") &&
+      !isProductGridLike(el) &&
+      !isProductGridIdShell(el)
+    ) {
+      return true;
+    }
+    /* Dawn search: #product-grid.page-width is a width shell, not the card list. */
+    if (isProductGridIdShell(el)) {
+      return (
+        el.classList.contains("page-width") ||
+        el.classList.contains("page-width-desktop") ||
+        el.classList.contains("page-width--narrow") ||
+        el.classList.contains("page-width--compact")
+      );
+    }
     if (isProductGridLike(el)) return false;
     if (el.classList.contains("page-width--full")) return false;
     if (
@@ -1354,45 +1730,179 @@
   }
 
   function pickSearchWidthClassName(shell) {
-    var sample =
-      (shell &&
-        shell.querySelector &&
-        shell.querySelector(
-          ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow," +
-            ".container:not(.container-fluid), .Container, .page-container, .wrapper",
-        )) ||
-      document.querySelector(THEME_WIDTH_SELECTOR);
+    return copyThemeWidthClassName(shell, true);
+  }
+
+  /**
+   * True when the listing shell itself carries the theme max-width (Dawn search
+   * `#product-grid.page-width`). Wrapping `.sf-collection-layout` *around* that
+   * node leaves the filter+grid full-bleed; peel width to an outer shell first.
+   */
+  function listingCarriesThemeWidth(el) {
+    if (!el || !isThemeWidthContainer(el)) return false;
+    return isProductGridIdShell(el) || (isPageShellHost(el) && !isProductGridLike(el));
+  }
+
+  function copyThemeWidthClassName(el, forSearch) {
+    var sample = el;
+    if (!sample || !sample.classList || !isThemeWidthContainer(sample)) {
+      sample =
+        (el &&
+          el.querySelector &&
+          el.querySelector(
+            ".page-width:not(.page-width--full), .page-width-desktop, .page-width--narrow," +
+              ".container:not(.container-fluid), .Container, .page-container, .wrapper",
+          )) ||
+        document.querySelector(THEME_WIDTH_SELECTOR);
+    }
+    var parts = [];
     if (sample && sample.classList) {
       if (sample.classList.contains("page-width-desktop")) {
-        return "page-width-desktop sf-search-width";
+        parts.push("page-width-desktop");
+      } else if (sample.classList.contains("page-width--narrow")) {
+        parts.push("page-width", "page-width--narrow");
+      } else if (sample.classList.contains("page-width--compact")) {
+        parts.push("page-width", "page-width--compact");
+      } else if (sample.classList.contains("page-width")) {
+        parts.push("page-width");
+      } else if (
+        sample.classList.contains("container") &&
+        !sample.classList.contains("container-fluid")
+      ) {
+        parts.push("container");
+      } else if (sample.classList.contains("Container")) {
+        parts.push("Container");
+      } else if (sample.classList.contains("page-container")) {
+        parts.push("page-container");
+      } else if (sample.classList.contains("wrapper")) {
+        parts.push("wrapper");
+      } else if (sample.classList.contains("collection-wrapper")) {
+        parts.push("collection-wrapper");
       }
-      if (sample.classList.contains("page-width--narrow")) {
-        return "page-width page-width--narrow sf-search-width";
-      }
-      if (sample.classList.contains("page-width")) {
-        return "page-width sf-search-width";
-      }
-      if (sample.classList.contains("container") && !sample.classList.contains("container-fluid")) {
-        return "container sf-search-width";
-      }
-      if (sample.classList.contains("Container")) return "Container sf-search-width";
-      if (sample.classList.contains("page-container")) {
-        return "page-container sf-search-width";
-      }
-      if (sample.classList.contains("wrapper")) return "wrapper sf-search-width";
     }
-    return "page-width sf-search-width";
+    if (!parts.length) parts.push("page-width");
+    parts.push("sf-theme-width");
+    if (forSearch) parts.push("sf-search-width");
+    return parts.join(" ");
+  }
+
+  function stripThemeWidthClasses(el) {
+    if (!el || !el.classList) return;
+    el.classList.remove(
+      "page-width",
+      "page-width-desktop",
+      "page-width--narrow",
+      "page-width--compact",
+      "page-width--full",
+      "sf-search-width",
+      "sf-theme-width",
+    );
+    if (el.removeAttribute) el.removeAttribute("data-sf-theme-width");
+  }
+
+  /**
+   * Move theme max-width off a listing shell onto an outer wrapper so
+   * `.sf-collection-layout` can sit *inside* the constrained column:
+   *   .page-width.sf-theme-width > .sf-collection-layout > aside + listing
+   * Leaves title/banner siblings outside this shell untouched.
+   */
+  function peelListingThemeWidth(listing) {
+    if (!listing || !listing.parentNode || !listingCarriesThemeWidth(listing)) {
+      return null;
+    }
+    var parent = listing.parentNode;
+    if (
+      parent &&
+      parent.nodeType === 1 &&
+      parent.classList &&
+      parent.classList.contains("sf-theme-width") &&
+      isThemeWidthContainer(parent)
+    ) {
+      stripThemeWidthClasses(listing);
+      return parent;
+    }
+    var climb = parent;
+    var hops = 0;
+    while (climb && climb.nodeType === 1 && hops < 8) {
+      if (
+        climb !== listing &&
+        isThemeWidthContainer(climb) &&
+        !listingCarriesThemeWidth(climb)
+      ) {
+        stripThemeWidthClasses(listing);
+        return climb;
+      }
+      if (isFullBleedHost(climb)) break;
+      climb = climb.parentElement;
+      hops += 1;
+    }
+    var outer = document.createElement("div");
+    outer.className = copyThemeWidthClassName(listing, isSearchPageContext());
+    if (outer.setAttribute) outer.setAttribute("data-sf-theme-width", "1");
+    stripThemeWidthClasses(listing);
+    if (!safeInsertBefore(parent, outer, listing)) parent.appendChild(outer);
+    outer.appendChild(listing);
+    return outer;
   }
 
   /* Search pages only: title/form often sit in a theme width box while the
      product grid is a sibling. Wrap both in one shell so Vertical layout
      matches collections. No-op on collection templates. */
+  function safeInsertBefore(parent, node, ref) {
+    if (!parent || !node || typeof parent.insertBefore !== "function") return false;
+    if (node === parent) return false;
+    /* Same node as reference — already in the only meaningful position. */
+    if (ref && node === ref) return true;
+    try {
+      /* insertBefore requires a *direct* child as reference. Themes often nest
+         the product shell (e.g. main > ProductGridContainer > collection > ul),
+         so walk up until we hit a direct child of parent. */
+      var before = ref || null;
+      if (before && before.parentNode !== parent) {
+        while (before && before.parentNode && before.parentNode !== parent) {
+          before = before.parentNode;
+        }
+        if (!before || before.parentNode !== parent) before = null;
+      }
+      if (before === node) return true;
+      if (before && before.parentNode === parent) {
+        if (node.parentNode === parent && node.nextSibling === before) return true;
+        parent.insertBefore(node, before);
+        return true;
+      }
+      if (node.parentNode === parent && !node.nextSibling) return true;
+      parent.appendChild(node);
+      return true;
+    } catch (err) {
+      try {
+        if (node.parentNode !== parent) parent.appendChild(node);
+        return true;
+      } catch (err2) {
+        return false;
+      }
+    }
+  }
+
   function ensureSearchThemeWidthShell(grid) {
     if (!grid || !isSearchPageContext()) return null;
-    if (closestThemeWidth(grid)) return null;
+    /* Dawn search: #product-grid.page-width must not stay the width *and* listing
+       host — peel max-width to an outer .sf-theme-width so filter+grid stay
+       constrained and title/header siblings keep their own theme width. */
+    var nativeWidth = closestThemeWidth(grid);
+    if (nativeWidth) {
+      if (listingCarriesThemeWidth(nativeWidth)) {
+        var peeledNative = peelListingThemeWidth(nativeWidth);
+        if (peeledNative) {
+          if (peeledNative.classList) peeledNative.classList.add("sf-search-width");
+          return peeledNative;
+        }
+      }
+      return nativeWidth;
+    }
     var existing =
       (grid.closest && grid.closest(".sf-search-width")) ||
-      document.querySelector(".sf-search-width");
+      (grid.closest && grid.closest(".sf-theme-width")) ||
+      document.querySelector(".sf-search-width, .sf-theme-width");
     if (existing && existing.contains && existing.contains(grid)) {
       return existing;
     }
@@ -1400,6 +1910,10 @@
     if (!shell || isThemeWidthContainer(shell)) return null;
     if (shell.classList && shell.classList.contains("sf-search-width")) {
       return shell;
+    }
+    if (isProductGridIdShell(shell)) {
+      var peeledShell = peelListingThemeWidth(shell);
+      return peeledShell || shell;
     }
     var already =
       shell.querySelector &&
@@ -1494,19 +2008,379 @@
     return false;
   }
 
+  function liveProductGridIn(scope) {
+    if (!scope || !scope.querySelector) return null;
+    /* Prefer real card lists before Dawn search DIV#product-grid shell. */
+    var found =
+      scope.querySelector(
+        "ul#product-grid, ol#product-grid, ul#ProductGrid, ol#ProductGrid," +
+          " ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid," +
+          " results-list, [product-grid-view], #product-grid, #ProductGrid",
+      ) || null;
+    return resolveListingCardGrid(found);
+  }
+
+  /**
+   * Collection and search must both resolve to the card list host (UL/OL),
+   * never Dawn's DIV#product-grid.template-search__results shell.
+   */
+  function resolveListingCardGrid(el) {
+    if (!el || el.nodeType !== 1) return null;
+    if (isFindlyLayoutShell(el)) return null;
+    var card = preferProductCardGrid(el);
+    if (card && isProductGridIdShell(card)) {
+      var inner = queryInnerCardGrid(card);
+      if (inner) card = inner;
+    }
+    if (card && isPageShellHost(card) && !isActualCardGrid(card)) {
+      var nested = queryInnerCardGrid(card);
+      if (nested) card = nested;
+    }
+    if (card && !isFindlyLayoutShell(card)) return card;
+    if (isActualCardGrid(el)) return el;
+    return queryInnerCardGrid(el) || null;
+  }
+
+  function closestThemeGridShell(grid) {
+    if (!grid || grid.nodeType !== 1) return null;
+    if (isProductGridIdShell(grid)) return grid;
+    var node = grid.parentElement;
+    var hops = 0;
+    var soft = null;
+    while (node && node.nodeType === 1 && hops < 8) {
+      if (isProductGridIdShell(node) || isPageShellHost(node)) return node;
+      var id = String(node.id || "");
+      if (
+        id === "ProductGridContainer" ||
+        id === "CollectionProductGrid" ||
+        id === "CollectionAjaxContent"
+      ) {
+        return node;
+      }
+      if (node.classList) {
+        if (node.classList.contains("sf-layout-main")) break;
+        if (node.classList.contains("sf-collection-layout")) break;
+        if (node.classList.contains("product-grid-container")) return node;
+        if (node.classList.contains("template-search__results")) return node;
+        if (
+          node.classList.contains("collection") &&
+          !node.classList.contains("sf-collection-layout")
+        ) {
+          soft = soft || node;
+        }
+      }
+      node = node.parentElement;
+      hops += 1;
+    }
+    return soft;
+  }
+
+  /** Walk up detached parents so we reattach the theme wrapper tree, not only the UL. */
+  function topDetachedAncestor(el) {
+    if (!el || el.nodeType !== 1) return el;
+    var node = el;
+    while (node.parentElement) {
+      var parent = node.parentElement;
+      if (parent.isConnected !== false) break;
+      node = parent;
+    }
+    return node;
+  }
+
+  function findLiveThemeGridShell(scope) {
+    var root = scope || document;
+    if (!root || !root.querySelector) return null;
+    return (
+      root.querySelector(
+        "#ProductGridContainer, #CollectionProductGrid, #CollectionAjaxContent," +
+          " .product-grid-container",
+      ) ||
+      root.querySelector(".collection:not(.sf-collection-layout)") ||
+      null
+    );
+  }
+
+  function rememberThemeGridShell(widget, grid) {
+    if (!widget || !grid) return;
+    var shell = closestThemeGridShell(grid);
+    if (shell && shell.isConnected !== false) {
+      widget._themeGridShell = shell;
+    }
+  }
+
+  /**
+   * Match collection-page markup: keep the product UL inside the theme section
+   * shell (#ProductGridContainer > .collection > ul.product-grid). Bare ULs in
+   * .sf-layout-main lose Dawn grid column / card CSS.
+   */
+  function ensureStandardThemeGridShell(grid, widget) {
+    if (!grid || grid.nodeType !== 1) return null;
+    if (grid.classList) grid.classList.remove("sf-layout-main");
+
+    var remembered =
+      (widget &&
+        widget._themeGridShell &&
+        widget._themeGridShell.isConnected !== false &&
+        widget._themeGridShell) ||
+      null;
+    /* Prefer Dawn search results shell (#product-grid DIV) over a synthetic
+       ProductGridContainer — matches collection card CSS without remounting. */
+    var nativeResults =
+      closestThemeGridShell(grid) ||
+      (isProductGridIdShell(grid) ? grid : null);
+    if (
+      remembered &&
+      remembered.getAttribute &&
+      remembered.getAttribute("data-findly-grid-shell") === "1" &&
+      nativeResults &&
+      nativeResults !== remembered
+    ) {
+      remembered = null;
+    }
+    var shell =
+      (nativeResults &&
+      (isProductGridIdShell(nativeResults) || isPageShellHost(nativeResults))
+        ? nativeResults
+        : null) ||
+      (remembered && (remembered.contains(grid) || !liveProductGridIn(remembered))
+        ? remembered
+        : null) ||
+      findLiveThemeGridShell(
+        document.querySelector(".sf-layout-main") || document,
+      );
+
+    if (shell && isProductGridLike(shell) && !isProductGridIdShell(shell)) {
+      shell = null;
+    }
+
+    /* Native Dawn search/collection results shells: keep overlay + ul as-is. */
+    if (shell && isProductGridIdShell(shell)) {
+      if (shell.setAttribute) shell.setAttribute("data-findly-grid-shell", "1");
+      if (widget) widget._themeGridShell = shell;
+      return shell;
+    }
+
+    if (!shell || shell.isConnected === false) {
+      shell = document.createElement("div");
+      shell.id = "ProductGridContainer";
+      shell.className = "product-grid-container";
+      shell.setAttribute("data-findly-grid-shell", "1");
+    } else if (shell.setAttribute) {
+      shell.setAttribute("data-findly-grid-shell", "1");
+    }
+
+    var collection = null;
+    if (
+      shell.classList &&
+      shell.classList.contains("collection") &&
+      !shell.classList.contains("sf-collection-layout")
+    ) {
+      collection = shell;
+    } else if (shell.children) {
+      var ci;
+      for (ci = 0; ci < shell.children.length; ci++) {
+        var kid = shell.children[ci];
+        if (
+          kid &&
+          kid.classList &&
+          kid.classList.contains("collection") &&
+          !kid.classList.contains("sf-collection-layout")
+        ) {
+          collection = kid;
+          break;
+        }
+      }
+    }
+
+    if (!collection) {
+      if (
+        shell.id === "ProductGridContainer" ||
+        (shell.classList && shell.classList.contains("product-grid-container")) ||
+        shell.getAttribute("data-findly-grid-shell") === "1"
+      ) {
+        collection = document.createElement("div");
+        collection.className = "collection";
+        /* Keep loading-overlay siblings ahead of the product list. */
+        var overlay = null;
+        var oi;
+        if (shell.children) {
+          for (oi = 0; oi < shell.children.length; oi++) {
+            if (
+              shell.children[oi].classList &&
+              shell.children[oi].classList.contains("loading-overlay")
+            ) {
+              overlay = shell.children[oi];
+              break;
+            }
+          }
+        }
+        if (overlay && overlay.parentNode === shell) {
+          if (!safeInsertBefore(shell, collection, overlay.nextSibling)) {
+            shell.appendChild(collection);
+          }
+        } else {
+          shell.appendChild(collection);
+        }
+      } else {
+        collection = shell;
+      }
+    }
+
+    if (!collection.contains(grid) && canMoveNode(collection, grid)) {
+      collection.appendChild(grid);
+    }
+
+    if (widget) widget._themeGridShell = shell;
+    return shell;
+  }
+
+  function isListingChromeHost(el) {
+    if (!el || el.nodeType !== 1) return false;
+    return (
+      isProductGridIdShell(el) ||
+      isPageShellHost(el) ||
+      isProductGridLike(el) ||
+      isThemeManagedGrid(el) ||
+      isResultsListEl(el)
+    );
+  }
+
+  function collectFindlyChromeDeep(root, out, limit) {
+    if (!root || !root.querySelectorAll || !out) return out;
+    var nodes = root.querySelectorAll(
+      ".sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-page-chips, .sf-pager",
+    );
+    var i;
+    var max = typeof limit === "number" ? limit : 24;
+    for (i = 0; i < nodes.length && out.length < max; i++) {
+      if (nodes[i] && isFindlyLayoutChrome(nodes[i])) out.push(nodes[i]);
+    }
+    return out;
+  }
+
+  function placeChromeBeforeListing(main, shell) {
+    if (!main || !shell || !main.contains(shell)) return;
+    /* Real column main only — never treat Dawn search DIV#product-grid as main. */
+    if (isListingChromeHost(main) || !isColumnMain(main)) {
+      var realMain = findColumnMainContaining(shell) || ensureBlockMain(shell);
+      if (realMain && realMain !== main && !isListingChromeHost(realMain)) {
+        main = realMain;
+        if (!main.contains(shell) && canMoveNode(main, shell)) {
+          main.appendChild(shell);
+        }
+      }
+    }
+    if (!main || !main.contains(shell)) return;
+    var chrome = [];
+    var i;
+    for (i = 0; i < main.children.length; i++) {
+      var child = main.children[i];
+      if (!child || child === shell) continue;
+      if (isFindlyLayoutChrome(child)) chrome.push(child);
+    }
+    /* Search often leaves toolbar inside the listing shell / UL — hoist it out. */
+    collectFindlyChromeDeep(shell, chrome, 24);
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+    for (i = chrome.length - 1; i >= 0; i--) {
+      var node = chrome[i];
+      if (!node || (seen && seen.has(node))) continue;
+      if (seen) seen.add(node);
+      if (shell.contains(node) || node.parentNode !== main) {
+        safeInsertBefore(main, node, shell);
+      } else if (node.parentNode === main) {
+        safeInsertBefore(main, node, shell);
+      }
+    }
+  }
+
+  /**
+   * Keep search product listing mounted like collection pages: theme shell inside
+   * .sf-layout-main, product UL inside that shell (not a bare orphan UL).
+   */
+  function ensureProductGridMounted(widget) {
+    if (!widget) return null;
+    var grid = widget._gridParent;
+    if (!grid || grid.nodeType !== 1) {
+      grid =
+        liveProductGridIn(document.querySelector(".sf-collection-layout")) ||
+        liveProductGridIn(document) ||
+        null;
+      if (!grid) return null;
+      widget._gridParent = grid;
+    }
+
+    if (grid.isConnected !== false) {
+      rememberThemeGridShell(widget, grid);
+    }
+
+    var layout = document.querySelector(".sf-collection-layout");
+    var main = layout && layout.querySelector(".sf-layout-main");
+    var connected = grid.isConnected !== false;
+
+    if (!connected) {
+      var mountRoot = topDetachedAncestor(grid) || grid;
+      if (main && mountRoot && !isProductGridLike(mountRoot) && canMoveNode(main, mountRoot)) {
+        /* Detached tree still has theme wrappers — remount the whole tree. */
+        main.appendChild(mountRoot);
+        connected = grid.isConnected !== false;
+      }
+    }
+
+    var shell = ensureStandardThemeGridShell(grid, widget);
+    if (main && shell) {
+      if (!main.contains(shell) && canMoveNode(main, shell)) {
+        main.appendChild(shell);
+      }
+      placeChromeBeforeListing(main, shell);
+    } else if (
+      main &&
+      grid &&
+      !main.contains(grid) &&
+      canMoveNode(main, grid)
+    ) {
+      /* Last resort — still wrap before leaving a bare UL in main. */
+      shell = ensureStandardThemeGridShell(grid, widget);
+      if (shell && canMoveNode(main, shell)) main.appendChild(shell);
+      else main.appendChild(grid);
+      if (shell) placeChromeBeforeListing(main, shell);
+    }
+
+    showEl(grid);
+    if (shell && shell !== grid) showEl(shell);
+    grid.removeAttribute("data-findly-orphan-hidden");
+    if (shell) shell.removeAttribute("data-findly-orphan-hidden");
+    widget._gridParent =
+      resolveListingCardGrid(grid) || preferProductCardGrid(grid) || grid;
+    lockThemeGridTracks(widget._gridParent);
+    scheduleRelockProductGridTracks(widget);
+    if (!connected || (main && shell && !main.contains(grid))) {
+      gridLog("normalized product grid shell", {
+        id: widget._gridParent && widget._gridParent.id,
+        shellId: shell && shell.id,
+        className: String(
+          (widget._gridParent && widget._gridParent.className) || "",
+        ).slice(0, 80),
+        connected: widget._gridParent && widget._gridParent.isConnected !== false,
+      });
+    }
+    return widget._gridParent;
+  }
+
   /* Search only: move theme title/search form ABOVE the two-column layout so
      the filter sidebar aligns with the product grid, not the page heading. */
   function liftSearchPageHeaderAboveLayout(layout, widget) {
     if (!layout || !layout.parentNode || !isSearchPageContext(widget)) return;
     var parent = layout.parentNode;
+    /* Prefer a LIVE grid inside the layout — a disconnected _gridParent makes
+       every listing wrapper look like a "header" and get lifted out. */
     var grid =
-      (widget && widget._gridParent) ||
+      liveProductGridIn(layout) ||
       collectionSearchGridEl(widget) ||
-      (layout.querySelector &&
-        layout.querySelector(
-          "#product-grid, #ProductGrid, #ProductGridContainer, ul.product-grid," +
-            " .sf-app-grid, results-list, .main-collection-grid",
-        ));
+      (widget &&
+      widget._gridParent &&
+      widget._gridParent.isConnected !== false
+        ? widget._gridParent
+        : null);
     var main = layout.querySelector(".sf-layout-main");
     if (!main || !main.children) return;
     var toLift = [];
@@ -1515,7 +2389,12 @@
       var child = main.children[i];
       if (!child || child.nodeType !== 1) continue;
       if (isFindlyLayoutChrome(child)) continue;
-      if (grid && child.contains && child.contains(grid)) break;
+      if (child.classList && child.classList.contains("sf-toolbar")) continue;
+      /* Never lift the product listing or its theme shells (even if empty). */
+      if (isProductGridLike(child) || isPageShellHost(child)) break;
+      if (grid && (child === grid || (child.contains && child.contains(grid)))) {
+        break;
+      }
       if (nodeContainsProductResults(child)) break;
       if (isSearchPageHeaderEl(child, grid)) {
         toLift.push(child);
@@ -1530,31 +2409,46 @@
     }
     for (i = 0; i < toLift.length; i++) {
       var node = toLift[i];
-      if (node.parentNode === parent) {
-        if (node.nextSibling === layout) continue;
-        parent.insertBefore(node, layout);
-        continue;
-      }
+      if (isProductGridLike(node) || isPageShellHost(node)) continue;
+      if (nodeContainsProductResults(node)) continue;
+      if (node.classList && node.classList.contains("sf-toolbar")) continue;
+      if (node.parentNode === parent && node.nextSibling === layout) continue;
       if (node.setAttribute) node.setAttribute("data-sf-search-header", "1");
-      parent.insertBefore(node, layout);
+      safeInsertBefore(parent, node, layout);
     }
+    /* If a prior pass parked .sf-toolbar on .sf-theme-width, pull it back. */
+    ensureToolbarInColumnMain(widget);
   }
 
   function wrapSearchResultsOnly(pageWidth, grid) {
     if (!pageWidth || isProductGridLike(pageWidth)) return null;
+    /* Listing that still owns page-width: peel first, then wrap results only. */
+    if (listingCarriesThemeWidth(pageWidth)) {
+      var peeledWrap = peelListingThemeWidth(pageWidth);
+      if (peeledWrap) pageWidth = peeledWrap;
+      if (!pageWidth || listingCarriesThemeWidth(pageWidth)) {
+        return ensureBlockMain(pageWidth);
+      }
+    }
     var existing = null;
+    var existingMain = null;
     var i;
     for (i = 0; i < pageWidth.children.length; i++) {
-      if (
-        pageWidth.children[i].classList &&
-        pageWidth.children[i].classList.contains("sf-collection-layout")
-      ) {
-        existing = pageWidth.children[i];
-        break;
+      var direct = pageWidth.children[i];
+      if (!direct || !direct.classList) continue;
+      if (direct.classList.contains("sf-collection-layout")) {
+        existing = direct;
+      }
+      if (direct.classList.contains("sf-layout-main")) {
+        existingMain = existingMain || direct;
       }
     }
     if (existing) {
       return existing.querySelector(".sf-layout-main") || existing;
+    }
+    /* Idempotent: never wrap an existing .sf-layout-main in another main. */
+    if (existingMain) {
+      return existingMain;
     }
     var nested =
       pageWidth.querySelector && pageWidth.querySelector(".sf-collection-layout");
@@ -1568,9 +2462,25 @@
     var main = document.createElement("div");
     main.className = "sf-layout-main";
     var sawResults = false;
+    var liveGrid = grid && grid.isConnected !== false ? grid : liveProductGridIn(pageWidth);
     for (i = 0; i < kids.length; i++) {
       var child = kids[i];
-      if (!sawResults && isSearchPageHeaderEl(child, grid)) {
+      if (child.classList && child.classList.contains("sf-layout-main")) {
+        return child;
+      }
+      /* Always keep listing shells/grids inside main — never treat as headers. */
+      if (
+        isProductGridLike(child) ||
+        isPageShellHost(child) ||
+        isProductGridIdShell(child) ||
+        nodeContainsProductResults(child) ||
+        (liveGrid && child.contains && child.contains(liveGrid))
+      ) {
+        sawResults = true;
+        main.appendChild(child);
+        continue;
+      }
+      if (!sawResults && isSearchPageHeaderEl(child, liveGrid)) {
         if (child.setAttribute) child.setAttribute("data-sf-search-header", "1");
         continue;
       }
@@ -1621,7 +2531,7 @@
       if (host.classList) host.classList.remove("sf-layout-main");
       var gridWrap = document.createElement("div");
       gridWrap.className = "sf-layout-main";
-      parent.insertBefore(gridWrap, host);
+      safeInsertBefore(parent, gridWrap, host);
       gridWrap.appendChild(host);
       return gridWrap;
     }
@@ -1631,7 +2541,7 @@
     if (!needsBlockMainWrap(host)) return host;
     var wrap = document.createElement("div");
     wrap.className = "sf-layout-main";
-    parent.insertBefore(wrap, host);
+    safeInsertBefore(parent, wrap, host);
     wrap.appendChild(host);
     return wrap;
   }
@@ -1683,10 +2593,31 @@
     if (!host) return host;
     var listingShell =
       closestCollectionWrapper(grid) || closestCollectionWrapper(host);
-    if (isProductGridLike(host) && listingShell && listingShell.contains(host)) {
+    /* Same host preference as collection pages: ProductGridContainer / theme
+       section shell — never treat the bare product UL as the layout host. */
+    var themeShell =
+      closestThemeGridShell(grid) ||
+      (isPageShellHost(host) ? host : null) ||
+      closestThemeGridShell(host);
+    if (themeShell && isProductGridLike(themeShell)) themeShell = null;
+    if (isProductGridLike(host) && themeShell && themeShell.contains(host)) {
+      host = themeShell;
+    } else if (isProductGridLike(host) && listingShell && listingShell.contains(host)) {
       host = listingShell;
     } else if (isProductGridLike(host)) {
-      host = host.parentElement || host;
+      host = (themeShell && themeShell.contains(host) ? themeShell : null) ||
+        host.parentElement ||
+        host;
+    } else if (
+      themeShell &&
+      host &&
+      host.contains &&
+      host.contains(themeShell) &&
+      !isThemeWidthContainer(host) &&
+      !isFullBleedHost(host)
+    ) {
+      /* Host is an intermediate wrapper — prefer the theme product section. */
+      host = themeShell;
     }
     var pageWidth =
       closestThemeWidth(grid) ||
@@ -1700,11 +2631,31 @@
     }
     if (pageWidth && isProductGridLike(pageWidth)) pageWidth = null;
     if (!pageWidth) {
+      if (themeShell) return ensureBlockMain(themeShell);
       if (listingShell) return ensureBlockMain(listingShell);
       if (isFullBleedHost(host) && grid && host.contains && host.contains(grid)) {
         return ensureBlockMain(host);
       }
       return ensureBlockMain(host);
+    }
+    /* Listing that also owns page-width: peel width outward, wrap the listing
+       so `.sf-collection-layout` lands inside the constrained column. */
+    if (listingCarriesThemeWidth(pageWidth)) {
+      var listingEl = pageWidth;
+      var peeledHost = peelListingThemeWidth(listingEl);
+      if (peeledHost) pageWidth = peeledHost;
+      if (pageWidth && listingEl && pageWidth.contains(listingEl)) {
+        return ensureBlockMain(listingEl);
+      }
+      var peeledListing =
+        (isProductGridIdShell(host) && host) ||
+        (themeShell && pageWidth && pageWidth.contains(themeShell) ? themeShell : null) ||
+        themeWidthChildContaining(pageWidth, grid) ||
+        (pageWidth && pageWidth.firstElementChild);
+      if (peeledListing && peeledListing !== pageWidth) {
+        return ensureBlockMain(peeledListing);
+      }
+      return wrapInsidePageWidth(pageWidth) || ensureBlockMain(host);
     }
     if (
       host === pageWidth ||
@@ -1712,18 +2663,26 @@
       isProductGridLike(host) ||
       (host.contains && host.contains(pageWidth) && host !== pageWidth)
     ) {
-      var child = themeWidthChildContaining(pageWidth, grid);
+      var child =
+        (themeShell &&
+          !listingCarriesThemeWidth(themeShell) &&
+          pageWidth.contains(themeShell) &&
+          themeShell) ||
+        themeWidthChildContaining(pageWidth, grid);
       if (!child) {
         var slot = pageWidth.querySelector(
-          "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid, results-list",
+          "#ProductGridContainer, #CollectionProductGrid, #product-grid, #ProductGrid," +
+            " ul.product-grid, ol.product-grid, .main-collection-grid, .sf-app-grid, results-list",
         );
-        child = themeWidthChildContaining(pageWidth, slot);
+        child = themeWidthChildContaining(pageWidth, slot) || slot;
       }
       if (child && child !== pageWidth && !isThemeWidthContainer(child)) {
-        /* Search: wrap results only — leave title/form as siblings above layout. */
+        /* Search: wrap results only — leave title/form as siblings above layout.
+           Prefer the theme product section shell (collection parity). */
         if (
           pageWidth.classList &&
-          pageWidth.classList.contains("sf-search-width")
+          (pageWidth.classList.contains("sf-search-width") ||
+            pageWidth.classList.contains("sf-theme-width"))
         ) {
           return wrapSearchResultsOnly(pageWidth, grid) || ensureBlockMain(child);
         }
@@ -1731,7 +2690,8 @@
       }
       if (
         pageWidth.classList &&
-        pageWidth.classList.contains("sf-search-width")
+        (pageWidth.classList.contains("sf-search-width") ||
+          pageWidth.classList.contains("sf-theme-width"))
       ) {
         return wrapSearchResultsOnly(pageWidth, grid) || ensureBlockMain(host);
       }
@@ -1753,7 +2713,7 @@
       var gridHost = layout.parentNode;
       var grand = gridHost.parentNode;
       if (!grand) break;
-      grand.insertBefore(layout, gridHost);
+      safeInsertBefore(grand, layout, gridHost);
       var main = null;
       var ci;
       for (ci = 0; ci < layout.children.length; ci++) {
@@ -1914,12 +2874,18 @@
       if (!layout) return;
       if (layout.getAttribute("data-sf-layout-stable") === "1") {
         flattenHorizonCollectionWrapper(layout);
+        ensureProductGridMounted(widget);
         return;
       }
       var stamped = layout.querySelectorAll(".sf-layout-main");
       var si;
       for (si = 0; si < stamped.length; si++) {
-        if (isProductGridLike(stamped[si]) || isThemeManagedGrid(stamped[si])) {
+        if (
+          isProductGridLike(stamped[si]) ||
+          isThemeManagedGrid(stamped[si]) ||
+          isProductGridIdShell(stamped[si]) ||
+          isPageShellHost(stamped[si])
+        ) {
           stamped[si].classList.remove("sf-layout-main");
           ensureBlockMain(stamped[si]);
         }
@@ -1943,7 +2909,7 @@
           (widget && widget._gridParent) || collectionSearchGridEl(widget);
         var child = themeWidthChildContaining(pageWidth, grid);
         if (child && child.parentNode === pageWidth) {
-          pageWidth.insertBefore(layout, child);
+          safeInsertBefore(pageWidth, layout, child);
           var mainCol = layout.querySelector(".sf-layout-main");
           if (mainCol && !mainCol.contains(child)) mainCol.appendChild(child);
         }
@@ -1951,6 +2917,7 @@
       normalizeLayoutShell(layout);
       liftSearchPageHeaderAboveLayout(layout, widget);
       flattenHorizonCollectionWrapper(layout);
+      ensureProductGridMounted(widget);
       if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
     } catch (err) {
       /* ignore layout repair failures */
@@ -2012,7 +2979,7 @@
     if (position === "right") {
       if (existing.lastChild !== mount) existing.appendChild(mount);
     } else if (existing.firstChild !== mount) {
-      existing.insertBefore(mount, existing.firstChild);
+      safeInsertBefore(existing, mount, existing.firstChild);
     }
     return existing;
   }
@@ -2056,6 +3023,17 @@
       ensureSearchThemeWidthShell(grid) ||
       findThemeWidthNearMain(grid);
     if (!pageWidth || isProductGridLike(pageWidth)) return;
+    /* If the width box is still the listing shell, peel first so layout can
+       live inside the theme column instead of replacing it (full bleed). */
+    if (listingCarriesThemeWidth(pageWidth)) {
+      var peeledFit = peelListingThemeWidth(pageWidth);
+      if (peeledFit) pageWidth = peeledFit;
+    }
+    if (!pageWidth || isProductGridLike(pageWidth) || listingCarriesThemeWidth(pageWidth)) {
+      normalizeLayoutShell(layout);
+      liftSearchPageHeaderAboveLayout(layout, widget);
+      return;
+    }
     if (pageWidth.contains(layout) && layout !== pageWidth) {
       normalizeLayoutShell(layout);
       liftSearchPageHeaderAboveLayout(layout, widget);
@@ -2065,20 +3043,27 @@
     if (layout.contains(pageWidth)) {
       var parent = layout.parentNode;
       if (!parent) return;
-      parent.insertBefore(pageWidth, layout);
-      if (pageWidth.classList) {
-        pageWidth.classList.remove("sf-layout-main");
+      var mainCol = layout.querySelector(".sf-layout-main");
+      if (!mainCol) {
+        mainCol = document.createElement("div");
+        mainCol.className = "sf-layout-main";
+        layout.appendChild(mainCol);
       }
-      var nestedMain = document.createElement("div");
-      nestedMain.className = "sf-layout-main";
-      while (pageWidth.firstChild) nestedMain.appendChild(pageWidth.firstChild);
+      /* Extract width shell, keep its listing children, then nest layout
+         inside it so theme max-width wraps filter + grid (not full bleed). */
+      safeInsertBefore(parent, pageWidth, layout);
+      if (pageWidth.classList) pageWidth.classList.remove("sf-layout-main");
+      while (pageWidth.firstChild) {
+        var widthChild = pageWidth.firstChild;
+        if (widthChild === layout) break;
+        mainCol.appendChild(widthChild);
+      }
       pageWidth.appendChild(layout);
-      layout.appendChild(nestedMain);
       var aside =
         layout.querySelector(".sf-layout-aside") ||
         (widget && widget.root);
       if (aside && aside.parentNode === layout && layout.firstChild !== aside) {
-        layout.insertBefore(aside, layout.firstChild);
+        safeInsertBefore(layout, aside, layout.firstChild);
       }
       normalizeLayoutShell(layout);
       liftSearchPageHeaderAboveLayout(layout, widget);
@@ -2087,7 +3072,7 @@
 
     var child = themeWidthChildContaining(pageWidth, grid);
     if (child && child.parentNode === pageWidth && !isThemeWidthContainer(child)) {
-      pageWidth.insertBefore(layout, child);
+      safeInsertBefore(pageWidth, layout, child);
       var mainCol = layout.querySelector(".sf-layout-main");
       if (mainCol && !mainCol.contains(child) && child.parentNode === pageWidth) {
         mainCol.appendChild(child);
@@ -2104,7 +3089,7 @@
     );
     var before = themeWidthChildContaining(pageWidth, slot) || pageWidth.firstChild;
     if (before && before.parentNode === pageWidth) {
-      pageWidth.insertBefore(layout, before);
+      safeInsertBefore(pageWidth, layout, before);
     } else {
       pageWidth.appendChild(layout);
     }
@@ -2163,7 +3148,7 @@
       return parent;
     }
     var wrapper = document.createElement("div");
-    parent.insertBefore(wrapper, el);
+    if (!safeInsertBefore(parent, wrapper, el)) parent.appendChild(wrapper);
     main = document.createElement("div");
     main.className = "sf-layout-main";
     wrapper.appendChild(main);
@@ -2876,7 +3861,7 @@
       if (el.classList && el.classList.contains("sf-app-card")) {
         holder.className = holder.className + " sf-app-card";
       }
-      if (el.parentNode === parent) parent.insertBefore(holder, el);
+      if (el.parentNode === parent) safeInsertBefore(parent, holder, el);
       holder.appendChild(el);
       el = holder;
     }
@@ -2906,8 +3891,8 @@
       if (chrome && el.nextSibling === chrome) return;
       if (!chrome && el === parent.lastElementChild) return;
     }
-    if (chrome && el !== chrome) parent.insertBefore(el, chrome);
-    else parent.appendChild(el);
+    if (chrome && el !== chrome) safeInsertBefore(parent, el, chrome);
+    else if (el.parentNode !== parent) parent.appendChild(el);
   }
 
   function attachOrphanToShown(orphanEl, handle, shownCards) {
@@ -2994,6 +3979,9 @@
   }
 
   function isBusyPainted() {
+    if (document.querySelector("[data-findly-theme-loading='1'], [data-findly-theme-loader='1']")) {
+      return true;
+    }
     var skels = document.querySelectorAll("[" + SKEL_ATTR + "='1']");
     var i;
     for (i = 0; i < skels.length; i++) {
@@ -3007,6 +3995,182 @@
       }
     }
     return false;
+  }
+
+  var THEME_LOADER_SELECTOR =
+    ".loading-overlay, .loading-overlay--sticky, [data-loading-overlay]," +
+    " .collection__loading, .collection-loading, .ajax-loading, .facets-loading";
+
+  function findThemeLoadingOverlay(host) {
+    var scopes = [];
+    if (host && host.nodeType === 1) {
+      scopes.push(host);
+      if (host.parentElement) scopes.push(host.parentElement);
+      try {
+        var shell =
+          (host.closest &&
+            (host.closest("#ProductGridContainer") ||
+              host.closest("#CollectionProductGrid") ||
+              host.closest("#CollectionAjaxContent") ||
+              host.closest(".product-grid-container") ||
+              host.closest(".collection") ||
+              host.closest("results-list"))) ||
+          null;
+        if (shell) scopes.push(shell);
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    scopes.push(document);
+    var i;
+    var j;
+    for (i = 0; i < scopes.length; i++) {
+      var scope = scopes[i];
+      if (!scope || !scope.querySelectorAll) continue;
+      var nodes = scope.querySelectorAll(THEME_LOADER_SELECTOR);
+      for (j = 0; j < nodes.length; j++) {
+        var el = nodes[j];
+        if (
+          el.closest &&
+          el.closest(
+            "header, footer, .header, .footer, predictive-search, .predictive-search, cart-drawer, #CartDrawer",
+          )
+        ) {
+          continue;
+        }
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function findThemeLoadingContainer(host, overlay) {
+    if (overlay && overlay.parentElement && overlay.parentElement.nodeType === 1) {
+      return overlay.parentElement;
+    }
+    if (host && host.closest) {
+      return (
+        host.closest("#ProductGridContainer") ||
+        host.closest("#CollectionProductGrid") ||
+        host.closest("#CollectionAjaxContent") ||
+        host.closest(".product-grid-container") ||
+        host.closest(".collection") ||
+        host.closest("results-list") ||
+        host
+      );
+    }
+    return host || null;
+  }
+
+  function rememberThemeLoaderPrev(el) {
+    if (!el || el.hasAttribute("data-findly-theme-loader-prev")) return;
+    if (el.hasAttribute("hidden")) {
+      el.setAttribute("data-findly-theme-loader-prev", "hidden");
+      return;
+    }
+    if (el.classList && el.classList.contains("hidden")) {
+      el.setAttribute("data-findly-theme-loader-prev", "class-hidden");
+      return;
+    }
+    try {
+      if (el.style && String(el.style.display || "") === "none") {
+        el.setAttribute("data-findly-theme-loader-prev", "display-none");
+        return;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    el.setAttribute("data-findly-theme-loader-prev", "visible");
+  }
+
+  function restoreThemeLoaderPrev(el) {
+    if (!el) return;
+    var prev = el.getAttribute("data-findly-theme-loader-prev") || "";
+    el.removeAttribute("data-findly-theme-loader");
+    el.removeAttribute("data-findly-theme-loader-prev");
+    if (prev === "hidden") {
+      el.setAttribute("hidden", "");
+      return;
+    }
+    if (prev === "class-hidden") {
+      if (el.classList) el.classList.add("hidden");
+      return;
+    }
+    if (prev === "display-none") {
+      try {
+        el.style.display = "none";
+      } catch (err) {
+        /* ignore */
+      }
+      return;
+    }
+    if (prev === "visible") return;
+    /* Dawn default idle state when we could not snapshot. */
+    if (el.classList) el.classList.add("hidden");
+  }
+
+  /**
+   * Prefer the theme's native loading overlay / .loading class when present so
+   * search/filter fetches keep the merchant default spinner instead of Findly
+   * card skeletons. Returns true when theme UI was activated.
+   */
+  function setThemeGridLoading(host, on) {
+    if (!on) {
+      var loaders = document.querySelectorAll("[data-findly-theme-loader='1']");
+      var i;
+      for (i = 0; i < loaders.length; i++) restoreThemeLoaderPrev(loaders[i]);
+      var containers = document.querySelectorAll("[data-findly-theme-loading='1']");
+      for (i = 0; i < containers.length; i++) {
+        var c = containers[i];
+        if (c.classList) {
+          c.classList.remove("loading");
+          c.classList.remove("is-loading");
+        }
+        c.removeAttribute("aria-busy");
+        c.removeAttribute("data-findly-theme-loading");
+      }
+      return false;
+    }
+
+    var overlay = findThemeLoadingOverlay(host);
+    var container = findThemeLoadingContainer(host, overlay);
+    if (!overlay && !container) return false;
+    /* Require a real overlay OR a known theme grid shell — avoid marking
+       arbitrary nodes with .loading on themes that have no loader markup. */
+    var shellOk =
+      container &&
+      (isPageShellHost(container) ||
+        (container.id &&
+          /ProductGrid|CollectionProduct|CollectionAjax/i.test(container.id)) ||
+        (container.classList &&
+          (container.classList.contains("product-grid-container") ||
+            container.classList.contains("collection") ||
+            container.classList.contains("loading-overlay"))) ||
+        overlay);
+    if (!shellOk && !overlay) return false;
+
+    if (overlay) {
+      rememberThemeLoaderPrev(overlay);
+      overlay.removeAttribute("hidden");
+      if (overlay.classList) overlay.classList.remove("hidden");
+      try {
+        if (overlay.style && overlay.style.display === "none") {
+          overlay.style.display = "";
+        }
+      } catch (err) {
+        /* ignore */
+      }
+      overlay.setAttribute("data-findly-theme-loader", "1");
+    }
+    if (container) {
+      if (container.classList) {
+        container.classList.add("loading");
+        container.classList.add("is-loading");
+      }
+      container.setAttribute("aria-busy", "true");
+      container.setAttribute("data-findly-theme-loading", "1");
+    }
+    return true;
   }
 
   function discoverBusyHost(hint) {
@@ -3208,6 +4372,7 @@
 
   function paintGridBusy(host, on) {
     if (!on) {
+      setThemeGridLoading(host, false);
       removeBusyOverlay();
       setFilterLoading(false);
       try {
@@ -3241,6 +4406,24 @@
       return;
     }
     host = skeletonMountHost(host || discoverBusyHost());
+    /* Prefer theme default loader (Dawn/Horizon overlay) when present. */
+    if (setThemeGridLoading(host, true)) {
+      removeBusyOverlay();
+      try {
+        clearGridSkeletons(host);
+      } catch (skelClearErr) {
+        /* ignore */
+      }
+      var staleTheme = document.querySelectorAll(".findly-grid-is-busy");
+      var st;
+      for (st = 0; st < staleTheme.length; st++) {
+        staleTheme[st].classList.remove("findly-grid-is-busy");
+        staleTheme[st].removeAttribute("data-findly-skel-host");
+      }
+      /* Do not set sf-filter-loading — that hides Liquid cards for Findly skeletons. */
+      syncToolbarLoading(true);
+      return;
+    }
     if (!host) {
       setFilterLoading(true);
       return;
@@ -4205,7 +5388,9 @@
         reference = el;
         continue;
       }
-      parent.insertBefore(el, reference || null);
+      if (!safeInsertBefore(parent, el, reference || null)) {
+        if (el.parentNode !== parent) parent.appendChild(el);
+      }
       reference = el;
     }
   }
@@ -5040,26 +6225,46 @@
       var mark = document.createElement("span");
       mark.className = "sf-check";
       mark.setAttribute("aria-hidden", "true");
-      if (input.nextSibling) label.insertBefore(mark, input.nextSibling);
-      else label.appendChild(mark);
+      if (input.parentNode === label) {
+        safeInsertBefore(label, mark, input.nextSibling);
+      } else {
+        label.appendChild(mark);
+      }
     }
   }
 
   function toolbarHost() {
     var toolbar = document.querySelector(".sf-toolbar");
-    if (toolbar) return toolbar;
-    var host = document.querySelector(".sf-sort-host");
-    if (host) return host;
-    var main = document.querySelector(".sf-layout-main");
-    if (!main) {
-      var grid = document.querySelector(PRODUCT_GRID_SELECTOR);
-      main = grid && grid.parentElement;
+    if (toolbar && toolbar.parentNode && !isListingChromeHost(toolbar.parentNode)) {
+      return toolbar;
     }
-    if (!main) return null;
-    toolbar = document.createElement("div");
-    toolbar.className = "sf-toolbar";
-    if (main.firstChild) main.insertBefore(toolbar, main.firstChild);
-    else main.appendChild(toolbar);
+    var host = document.querySelector(".sf-sort-host");
+    if (
+      host &&
+      host.parentNode &&
+      !isListingChromeHost(host.parentNode) &&
+      !(host.closest && host.closest(".sf-toolbar"))
+    ) {
+      return host;
+    }
+    var grid =
+      resolveListingCardGrid(document.querySelector(PRODUCT_GRID_SELECTOR)) ||
+      document.querySelector(PRODUCT_GRID_SELECTOR);
+    var shell = closestThemeGridShell(grid);
+    var main =
+      findColumnMainContaining(grid) ||
+      (shell ? ensureBlockMain(shell) : null) ||
+      document.querySelector(".sf-layout-main");
+    if (main && (!isColumnMain(main) || isListingChromeHost(main))) {
+      main = shell ? ensureBlockMain(shell) : null;
+    }
+    if (!main || isListingChromeHost(main)) return toolbar || null;
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.className = "sf-toolbar";
+    }
+    var before = shell && main.contains(shell) ? shell : main.firstChild;
+    if (!safeInsertBefore(main, toolbar, before)) main.appendChild(toolbar);
     return toolbar;
   }
 
@@ -5164,9 +6369,7 @@
         toolbar.parentNode &&
         (slot.parentNode !== toolbar.parentNode || slot.previousSibling !== toolbar)
       ) {
-        if (toolbar.nextSibling) {
-          toolbar.parentNode.insertBefore(slot, toolbar.nextSibling);
-        } else {
+        if (!safeInsertBefore(toolbar.parentNode, slot, toolbar.nextSibling)) {
           toolbar.parentNode.appendChild(slot);
         }
       }
@@ -5177,17 +6380,14 @@
     slot.setAttribute("data-page-filter-chips", "");
     slot.hidden = true;
     if (toolbar && toolbar.parentNode) {
-      if (toolbar.nextSibling) {
-        toolbar.parentNode.insertBefore(slot, toolbar.nextSibling);
-      } else {
+      if (!safeInsertBefore(toolbar.parentNode, slot, toolbar.nextSibling)) {
         toolbar.parentNode.appendChild(slot);
       }
       return slot;
     }
     var main = document.querySelector(".sf-layout-main");
     if (main) {
-      if (main.firstChild) main.insertBefore(slot, main.firstChild);
-      else main.appendChild(slot);
+      if (!safeInsertBefore(main, slot, main.firstChild)) main.appendChild(slot);
       return slot;
     }
     return null;
@@ -5506,7 +6706,11 @@
       }
       if (backdrop && backdrop.classList.contains("sf-drawer-portal")) {
         backdrop.classList.remove("sf-drawer-portal", "is-open");
-        widget.root.insertBefore(backdrop, panel);
+        if (panel.parentNode === widget.root) {
+          safeInsertBefore(widget.root, backdrop, panel);
+        } else {
+          widget.root.appendChild(backdrop);
+        }
       }
       if (toggle && toggle.classList.contains("sf-toggle-toolbar")) {
         toggle.classList.remove("sf-toggle-toolbar");
@@ -6034,7 +7238,7 @@
       widget.root.closest(".shopify-block, .shopify-app-block") || widget.root;
     var form = mount.closest("form");
     if (!form || form === mount || !form.parentNode) return;
-    form.parentNode.insertBefore(mount, form);
+    safeInsertBefore(form.parentNode, mount, form);
     widget._gridParent = null;
     widget._liftedForm = true;
     if (widget._trapped && widget.syncCollectionLayout) {
@@ -6564,7 +7768,7 @@
         wrap.querySelector(".sf-options") ||
         wrap.querySelector(".sf-dropdown-wrap");
       if (!after) continue;
-      wrap.insertBefore(buildFacetValueSearch(wrap, widget), after);
+      safeInsertBefore(wrap, buildFacetValueSearch(wrap, widget), after);
     }
   }
 
@@ -6590,8 +7794,100 @@
   function isColumnMain(el) {
     if (!el || el.nodeType !== 1 || !el.classList) return false;
     if (!el.classList.contains("sf-layout-main")) return false;
-    if (isProductGridLike(el) || isThemeManagedGrid(el)) return false;
+    /* Dawn search stamps sf-layout-main on DIV#product-grid — reject that. */
+    if (
+      isProductGridLike(el) ||
+      isThemeManagedGrid(el) ||
+      isProductGridIdShell(el) ||
+      isPageShellHost(el) ||
+      isResultsListEl(el)
+    ) {
+      return false;
+    }
+    /* Never treat the filter sidebar as the product column. */
+    if (el.classList.contains("sf-layout-aside")) return false;
+    if (el.classList.contains("smart-filter")) return false;
+    if (el.classList.contains("sf-collection-layout")) return false;
     return true;
+  }
+
+  function isToolbarAnchorParent(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (!isColumnMain(el)) return false;
+    /* Console verify showed toolbar parked on .sf-theme-width (sibling of layout). */
+    if (el.classList) {
+      if (el.classList.contains("sf-theme-width")) return false;
+      if (el.classList.contains("sf-search-width")) return false;
+      if (el.classList.contains("page-width")) return false;
+      if (el.classList.contains("sf-collection-layout")) return false;
+      if (el.classList.contains("sf-layout-aside")) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Collection parity: Sort + count live in `.sf-layout-main` above the listing
+   * shell — never on `.sf-theme-width` / page-width (search console: toolbar path).
+   */
+  function ensureToolbarInColumnMain(widget) {
+    var layout = document.querySelector(".sf-collection-layout");
+    if (!layout) return null;
+    var main =
+      findColumnMainContaining(
+        (widget && widget._gridParent) ||
+          (widget && widget._themeGridShell) ||
+          null,
+      ) || null;
+    if (!main || !isColumnMain(main)) {
+      var mains = layout.querySelectorAll(":scope > .sf-layout-main, .sf-layout-main");
+      var i;
+      for (i = 0; i < mains.length; i++) {
+        if (isColumnMain(mains[i])) {
+          main = mains[i];
+          break;
+        }
+      }
+    }
+    if (!main || !isColumnMain(main)) {
+      var shellHint =
+        (widget && widget._themeGridShell) ||
+        layout.querySelector("[data-findly-grid-shell='1']") ||
+        layout.querySelector(
+          "#ProductGridContainer, #product-grid, .product-grid-container",
+        );
+      if (shellHint) main = ensureBlockMain(shellHint);
+    }
+    if (!main || !isColumnMain(main)) return null;
+    if (main.classList) main.classList.add("sf-layout-main");
+    var shell =
+      (widget &&
+        widget._themeGridShell &&
+        main.contains(widget._themeGridShell) &&
+        widget._themeGridShell) ||
+      main.querySelector(":scope > [data-findly-grid-shell='1']") ||
+      main.querySelector(
+        ":scope > #ProductGridContainer, :scope > #product-grid, :scope > .product-grid-container, :scope > .template-search__results",
+      ) ||
+      main.querySelector("[data-findly-grid-shell='1']") ||
+      main.querySelector(
+        "#ProductGridContainer, #product-grid, .product-grid-container, .template-search__results",
+      );
+    var toolbar =
+      document.querySelector(".sf-toolbar") ||
+      layout.querySelector(".sf-toolbar") ||
+      main.querySelector(".sf-toolbar");
+    if (!toolbar) return main;
+    /* Always re-home toolbar into the product column before the listing shell. */
+    if (shell && main.contains(shell)) {
+      if (toolbar.parentNode !== main || toolbar.nextElementSibling !== shell) {
+        safeInsertBefore(main, toolbar, shell);
+      }
+    } else if (toolbar.parentNode !== main) {
+      if (!safeInsertBefore(main, toolbar, main.firstChild)) {
+        main.appendChild(toolbar);
+      }
+    }
+    return main;
   }
 
   function findColumnMainContaining(grid) {
@@ -6615,21 +7911,27 @@
         ? main
         : document;
     var precise = scope.querySelector(
-      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
+      "ul#product-grid, ol#product-grid, ul.product-grid, ol.product-grid," +
+        " .sf-app-grid, .main-collection-grid, #product-grid, #ProductGrid",
     );
-    if (precise && !isFindlyLayoutShell(precise)) return precise;
+    if (precise && !isFindlyLayoutShell(precise)) {
+      return resolveListingCardGrid(precise) || precise;
+    }
     var grid = widget && widget._gridParent;
     if (
       grid &&
       !isFindlyLayoutShell(grid) &&
       (!main || main.contains(grid) || grid.contains(main))
     ) {
-      return grid;
+      return resolveListingCardGrid(grid) || grid;
     }
     try {
-      return document.querySelector(
-        "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
-      ) || scope.querySelector(PRODUCT_GRID_SELECTOR);
+      var fallback =
+        document.querySelector(
+          "ul#product-grid, ol#product-grid, ul.product-grid, ol.product-grid," +
+            " .sf-app-grid, .main-collection-grid, #product-grid, #ProductGrid",
+        ) || scope.querySelector(PRODUCT_GRID_SELECTOR);
+      return resolveListingCardGrid(fallback) || fallback;
     } catch (err) {
       return null;
     }
@@ -6749,52 +8051,52 @@
   }
 
   function listingToolbarAnchor(widget) {
-    var grid = collectionSearchGridEl(widget) || (widget && widget._gridParent);
-    var main = findColumnMainContaining(grid);
-    if (main && isColumnMain(main)) {
-      var before = grid && main.contains(grid) ? grid : null;
+    var grid =
+      resolveListingCardGrid(collectionSearchGridEl(widget)) ||
+      resolveListingCardGrid(widget && widget._gridParent) ||
+      collectionSearchGridEl(widget) ||
+      (widget && widget._gridParent);
+    var shell =
+      (widget && widget._themeGridShell) ||
+      closestThemeGridShell(grid) ||
+      (grid && isProductGridIdShell(grid) ? grid : null);
+    var main = findColumnMainContaining(grid) || findColumnMainContaining(shell);
+    if ((!main || !isToolbarAnchorParent(main)) && shell && shell.parentNode) {
+      /* Match collection: ensure a real block `.sf-layout-main` around the shell. */
+      main = ensureBlockMain(shell);
+      if (main && main.classList && !isListingChromeHost(main)) {
+        main.classList.add("sf-layout-main");
+      }
+    }
+    if (main && isToolbarAnchorParent(main)) {
+      var before =
+        shell && main.contains(shell)
+          ? shell
+          : grid && main.contains(grid)
+            ? grid
+            : null;
       while (before && before.parentNode && before.parentNode !== main) {
         before = before.parentNode;
       }
-      if (before && isProductGridLike(before.parentNode) && main.contains(before.parentNode)) {
+      if (
+        before &&
+        isListingChromeHost(before.parentNode) &&
+        main.contains(before.parentNode)
+      ) {
         before = before.parentNode;
       }
       return { parent: main, before: before || main.firstChild };
     }
-    var parent = grid && grid.parentNode ? grid.parentNode : null;
-    var beforeEl = grid;
-    var hops = 0;
-    while (
-      parent &&
-      parent.nodeType === 1 &&
-      hops < 8 &&
-      (isProductGridLike(parent) || isThemeManagedGrid(parent))
-    ) {
-      beforeEl = parent;
-      parent = parent.parentNode;
-      hops += 1;
+    var wrapped = ensureBlockMain(shell || grid);
+    if (wrapped && isToolbarAnchorParent(wrapped)) {
+      var beforeWrapped =
+        (shell && wrapped.contains(shell) && shell) ||
+        (grid && wrapped.contains(grid) && grid) ||
+        wrapped.firstChild;
+      return { parent: wrapped, before: beforeWrapped };
     }
-    if (!parent || parent.nodeType !== 1 || isFindlyLayoutShell(parent)) {
-      var fallbackGrid = document.querySelector(
-        "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .main-collection-grid",
-      );
-      parent =
-        (fallbackGrid && fallbackGrid.parentNode) ||
-        document.querySelector("#MainContent, #main, main, [role='main']");
-      beforeEl = fallbackGrid || null;
-      hops = 0;
-      while (
-        parent &&
-        parent.nodeType === 1 &&
-        hops < 8 &&
-        (isProductGridLike(parent) || isThemeManagedGrid(parent))
-      ) {
-        beforeEl = parent;
-        parent = parent.parentNode;
-        hops += 1;
-      }
-    }
-    return { parent: parent, before: beforeEl };
+    /* Never park toolbar on .sf-theme-width / page-width (search console bug). */
+    return { parent: null, before: null };
   }
 
   function scrubToolbarCountDupes(widget) {
@@ -6822,21 +8124,33 @@
     if (!widget) return;
     ensureCollectionSearchMarkup(widget);
     var wrap = widget.collectionSearchWrap;
+    var fixedMain = ensureToolbarInColumnMain(widget);
     var loc = listingToolbarAnchor(widget);
-    var parent = loc.parent;
+    var parent =
+      (fixedMain && isToolbarAnchorParent(fixedMain) && fixedMain) || loc.parent;
     var before = loc.before;
-    if (!parent || parent.nodeType !== 1) return;
+    if (!parent || parent.nodeType !== 1 || !isToolbarAnchorParent(parent)) {
+      parent = ensureToolbarInColumnMain(widget);
+      loc = listingToolbarAnchor(widget);
+      before = loc.before;
+      if (!parent || !isToolbarAnchorParent(parent)) return;
+    }
 
     var host = document.querySelector(".sf-toolbar");
     if (!host) {
       host = document.createElement("div");
       host.className = "sf-toolbar";
     }
+    /* If an old toolbar was left inside the grid shell, reuse it after hoist. */
+    if (host.parentNode && isListingChromeHost(host.parentNode)) {
+      /* will be moved below */
+    }
     if (before && before.parentNode === parent) {
-      if (host.nextSibling !== before) parent.insertBefore(host, before);
+      if (host.nextSibling !== before) safeInsertBefore(parent, host, before);
     } else if (host.parentNode !== parent) {
-      if (parent.firstChild) parent.insertBefore(host, parent.firstChild);
-      else parent.appendChild(host);
+      if (!safeInsertBefore(parent, host, parent.firstChild)) {
+        parent.appendChild(host);
+      }
     }
 
     var searchHost =
@@ -6932,6 +8246,7 @@
     scrubToolbarCountDupes(widget);
     syncToolbarLoading();
     placeMobilePageChips(widget);
+    ensureToolbarInColumnMain(widget);
   }
 
   var THEME_PAGER_SEL_GRID =
@@ -7050,6 +8365,9 @@
 
     var origEnsure = proto.ensureGridParent;
     proto.ensureGridParent = function () {
+      if (this._gridParent && this._gridParent.isConnected === false) {
+        ensureProductGridMounted(this);
+      }
       var parent = origEnsure ? origEnsure.call(this) : null;
       var inAppMode = this.isAppGridMode && this.isAppGridMode();
       var results = findResultsList();
@@ -7099,9 +8417,11 @@
         showEl(parent);
         parent.removeAttribute("data-findly-orphan-hidden");
         this._gridParent = parent;
+        rememberThemeGridShell(this, parent);
         lockThemeGridTracks(parent);
+        ensureProductGridMounted(this);
         placeCollectionSearchOnGrid(this);
-        return parent;
+        return this._gridParent || parent;
       }
 
       if (!inAppMode) {
@@ -7110,24 +8430,28 @@
         if (this._gridParent && this._gridParent.id === HOST_ID) {
           this._gridParent = null;
         }
+        var remounted = ensureProductGridMounted(this);
         placeCollectionSearchOnGrid(this);
-        return null;
+        return remounted || null;
       }
       parent = reclaimThemeGridHost(this, parent);
       if (parent && parent.id !== HOST_ID) {
         lockThemeGridTracks(parent);
+        ensureProductGridMounted(this);
         placeCollectionSearchOnGrid(this);
-        return parent;
+        return this._gridParent || parent;
       }
       if (results) {
         this._gridParent =
           preferProductCardGrid(results) || results.parentElement;
         lockThemeGridTracks(this._gridParent);
+        ensureProductGridMounted(this);
         placeCollectionSearchOnGrid(this);
         return this._gridParent;
       }
       this._gridParent = fallbackHost();
       lockThemeGridTracks(this._gridParent);
+      ensureProductGridMounted(this);
       placeCollectionSearchOnGrid(this);
       return this._gridParent;
     };
@@ -7239,16 +8563,41 @@
       } catch (err) {
         /* ignore */
       }
-      if (
-        !document.querySelector(
-          ".sf-collection-layout[data-sf-layout-stable='1']",
-        )
-      ) {
-        fitLayoutIntoThemeContainer(this);
+      try {
+        if (
+          !document.querySelector(
+            ".sf-collection-layout[data-sf-layout-stable='1']",
+          )
+        ) {
+          fitLayoutIntoThemeContainer(this);
+        }
+        ensureProductGridMounted(this);
+        scheduleRelockProductGridTracks(this);
+        portalMobileDrawer(this);
+        mountFindlyPager(this);
+        placeCollectionSearchOnGrid(this);
+        ensureToolbarInColumnMain(this);
+        /* Hoist toolbar again after mount — search often leaves it in the shell. */
+        var layoutNow = document.querySelector(".sf-collection-layout");
+        var mainNow = ensureToolbarInColumnMain(this);
+        var shellNow =
+          (this && this._themeGridShell) ||
+          (mainNow &&
+            (mainNow.querySelector("[data-findly-grid-shell='1']") ||
+              mainNow.querySelector("#ProductGridContainer, #product-grid")));
+        if (mainNow && shellNow && isColumnMain(mainNow)) {
+          placeChromeBeforeListing(mainNow, shellNow);
+        }
+        scheduleRelockProductGridTracks(this);
+      } catch (syncErr) {
+        try {
+          gridLog("syncCollectionLayout post-hook failed", {
+            message: String((syncErr && syncErr.message) || syncErr || ""),
+          });
+        } catch (logErr) {
+          /* logging is best-effort */
+        }
       }
-      portalMobileDrawer(this);
-      mountFindlyPager(this);
-      placeCollectionSearchOnGrid(this);
       return layout;
     };
 
@@ -7901,8 +9250,22 @@
       if (this._placingSort) return;
       this._placingSort = true;
       try {
+        /* Mount toolbar on the real column main first (collection parity). */
+        placeCollectionSearchOnGrid(this);
         if (origPlaceSort) origPlaceSort.call(this);
         placeCollectionSearchOnGrid(this);
+        var layout = document.querySelector(".sf-collection-layout");
+        var main = layout && layout.querySelector(".sf-layout-main");
+        var shell =
+          (this && this._themeGridShell) ||
+          (main &&
+            (main.querySelector("[data-findly-grid-shell='1']") ||
+              main.querySelector(
+                "#ProductGridContainer, #product-grid, .product-grid-container",
+              )));
+        if (main && shell && isColumnMain(main)) {
+          placeChromeBeforeListing(main, shell);
+        }
         enhanceSortMenu(this);
       } finally {
         this._placingSort = false;
@@ -8011,11 +9374,14 @@
     };
 
     proto.syncProductGrid = function (handles) {
+      ensureProductGridMounted(this);
       var parent = resolveCardHost(
         this._gridParent ||
           (this.ensureGridParent && this.ensureGridParent()),
       );
-      if (parent) this._gridParent = parent;
+      if (parent && parent.isConnected !== false) this._gridParent = parent;
+      else parent = ensureProductGridMounted(this) || parent;
+      if (parent && parent.isConnected !== false) this._gridParent = parent;
       if (
         !shouldTakeOverThemeCards(this) &&
         Math.max(1, Number(this.page) || 1) <= 1 &&

@@ -2825,13 +2825,29 @@ results-list > .sf-toolbar {
 .page-width-desktop > .sf-collection-layout,
 .page-width--narrow > .sf-collection-layout,
 .container > .sf-collection-layout,
-.sf-search-width > .sf-collection-layout {
+.sf-search-width > .sf-collection-layout,
+.sf-theme-width > .sf-collection-layout {
   width: 100%;
   max-width: 100%;
 }
 
+/* Outer peeled theme width must keep the theme max-width. Never zero it out. */
+.sf-theme-width.page-width,
+.sf-theme-width.page-width-desktop,
+.sf-theme-width.page-width--narrow,
+.sf-theme-width.container,
+.sf-theme-width.Container,
+.sf-theme-width.wrapper,
+.sf-theme-width.page-container,
+.sf-theme-width.collection-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* Nested theme width boxes inside the search shell (title/form) must fill the
-   main column — search pages only via .sf-search-width (collections untouched). */
+   main column — search pages only via .sf-search-width (collections untouched).
+   Also clear Dawn .page-width padding so #product-grid.template-search__results
+   does not squeeze 4-col cards inside the filter main column. */
 .sf-search-width .page-width,
 .sf-search-width .page-width-desktop,
 .sf-search-width .page-width--narrow,
@@ -2844,7 +2860,53 @@ results-list > .sf-toolbar {
   max-width: none !important;
   width: 100% !important;
   margin-inline: 0 !important;
+  padding-inline: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
+
+.sf-layout-main #product-grid.page-width,
+.sf-layout-main #product-grid.template-search__results,
+.sf-layout-main .template-search__results.page-width {
+  max-width: none !important;
+  width: 100% !important;
+  margin-inline: 0 !important;
+  padding-inline: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Search/collection parity: listing shell + card grid fill the filter main column. */
+.sf-collection-layout .sf-layout-main {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+
+.sf-collection-layout .sf-layout-main > #product-grid,
+.sf-collection-layout .sf-layout-main > #ProductGrid,
+.sf-collection-layout .sf-layout-main > #ProductGridContainer,
+.sf-collection-layout .sf-layout-main > .product-grid-container,
+.sf-collection-layout .sf-layout-main > [data-findly-grid-shell="1"],
+.sf-collection-layout .sf-layout-main > .template-search__results {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+.sf-collection-layout .sf-layout-main ul.product-grid,
+.sf-collection-layout .sf-layout-main ol.product-grid,
+.sf-collection-layout .sf-layout-main .main-collection-grid,
+.sf-collection-layout .sf-layout-main .sf-app-grid {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
 
 /* Title / theme search form sit ABOVE the sidebar+grid layout. */
 .sf-search-width > [data-sf-search-header="1"],
@@ -2942,19 +3004,49 @@ results-list:has(.sf-collection-layout):not(.product-grid):not(.main-collection-
   min-width: 0 !important;
 }
 
-.sf-collection-layout .product-grid,
+/* Card grids only — do not treat Dawn search DIV#product-grid as the card list. */
 .sf-collection-layout ul.product-grid,
 .sf-collection-layout ol.product-grid,
 .sf-collection-layout .main-collection-grid,
-.sf-collection-layout #product-grid,
-.sf-og .product-grid,
+.sf-collection-layout ul#product-grid,
+.sf-collection-layout ol#product-grid,
+.sf-collection-layout ul#ProductGrid,
+.sf-collection-layout ol#ProductGrid,
+.sf-collection-layout .sf-app-grid,
 .sf-og ul.product-grid,
 .sf-og ol.product-grid,
 .sf-og .main-collection-grid,
-.sf-og #product-grid {
+.sf-og ul#product-grid,
+.sf-og ol#product-grid,
+.sf-og ul#ProductGrid,
+.sf-og ol#ProductGrid,
+.sf-og .sf-app-grid {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
+}
+
+/* Search page: keep the same product-section shell as collection pages. */
+.sf-layout-main > #ProductGridContainer,
+.sf-layout-main > #CollectionProductGrid,
+.sf-layout-main > #CollectionAjaxContent,
+.sf-layout-main > .product-grid-container,
+.sf-layout-main > .collection:not(.sf-collection-layout),
+.sf-layout-main > [data-findly-grid-shell="1"],
+.sf-layout-main > #product-grid,
+.sf-layout-main > #ProductGrid,
+.sf-layout-main > .template-search__results {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.sf-layout-main .collection:not(.sf-collection-layout) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
 }
 
 .sf-collection-layout .badge,
