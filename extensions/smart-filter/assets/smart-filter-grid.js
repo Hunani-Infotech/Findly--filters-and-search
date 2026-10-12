@@ -1441,21 +1441,12 @@
       gap = 0;
     }
     /*
-     * Count VISIBLE cards only. A hidden 4th LI kept us at 25% widths with
-     * 3 search hits and a ~192px empty gap (console verify: rightGapPx).
+     * Always size by the theme/aligned column count (e.g. 3-col), never by
+     * visible card count — 1 result must stay one column wide, not full-bleed.
+     * (alignProductGridToCollection already maps search 4-col → 3-col.)
      */
-    var effectiveCols = cols;
-    if (
-      visible.length > 0 &&
-      visible.length < cols &&
-      host.closest &&
-      host.closest(".sf-collection-layout .sf-layout-main")
-    ) {
-      effectiveCols = Math.max(1, visible.length);
-    }
-    var frac = 100 / effectiveCols;
-    var spacingShare =
-      gap > 0 ? (gap * (effectiveCols - 1)) / effectiveCols : 0;
+    var frac = 100 / cols;
+    var spacingShare = gap > 0 ? (gap * (cols - 1)) / cols : 0;
     var widthExpr =
       spacingShare > 0
         ? "calc(" + frac + "% - " + spacingShare + "px)"
@@ -1477,10 +1468,10 @@
         continue;
       }
       if (!isVisibleProductCard(items[i])) continue;
-      /* Match collection: flex 1 0 auto + max-width calc(33.33% - gap). */
+      /* flex-grow 0 so a lone card cannot stretch to fill the row. */
       items[i].style.setProperty("width", widthExpr, "important");
       items[i].style.setProperty("max-width", widthExpr, "important");
-      items[i].style.setProperty("flex", "1 0 auto", "important");
+      items[i].style.setProperty("flex", "0 0 auto", "important");
       items[i].style.setProperty("box-sizing", "border-box");
     }
     normalizeCardMediaRatio(host);
@@ -1570,27 +1561,12 @@
       ensureDawnFlexColumnWidths(host, true);
       return;
     }
+    /* Keep dawnCols tracks even with fewer results — never collapse to 1 full-bleed column. */
     if (inFilterMain && dawnCols >= 2) {
-      var visible = 0;
-      var ci;
-      for (ci = 0; ci < host.children.length; ci++) {
-        var kid = host.children[ci];
-        if (!kid || kid.nodeType !== 1) continue;
-        if (typeof isGridChrome === "function" && isGridChrome(kid)) continue;
-        if (kid.id === CARD_TRAY_ID || kid.id === EMPTY_ID) continue;
-        if (!isVisibleProductCard(kid)) continue;
-        visible += 1;
-      }
-      if (visible > 0 && visible < dawnCols) {
-        host.style.setProperty("width", "100%", "important");
-        host.style.setProperty("max-width", "100%", "important");
-        host.style.setProperty(
-          "grid-template-columns",
-          "repeat(" + visible + ", minmax(0, 1fr))",
-        );
-        ensureDawnFlexColumnWidths(host, true);
-        return;
-      }
+      host.style.setProperty("width", "100%", "important");
+      host.style.setProperty("max-width", "100%", "important");
+      ensureDawnFlexColumnWidths(host, true);
+      return;
     }
     if (tracksLookUsable(snap.gridTemplateColumns)) {
       host.style.setProperty("grid-template-columns", snap.gridTemplateColumns);
