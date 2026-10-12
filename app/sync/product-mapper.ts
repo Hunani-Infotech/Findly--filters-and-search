@@ -62,6 +62,7 @@ type ShopifyProduct = {
   tags?: string[] | string | null;
   status?: string | null;
   createdAt?: string | null;
+  updatedAt?: string | null;
   publishedAt?: string | null;
   featuredImage?: { url?: string | null } | null;
   options?: Array<{
@@ -97,10 +98,23 @@ function normalizeTags(tags: ShopifyProduct["tags"]): string[] {
     .filter(Boolean);
 }
 
-function parseShopifyDate(value?: string | null): Date | null {
+export function parseShopifyDate(value?: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * W-7: ignore older Shopify source timestamps.
+ * Null existing or null incoming → not stale (apply write).
+ * Equal timestamps → not stale (idempotent rewrite OK).
+ */
+export function isShopifyUpdateStale(
+  existing: Date | null | undefined,
+  incoming: Date | null | undefined,
+): boolean {
+  if (!existing || !incoming) return false;
+  return incoming.getTime() < existing.getTime();
 }
 
 /** Variant-level % off. Never pairs one variant's price with another's compare-at. */
@@ -442,6 +456,7 @@ export function mapProductToFacet(
       publishedAt:
         parseShopifyDate(product.publishedAt) ??
         parseShopifyDate(product.createdAt),
+      shopifyUpdatedAt: parseShopifyDate(product.updatedAt),
     },
     collectionGids,
   };

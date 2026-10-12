@@ -5,6 +5,7 @@ import { log } from "../lib/log.server";
 import {
   resolveWebhookDeliveryId,
   tryRecordWebhookDelivery,
+  webhookDeliveryExists,
 } from "../services/webhook-delivery.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -18,12 +19,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     payload,
   });
 
-  const recorded = await tryRecordWebhookDelivery({
-    webhookId,
-    shopDomain: shop,
-    topic,
-  });
-  if (recorded === "duplicate") {
+  if (await webhookDeliveryExists(webhookId)) {
     log.info(
       `[billing] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
     );
@@ -46,17 +42,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       enqueueError instanceof Error
         ? enqueueError.message
         : String(enqueueError);
-    log.warn(
-      `[billing] enqueue failed for ${shop} (${reason}); fire-and-forget inline sync`,
+    log.error(
+      `[billing] enqueue failed for ${shop} (${reason}) — webhook will 5xx so Shopify retries`,
+      enqueueError,
     );
-    const { runSyncJobInline } = await import("../workers/processors");
-    void runSyncJobInline("billing.syncFromShopify", jobData).catch((error) => {
-      log.error(
-        `[billing] inline billing.syncFromShopify failed for ${shop}`,
-        error,
-      );
-    });
+    throw enqueueError;
   }
+
+  // Record only after durable enqueue so a 5xx retry is not swallowed as duplicate.
+  await tryRecordWebhookDelivery({
+    webhookId,
+    shopDomain: shop,
+    topic,
+  });
 
   return new Response(null, { status: 200 });
 };

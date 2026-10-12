@@ -5,7 +5,7 @@ import {
   type SyncJobName,
 } from "../lib/queues.server";
 
-/** Fast-ack webhook handling — enqueue Postgres jobs, run inline if enqueue fails. */
+/** Fast-ack webhook handling — durable enqueue only; failures surface as 5xx for Shopify retry. */
 export function webhookGraphqlId(
   payload: Record<string, unknown>,
   resource: "Product" | "Collection",
@@ -97,25 +97,12 @@ async function enqueueCatalogJob(
   try {
     await enqueueSyncJobWithTimeout(name, data, opts);
   } catch (error) {
-    log.error(`[webhooks] enqueue ${name} failed; running inline`, error);
-    const { runSyncJobInline } = await import("../workers/processors");
-    void runSyncJobInline(name, data).catch((error) => {
-      log.error(`[webhooks] inline ${name} failed`, error);
-    });
-    return;
+    log.error(
+      `[webhooks] enqueue ${name} failed — webhook will 5xx so Shopify retries`,
+      error,
+    );
+    throw error;
   }
-
-  const { isSyncWorkerRunning } = await import("../workers/ensure-running.server");
-  if (isSyncWorkerRunning()) return;
-  // Production web sets START_WORKER=0; worker:prod drains QueueJob. Do not
-  // also GraphQL from this process (duplicate work + idle-suspend risk).
-  if (process.env.START_WORKER === "0") return;
-
-  log.warn(`[webhooks] worker not running; processing ${name} inline`);
-  const { runSyncJobInline } = await import("../workers/processors");
-  void runSyncJobInline(name, data).catch((error) => {
-    log.error(`[webhooks] inline ${name} failed`, error);
-  });
 }
 
 export async function handleWebhookTopic(

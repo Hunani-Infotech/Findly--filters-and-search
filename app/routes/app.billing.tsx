@@ -227,6 +227,13 @@ export default function BillingPage() {
   const onPaid = data.currentPlan !== "free";
   const showFreePlan = data.partnerDevelopment || data.devUnlockLimits;
   const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
+  const subStatusRaw = String(data.subscription?.status || "").toUpperCase();
+  const pendingConfirmationUrl =
+    (subStatusRaw === "PENDING" || subStatusRaw === "ACCEPTED") &&
+    data.subscription?.confirmationUrl &&
+    isAllowedShopifyConfirmationUrl(data.subscription.confirmationUrl)
+      ? data.subscription.confirmationUrl
+      : null;
   const subStatus = data.subscription?.status
     ? data.subscription.status
     : liveUnpaid && !data.devUnlockLimits
@@ -279,16 +286,34 @@ export default function BillingPage() {
                 </Banner>
               )}
 
-            {liveUnpaid && !data.devUnlockLimits && (
-                <Banner tone="warning">
+            {pendingConfirmationUrl ? (
+              <Banner tone="warning" title="Approve your plan">
+                <BlockStack gap="200">
                   <p>
-                    Live stores use Standard or Pro. Choose a plan below to
-                    index your catalog. Standard is $
-                    {standard.amount.toFixed(2)} every 30 days; Pro is $
-                    {pro.amount.toFixed(2)} every 30 days. No trial.
+                    Shopify is waiting for you to approve the Findly
+                    subscription charge. Use Approve plan to open the saved
+                    confirmation page — a new charge is not created.
                   </p>
-                </Banner>
-              )}
+                  <Button
+                    url={pendingConfirmationUrl}
+                    external
+                    target="_top"
+                    variant="primary"
+                  >
+                    Approve plan
+                  </Button>
+                </BlockStack>
+              </Banner>
+            ) : liveUnpaid && !data.devUnlockLimits ? (
+              <Banner tone="warning">
+                <p>
+                  Live stores use Standard or Pro. Choose a plan below to index
+                  your catalog. Standard is ${standard.amount.toFixed(2)} every
+                  30 days; Pro is ${pro.amount.toFixed(2)} every 30 days. No
+                  trial.
+                </p>
+              </Banner>
+            ) : null}
 
             {!data.usage.withinLimits && (
               <Banner tone="warning">

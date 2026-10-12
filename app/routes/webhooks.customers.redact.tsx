@@ -5,11 +5,12 @@ import { log } from "../lib/log.server";
 import {
   resolveCustomersRedactWebhookId,
   tryRecordWebhookDelivery,
+  webhookDeliveryExists,
 } from "../services/webhook-delivery.server";
 
 /**
- * GDPR customers/redact: dedupe on webhook id, enqueue scrub, ack 200.
- * Scrub + ComplianceRequest audit run in the worker (not on the request path).
+ * GDPR customers/redact: durable enqueue, then delivery dedupe, ack 200.
+ * Enqueue failure → 5xx so Shopify retries (no inline scrub on the request path).
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -23,12 +24,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     payload,
   });
 
-  const recorded = await tryRecordWebhookDelivery({
-    webhookId,
-    shopDomain: shop,
-    topic,
-  });
-  if (recorded === "duplicate") {
+  if (await webhookDeliveryExists(webhookId)) {
     log.info(
       `[compliance] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
     );
@@ -53,19 +49,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       enqueueError instanceof Error
         ? enqueueError.message
         : String(enqueueError);
-    log.warn(
-      `[compliance] enqueue failed for ${shop} (${reason}); fire-and-forget inline scrub`,
+    log.error(
+      `[compliance] enqueue failed for ${shop} (${reason}) — webhook will 5xx so Shopify retries`,
+      enqueueError,
     );
-    const { runSyncJobInline } = await import("../workers/processors");
-    void runSyncJobInline("compliance.customersRedact", jobData).catch(
-      (error) => {
-        log.error(
-          `[compliance] inline compliance.customersRedact failed for ${shop}`,
-          error,
-        );
-      },
-    );
+    throw enqueueError;
   }
+
+  // Record only after durable enqueue so a 5xx retry is not swallowed as duplicate.
+  await tryRecordWebhookDelivery({
+    webhookId,
+    shopDomain: shop,
+    topic,
+  });
 
   return new Response(null, { status: 200 });
 };

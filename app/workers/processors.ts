@@ -18,7 +18,7 @@ import {
   upsertProduct,
 } from "../sync/sync.server";
 
-/** Minimal job shape shared by Postgres queue drain and inline webhook fallback. */
+/** Minimal job shape shared by Postgres queue drain and non-webhook inline runners. */
 export type SyncJobLike = {
   name: string;
   data: Record<string, unknown>;

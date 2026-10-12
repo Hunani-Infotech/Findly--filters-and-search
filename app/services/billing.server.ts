@@ -268,6 +268,85 @@ export function isDevelopmentStoreAccess(shop: {
   return Boolean(shop.partnerDevelopment) || isDevUnlockLimits();
 }
 
+export type BillingApproveGate = {
+  show: boolean;
+  reason: "pending" | "declined" | "live_unpaid" | null;
+  confirmationUrl: string | null; // only when pending + allowed URL
+  title: string;
+  message: string;
+  ctaLabel: "Approve plan" | "Choose plan";
+};
+
+const BILLING_GATE_HIDDEN: BillingApproveGate = {
+  show: false,
+  reason: null,
+  confirmationUrl: null,
+  title: "",
+  message: "",
+  ctaLabel: "Choose plan",
+};
+
+/**
+ * In-app banner for unpaid/declined/pending charges (B-9).
+ * ACTIVE and partner/development stores stay hidden — no silent lock-out.
+ */
+export function resolveBillingApproveGate(shop: {
+  partnerDevelopment?: boolean | null;
+  subscription?: {
+    status: string;
+    trialEndsAt: Date | null;
+    confirmationUrl?: string | null;
+    planName?: string | null;
+  } | null;
+}): BillingApproveGate {
+  if (isDevelopmentStoreAccess(shop)) return BILLING_GATE_HIDDEN;
+  if (hasActivePaidSubscription(shop.subscription ?? null)) {
+    return BILLING_GATE_HIDDEN;
+  }
+
+  const status = String(shop.subscription?.status || "").toUpperCase();
+  const confirmationUrl =
+    shop.subscription?.confirmationUrl &&
+    isAllowedShopifyConfirmationUrl(shop.subscription.confirmationUrl)
+      ? shop.subscription.confirmationUrl
+      : null;
+
+  if (isLocalPendingStatus(status) && confirmationUrl) {
+    return {
+      show: true,
+      reason: "pending",
+      confirmationUrl,
+      title: "Approve your plan",
+      message:
+        "Shopify is waiting for you to approve the Findly subscription charge. Open the approval page to finish setup — nothing is locked until you decide.",
+      ctaLabel: "Approve plan",
+    };
+  }
+
+  if (status === "DECLINED") {
+    return {
+      show: true,
+      reason: "declined",
+      confirmationUrl: null,
+      title: "Plan declined",
+      message:
+        "The previous subscription charge was declined. Choose Standard or Pro on the pricing page to continue indexing your catalog.",
+      ctaLabel: "Choose plan",
+    };
+  }
+
+  // Live unpaid (not partner): no active paid, not pending-with-URL.
+  return {
+    show: true,
+    reason: "live_unpaid",
+    confirmationUrl: null,
+    title: "Choose a plan",
+    message:
+      "Live stores use Standard or Pro. Choose a plan to index your catalog — Findly stays open so you can pick when ready.",
+    ctaLabel: "Choose plan",
+  };
+}
+
 /** Admin-facing plan label for a shop row (Development vs No paid plan). */
 export function shopPlanDisplayName(shop: {
   partnerDevelopment?: boolean | null;
@@ -489,13 +568,14 @@ async function persistPendingSubscription(opts: {
 
 /**
  * Live shops must start Standard immediately (no trial). Development stores stay free.
- * Shopify-truth ACTIVE → null (no create/redirect). Local PENDING with saved URL → reuse.
+ * Shopify-truth ACTIVE → null (no create). Local PENDING with saved URL → reuse.
+ * Callers must NOT auto-redirect (B-9); surface confirmationUrl via in-app Approve CTA.
  */
 export async function startStandardSubscriptionIfLive(
   admin: GraphqlAdmin,
   shopDomain: string,
   returnUrl: string,
-): Promise<{ confirmationUrl: string } | null> {
+): Promise<{ confirmationUrl: string; reused: boolean } | null> {
   const { shop } = await ensureShopAccess(shopDomain);
   await refreshPartnerDevelopment(admin, shop.id);
   const latest = await findShopByIdCached(shop.id);
@@ -521,7 +601,7 @@ export async function startStandardSubscriptionIfLive(
       local.confirmationUrl &&
       isAllowedShopifyConfirmationUrl(local.confirmationUrl)
     ) {
-      return { confirmationUrl: local.confirmationUrl };
+      return { confirmationUrl: local.confirmationUrl, reused: true };
     }
     if (local && isLocalPendingStatus(local.status)) {
       // Pending charge exists but URL missing/invalid — never create another.
@@ -544,7 +624,7 @@ export async function startStandardSubscriptionIfLive(
       clearBillingCaches({ id: latest.id, domain: shopDomain });
     }
 
-    return { confirmationUrl: result.confirmationUrl };
+    return { confirmationUrl: result.confirmationUrl, reused: false };
   });
 }
 
@@ -809,6 +889,18 @@ export async function syncActiveSubscriptions(
   return withBillingLock(shopId, () =>
     syncActiveSubscriptionsUnlocked(admin, shopId),
   );
+}
+
+/**
+ * I-4: rebuild local billing from Shopify before trusting paid access.
+ * No appSubscriptionCreate — partner-dev kickoff / charge create stay separate.
+ */
+export async function reconcileBillingFromShopify(
+  admin: GraphqlAdmin,
+  shopId: string,
+) {
+  await refreshPartnerDevelopment(admin, shopId);
+  return syncActiveSubscriptions(admin, shopId);
 }
 
 /** Reset local billing to Free (same shape as a fresh install / cancelled sync). */

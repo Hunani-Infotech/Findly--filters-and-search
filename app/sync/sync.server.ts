@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../db.server";
 import { enforcePlanLimits, refreshPartnerDevelopment } from "../services/billing.server";
 import { bumpCatalogGeneration } from "../lib/catalog-cache.server";
@@ -29,8 +30,10 @@ import {
 } from "./markets-sync";
 import {
   availableLocationNamesFromVariants,
+  isShopifyUpdateStale,
   mapProductToFacet,
   parseBulkJsonlProducts,
+  parseShopifyDate,
   productIsAvailable,
   shopifyVariantNodes,
   variantIsInStock,
@@ -812,13 +815,29 @@ async function ingestCompletedBulkOperation(
     product: (typeof toIngest)[number],
   ): Promise<void> {
     const { facet, collectionGids } = mapProductToFacet(shop.id, product);
-    const writeInventoryLocations = variantsIncludeInventoryLevels(
-      shopifyVariantNodes(product),
-    );
-    await prisma.productFacet.upsert({
+    const existingFacet = await prisma.productFacet.findUnique({
       where: {
         shopId_productGid: { shopId: shop.id, productGid: facet.productGid },
       },
+      select: { shopifyUpdatedAt: true },
+    });
+    if (
+      isShopifyUpdateStale(
+        existingFacet?.shopifyUpdatedAt,
+        facet.shopifyUpdatedAt as Date | null | undefined,
+      )
+    ) {
+      log.info(
+        `[sync] skip stale bulk ingest ${facet.productGid} (shopifyUpdatedAt)`,
+      );
+      return;
+    }
+    const writeInventoryLocations = variantsIncludeInventoryLevels(
+      shopifyVariantNodes(product),
+    );
+    const wrote = await writeProductFacetIfFresh({
+      shopId: shop.id,
+      productGid: facet.productGid,
       create: facet,
       update: {
         handle: facet.handle,
@@ -844,8 +863,16 @@ async function ingestCompletedBulkOperation(
         metafields: facet.metafields as object,
         variantMetafields: facet.variantMetafields as object,
         publishedAt: facet.publishedAt,
+        shopifyUpdatedAt: facet.shopifyUpdatedAt,
       },
+      incomingUpdatedAt: facet.shopifyUpdatedAt as Date | null | undefined,
     });
+    if (!wrote) {
+      log.info(
+        `[sync] skip stale bulk ingest ${facet.productGid} (shopifyUpdatedAt race)`,
+      );
+      return;
+    }
 
     for (const entry of collectDiscoveredMetafieldEntries(
       (facet.metafields as Record<string, string>) || {},
@@ -1060,6 +1087,7 @@ export async function upsertProduct(
     where: {
       shopId_productGid: { shopId: shop.id, productGid },
     },
+    select: { shopifyUpdatedAt: true },
   });
   if (
     !alreadyIndexed &&
@@ -1092,6 +1120,17 @@ export async function upsertProduct(
   }
 
   const { facet, collectionGids: mappedGids } = mapProductToFacet(shop.id, product);
+  if (
+    isShopifyUpdateStale(
+      alreadyIndexed?.shopifyUpdatedAt,
+      facet.shopifyUpdatedAt as Date | null | undefined,
+    )
+  ) {
+    log.info(
+      `[sync] skip stale product upsert ${productGid} (shopifyUpdatedAt)`,
+    );
+    return { skipped: true as const, reason: "stale" as const };
+  }
   const pagedGids = await fetchProductCollectionGids(admin, productGid);
   const collectionGids =
     pagedGids ?? (mappedGids.length ? mappedGids : null);
@@ -1099,37 +1138,46 @@ export async function upsertProduct(
     shopifyVariantNodes(product),
   );
 
-  await prisma.productFacet.upsert({
-    where: {
-      shopId_productGid: { shopId: shop.id, productGid: facet.productGid },
-    },
+  const updateFields = {
+    handle: facet.handle,
+    title: facet.title,
+    vendor: facet.vendor,
+    productType: facet.productType,
+    tags: facet.tags,
+    skus: facet.skus,
+    options: facet.options,
+    priceMin: facet.priceMin,
+    priceMax: facet.priceMax,
+    compareAtMin: facet.compareAtMin,
+    compareAtMax: facet.compareAtMax,
+    salePct: facet.salePct,
+    available: facet.available,
+    ...(writeInventoryLocations
+      ? { inventoryLocations: facet.inventoryLocations }
+      : {}),
+    status: facet.status,
+    imageUrl: facet.imageUrl,
+    variantImages: facet.variantImages,
+    variants: facet.variants,
+    metafields: facet.metafields,
+    variantMetafields: facet.variantMetafields,
+    publishedAt: facet.publishedAt,
+    shopifyUpdatedAt: facet.shopifyUpdatedAt,
+  };
+
+  const wrote = await writeProductFacetIfFresh({
+    shopId: shop.id,
+    productGid: facet.productGid,
     create: facet,
-    update: {
-      handle: facet.handle,
-      title: facet.title,
-      vendor: facet.vendor,
-      productType: facet.productType,
-      tags: facet.tags,
-      skus: facet.skus,
-      options: facet.options,
-      priceMin: facet.priceMin,
-      priceMax: facet.priceMax,
-      compareAtMin: facet.compareAtMin,
-      compareAtMax: facet.compareAtMax,
-      salePct: facet.salePct,
-      available: facet.available,
-      ...(writeInventoryLocations
-        ? { inventoryLocations: facet.inventoryLocations }
-        : {}),
-      status: facet.status,
-        imageUrl: facet.imageUrl,
-        variantImages: facet.variantImages,
-        variants: facet.variants,
-        metafields: facet.metafields,
-        variantMetafields: facet.variantMetafields,
-        publishedAt: facet.publishedAt,
-      },
-    });
+    update: updateFields,
+    incomingUpdatedAt: facet.shopifyUpdatedAt as Date | null | undefined,
+  });
+  if (!wrote) {
+    log.info(
+      `[sync] skip stale product upsert ${productGid} (shopifyUpdatedAt race)`,
+    );
+    return { skipped: true as const, reason: "stale" as const };
+  }
 
   await recordDiscoveredMetafields(
     shop.id,
@@ -1210,7 +1258,7 @@ export async function syncProductAvailability(
     where: {
       shopId_productGid: { shopId: shop.id, productGid },
     },
-    select: { variants: true, status: true },
+    select: { variants: true, status: true, shopifyUpdatedAt: true },
   });
   if (!existing) {
     return upsertProduct(shopDomain, productGid);
@@ -1226,6 +1274,7 @@ export async function syncProductAvailability(
     | {
         id?: string;
         status?: string | null;
+        updatedAt?: string | null;
         variants?: unknown;
       }
     | null
@@ -1239,6 +1288,14 @@ export async function syncProductAvailability(
     }
     await deleteProduct(shopDomain, productGid);
     return;
+  }
+
+  const incomingUpdatedAt = parseShopifyDate(product.updatedAt);
+  if (isShopifyUpdateStale(existing.shopifyUpdatedAt, incomingUpdatedAt)) {
+    log.info(
+      `[sync] skip stale availability sync ${productGid} (shopifyUpdatedAt)`,
+    );
+    return { skipped: true as const, reason: "stale" as const };
   }
 
   const variants = shopifyVariantNodes(
@@ -1266,17 +1323,33 @@ export async function syncProductAvailability(
         })),
       );
 
-  await prisma.productFacet.update({
-    where: {
-      shopId_productGid: { shopId: shop.id, productGid },
-    },
+  const availabilityWhere =
+    incomingUpdatedAt instanceof Date
+      ? {
+          shopId: shop.id,
+          productGid,
+          OR: [
+            { shopifyUpdatedAt: null },
+            { shopifyUpdatedAt: { lte: incomingUpdatedAt } },
+          ],
+        }
+      : { shopId: shop.id, productGid };
+  const availabilityWrite = await prisma.productFacet.updateMany({
+    where: availabilityWhere,
     data: {
       available,
       inventoryLocations,
       variants: nextVariants,
       status: product.status ?? existing.status,
+      ...(incomingUpdatedAt ? { shopifyUpdatedAt: incomingUpdatedAt } : {}),
     },
   });
+  if (availabilityWrite.count === 0) {
+    log.info(
+      `[sync] skip stale availability sync ${productGid} (shopifyUpdatedAt race)`,
+    );
+    return { skipped: true as const, reason: "stale" as const };
+  }
 
   await setSyncStatus(shop.id, {
     status: "READY",
@@ -1327,6 +1400,7 @@ type CollectionProductsFetch = {
   deleted: boolean;
   title: string;
   handle: string;
+  shopifyUpdatedAt: Date | null;
   productGids: string[];
   expectedCount: number | null;
   exactCount: boolean;
@@ -1353,6 +1427,7 @@ async function fetchCollectionProductGids(
   let hasNext = true;
   let title = "";
   let handle = "";
+  let shopifyUpdatedAt: Date | null = null;
   let expectedCount: number | null = null;
   let exactCount = false;
   let pages = 0;
@@ -1372,6 +1447,7 @@ async function fetchCollectionProductGids(
         collection?: {
           title?: string;
           handle?: string;
+          updatedAt?: string | null;
           productsCount?: { count?: number; precision?: string } | null;
           products?: {
             pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
@@ -1393,6 +1469,7 @@ async function fetchCollectionProductGids(
         deleted: true,
         title: "",
         handle: "",
+        shopifyUpdatedAt: null,
         productGids: [],
         expectedCount: null,
         exactCount: false,
@@ -1406,6 +1483,9 @@ async function fetchCollectionProductGids(
 
     title = collection.title ?? title;
     handle = collection.handle ?? handle;
+    if (!shopifyUpdatedAt) {
+      shopifyUpdatedAt = parseShopifyDate(collection.updatedAt);
+    }
     const count = collection.productsCount?.count;
     if (typeof count === "number" && Number.isFinite(count)) {
       expectedCount = count;
@@ -1423,6 +1503,7 @@ async function fetchCollectionProductGids(
     deleted: false,
     title,
     handle,
+    shopifyUpdatedAt,
     productGids: uniqueAppend([], productGids),
     expectedCount,
     exactCount,
@@ -1460,6 +1541,7 @@ export async function rebuildCollection(
   let productGids = primary.productGids;
   let title = primary.title;
   let handle = primary.handle;
+  let shopifyUpdatedAt = primary.shopifyUpdatedAt;
   const expectedCount = primary.expectedCount;
   const exactCount = primary.exactCount;
   const incomplete =
@@ -1483,6 +1565,7 @@ export async function rebuildCollection(
     }
     title = fallback.title || title;
     handle = fallback.handle || handle;
+    shopifyUpdatedAt = fallback.shopifyUpdatedAt ?? shopifyUpdatedAt;
     productGids = uniqueAppend(productGids, fallback.productGids);
   }
 
@@ -1496,6 +1579,19 @@ export async function rebuildCollection(
     );
   }
 
+  const existingCollection = await prisma.collection.findUnique({
+    where: {
+      shopId_collectionGid: { shopId: shop.id, collectionGid },
+    },
+    select: { shopifyUpdatedAt: true },
+  });
+  if (isShopifyUpdateStale(existingCollection?.shopifyUpdatedAt, shopifyUpdatedAt)) {
+    log.info(
+      `[sync] skip stale collection rebuild ${collectionGid} (shopifyUpdatedAt)`,
+    );
+    return { count: productGids.length, deleted: false as const, skipped: true as const };
+  }
+
   await prisma.collection.upsert({
     where: {
       shopId_collectionGid: { shopId: shop.id, collectionGid },
@@ -1505,10 +1601,12 @@ export async function rebuildCollection(
       collectionGid,
       title: title || collectionGid,
       handle,
+      shopifyUpdatedAt,
     },
     update: {
       title: title || collectionGid,
       handle,
+      shopifyUpdatedAt,
     },
   });
 
@@ -1548,6 +1646,77 @@ export async function rebuildCollection(
 
   await bumpCatalogGeneration(shopDomain);
   return { count: productGids.length };
+}
+
+/**
+ * Race-safe product write: only overwrite rows whose shopifyUpdatedAt is null
+ * or <= the incoming Shopify timestamp (W-7).
+ */
+async function writeProductFacetIfFresh(opts: {
+  shopId: string;
+  productGid: string;
+  create: Prisma.ProductFacetUncheckedCreateInput;
+  update: Prisma.ProductFacetUpdateManyMutationInput;
+  incomingUpdatedAt: Date | null | undefined;
+}): Promise<boolean> {
+  const watermarkWhere =
+    opts.incomingUpdatedAt instanceof Date
+      ? {
+          OR: [
+            { shopifyUpdatedAt: null },
+            { shopifyUpdatedAt: { lte: opts.incomingUpdatedAt } },
+          ],
+        }
+      : {};
+
+  const updated = await prisma.productFacet.updateMany({
+    where: {
+      shopId: opts.shopId,
+      productGid: opts.productGid,
+      ...watermarkWhere,
+    },
+    data: opts.update,
+  });
+  if (updated.count > 0) return true;
+
+  const existing = await prisma.productFacet.findUnique({
+    where: {
+      shopId_productGid: {
+        shopId: opts.shopId,
+        productGid: opts.productGid,
+      },
+    },
+    select: { shopifyUpdatedAt: true },
+  });
+  if (existing) {
+    return !isShopifyUpdateStale(
+      existing.shopifyUpdatedAt,
+      opts.incomingUpdatedAt,
+    );
+  }
+
+  try {
+    await prisma.productFacet.create({ data: opts.create });
+    return true;
+  } catch (error) {
+    if (
+      !(
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+    ) {
+      throw error;
+    }
+    const raced = await prisma.productFacet.updateMany({
+      where: {
+        shopId: opts.shopId,
+        productGid: opts.productGid,
+        ...watermarkWhere,
+      },
+      data: opts.update,
+    });
+    return raced.count > 0;
+  }
 }
 
 function graphqlErrors(json: { errors?: unknown }): string | null {

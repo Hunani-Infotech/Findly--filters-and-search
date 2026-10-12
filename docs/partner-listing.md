@@ -108,6 +108,25 @@ https://findly.srhwebagency.com/terms
 info@srhwebagency.com
 ```
 
+### Access scopes (must match `shopify.app.toml` + Privacy Policy)
+
+Required (install):
+
+- `read_products` — catalog sync for filters and search
+- `read_inventory`, `read_locations` — availability / location filters
+- `read_content` — pages and articles for search suggestions
+- `read_markets` — presentment prices by market
+- `read_metaobjects` — resolve metaobject-backed option/metafield labels
+- `read_files`, `write_files` — list/upload color-swatch images in Shopify Files
+
+Optional:
+
+- `read_companies` — B2B company-location catalog prices when enabled
+
+Not requested: `write_products`, `read_customers`, `read_orders`, `read_checkouts`, or other customer-profile scopes.
+
+Paste the same list into Partner Dashboard → App setup / listing permissions so it matches the live privacy page.
+
 ### Pricing (must match Billing API)
 
 Primary method: **Recurring charge**, with one plan marked **Free** (display name **Development**). Monthly billing: Development / Standard / Pro. **No trial.** Live shops start Standard at install.

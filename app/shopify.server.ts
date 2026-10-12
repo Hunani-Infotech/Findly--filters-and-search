@@ -175,12 +175,26 @@ const shopify = shopifyApp({
     expiringOfflineAccessTokens: true,
   },
   hooks: {
-    afterAuth: async ({ session }) => {
+    afterAuth: async ({ session, admin }) => {
       log.success(
         `[afterAuth] shop=${session.shop} online=${session.isOnline}`,
       );
       const { ensureShop } = await import("./services/shop.server");
-      const shop = await ensureShop(session.shop);
+      let shop = await ensureShop(session.shop);
+      // I-4: rebuild billing from Shopify before any paid access trust.
+      try {
+        const { reconcileBillingFromShopify } = await import(
+          "./services/billing.server"
+        );
+        await reconcileBillingFromShopify(admin, shop.id);
+        shop = await ensureShop(session.shop);
+      } catch (error) {
+        log.warn(
+          `[afterAuth] billing reconcile skipped: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
       // Audit #11: uninstall→reinstall — diff these two log lines with purge.
       log.info(
         `[afterAuth] billing-audit shop=${session.shop} plan=${shop.plan} subStatus=${shop.subscription?.status ?? "none"} subPlan=${shop.subscription?.planName ?? "none"} shopifySubId=${shop.subscription?.shopifySubscriptionId ?? "none"}`,

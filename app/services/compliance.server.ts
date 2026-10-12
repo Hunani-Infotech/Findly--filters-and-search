@@ -8,7 +8,7 @@ import {
 import { forgetShop } from "../lib/shop-cache.server";
 import { log } from "../lib/log.server";
 import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
-import { clearBillingCaches } from "./billing.server";
+import { applyLocalFreePlan, clearBillingCaches } from "./billing.server";
 
 export type ComplianceLogStatus = "received" | "acknowledged";
 
@@ -52,6 +52,10 @@ async function deleteShopCacheGenerations(shopDomain: string) {
  * Does NOT hard-delete Shop, Subscription, catalog, or settings — those wait
  * for shop/redact / shop.cleanup. Late cleanup skips if an offline Session
  * exists again (merchant reinstalled).
+ *
+ * I-4: demote the local billing mirror to free/CANCELLED so a reinstall cannot
+ * inherit stale ACTIVE paid access before Shopify sync runs. The Subscription
+ * row itself is kept until purge.
  */
 export async function markShopUninstalled(shopDomain: string) {
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
@@ -78,10 +82,13 @@ export async function markShopUninstalled(shopDomain: string) {
     data: { uninstalledAt: new Date() },
   });
 
+  // Keep the Subscription row; stop trusting pre-uninstall paid status (I-4).
+  await applyLocalFreePlan(shop.id);
+
   log.success(
     `[compliance] markShopUninstalled: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
       shop.uninstalledAt ? "; already marked" : ""
-    })`,
+    }; billing demoted to free)`,
   );
   return { marked: true as const, shopId: shop.id };
 }
@@ -90,14 +97,14 @@ export async function markShopUninstalled(shopDomain: string) {
  * Hard-delete all tenant data for a shop domain (shop/redact / shop.cleanup).
  * ComplianceRequest rows are kept (keyed by shopDomain, no FK) for audit.
  * Those rows never contain the raw customer webhook body.
+ * WebhookDelivery rows for the domain are scrubbed (shop-scoped, no Shop FK).
  *
  * Reinstall guard: abort only when an offline Session exists (proof the app
  * was reinstalled). Do not require uninstalledAt — shop/redact must still
  * erase data if the uninstall soft-mark webhook was missed.
  *
- * Order: drop QueueJobs first so SKIP LOCKED cannot claim orphaned jobs that
- * would re-write catalog/cache after Shop is gone; then CacheGeneration keys;
- * then FK-cascaded Shop rows.
+ * Order: re-check offline Session immediately before any destructive delete;
+ * drop QueueJobs / CacheGeneration / WebhookDelivery; then FK-cascaded Shop.
  */
 export async function purgeShopData(shopDomain: string) {
   const offlineSession = await prisma.session.findFirst({
@@ -116,6 +123,18 @@ export async function purgeShopData(shopDomain: string) {
     include: { subscription: true },
   });
 
+  // I-2: re-check right before destructive deletes (reinstall may have landed).
+  const reinstalled = await prisma.session.findFirst({
+    where: { shop: shopDomain, isOnline: false },
+    select: { id: true },
+  });
+  if (reinstalled) {
+    log.warn(
+      `[compliance] purgeShopData: abort for ${shopDomain} — offline Session appeared before delete (reinstalled)`,
+    );
+    return { deleted: false as const, skipped: "reinstalled_or_active" as const };
+  }
+
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
   if (shop) {
     clearBillingCaches({ id: shop.id, domain: shop.domain });
@@ -126,10 +145,13 @@ export async function purgeShopData(shopDomain: string) {
   // Always scrub non-FK leftovers (idempotent when Shop is already gone).
   const queueDeleted = await deleteShopQueueJobs(shopDomain);
   const cacheDeleted = await deleteShopCacheGenerations(shopDomain);
+  const webhookDeleted = await prisma.webhookDelivery.deleteMany({
+    where: { shopDomain },
+  });
 
   if (!shop) {
     log.info(
-      `[compliance] purgeShopData: no Shop row for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count})`,
+      `[compliance] purgeShopData: no Shop row for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count} webhookDeliveries=${webhookDeleted.count})`,
     );
     return { deleted: false as const };
   }
@@ -154,24 +176,23 @@ export async function purgeShopData(shopDomain: string) {
   ]);
 
   log.success(
-    `[compliance] purgeShopData: deleted tenant data for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count})`,
+    `[compliance] purgeShopData: deleted tenant data for ${shopDomain} (queueJobs=${queueDeleted.count} cacheKeys=${cacheDeleted.count} webhookDeliveries=${webhookDeleted.count})`,
   );
   return { deleted: true as const, shopId: shop.id };
 }
 
-export type ShopPurgeMode = "queued" | "inline" | "skipped";
+export type ShopPurgeMode = "queued" | "skipped";
 
 /**
- * shop/redact hard-delete path. Must not depend on the background worker being up.
+ * shop/redact hard-delete path — durable enqueue only (W-3).
  * APP_UNINSTALLED uses markShopUninstalled instead — do not call this on uninstall.
  *
  * Skip only when an offline Session exists (app reinstalled). If uninstall
- * soft-mark was missed but tokens are gone, purge still runs for GDPR.
+ * soft-mark was missed but tokens are gone, purge still queues for GDPR.
  *
  * Failure modes when purge proceeds:
  * 1. Postgres queue accepts the job within 800ms → worker runs purgeShopData. 200.
- * 2. Enqueue throws or times out → purgeShopData runs inline (reinstall guard applies).
- * 3. Inline purge also throws → error rethrown so webhook 5xx and Shopify retries.
+ * 2. Enqueue throws or times out → error rethrown so webhook 5xx and Shopify retries.
  *
  * purgeShopData is idempotent, so a late queue add after a timeout is safe.
  */
@@ -203,30 +224,11 @@ export async function ensureShopPurged(
   } catch (enqueueError) {
     const reason =
       enqueueError instanceof Error ? enqueueError.message : String(enqueueError);
-    log.warn(
-      `[compliance] ${source}: enqueue failed for ${shopDomain} (${reason}); running inline purge`,
+    log.error(
+      `[compliance] ${source}: enqueue failed for ${shopDomain} (${reason}) — webhook will 5xx so Shopify retries`,
+      enqueueError,
     );
-    try {
-      const result = await purgeShopData(shopDomain);
-      if ("skipped" in result && result.skipped) {
-        log.warn(
-          `[compliance] ${source}: inline purge skipped (${result.skipped}) for ${shopDomain}`,
-        );
-        return { mode: "skipped" };
-      }
-      log.success(
-        `[compliance] ${source}: inline purge ${
-          result.deleted ? "deleted tenant data" : "no Shop row (already gone)"
-        } for ${shopDomain}`,
-      );
-      return { mode: "inline", deleted: result.deleted };
-    } catch (purgeError) {
-      log.error(
-        `[compliance] ${source}: inline purge FAILED for ${shopDomain} — webhook will 5xx so Shopify retries`,
-        purgeError,
-      );
-      throw purgeError;
-    }
+    throw enqueueError;
   }
 }
 

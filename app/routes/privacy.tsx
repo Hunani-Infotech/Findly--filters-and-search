@@ -90,6 +90,10 @@ export default function PrivacyPolicy() {
             filters can match the shopper’s country.
           </li>
           <li>
+            <code>read_metaobjects</code> — resolve metaobject-backed option and
+            metafield display labels used in filters.
+          </li>
+          <li>
             <code>read_files</code> and <code>write_files</code> — list and
             upload color-swatch images into the merchant’s Shopify Files
             (files stay on Shopify; we store the resulting URL).
@@ -261,21 +265,22 @@ export default function PrivacyPolicy() {
               <code>shop/redact</code>
             </strong>{" "}
             — Shopify sends this after uninstall (typically within 48 hours)
-            when the shop’s data must be erased. We try to queue a background
-            hard-delete; if the queue is unavailable we delete tenant data in
-            the webhook process before responding. If the merchant has
-            reinstalled (an offline app session exists again), we skip the
-            purge. If a purge fails we return an error so Shopify retries.
-            Audit status is queued, redacted, skipped_reinstalled, or failed.
+            when the shop’s data must be erased. We queue a background
+            hard-delete for the worker. If the queue is unavailable we return
+            an error so Shopify retries (no inline purge on the webhook path).
+            If the merchant has reinstalled (an offline app session exists
+            again), we skip the purge. Audit status is queued,
+            skipped_reinstalled, or failed.
           </li>
           <li>
             <strong>
               <code>app/uninstalled</code>
             </strong>{" "}
-            — we revoke sessions and mark the shop uninstalled. Catalog index,
-            settings, and billing mirror are retained until{" "}
-            <code>shop/redact</code> (or a confirmed non-reinstall cleanup). We
-            do not hard-delete on uninstall alone.
+            — we revoke sessions, mark the shop uninstalled, and reset the local
+            billing mirror to free (Subscription row kept). Catalog index and
+            settings are retained until <code>shop/redact</code> (or a confirmed
+            non-reinstall cleanup). On reinstall, paid status is rebuilt from
+            Shopify. We do not hard-delete on uninstall alone.
           </li>
         </ul>
         <p>
@@ -301,10 +306,11 @@ export default function PrivacyPolicy() {
           </li>
           <li>
             <strong>After uninstall:</strong> we revoke sessions, clear in-memory
-            caches, cancel pending catalog jobs for that shop, and set{" "}
-            <code>uninstalledAt</code>. Catalog index, settings, mappings, and
-            billing mirror are retained so a quick reinstall can resume without
-            an immediate hard-delete.
+            caches, cancel pending catalog jobs for that shop, set{" "}
+            <code>uninstalledAt</code>, and demote the local billing mirror to
+            free (row retained). Catalog index, settings, and mappings are kept
+            so a quick reinstall can resume without an immediate hard-delete;
+            paid plan is re-confirmed from Shopify on reinstall.
           </li>
           <li>
             <strong>Shop redact:</strong> when Shopify sends{" "}

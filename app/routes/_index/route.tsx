@@ -366,8 +366,9 @@ export default function App() {
           </li>
           <li>
             <strong>Least privilege</strong>
-            Catalog sync uses read scopes for products, inventory, content, and
-            markets. Findly does not request customer or order data.
+            Catalog sync uses read scopes for products, inventory, content,
+            markets, and metaobjects (plus Files for swatches). Findly does not
+            request customer or order data.
           </li>
         </ul>
         <p className={styles.legal}>

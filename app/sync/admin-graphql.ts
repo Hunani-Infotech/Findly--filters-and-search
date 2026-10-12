@@ -22,6 +22,7 @@ export const PRODUCT_NODE_QUERY = `#graphql
       tags
       status
       createdAt
+      updatedAt
       publishedAt
       featuredImage {
         url
@@ -145,6 +146,7 @@ export const PRODUCT_AVAILABILITY_QUERY = `#graphql
     product(id: $id) {
       id
       status
+      updatedAt
       variants(first: 100) {
         edges {
           node {
@@ -185,6 +187,7 @@ export const COLLECTION_PRODUCTS_QUERY = `#graphql
       id
       title
       handle
+      updatedAt
       productsCount {
         count
         precision
@@ -231,6 +234,7 @@ export const BULK_PRODUCTS_QUERY = `
         tags
         status
         createdAt
+        updatedAt
         publishedAt
         featuredImage { url }
         options {

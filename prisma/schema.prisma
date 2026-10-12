@@ -303,6 +303,8 @@ model ProductFacet {
   marketPrices Json @default("{}")
   /// Shopify publishedAt (fallback createdAt) for date sort
   publishedAt DateTime?
+  /// Shopify Admin product.updatedAt — source watermark for out-of-order sync (W-7)
+  shopifyUpdatedAt DateTime?
   updatedAt   DateTime @updatedAt
 
   @@unique([shopId, productGid])
@@ -335,6 +337,8 @@ model Collection {
   collectionGid String
   title         String
   handle        String   @default("")
+  /// Shopify Admin collection.updatedAt — source watermark for out-of-order sync (W-7)
+  shopifyUpdatedAt DateTime?
   updatedAt     DateTime @updatedAt
 
   @@unique([shopId, collectionGid])

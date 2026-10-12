@@ -39,11 +39,25 @@ import {
 import { log } from "../lib/log.server";
 import { ensureShop } from "../services/shop.server";
 import {
+  ensureShopAccess,
   isAllowedShopifyConfirmationUrl,
+  reconcileBillingFromShopify,
+  resolveBillingApproveGate,
   startStandardSubscriptionIfLive,
+  type BillingApproveGate,
 } from "../services/billing.server";
+import { findShopCached } from "../lib/shop-cache.server";
 import { appUrl } from "../shopify.server";
 import { embeddedAdminAppUrl } from "../utils/admin-path";
+
+const BILLING_GATE_BOT: BillingApproveGate = {
+  show: false,
+  reason: null,
+  confirmationUrl: null,
+  title: "",
+  message: "",
+  ctaLabel: "Choose plan",
+};
 
 const LazyAdminRouteSkeleton = lazy(() =>
   import("../components/admin-skeletons").then((m) => ({
@@ -60,19 +74,40 @@ export const links: LinksFunction = () => [
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const auth = await authenticateAdminAllowReviewBot(request);
   if (auth.bot) {
-    return { apiKey: adminApiKey(), bot: true as const };
+    return {
+      apiKey: adminApiKey(),
+      bot: true as const,
+      billingGate: BILLING_GATE_BOT,
+    };
   }
 
+  let billingGate: BillingApproveGate = BILLING_GATE_BOT;
   try {
     await ensureShop(auth.session.shop);
+    // I-4 backup if afterAuth reconcile missed: Shopify → local before kickoff/access.
+    const shopRow = await findShopCached(auth.session.shop);
+    if (shopRow) {
+      try {
+        await reconcileBillingFromShopify(auth.admin, shopRow.id);
+      } catch (error) {
+        log.warn(
+          `[app] billing reconcile skipped shop=${auth.session.shop}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
     const path = new URL(request.url).pathname;
     const skipBillingKickoff =
       path.includes("/billing") ||
       new URL(request.url).searchParams.has("charge_id");
+
+    let kickoffUrl: string | null = null;
     if (!skipBillingKickoff) {
       const returnUrl =
         embeddedAdminAppUrl(auth.session.shop, "/app/billing") ??
         `${appUrl.replace(/\/$/, "")}/app/billing?shop=${encodeURIComponent(auth.session.shop)}`;
+      // Create/reuse charge once — do NOT auto-redirect (B-9: in-app banner only).
       const started = await startStandardSubscriptionIfLive(
         auth.admin,
         auth.session.shop,
@@ -82,8 +117,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         started?.confirmationUrl &&
         isAllowedShopifyConfirmationUrl(started.confirmationUrl)
       ) {
-        return auth.redirect(started.confirmationUrl, { target: "_top" });
+        kickoffUrl = started.confirmationUrl;
       }
+    }
+
+    const { shop } = await ensureShopAccess(auth.session.shop);
+    billingGate = resolveBillingApproveGate(shop);
+    // Prefer kickoff URL if shop cache is briefly stale after create/reuse.
+    if (kickoffUrl) {
+      billingGate = {
+        ...billingGate,
+        show: true,
+        reason: "pending",
+        confirmationUrl: kickoffUrl,
+        title: billingGate.reason === "pending" ? billingGate.title : "Approve your plan",
+        message:
+          billingGate.reason === "pending"
+            ? billingGate.message
+            : "Shopify is waiting for you to approve the Findly subscription charge. Open the approval page to finish setup — nothing is locked until you decide.",
+        ctaLabel: "Approve plan",
+      };
     }
   } catch (error) {
     if (error instanceof Response) throw error;
@@ -95,7 +148,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  return { apiKey: adminApiKey(), bot: false as const };
+  return {
+    apiKey: adminApiKey(),
+    bot: false as const,
+    billingGate,
+  };
 };
 
 export function shouldRevalidate({
@@ -119,7 +176,7 @@ export function shouldRevalidate({
 }
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, billingGate } = useLoaderData<typeof loader>();
 
   useEffect(() => {
     clearAdminLoadRetry();
@@ -143,6 +200,29 @@ export default function App() {
         </NavMenu>
         <div className="findly-admin-shell">
           <AdminPendingScreen>
+            {billingGate.show ? (
+              <div style={{ padding: "16px 16px 0" }}>
+                <Banner tone="warning" title={billingGate.title}>
+                  <BlockStack gap="200">
+                    <p>{billingGate.message}</p>
+                    {billingGate.confirmationUrl ? (
+                      <Button
+                        url={billingGate.confirmationUrl}
+                        external
+                        target="_top"
+                        variant="primary"
+                      >
+                        {billingGate.ctaLabel}
+                      </Button>
+                    ) : (
+                      <Button url="/app/billing" variant="primary">
+                        {billingGate.ctaLabel}
+                      </Button>
+                    )}
+                  </BlockStack>
+                </Banner>
+              </div>
+            ) : null}
             <Outlet />
           </AdminPendingScreen>
         </div>

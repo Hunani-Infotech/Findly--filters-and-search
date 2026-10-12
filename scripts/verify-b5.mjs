@@ -333,29 +333,71 @@ function assertThemeSeoAndUi() {
       "compliance.server.ts must markShopUninstalled / set uninstalledAt on uninstall",
     );
   }
+  // I-4: uninstall must demote local paid mirror; reinstall rebuilds from Shopify.
+  if (!compliance.includes("applyLocalFreePlan")) {
+    fail(
+      "I-4: markShopUninstalled must applyLocalFreePlan (no stale ACTIVE after uninstall)",
+    );
+  }
+  if (!compliance.includes("webhookDelivery.deleteMany")) {
+    fail("I-3: purgeShopData must delete WebhookDelivery rows by shopDomain");
+  }
+  if (
+    !billing.includes("reconcileBillingFromShopify") ||
+    !shopifyServer.includes("reconcileBillingFromShopify")
+  ) {
+    fail(
+      "I-4: reconcileBillingFromShopify must exist and run from afterAuth",
+    );
+  }
+  const appLayout = read("app/routes/app.tsx");
+  if (!appLayout.includes("reconcileBillingFromShopify")) {
+    fail("I-4: app.tsx must reconcileBillingFromShopify before kickoff");
+  }
   if (!shopRedact.includes("ensureShopPurged")) {
     fail("shop/redact must ensureShopPurged (not enqueue-only)");
   }
   if (
     !compliance.includes("ensureShopPurged") ||
-    !compliance.includes("running inline purge") ||
-    !compliance.includes("inline purge FAILED")
+    !compliance.includes("webhook will 5xx so Shopify retries") ||
+    compliance.includes("running inline purge")
   ) {
     fail(
-      "compliance.server.ts must queue cleanup, inline-purge on enqueue failure, and rethrow if purge fails",
+      "compliance.server.ts must queue shop.cleanup and rethrow on enqueue failure (no inline purge)",
     );
   }
-  // Rule 7: purgeShopData must refuse reinstalled shops (offline Session present).
+  if (
+    customerRedact.includes("runSyncJobInline") ||
+    customerRedact.includes("fire-and-forget inline")
+  ) {
+    fail(
+      "customers/redact must not runSyncJobInline on enqueue failure (5xx for Shopify retry)",
+    );
+  }
+  const subscriptionsUpdate = read(
+    "app/routes/webhooks.app_subscriptions.update.tsx",
+  );
+  if (
+    subscriptionsUpdate.includes("runSyncJobInline") ||
+    subscriptionsUpdate.includes("fire-and-forget inline")
+  ) {
+    fail(
+      "app_subscriptions/update must not runSyncJobInline on enqueue failure (5xx for Shopify retry)",
+    );
+  }
+  // Rule 7 / I-2: purgeShopData must refuse reinstalled shops (offline Session present).
   const purgeFnMatch = compliance.match(
     /export async function purgeShopData[\s\S]*?(?=export async function ensureShopPurged)/,
   );
+  const purgeFn = purgeFnMatch?.[0] ?? "";
+  const offlineGuards = (purgeFn.match(/isOnline:\s*false/g) || []).length;
   if (
-    !purgeFnMatch ||
-    !purgeFnMatch[0].includes("isOnline: false") ||
-    !purgeFnMatch[0].includes("reinstalled_or_active")
+    !purgeFn ||
+    !purgeFn.includes("reinstalled_or_active") ||
+    offlineGuards < 2
   ) {
     fail(
-      "purgeShopData must guard on offline Session and skip reinstalled_or_active shops",
+      "I-2: purgeShopData must re-check offline Session (≥2) and skip reinstalled_or_active shops",
     );
   }
   if (
@@ -372,8 +414,41 @@ function assertThemeSeoAndUi() {
   if (!dataRequest.includes("logComplianceEvent")) {
     fail("customers/data_request must log compliance (not a stub)");
   }
+  if (
+    !dataRequest.includes("tryRecordWebhookDelivery") ||
+    !dataRequest.includes("webhookDeliveryExists")
+  ) {
+    fail("customers/data_request must dedupe via WebhookDelivery");
+  }
   if (!customerRedact.includes("tryRecordWebhookDelivery")) {
     fail("customers/redact must dedupe via tryRecordWebhookDelivery");
+  }
+  if (
+    !shopRedact.includes("tryRecordWebhookDelivery") ||
+    !shopRedact.includes("webhookDeliveryExists")
+  ) {
+    fail("shop/redact must dedupe via WebhookDelivery");
+  }
+  const scopesUpdate = read("app/routes/webhooks.app.scopes_update.tsx");
+  if (
+    !scopesUpdate.includes("tryRecordWebhookDelivery") ||
+    !scopesUpdate.includes("webhookDeliveryExists")
+  ) {
+    fail("app/scopes_update must dedupe via WebhookDelivery");
+  }
+  const catalogAction = read("app/services/webhook-action.server.ts");
+  if (
+    !catalogAction.includes("tryRecordWebhookDelivery") ||
+    !catalogAction.includes("webhookDeliveryExists") ||
+    !catalogAction.includes("resolveCatalogWebhookDeliveryId")
+  ) {
+    fail(
+      "catalogWebhookAction must dedupe catalog webhooks via WebhookDelivery",
+    );
+  }
+  const deliveryHelpers = read("app/services/webhook-delivery.server.ts");
+  if (/\brandomUUID\s*\(/.test(deliveryHelpers)) {
+    fail("webhook-delivery.server.ts must not use randomUUID for delivery ids");
   }
   if (!customerRedact.includes("compliance.customersRedact")) {
     fail("customers/redact must enqueue compliance.customersRedact");
@@ -441,6 +516,9 @@ function assertThemeSeoAndUi() {
 }
 
 async function cleanup() {
+  await prisma.session.deleteMany({
+    where: { shop: { in: [SHOP_A, SHOP_B] } },
+  });
   await prisma.shop.deleteMany({
     where: { domain: { in: [SHOP_A, SHOP_B] } },
   });
@@ -463,6 +541,9 @@ async function cleanup() {
         ],
       },
     },
+  });
+  await prisma.webhookDelivery.deleteMany({
+    where: { shopDomain: { in: [SHOP_A, SHOP_B] } },
   });
 }
 
@@ -662,8 +743,15 @@ try {
   const { getCollectionFilterPayload, getSearchFilterPayload, getSearchPayload } =
     await import("../app/services/proxy.server.ts");
   const { PLANS } = await import("../app/services/billing.server.ts");
-  const { purgeShopData, logComplianceEvent, scrubCustomerData, customerRedactTokens } =
-    await import("../app/services/compliance.server.ts");
+  const {
+    purgeShopData,
+    markShopUninstalled,
+    ensureShopPurged,
+    logComplianceEvent,
+    scrubCustomerData,
+    customerRedactTokens,
+  } = await import("../app/services/compliance.server.ts");
+  const { ensureShop } = await import("../app/services/shop.server.ts");
   const { webhookGraphqlId, webhookInventoryItemGid } = await import("../app/services/webhooks.server.ts"
   );
   const { mapProductToFacet, productIsAvailable, variantsIncludeInventoryLevels } =
@@ -696,9 +784,23 @@ try {
       "app/entry.server.tsx must not call ensureWorkerRunning (web process uses START_WORKER=0; worker:prod drains the queue)",
     );
   }
-  if (/await runSyncJobInline/.test(webhooksServer)) {
+  if (/runSyncJobInline/.test(webhooksServer)) {
     fail(
-      "webhooks.server.ts must not await runSyncJobInline (enqueue is fire-and-forget)",
+      "webhooks.server.ts must not call runSyncJobInline (durable enqueue only; 5xx on failure)",
+    );
+  }
+  const productMapper = read("app/sync/product-mapper.ts");
+  const adminGraphql = read("app/sync/admin-graphql.ts");
+  const prismaSchema = read("prisma/schema.prisma");
+  if (
+    !prismaSchema.includes("shopifyUpdatedAt") ||
+    !productMapper.includes("isShopifyUpdateStale") ||
+    !syncServer.includes("isShopifyUpdateStale") ||
+    !syncServer.includes("writeProductFacetIfFresh") ||
+    !adminGraphql.includes("updatedAt")
+  ) {
+    fail(
+      "W-7: ProductFacet/Collection shopifyUpdatedAt + GraphQL updatedAt + stale-write guards required",
     );
   }
   if (!startScript.includes("worker:prod") && !startScript.includes("start-prod")) {
@@ -1210,8 +1312,37 @@ try {
     ],
     skipDuplicates: true,
   });
+  await prisma.webhookDelivery.createMany({
+    data: [
+      {
+        webhookId: `b5-wd-${SHOP_A}-1`,
+        shopDomain: SHOP_A,
+        topic: "APP_UNINSTALLED",
+      },
+      {
+        webhookId: `b5-wd-${SHOP_B}-1`,
+        shopDomain: SHOP_B,
+        topic: "APP_UNINSTALLED",
+      },
+    ],
+  });
 
-  // Rule 7: reinstalled shops (offline Session) must not be hard-deleted.
+  // I-2 timeline: soft uninstall → reinstall → late cleanup must skip + keep data.
+  const filtersBefore = await prisma.filterConfig.count({
+    where: { shopId: shopA.id },
+  });
+  if (filtersBefore < 1) fail("seed must include filter config for I-2 survival check");
+  const soft = await markShopUninstalled(SHOP_A);
+  if (!soft.marked) fail("I-2: markShopUninstalled must mark seeded shop");
+  const softRow = await prisma.shop.findUnique({ where: { domain: SHOP_A } });
+  if (!softRow?.uninstalledAt) fail("I-2: soft uninstall must set uninstalledAt");
+  if ((await prisma.session.count({ where: { shop: SHOP_A } })) !== 0) {
+    fail("I-2: soft uninstall must revoke sessions");
+  }
+  if ((await prisma.filterConfig.count({ where: { shopId: shopA.id } })) < 1) {
+    fail("I-2: soft uninstall must not delete filter config");
+  }
+
   await prisma.session.create({
     data: {
       id: `offline_${SHOP_A}_b5`,
@@ -1221,12 +1352,24 @@ try {
       accessToken: "b5-test-token",
     },
   });
+  const reinstalled = await ensureShop(SHOP_A);
+  if (reinstalled.uninstalledAt) {
+    fail("I-2: ensureShop after reinstall must clear uninstalledAt");
+  }
+  const purgedSkipped = await ensureShopPurged(SHOP_A);
+  if (purgedSkipped.mode !== "skipped") {
+    fail("I-2: ensureShopPurged must skip when offline Session exists");
+  }
   const skippedActive = await purgeShopData(SHOP_A);
   if (skippedActive.deleted || skippedActive.skipped !== "reinstalled_or_active") {
-    fail("purgeShopData must skip shops with an offline Session (reinstalled)");
+    fail("I-2: purgeShopData must skip shops with an offline Session (reinstalled)");
   }
   const stillThere = await prisma.shop.findUnique({ where: { domain: SHOP_A } });
-  if (!stillThere) fail("reinstalled shop must survive purgeShopData reinstall guard");
+  if (!stillThere) fail("I-2: reinstalled shop must survive purgeShopData reinstall guard");
+  if ((await prisma.filterConfig.count({ where: { shopId: shopA.id } })) < 1) {
+    fail("I-2: filter config must survive late cleanup after reinstall");
+  }
+  log.info("I-2: uninstall→reinstall→late cleanup skipped and data survived");
 
   // No session + soft-mark → purge allowed (shop/redact / late cleanup).
   await prisma.session.deleteMany({ where: { shop: SHOP_A } });
@@ -1272,6 +1415,18 @@ try {
   if (leftoverCacheB !== 2) {
     fail("CacheGeneration keys for other shops must survive purgeShopData");
   }
+  const leftoverWdA = await prisma.webhookDelivery.count({
+    where: { shopDomain: SHOP_A },
+  });
+  if (leftoverWdA !== 0) {
+    fail("I-3: WebhookDelivery rows for purged shop must be deleted");
+  }
+  const leftoverWdB = await prisma.webhookDelivery.count({
+    where: { shopDomain: SHOP_B },
+  });
+  if (leftoverWdB < 1) {
+    fail("I-3: WebhookDelivery rows for other shops must survive purgeShopData");
+  }
 
   // Idempotent second pass (Shop already gone) still scrubs any re-seeded leftovers.
   await prisma.queueJob.create({
@@ -1287,6 +1442,13 @@ try {
   await prisma.cacheGeneration.create({
     data: { key: `catalog:${SHOP_A}`, version: 1 },
   });
+  await prisma.webhookDelivery.create({
+    data: {
+      webhookId: `b5-wd-${SHOP_A}-orphan`,
+      shopDomain: SHOP_A,
+      topic: "SHOP_REDACT",
+    },
+  });
   const purgedAgain = await purgeShopData(SHOP_A);
   if (purgedAgain.deleted) fail("second purge should report deleted=false (no Shop row)");
   const orphanJobs = await prisma.queueJob.count({
@@ -1297,8 +1459,16 @@ try {
     where: { key: `catalog:${SHOP_A}` },
   });
   if (orphanCache !== 0) fail("idempotent purge must still delete CacheGeneration leftovers");
+  const orphanWd = await prisma.webhookDelivery.count({
+    where: { shopDomain: SHOP_A },
+  });
+  if (orphanWd !== 0) {
+    fail("I-3: idempotent purge must still delete WebhookDelivery leftovers");
+  }
 
-  log.info("compliance purge removed tenant data including QueueJob + CacheGeneration");
+  log.info(
+    "compliance purge removed tenant data including QueueJob + CacheGeneration + WebhookDelivery",
+  );
 
   log.success("STEPB5_OK launch E2E: filters + search isolation + billing + compliance");
 } catch (error) {

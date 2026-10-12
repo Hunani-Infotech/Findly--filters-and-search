@@ -3,32 +3,44 @@ import { authenticate } from "../shopify.server";
 import {
   ensureShopPurged,
   logComplianceEvent,
-  shopifyWebhookRequestId,
 } from "../services/compliance.server";
 import { log } from "../lib/log.server";
+import {
+  resolveShopScopedWebhookId,
+  tryRecordWebhookDelivery,
+  webhookDeliveryExists,
+} from "../services/webhook-delivery.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic } = await authenticate.webhook(request);
 
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const requestId = shopifyWebhookRequestId(request);
+  const webhookId = resolveShopScopedWebhookId({
+    request,
+    topic,
+    shopDomain: shop,
+  });
+
+  if (await webhookDeliveryExists(webhookId)) {
+    log.info(
+      `[compliance] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
+    );
+    return new Response(null, { status: 200 });
+  }
+
   try {
     const purged = await ensureShopPurged(shop, "shop/redact");
     const status =
-      purged.mode === "queued"
-        ? "queued"
-        : purged.mode === "skipped"
-          ? "skipped_reinstalled"
-          : "redacted";
+      purged.mode === "queued" ? "queued" : "skipped_reinstalled";
     await logComplianceEvent(shop, topic, {
-      requestId,
+      requestId: webhookId,
       status,
     });
   } catch (error) {
     try {
       await logComplianceEvent(shop, topic, {
-        requestId,
+        requestId: webhookId,
         status: "failed",
       });
     } catch (logError) {
@@ -39,6 +51,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     throw error;
   }
+
+  await tryRecordWebhookDelivery({
+    webhookId,
+    shopDomain: shop,
+    topic,
+  });
 
   return new Response(null, { status: 200 });
 };
