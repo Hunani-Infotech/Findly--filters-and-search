@@ -23,6 +23,14 @@ import { log } from "../lib/log.server";
 /** D-3: keep last-known paid storefront caps for 24h after a paid→empty sync. */
 const LIMITS_GRACE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * PENDING app charges are NOT returned by currentAppInstallation.activeSubscriptions.
+ * If sync treats "empty list" as cancel, it clears confirmationUrl and the next kickoff
+ * creates a duplicate charge. Preserve fresh local PENDING+URL until Shopify pending
+ * typically expires (~2 days), then allow wipe so the merchant can create a new charge.
+ */
+const PENDING_CHARGE_PRESERVE_MS = 48 * 60 * 60 * 1000;
+
 export type BillingAuditAction = "create" | "sync" | "cancel" | "demote";
 
 /** D-4: structured billing audit line (shop, sub id, status, request id). */
@@ -880,7 +888,9 @@ async function syncActiveSubscriptionsUnlocked(
   const requestId = options?.requestId ?? newBillingRequestId();
   const subs =
     options?.prefetched ?? (await fetchActiveSubscriptions(admin));
-  const active = subs[0];
+  // Prefer a real ACTIVE/TRIAL row if Shopify returns more than one.
+  const active =
+    subs.find((s) => isShopifyActivePaid(s)) ?? subs[0] ?? null;
   const domain = await loadShopDomain(shopId);
   const shopLabel = domain ?? shopId;
 
@@ -888,14 +898,48 @@ async function syncActiveSubscriptionsUnlocked(
     const existing = await prisma.subscription.findUnique({
       where: { shopId },
     });
+
+    // --- Empty activeSubscriptions: scenario matrix ---
+    // ACTIVE merchant cancelled → wipe local to free (+ D-3 grace). Correct.
+    // PENDING waiting for approval → NOT in this list; preserve URL or we
+    //   duplicate-charge on next kickoff/reconcile. Correct to preserve.
+    // PENDING declined/expired hours ago → list still empty; after 48h wipe so
+    //   merchant can Choose plan again (Approve URL is likely dead anyway).
+    // PENDING without saved URL → wipe so create path can run again.
+    // Never-installed / already CANCELLED → wipe/upsert free. Harmless.
+    if (
+      existing &&
+      isLocalPendingStatus(existing.status) &&
+      existing.confirmationUrl &&
+      isAllowedShopifyConfirmationUrl(existing.confirmationUrl)
+    ) {
+      const pendingAgeMs = Date.now() - existing.updatedAt.getTime();
+      if (pendingAgeMs < PENDING_CHARGE_PRESERVE_MS) {
+        logBillingAudit({
+          shop: shopLabel,
+          action: "sync",
+          shopifySubscriptionId: existing.shopifySubscriptionId,
+          status: existing.status,
+          requestId,
+        });
+        log.info(
+          `[billing] preserve PENDING confirmationUrl for ${shopLabel} (ageMs=${pendingAgeMs}; activeSubscriptions empty — not a cancel)`,
+        );
+        return existing;
+      }
+      log.info(
+        `[billing] stale PENDING for ${shopLabel} (ageMs=${pendingAgeMs} >= ${PENDING_CHARGE_PRESERVE_MS}); clearing so a new charge can be created`,
+      );
+    }
+
     const wasPaid = hasActivePaidSubscription(existing);
     const graceActive =
       existing?.limitsGraceUntil != null &&
       existing.limitsGraceUntil > new Date();
 
     // D-3: paid→empty keeps last paid limits for 24h; do not refresh an active grace.
-    let productLimit = PLANS.free.productLimit;
-    let filterLimit = PLANS.free.filterLimit;
+    let productLimit: number = PLANS.free.productLimit;
+    let filterLimit: number = PLANS.free.filterLimit;
     let limitsGraceUntil: Date | null = null;
     if (wasPaid) {
       productLimit = existing!.productLimit;
