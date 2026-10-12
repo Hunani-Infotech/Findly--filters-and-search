@@ -350,6 +350,44 @@ function isLocalPendingStatus(status: string | null | undefined): boolean {
   return s === "PENDING" || s === "ACCEPTED";
 }
 
+/**
+ * B-1 charge decision from Shopify activeSubscriptions (source of truth).
+ *
+ * - No ACTIVE paid → may create a new charge.
+ * - ACTIVE matching the requested plan → STOP (never re-charge the same plan).
+ * - ACTIVE different paid plan → allow create with replacementBehavior (Standard↔Pro).
+ *   Kickoff passes no requestedPlan and treats any ACTIVE as stop.
+ */
+export function decideChargeFromActiveSubscriptions(
+  shopifySubs: ShopifyActiveSubscription[],
+  requestedPlan?: PaidPlanKey,
+):
+  | { action: "create" }
+  | { action: "stop_same_plan"; active: ShopifyActiveSubscription }
+  | { action: "stop_any_active"; active: ShopifyActiveSubscription }
+  | {
+      action: "replace_other_plan";
+      active: ShopifyActiveSubscription;
+      activeKey: PaidPlanKey;
+    } {
+  const activePaid = shopifySubs.find((s) => isShopifyActivePaid(s));
+  if (!activePaid) return { action: "create" };
+
+  if (!requestedPlan) {
+    return { action: "stop_any_active", active: activePaid };
+  }
+
+  const activeKey = paidPlanKeyFromShopifyName(activePaid.name);
+  if (activeKey === requestedPlan) {
+    return { action: "stop_same_plan", active: activePaid };
+  }
+  return {
+    action: "replace_other_plan",
+    active: activePaid,
+    activeKey,
+  };
+}
+
 /** Query Shopify currentAppInstallation.activeSubscriptions (source of truth). */
 export async function fetchActiveSubscriptions(
   admin: GraphqlAdmin,
@@ -465,9 +503,11 @@ export async function startStandardSubscriptionIfLive(
   if (isDevelopmentStoreAccess(latest)) return null;
 
   return withBillingLock(latest.id, async () => {
+    // B-1: query Shopify before any appSubscriptionCreate.
     const shopifySubs = await fetchActiveSubscriptions(admin);
-    const activePaid = shopifySubs.find((s) => isShopifyActivePaid(s));
-    if (activePaid) {
+    const decision = decideChargeFromActiveSubscriptions(shopifySubs);
+    if (decision.action === "stop_any_active") {
+      // Any ACTIVE paid → never create another install kickoff charge.
       await syncActiveSubscriptionsUnlocked(admin, latest.id, shopifySubs);
       return null;
     }
@@ -516,7 +556,11 @@ export type StartOrReusePaidResult =
 
 /**
  * Billing-page upgrade/switch: sync Shopify first, reuse pending URL, or create.
- * Never creates a charge when Shopify already has ACTIVE matching the requested plan.
+ *
+ * B-1: Always fetch activeSubscriptions first.
+ * - ACTIVE same plan → already_active (never re-charge).
+ * - ACTIVE other plan → create with replacementBehavior (Standard↔Pro switch).
+ * - No ACTIVE → create or reuse pending confirmationUrl.
  */
 export async function startOrReusePaidSubscription(
   admin: GraphqlAdmin,
@@ -526,23 +570,23 @@ export async function startOrReusePaidSubscription(
   planKey: PaidPlanKey,
 ): Promise<StartOrReusePaidResult> {
   return withBillingLock(shopId, async () => {
+    // B-1: query Shopify before any appSubscriptionCreate.
     const shopifySubs = await fetchActiveSubscriptions(admin);
-    const activePaid = shopifySubs.find((s) => isShopifyActivePaid(s));
+    const decision = decideChargeFromActiveSubscriptions(shopifySubs, planKey);
 
-    if (activePaid) {
-      const activeKey = paidPlanKeyFromShopifyName(activePaid.name);
-      if (activeKey === planKey) {
-        await syncActiveSubscriptionsUnlocked(admin, shopId, shopifySubs);
-        return { kind: "already_active" };
-      }
-      // Different paid plan → create with replacementBehavior STANDARD (below).
+    if (decision.action === "stop_same_plan") {
+      await syncActiveSubscriptionsUnlocked(admin, shopId, shopifySubs);
+      return { kind: "already_active" };
     }
+
+    const hasActivePaid = decision.action === "replace_other_plan";
+    // replace_other_plan: fall through to createAppSubscription (STANDARD replacement).
 
     const local = await prisma.subscription.findUnique({
       where: { shopId },
     });
     if (
-      !activePaid &&
+      !hasActivePaid &&
       local &&
       isLocalPendingStatus(local.status) &&
       local.confirmationUrl &&
@@ -550,7 +594,7 @@ export async function startOrReusePaidSubscription(
     ) {
       return { kind: "pending", confirmationUrl: local.confirmationUrl };
     }
-    if (!activePaid && local && isLocalPendingStatus(local.status)) {
+    if (!hasActivePaid && local && isLocalPendingStatus(local.status)) {
       return {
         kind: "error",
         error:
@@ -590,6 +634,10 @@ export async function startOrReusePaidSubscription(
   });
 }
 
+/**
+ * Low-level Shopify mutation only. Callers MUST run fetchActiveSubscriptions +
+ * decideChargeFromActiveSubscriptions first (B-1) and hold withBillingLock.
+ */
 export async function createAppSubscription(
   admin: GraphqlAdmin,
   returnUrl: string,

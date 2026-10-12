@@ -397,6 +397,29 @@ function assertThemeSeoAndUi() {
   if (!billing.includes("appSubscriptionCreate")) {
     fail("billing.server.ts missing Shopify Billing API appSubscriptionCreate");
   }
+  // B-1: query Shopify activeSubscriptions before create; stop same ACTIVE plan.
+  if (
+    !billing.includes("fetchActiveSubscriptions") ||
+    !billing.includes("decideChargeFromActiveSubscriptions")
+  ) {
+    fail(
+      "B-1: billing must fetchActiveSubscriptions + decideChargeFromActiveSubscriptions before create",
+    );
+  }
+  if (
+    !billing.includes("stop_same_plan") ||
+    !billing.includes("already_active") ||
+    !billing.includes("stop_any_active")
+  ) {
+    fail(
+      "B-1: must stop kickoff on any ACTIVE and Pricing on same-plan ACTIVE (already_active)",
+    );
+  }
+  if (!billing.includes("replace_other_plan")) {
+    fail(
+      "B-1: Standard↔Pro switch must allow create via replace_other_plan (replacementBehavior)",
+    );
+  }
   if (!billing.includes("startStandardSubscriptionIfLive") || !billing.includes("partnerDevelopment")) {
     fail("billing.server.ts missing live-install Standard charge or development unlock");
   }
