@@ -56,12 +56,15 @@
     ".sf-collection-layout .sf-layout-main .sf-app-grid," +
     ".sf-collection-layout .sf-layout-main .main-collection-grid" +
     "{width:100%!important;max-width:none!important;min-width:0;box-sizing:border-box}";
+  /* Exclude theme pagers — Dawn search nests nav.pagination inside div#product-grid. */
   var GRID_RESULT_HIDE =
     ":not([" +
     SKEL_ATTR +
     "='1']):not([data-findly-skel-host='1']):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count)" +
     ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)" +
-    ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)";
+    ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)" +
+    ":not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination])" +
+    ":not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination)";
   var GRID_BUSY_HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -744,12 +747,24 @@
     else root.classList.remove("sf-og");
   }
 
-  /** Only while filters/search/sort own the grid — never on unfiltered theme browse. */
-  function stripThemePageParam() {
+  /**
+   * Keep ?page= in sync with Findly AJAX paging (collection + search).
+   * Old behavior deleted page on every search takeover and broke deep links /
+   * theme pager hrefs on /search.
+   */
+  function syncThemePageParam(widget) {
+    if (!shouldTakeOverThemeCards(widget)) return;
     try {
       var url = new URL(window.location.href);
-      if (!url.searchParams.has("page")) return;
-      url.searchParams.delete("page");
+      var page = Math.max(1, Number(widget && widget.page) || 1);
+      var cur = url.searchParams.get("page");
+      if (page <= 1) {
+        if (!cur) return;
+        url.searchParams.delete("page");
+      } else {
+        if (String(cur || "") === String(page)) return;
+        url.searchParams.set("page", String(page));
+      }
       history.replaceState(
         history.state,
         "",
@@ -761,8 +776,7 @@
   }
 
   function stripThemePageParamIfFiltering(widget) {
-    if (!shouldTakeOverThemeCards(widget)) return;
-    stripThemePageParam();
+    syncThemePageParam(widget);
   }
 
   function fallbackHost() {
@@ -8428,15 +8442,17 @@
         return this.pageSize;
       }
       var parent =
+        resolveListingCardGrid(this._gridParent) ||
         this._gridParent ||
         document.querySelector(PRODUCT_GRID_SELECTOR) ||
         findResultsList();
-      var cards = parent ? collectThemeCards(parent) : [];
+      var cardHost = preferProductCardGrid(parent) || parent;
+      var cards = cardHost ? collectThemeCards(cardHost) : [];
       var fromCards = themeShowsNextPage()
         ? pageSizeInRange(cards.length)
         : 0;
       var fromPager = pageSizeFromPager();
-      var fromAttrs = pageSizeFromDataAttrs(parent, this.root);
+      var fromAttrs = pageSizeFromDataAttrs(cardHost, this.root);
       var fromBlock = 0;
       try {
         fromBlock = pageSizeInRange(
@@ -8445,7 +8461,13 @@
       } catch (err) {
         fromBlock = 0;
       }
-      var size = fromCards || fromPager || fromAttrs || fromBlock || 16;
+      /*
+       * Search: never trust data-page-size alone — Liquid used to set it from
+       * search.results.size (hit total), which hid the pager when total≤pageSize.
+       */
+      var size = isSearchPageContext(this)
+        ? fromCards || fromPager || fromAttrs || 16
+        : fromCards || fromPager || fromAttrs || fromBlock || 16;
       this._themePageSize = size;
       this.pageSize = size;
       return this.pageSize;

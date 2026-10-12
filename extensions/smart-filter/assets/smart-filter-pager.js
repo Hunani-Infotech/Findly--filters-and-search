@@ -175,6 +175,20 @@
     unhidePager(el);
   }
 
+  function payloadHasNext(widget) {
+    var data = widget && widget._lastFilterData;
+    if (!data) return false;
+    if (data.hasNext === true || data.has_next === true) return true;
+    var page = Math.max(1, Number(data.page != null ? data.page : widget.page) || 1);
+    var size = Math.max(
+      1,
+      Number(data.pageSize != null ? data.pageSize : widget.pageSize) || 16,
+    );
+    var total = Number(data.total);
+    if (Number.isFinite(total) && total >= 0) return page * size < total;
+    return false;
+  }
+
   function filteredTotal(widget) {
     var data = widget && widget._lastFilterData;
     if (data) {
@@ -182,10 +196,10 @@
       if (Number.isFinite(fromTotal) && fromTotal >= 0) return fromTotal;
       var fromCount = Number(data.count);
       if (Number.isFinite(fromCount) && fromCount >= 0) return fromCount;
-      /* handles may be page-sliced — only fall back when total/count absent */
-      if (Array.isArray(data.handles) && data.handles.length) {
-        return data.handles.length;
-      }
+      /*
+       * Never use page-sliced handles.length as catalog total — that hides
+       * the pager whenever the current page is "full" (e.g. 16 of 40).
+       */
     }
     // Latest filter payload wins. Mixing it with leftover
     // _statusProductCount / _pageTotal from the previous unfiltered view
@@ -201,6 +215,8 @@
 
   function resultsFitOnePage(widget) {
     if (!widget) return false;
+    /* API says more pages exist — keep pager visible. */
+    if (payloadHasNext(widget)) return false;
     if (widget.ensurePageSize) widget.ensurePageSize();
     var size = widget.pageSize || 16;
     var total = filteredTotal(widget);
@@ -225,7 +241,7 @@
     var size = (widget && widget.pageSize) || 16;
     var n = Number(count);
     if (!Number.isFinite(n) || n < 0) return;
-    var hide = n <= size;
+    var hide = n <= size && !payloadHasNext(widget);
     setPagerUnneeded(hide);
     if (hide) suppressThemePagers();
     else unhideThemePagers();
@@ -997,6 +1013,82 @@
       applyPagerByProductCount(this, count);
     };
 
+    function seedPageFromUrl(widget) {
+      if (!widget || widget._sfPageSeeded) return;
+      widget._sfPageSeeded = true;
+      try {
+        var url = new URL(window.location.href);
+        var p = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
+        if (p > 1) {
+          widget.page = p;
+          widget._sfPaged = true;
+        }
+      } catch (err) {
+        /* ignore */
+      }
+    }
+
+    function writePageToUrl(widget) {
+      try {
+        var url = new URL(window.location.href);
+        var page = Math.max(1, Number(widget && widget.page) || 1);
+        var cur = url.searchParams.get("page");
+        if (page <= 1) {
+          if (!cur) return;
+          url.searchParams.delete("page");
+        } else if (String(cur || "") === String(page)) {
+          return;
+        } else {
+          url.searchParams.set("page", String(page));
+        }
+        history.replaceState(
+          history.state,
+          "",
+          url.pathname + url.search + url.hash,
+        );
+      } catch (err) {
+        /* ignore */
+      }
+    }
+
+    var origFetchFilters = proto.fetchFilters;
+    if (origFetchFilters) {
+      proto.fetchFilters = function (opts) {
+        opts = opts || {};
+        seedPageFromUrl(this);
+        if (!opts.append && opts.page == null && Math.max(1, Number(this.page) || 1) > 1) {
+          opts = Object.assign({}, opts, { page: this.page });
+        }
+        return origFetchFilters.call(this, opts);
+      };
+    }
+
+    var origReadPagingMeta = proto.readPagingMeta;
+    if (origReadPagingMeta) {
+      proto.readPagingMeta = function (data, handles) {
+        origReadPagingMeta.call(this, data, handles);
+        var t = Number(data && data.total);
+        if (Number.isFinite(t) && t >= 0) {
+          this._pageTotal = t;
+          this._statusProductCount = t;
+          return;
+        }
+        /* Prefer hasNext over page-sliced handle counts for pager visibility. */
+        if (data && (data.hasNext === true || data.has_next === true)) {
+          var size = Math.max(1, Number(this.pageSize) || 16);
+          var page = Math.max(
+            1,
+            Number(data.page != null ? data.page : this.page) || 1,
+          );
+          var minTotal = page * size + 1;
+          if (!(Number(this._pageTotal) >= minTotal)) {
+            this._pageTotal = minTotal;
+            this._statusProductCount = minTotal;
+          }
+        }
+      };
+    }
+
     var origGoToPage = proto.goToPage;
     proto.goToPage = function (page) {
       var next = Math.max(1, Math.floor(Number(page) || 1));
@@ -1028,7 +1120,10 @@
           if (self._sfNeedsListingScroll) flushListingScroll(self);
         }, 450);
       }
-      if (origGoToPage) return origGoToPage.call(this, next);
+      var result = origGoToPage ? origGoToPage.call(this, next) : undefined;
+      /* Sync ?page= after core updates widget.page (do not mutate before). */
+      writePageToUrl(this);
+      return result;
     };
 
     var origSetGridBusy = proto.setGridBusy;
@@ -1086,7 +1181,8 @@
           return true;
         }
         // Few filtered results (≤ one page): hide theme pager.
-        if (resultsFitOnePage(this) || total <= size) {
+        // hasNext / total>pageSize keep search pagination like collection.
+        if (resultsFitOnePage(this) || (total <= size && !payloadHasNext(this))) {
           return true;
         }
         unhideThemePagers();

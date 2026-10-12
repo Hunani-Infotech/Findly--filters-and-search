@@ -58,11 +58,13 @@
 </script>
 {% endif %}
 
+{% comment %}
+  Page size must be theme page size (products per page), never search.results.size
+  (that is often the hit total and falsely hides pagination when total <= pageSize).
+{% endcomment %}
 {% assign sf_page_size = 16 %}
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
-{% elsif search.results.size >= 8 and search.results.size <= 48 %}
-  {% assign sf_page_size = search.results.size %}
 {% endif %}
 <div
   id="smart-filter-embed"
