@@ -60,6 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       devUnlockLimits: false,
       partnerDevelopment: false,
       subscription: null,
+      pendingConfirmationUrl: null as string | null,
       usage: {
         productCount: 0,
         productLimit: PLANS.free.productLimit,
@@ -95,6 +96,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const limits = await enforcePlanLimits(shop.id);
 
+  // Validate confirmation URL on the server so the client never imports
+  // billing.server (React Router strips .server only from loader/action).
+  const subStatusRaw = String(shop.subscription?.status || "").toUpperCase();
+  const pendingConfirmationUrl =
+    (subStatusRaw === "PENDING" || subStatusRaw === "ACCEPTED") &&
+    shop.subscription?.confirmationUrl &&
+    isAllowedShopifyConfirmationUrl(shop.subscription.confirmationUrl)
+      ? shop.subscription.confirmationUrl
+      : null;
+
   return {
     plans: PLANS,
     currentPlan: limits.plan,
@@ -102,6 +113,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     devUnlockLimits: isDevUnlockLimits(),
     partnerDevelopment: shop.partnerDevelopment,
     subscription: shop.subscription,
+    pendingConfirmationUrl,
     usage: {
       productCount: limits.productCount,
       productLimit: limits.productLimit,
@@ -227,13 +239,7 @@ export default function BillingPage() {
   const onPaid = data.currentPlan !== "free";
   const showFreePlan = data.partnerDevelopment || data.devUnlockLimits;
   const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
-  const subStatusRaw = String(data.subscription?.status || "").toUpperCase();
-  const pendingConfirmationUrl =
-    (subStatusRaw === "PENDING" || subStatusRaw === "ACCEPTED") &&
-    data.subscription?.confirmationUrl &&
-    isAllowedShopifyConfirmationUrl(data.subscription.confirmationUrl)
-      ? data.subscription.confirmationUrl
-      : null;
+  const pendingConfirmationUrl = data.pendingConfirmationUrl;
   const subStatus = data.subscription?.status
     ? data.subscription.status
     : liveUnpaid && !data.devUnlockLimits
