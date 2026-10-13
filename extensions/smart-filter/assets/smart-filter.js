@@ -2121,14 +2121,15 @@
   function maybeRunEmbedJs(config) {
     try {
       if (window.__findlyEmbedJsRan) return;
-      window.__findlyEmbedJsRan = true;
       var code = decodeEmbedJsHolder(
         document.getElementById("findly-embed-js"),
       );
       if (!code) {
         code = config && String(config.customJavascript || "").trim();
       }
+      /* Only latch the flag when code runs so admin Settings JS can apply later. */
       if (!code) return;
+      window.__findlyEmbedJsRan = true;
       new Function(code)();
     } catch (err) {
       try {
@@ -2253,6 +2254,8 @@
     this.bindClearAll();
     maybeRunEmbedJs(this.embedConfig);
   }
+
+  Widget.prototype.maybeRunEmbedJs = maybeRunEmbedJs;
 
   Widget.prototype.t = function (key, fallback) {
     var value = this.i18n && this.i18n[key];
@@ -2804,8 +2807,15 @@
 
   Widget.prototype.applyEmbedChrome = function () {
     if (this._embedChromeApplied) return;
-    this._embedChromeApplied = true;
     var config = this.embedConfig || readEmbedConfig();
+    var hasChrome =
+      String((config && config.treeTemplate) || "").trim() ||
+      String((config && config.sortTemplate) || "").trim() ||
+      String((config && config.searchTemplate) || "").trim();
+    /* Do not latch when empty — admin Settings may supply chrome after proxy load.
+       Live stores with orphan embed templates still apply + latch immediately. */
+    if (!hasChrome) return;
+    this._embedChromeApplied = true;
     this.applyTreeTemplate(config.treeTemplate);
     this.applySortTemplate(config.sortTemplate);
     this.applySearchTemplate(config.searchTemplate);
@@ -2880,10 +2890,11 @@
   };
 
   Widget.prototype.appGridTemplate = function () {
+    /* Admin Product list Liquid wins; orphan theme-embed productTemplate is fallback. */
+    var fromAdmin = String(this._adminProductTemplate || "").trim();
+    if (fromAdmin) return fromAdmin;
     var embed = this.embedConfig || readEmbedConfig();
-    var fromEmbed = String((embed && embed.productTemplate) || "").trim();
-    if (fromEmbed) return fromEmbed;
-    return String(this._adminProductTemplate || "").trim();
+    return String((embed && embed.productTemplate) || "").trim();
   };
 
   Widget.prototype.isAppGridMode = function () {

@@ -170,6 +170,13 @@ type SettingsState = {
   suggestionCollectionHandles: string[];
   customCss: string;
   productListLiquid: string;
+  productGridSelector: string;
+  useQuickviewTemplate: boolean;
+  customJavascript: string;
+  treeTemplate: string;
+  sortTemplate: string;
+  searchTemplate: string;
+  templateVariables: string;
 };
 
 function toSettingsState(settings: {
@@ -207,6 +214,13 @@ function toSettingsState(settings: {
   suggestionCollectionHandles?: unknown;
   customCss?: string;
   productListLiquid?: string;
+  productGridSelector?: string;
+  useQuickviewTemplate?: boolean;
+  customJavascript?: string;
+  treeTemplate?: string;
+  sortTemplate?: string;
+  searchTemplate?: string;
+  templateVariables?: string;
 }): SettingsState {
   const widgetRadius = parseWidgetRadius(settings.widgetRadius);
   const widgetTitleSize = parseWidgetTitleSize(settings.widgetTitleSize);
@@ -258,6 +272,20 @@ function toSettingsState(settings: {
     customCss: settings.customCss ?? DEFAULT_APP_SETTINGS.customCss,
     productListLiquid:
       settings.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
+    productGridSelector:
+      settings.productGridSelector ?? DEFAULT_APP_SETTINGS.productGridSelector,
+    useQuickviewTemplate: Boolean(
+      settings.useQuickviewTemplate ??
+        DEFAULT_APP_SETTINGS.useQuickviewTemplate,
+    ),
+    customJavascript:
+      settings.customJavascript ?? DEFAULT_APP_SETTINGS.customJavascript,
+    treeTemplate: settings.treeTemplate ?? DEFAULT_APP_SETTINGS.treeTemplate,
+    sortTemplate: settings.sortTemplate ?? DEFAULT_APP_SETTINGS.sortTemplate,
+    searchTemplate:
+      settings.searchTemplate ?? DEFAULT_APP_SETTINGS.searchTemplate,
+    templateVariables:
+      settings.templateVariables ?? DEFAULT_APP_SETTINGS.templateVariables,
   };
 }
 
@@ -332,6 +360,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       suggestionCollectionHandles: settings.suggestionCollectionHandles,
       customCss: settings.customCss,
       productListLiquid: settings.productListLiquid,
+      productGridSelector: settings.productGridSelector,
+      useQuickviewTemplate: settings.useQuickviewTemplate,
+      customJavascript: settings.customJavascript,
+      treeTemplate: settings.treeTemplate,
+      sortTemplate: settings.sortTemplate,
+      searchTemplate: settings.searchTemplate,
+      templateVariables: settings.templateVariables,
     }),
   };
 };
@@ -468,6 +503,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       form.get("autoApplyFilters") === "on",
     customCss: String(form.get("customCss") ?? ""),
     productListLiquid: String(form.get("productListLiquid") ?? ""),
+    productGridSelector: String(form.get("productGridSelector") ?? ""),
+    useQuickviewTemplate:
+      form.get("useQuickviewTemplate") === "true" ||
+      form.get("useQuickviewTemplate") === "on",
+    customJavascript: String(form.get("customJavascript") ?? ""),
+    treeTemplate: String(form.get("treeTemplate") ?? ""),
+    sortTemplate: String(form.get("sortTemplate") ?? ""),
+    searchTemplate: String(form.get("searchTemplate") ?? ""),
+    templateVariables: String(form.get("templateVariables") ?? ""),
   });
 
   return { ok: true };
@@ -623,6 +667,13 @@ export default function SettingsPage() {
     formData.set("autoApplyFilters", String(next.autoApplyFilters));
     formData.set("customCss", next.customCss);
     formData.set("productListLiquid", next.productListLiquid);
+    formData.set("productGridSelector", next.productGridSelector);
+    formData.set("useQuickviewTemplate", String(next.useQuickviewTemplate));
+    formData.set("customJavascript", next.customJavascript);
+    formData.set("treeTemplate", next.treeTemplate);
+    formData.set("sortTemplate", next.sortTemplate);
+    formData.set("searchTemplate", next.searchTemplate);
+    formData.set("templateVariables", next.templateVariables);
     submit(formData, { method: "POST" });
   };
 
@@ -1274,6 +1325,42 @@ export default function SettingsPage() {
                   <Card>
                     <BlockStack gap="300">
                       <Text as="h2" variant="headingMd">
+                        Theme integration
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Formerly theme App embed options. Configure them here so
+                        the embed can stay toggle-only.
+                      </Text>
+                      <TextField
+                        label="Product grid selector"
+                        autoComplete="off"
+                        value={settings.productGridSelector}
+                        disabled={saving}
+                        helpText="CSS selector for the collection product list (e.g. #product-grid). Leave blank to auto-detect."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            productGridSelector: value,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        label="Use custom quick view template"
+                        checked={settings.useQuickviewTemplate}
+                        disabled={saving}
+                        helpText="Adds a Quick view button on product cards. Uses [data-findly-quickview] from the product template when present."
+                        onChange={(checked) =>
+                          setSettings((s) => ({
+                            ...s,
+                            useQuickviewTemplate: checked,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
                         Custom CSS
                       </Text>
                       <TextField
@@ -1293,6 +1380,28 @@ export default function SettingsPage() {
                   <Card>
                     <BlockStack gap="300">
                       <Text as="h2" variant="headingMd">
+                        Custom JavaScript
+                      </Text>
+                      <TextField
+                        label="Custom JavaScript"
+                        labelHidden
+                        autoComplete="off"
+                        multiline={6}
+                        value={settings.customJavascript}
+                        disabled={saving}
+                        helpText="Runs on the storefront after Findly loads. Merchant-owned code — use carefully."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            customJavascript: value,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
                         Product list Liquid
                       </Text>
                       <TextField
@@ -1302,11 +1411,69 @@ export default function SettingsPage() {
                         multiline={6}
                         value={settings.productListLiquid}
                         disabled={saving}
-                        helpText="Optional HTML for the app product grid. Placeholders like {{product.title}} work the same as the theme App embed product template. Script tags are stripped on save."
+                        helpText="Optional HTML for each product card (same role as the old theme embed product template). Placeholders: {{product.title}}, {{product.url}}, {{product.image}}, {{product.price}}, {{product.vendor}}, {{product.handle}}, {{product.id}}, {{product.available}}. Script tags are stripped on save."
                         onChange={(value) =>
                           setSettings((s) => ({
                             ...s,
                             productListLiquid: value,
+                          }))
+                        }
+                      />
+                    </BlockStack>
+                  </Card>
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text as="h2" variant="headingMd">
+                        Custom templates
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Optional HTML chrome for the filter panel. Leave blank to
+                        use the default Findly markup.
+                      </Text>
+                      <TextField
+                        label="Filter tree template"
+                        autoComplete="off"
+                        multiline={4}
+                        value={settings.treeTemplate}
+                        disabled={saving}
+                        helpText="Must include an element with data-facets. Placeholders: {{title}}, {{variables}}."
+                        onChange={(value) =>
+                          setSettings((s) => ({ ...s, treeTemplate: value }))
+                        }
+                      />
+                      <TextField
+                        label="Sort template"
+                        autoComplete="off"
+                        multiline={4}
+                        value={settings.sortTemplate}
+                        disabled={saving}
+                        helpText="Must include a select with data-sort."
+                        onChange={(value) =>
+                          setSettings((s) => ({ ...s, sortTemplate: value }))
+                        }
+                      />
+                      <TextField
+                        label="Collection search template"
+                        autoComplete="off"
+                        multiline={4}
+                        value={settings.searchTemplate}
+                        disabled={saving}
+                        helpText="Must include an input with data-collection-search."
+                        onChange={(value) =>
+                          setSettings((s) => ({ ...s, searchTemplate: value }))
+                        }
+                      />
+                      <TextField
+                        label="Template variables"
+                        autoComplete="off"
+                        multiline={2}
+                        value={settings.templateVariables}
+                        disabled={saving}
+                        helpText="Static string available in templates as {{variables}} (Liquid is not re-evaluated here)."
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            templateVariables: value,
                           }))
                         }
                       />

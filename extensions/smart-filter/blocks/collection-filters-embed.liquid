@@ -22,10 +22,11 @@
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter.min.js' | asset_url }}" defer></script>
 {% comment %}
-  Layout / counts / custom CSS are owned by Findly app Settings (proxy JSON after
-  load). Theme-editor duplicates were removed from the schema. First-paint uses
-  fixed defaults that match DEFAULT_APP_SETTINGS; orphan custom_css values from
-  older theme saves still inject so existing merchant CSS is not dropped.
+  App embed schema is toggle-only (enable/disable). All former embed options live
+  in Findly app Settings (Filter panel) and arrive via the filters proxy.
+  First-paint layout defaults match DEFAULT_APP_SETTINGS. Orphan block.settings
+  from older theme saves still feed #findly-embed-config / CSS / JS as fallback
+  until merchants copy values into Settings — admin non-empty values win after load.
 {% endcomment %}
 <script type="application/json" id="findly-embed-config">
 {
@@ -72,9 +73,21 @@
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
 {% endif %}
+{% comment %}
+  First-paint layout/counts: prefer orphan theme values if still present, else defaults.
+  Admin Settings override after the filters proxy loads.
+{% endcomment %}
+{% assign sf_position = block.settings.position | default: "left" %}
+{% unless sf_position == "left" or sf_position == "right" or sf_position == "top" or sf_position == "offcanvas" %}
+  {% assign sf_position = "left" %}
+{% endunless %}
+{% assign sf_show_counts = true %}
+{% if block.settings.show_counts == false %}
+  {% assign sf_show_counts = false %}
+{% endif %}
 <div
   id="smart-filter-embed"
-  class="smart-filter smart-filter--left sf-layout-stub"
+  class="smart-filter smart-filter--{{ sf_position }} sf-layout-stub"
   data-embed="true"
   data-embed-config="findly-embed-config"
   data-product-grid-selector="{{ block.settings.product_grid_selector | escape }}"
@@ -84,8 +97,8 @@
   data-page-size="{{ sf_page_size }}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
-  data-position="left"
-  data-show-counts="true"
+  data-position="{{ sf_position }}"
+  data-show-counts="{% if sf_show_counts %}true{% else %}false{% endif %}"
   data-locale="{{ request.locale.iso_code }}"
   data-country="{{ localization.country.iso_code }}"
   data-currency="{{ cart.currency.iso_code }}"
@@ -208,68 +221,6 @@
 {
   "name": "t:blocks.collection_filters_embed.name",
   "target": "body",
-  "settings": [
-    {
-      "type": "header",
-      "content": "t:blocks.collection_filters_embed.settings.headers.theme_integration"
-    },
-    {
-      "type": "text",
-      "id": "product_grid_selector",
-      "label": "t:blocks.collection_filters_embed.settings.product_grid_selector.label",
-      "info": "t:blocks.collection_filters_embed.settings.product_grid_selector.info"
-    },
-    {
-      "type": "checkbox",
-      "id": "use_quickview_template",
-      "label": "t:blocks.collection_filters_embed.settings.use_quickview_template.label",
-      "info": "t:blocks.collection_filters_embed.settings.use_quickview_template.info",
-      "default": false
-    },
-    {
-      "type": "header",
-      "content": "t:blocks.collection_filters_embed.settings.headers.custom_code"
-    },
-    {
-      "type": "textarea",
-      "id": "custom_javascript",
-      "label": "t:blocks.collection_filters_embed.settings.custom_javascript.label",
-      "info": "t:blocks.collection_filters_embed.settings.custom_javascript.info"
-    },
-    {
-      "type": "header",
-      "content": "t:blocks.collection_filters_embed.settings.headers.custom_templates"
-    },
-    {
-      "type": "textarea",
-      "id": "product_template",
-      "label": "t:blocks.collection_filters_embed.settings.product_template.label",
-      "info": "t:blocks.collection_filters_embed.settings.product_template.info"
-    },
-    {
-      "type": "textarea",
-      "id": "tree_template",
-      "label": "t:blocks.collection_filters_embed.settings.tree_template.label",
-      "info": "t:blocks.collection_filters_embed.settings.tree_template.info"
-    },
-    {
-      "type": "textarea",
-      "id": "sort_template",
-      "label": "t:blocks.collection_filters_embed.settings.sort_template.label",
-      "info": "t:blocks.collection_filters_embed.settings.sort_template.info"
-    },
-    {
-      "type": "textarea",
-      "id": "search_template",
-      "label": "t:blocks.collection_filters_embed.settings.search_template.label",
-      "info": "t:blocks.collection_filters_embed.settings.search_template.info"
-    },
-    {
-      "type": "liquid",
-      "id": "variables",
-      "label": "t:blocks.collection_filters_embed.settings.variables.label",
-      "info": "t:blocks.collection_filters_embed.settings.variables.info"
-    }
-  ]
+  "settings": []
 }
 {% endschema %}

@@ -297,6 +297,13 @@ export const DEFAULT_APP_SETTINGS = {
   suggestionCollectionHandles: [] as string[],
   customCss: "",
   productListLiquid: "",
+  productGridSelector: "",
+  useQuickviewTemplate: false,
+  customJavascript: "",
+  treeTemplate: "",
+  sortTemplate: "",
+  searchTemplate: "",
+  templateVariables: "",
 };
 
 export const WIDGET_RADIUS_PRESETS = [

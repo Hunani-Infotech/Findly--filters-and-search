@@ -1,6 +1,9 @@
 const WIDGET_SCOPE = ".smart-filter";
 const CUSTOM_CSS_MAX = 20000;
 const PRODUCT_LIST_LIQUID_MAX = 20000;
+const CUSTOM_JS_MAX = 20000;
+const TEMPLATE_VARIABLES_MAX = 4000;
+const PRODUCT_GRID_SELECTOR_MAX = 300;
 
 /** Hosts merchant custom CSS may target; used as `:is(...)` when prefixing. */
 const FINDLY_SCOPE_ROOTS = [
@@ -102,6 +105,47 @@ export function sanitizeProductListLiquid(value: unknown): string {
     liquid = liquid.replace(/\{%-?\s*endjs\s*-?%\}/gi, "");
     liquid = liquid.replace(/\{\{\s*content_for_header\s*\}\}/gi, "");
     return liquid;
+  } catch {
+    return "";
+  }
+}
+
+/** CSS selector for the theme product grid; blank = auto-detect. */
+export function sanitizeProductGridSelector(value: unknown): string {
+  try {
+    if (typeof value !== "string") return "";
+    return value
+      .trim()
+      .slice(0, PRODUCT_GRID_SELECTOR_MAX)
+      .replace(/[<>"']/g, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Merchant-owned storefront JS (length-capped; same trust model as theme embed). */
+export function sanitizeCustomJavascript(value: unknown): string {
+  try {
+    if (typeof value !== "string") return "";
+    return value.slice(0, CUSTOM_JS_MAX);
+  } catch {
+    return "";
+  }
+}
+
+/** HTML chrome templates (tree / sort / search) — same rules as product list Liquid. */
+export function sanitizeChromeTemplate(value: unknown): string {
+  return sanitizeProductListLiquid(value);
+}
+
+/** Static {{variables}} string for custom templates (no Liquid evaluation). */
+export function sanitizeTemplateVariables(value: unknown): string {
+  try {
+    if (typeof value !== "string") return "";
+    return value
+      .slice(0, TEMPLATE_VARIABLES_MAX)
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<script\b[^>]*>/gi, "");
   } catch {
     return "";
   }

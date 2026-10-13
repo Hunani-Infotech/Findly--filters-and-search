@@ -9618,6 +9618,42 @@
           customStyle.parentNode.removeChild(customStyle);
         }
       }
+      /* Merge admin Theme integration / templates into embedConfig.
+         Live-store safe: only non-empty admin strings / quickview=true win.
+         Empty admin defaults must NOT clear orphan theme-embed values that
+         older themes still carry after the embed schema became toggle-only. */
+      if (settings && typeof settings === "object") {
+        var cfg = this.embedConfig || {};
+        function takeStr(key, adminKey) {
+          var adminKeyName = adminKey || key;
+          if (
+            typeof settings[adminKeyName] === "string" &&
+            String(settings[adminKeyName]).trim()
+          ) {
+            cfg[key] = String(settings[adminKeyName]);
+          }
+        }
+        takeStr("productGridSelector");
+        /* Opt-in only — default false must not disable orphan embed quickview. */
+        if (settings.useQuickviewTemplate === true) {
+          cfg.useQuickviewTemplate = true;
+        }
+        takeStr("customJavascript");
+        takeStr("treeTemplate");
+        takeStr("sortTemplate");
+        takeStr("searchTemplate");
+        takeStr("variables", "templateVariables");
+        this.embedConfig = cfg;
+        if (cfg.productGridSelector) {
+          this.root.setAttribute(
+            "data-product-grid-selector",
+            String(cfg.productGridSelector),
+          );
+        }
+        if (cfg.useQuickviewTemplate) {
+          this.root.setAttribute("data-use-quickview", "true");
+        }
+      }
       if (origApplySettings) origApplySettings.apply(this, arguments);
       if (settings && typeof settings === "object") {
         if ("offcanvasSide" in settings) {
@@ -9629,6 +9665,20 @@
         syncDrawerSideAttrs(this, liveDrawerPanel(this));
         if (shouldPortalDrawer(this)) {
           portalMobileDrawer(this);
+        }
+        /* Apply chrome / JS / quickview after settings merge when orphans were empty. */
+        if (!this._embedChromeApplied && this.applyEmbedChrome) {
+          this.applyEmbedChrome();
+        }
+        if (typeof this.maybeRunEmbedJs === "function") {
+          this.maybeRunEmbedJs(this.embedConfig);
+        }
+        if (
+          this.embedConfig &&
+          this.embedConfig.useQuickviewTemplate &&
+          this.ensureQuickviewButtons
+        ) {
+          this.ensureQuickviewButtons();
         }
       }
     };

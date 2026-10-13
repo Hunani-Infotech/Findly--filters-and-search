@@ -146,6 +146,20 @@ model AppSettings {
   customCss         String   @default("")
   /// D7: optional Liquid snippet for the app product grid (D8); not applied to the theme grid yet
   productListLiquid String   @default("")
+  /// Theme integration: CSS selector for the collection product list (blank = auto-detect)
+  productGridSelector String @default("")
+  /// Theme integration: add Quick view buttons using [data-findly-quickview]
+  useQuickviewTemplate Boolean @default(false)
+  /// Merchant storefront JS (formerly theme-embed custom_javascript)
+  customJavascript  String   @default("")
+  /// Optional HTML chrome: filter tree wrapper (needs data-facets)
+  treeTemplate      String   @default("")
+  /// Optional HTML chrome: sort control (needs data-sort)
+  sortTemplate      String   @default("")
+  /// Optional HTML chrome: collection search (needs data-collection-search)
+  searchTemplate    String   @default("")
+  /// Static string available as {{variables}} in custom templates
+  templateVariables String   @default("")
   updatedAt         DateTime @updatedAt
 }
 

@@ -9,7 +9,15 @@ import {
 } from "../utils/app-settings";
 import type { HydratedAppSettings } from "./settings.server";
 import type { MetafieldSortOption } from "./sort.server";
-import { sanitizeCustomCss, sanitizeProductListLiquid, scopeCustomCss } from "../utils/widget-code";
+import {
+  sanitizeChromeTemplate,
+  sanitizeCustomCss,
+  sanitizeCustomJavascript,
+  sanitizeProductGridSelector,
+  sanitizeProductListLiquid,
+  sanitizeTemplateVariables,
+  scopeCustomCss,
+} from "../utils/widget-code";
 
 /** Storefront filter widget settings sent in proxy JSON payloads. */
 export function buildStorefrontWidgetSettings(
@@ -52,6 +60,15 @@ export function buildStorefrontWidgetSettings(
     autoApplyFilters: appSettings.autoApplyFilters !== false,
     customCss: scopeCustomCss(sanitizeCustomCss(appSettings.customCss)),
     productListLiquid: sanitizeProductListLiquid(appSettings.productListLiquid),
+    productGridSelector: sanitizeProductGridSelector(
+      appSettings.productGridSelector,
+    ),
+    useQuickviewTemplate: Boolean(appSettings.useQuickviewTemplate),
+    customJavascript: sanitizeCustomJavascript(appSettings.customJavascript),
+    treeTemplate: sanitizeChromeTemplate(appSettings.treeTemplate),
+    sortTemplate: sanitizeChromeTemplate(appSettings.sortTemplate),
+    searchTemplate: sanitizeChromeTemplate(appSettings.searchTemplate),
+    templateVariables: sanitizeTemplateVariables(appSettings.templateVariables),
     metafieldSortOptions,
     enableVariantsAsProducts: Boolean(
       (config as { enableVariantsAsProducts?: boolean }).enableVariantsAsProducts,

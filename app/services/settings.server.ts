@@ -31,8 +31,12 @@ import {
   type SearchExtras,
 } from "../utils/instant-search";
 import {
+  sanitizeChromeTemplate,
   sanitizeCustomCss,
+  sanitizeCustomJavascript,
+  sanitizeProductGridSelector,
   sanitizeProductListLiquid,
+  sanitizeTemplateVariables,
 } from "../utils/widget-code";
 import { createTtlCache } from "../lib/read-cache.server";
 import { bumpStorefrontConfigGenerationForShopId } from "../lib/catalog-cache.server";
@@ -76,6 +80,13 @@ export type AppSettingsInput = {
   searchExtras?: SearchExtras | Record<string, unknown>;
   customCss?: string;
   productListLiquid?: string;
+  productGridSelector?: string;
+  useQuickviewTemplate?: boolean;
+  customJavascript?: string;
+  treeTemplate?: string;
+  sortTemplate?: string;
+  searchTemplate?: string;
+  templateVariables?: string;
 };
 
 function extrasFromRow(row: object): unknown {
@@ -263,6 +274,26 @@ function normalizeSettingsWrite(input: AppSettingsInput) {
     productListLiquid: sanitizeProductListLiquid(
       input.productListLiquid ?? DEFAULT_APP_SETTINGS.productListLiquid,
     ),
+    productGridSelector: sanitizeProductGridSelector(
+      input.productGridSelector ?? DEFAULT_APP_SETTINGS.productGridSelector,
+    ),
+    useQuickviewTemplate:
+      input.useQuickviewTemplate ?? DEFAULT_APP_SETTINGS.useQuickviewTemplate,
+    customJavascript: sanitizeCustomJavascript(
+      input.customJavascript ?? DEFAULT_APP_SETTINGS.customJavascript,
+    ),
+    treeTemplate: sanitizeChromeTemplate(
+      input.treeTemplate ?? DEFAULT_APP_SETTINGS.treeTemplate,
+    ),
+    sortTemplate: sanitizeChromeTemplate(
+      input.sortTemplate ?? DEFAULT_APP_SETTINGS.sortTemplate,
+    ),
+    searchTemplate: sanitizeChromeTemplate(
+      input.searchTemplate ?? DEFAULT_APP_SETTINGS.searchTemplate,
+    ),
+    templateVariables: sanitizeTemplateVariables(
+      input.templateVariables ?? DEFAULT_APP_SETTINGS.templateVariables,
+    ),
   };
 }
 
@@ -308,6 +339,13 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       suggestionCollectionHandles: n.suggestionCollectionHandles,
       customCss: n.customCss,
       productListLiquid: n.productListLiquid,
+      productGridSelector: n.productGridSelector,
+      useQuickviewTemplate: n.useQuickviewTemplate,
+      customJavascript: n.customJavascript,
+      treeTemplate: n.treeTemplate,
+      sortTemplate: n.sortTemplate,
+      searchTemplate: n.searchTemplate,
+      templateVariables: n.templateVariables,
     },
     update: {
       widgetPosition: n.widgetPosition,
@@ -437,6 +475,41 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
         input.productListLiquid !== undefined,
         "productListLiquid",
         n.productListLiquid,
+      ),
+      ...patchIfPresent(
+        input.productGridSelector !== undefined,
+        "productGridSelector",
+        n.productGridSelector,
+      ),
+      ...patchIfPresent(
+        input.useQuickviewTemplate !== undefined,
+        "useQuickviewTemplate",
+        n.useQuickviewTemplate,
+      ),
+      ...patchIfPresent(
+        input.customJavascript !== undefined,
+        "customJavascript",
+        n.customJavascript,
+      ),
+      ...patchIfPresent(
+        input.treeTemplate !== undefined,
+        "treeTemplate",
+        n.treeTemplate,
+      ),
+      ...patchIfPresent(
+        input.sortTemplate !== undefined,
+        "sortTemplate",
+        n.sortTemplate,
+      ),
+      ...patchIfPresent(
+        input.searchTemplate !== undefined,
+        "searchTemplate",
+        n.searchTemplate,
+      ),
+      ...patchIfPresent(
+        input.templateVariables !== undefined,
+        "templateVariables",
+        n.templateVariables,
       ),
     },
   });
