@@ -35,6 +35,34 @@ type MarketContextCacheEntry = {
 
 const marketContextByShop = new Map<string, MarketContextCacheEntry>();
 
+/**
+ * Optional B2B scope probe for FindlyCompanyLocations.
+ * - true  → shop granted read_companies (run query)
+ * - false → offline session exists without that scope (skip query; prevents ACCESS_DENIED)
+ * - null  → unknown (DB/session missing) → keep prior behavior (attempt query)
+ */
+async function shopMayReadCompanies(shopId: string): Promise<boolean | null> {
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { domain: true },
+    });
+    if (!shop?.domain) return null;
+    const session = await prisma.session.findFirst({
+      where: { shop: shop.domain, isOnline: false },
+      select: { scope: true },
+    });
+    if (!session) return null;
+    const scopes = String(session.scope || "")
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return scopes.includes("read_companies");
+  } catch {
+    return null;
+  }
+}
+
 function shouldSwallowGraphqlErrors(payload: GraphqlJson): boolean {
   const errors = payload.errors;
   if (!Array.isArray(errors) || !errors.length) return false;
@@ -68,7 +96,10 @@ async function graphqlJson(
   }
 }
 
-export async function listMarketContexts(admin: GraphqlClient): Promise<{
+export async function listMarketContexts(
+  admin: GraphqlClient,
+  opts?: { includeCompanyLocations?: boolean },
+): Promise<{
   countries: string[];
   companyLocationIds: string[];
 }> {
@@ -76,11 +107,14 @@ export async function listMarketContexts(admin: GraphqlClient): Promise<{
   const countries = parseMarketCountryCodes(marketsJson);
 
   let companyLocationIds: string[] = [];
-  try {
-    const companiesJson = await graphqlJson(admin, COMPANY_LOCATIONS_QUERY);
-    companyLocationIds = parseCompanyLocationIds(companiesJson);
-  } catch {
-    companyLocationIds = [];
+  // Default true preserves prior behavior when callers omit the flag.
+  if (opts?.includeCompanyLocations !== false) {
+    try {
+      const companiesJson = await graphqlJson(admin, COMPANY_LOCATIONS_QUERY);
+      companyLocationIds = parseCompanyLocationIds(companiesJson);
+    } catch {
+      companyLocationIds = [];
+    }
   }
 
   return { countries, companyLocationIds };
@@ -98,7 +132,11 @@ export async function listMarketContextsForShop(
       companyLocationIds: hit.companyLocationIds,
     };
   }
-  const ctx = await listMarketContexts(admin);
+  // Only skip when we positively know read_companies is absent.
+  // null/true → same as before (run FindlyCompanyLocations).
+  const mayReadCompanies = await shopMayReadCompanies(shopId);
+  const includeCompanyLocations = mayReadCompanies !== false;
+  const ctx = await listMarketContexts(admin, { includeCompanyLocations });
   marketContextByShop.set(shopId, {
     ...ctx,
     expires: Date.now() + MARKET_CONTEXT_TTL_MS,

@@ -265,21 +265,58 @@ export async function enqueueSyncJob(
 
 const DEFAULT_ENQUEUE_TIMEOUT_MS = 800;
 
-/** Reject if Postgres enqueue hangs (pooler / network blip). */
+/**
+ * Reject if Postgres enqueue hangs (pooler / network blip).
+ * Safe recovery: only when a durable pending/processing row for the same
+ * jobKey+type already exists (late insert after timeout). Otherwise rethrow
+ * so Shopify still retries — never invents success.
+ */
 export async function enqueueSyncJobWithTimeout(
   name: SyncJobName,
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number; timeoutMs?: number },
 ) {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_ENQUEUE_TIMEOUT_MS;
-  return await Promise.race([
-    enqueueSyncJob(name, data, opts),
-    new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`enqueue ${name} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-    }),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      enqueueSyncJob(name, data, opts).finally(() => {
+        if (timer) clearTimeout(timer);
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`enqueue ${name} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const jobKey = normalizeJobKey(opts?.jobId);
+    if (!jobKey || !message.includes("timed out")) {
+      throw error;
+    }
+
+    const isLiveMatch = (row: QueueJob | null) =>
+      Boolean(
+        row &&
+          row.type === name &&
+          (row.status === "pending" || row.status === "processing"),
+      );
+
+    // Immediate check, then one short grace for a late INSERT.
+    let existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+    if (!isLiveMatch(existing)) {
+      await new Promise((r) => setTimeout(r, 50));
+      existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+    }
+    if (isLiveMatch(existing) && existing) {
+      log.warn(
+        `[queue] enqueue ${name} timed out but jobKey=${jobKey} is ${existing.status}; treating as success`,
+      );
+      return existing;
+    }
+    throw error;
+  }
 }
 
 /**
