@@ -8,7 +8,9 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v42";
+  var STYLE_ID = "findly-grid-takeover-v44";
+  /* Marks product cards whose widths Findly set — only those get cleared. */
+  var COL_LOCK_ATTR = "data-sf-col-lock";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -1328,28 +1330,86 @@
     var desk = cls.match(/\bgrid--(\d+)-col-desktop\b/);
     var tablet = cls.match(/\bgrid--(\d+)-col-tablet(?:-down)?\b/);
     var mobile = cls.match(/\bgrid--(\d+)-col-mobile\b/);
+    var deskN = desk ? Math.max(1, Number(desk[1]) || 0) : 0;
+    var tabletN = tablet ? Math.max(1, Number(tablet[1]) || 0) : 0;
+    var mobileN = mobile ? Math.max(1, Number(mobile[1]) || 0) : 0;
     try {
       if (
-        desk &&
         typeof window.matchMedia === "function" &&
         window.matchMedia("(min-width: 990px)").matches
       ) {
-        return Math.max(1, Number(desk[1]) || 0);
+        /* Desktop (≥990): unchanged — desktop class first. */
+        if (deskN) return deskN;
+        if (tabletN) return tabletN;
+        if (mobileN) return mobileN;
+        return 0;
       }
       if (
-        tablet &&
         typeof window.matchMedia === "function" &&
         window.matchMedia("(min-width: 750px)").matches
       ) {
-        return Math.max(1, Number(tablet[1]) || 0);
+        /* Tablet (750–989): unchanged — tablet-down first, then desk. */
+        if (tabletN) return tabletN;
+        if (mobileN) return mobileN;
+        if (deskN) return deskN;
+        return 0;
       }
     } catch (err) {
       /* ignore */
     }
-    if (desk) return Math.max(1, Number(desk[1]) || 0);
-    if (tablet) return Math.max(1, Number(tablet[1]) || 0);
-    if (mobile) return Math.max(1, Number(mobile[1]) || 0);
+    /*
+     * Phone (<750): never use desktop col count (that locked 3-col inline
+     * widths on mobile). Prefer mobile, else tablet-down (Dawn's intended
+     * narrow breakpoint). Return 0 when unmarked — do not invent columns.
+     */
+    if (mobileN) return mobileN;
+    if (tabletN) return tabletN;
     return 0;
+  }
+
+  /** True for Findly %/calc column locks (incl. older builds without data-sf-col-lock). */
+  function looksLikeFindlyPercentColLock(kid) {
+    if (!kid || !kid.style) return false;
+    if (kid.getAttribute && kid.getAttribute(COL_LOCK_ATTR) === "1") return true;
+    try {
+      var w = String(
+        kid.style.getPropertyValue("width") || kid.style.width || "",
+      ).trim();
+      if (!w) return false;
+      if (/calc\s*\(\s*\d+(\.\d+)?%\s*-/i.test(w)) return true;
+      if (!/^\d+(\.\d+)?%$/.test(w)) return false;
+      var flex = String(
+        kid.style.getPropertyValue("flex") || kid.style.flex || "",
+      ).trim();
+      return flex.indexOf("0 0") === 0;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /** Remove only Findly-applied flex column locks; leave theme/inline alone. */
+  function clearDawnFlexColumnWidths(host) {
+    if (!host || !host.children) return;
+    var i;
+    for (i = 0; i < host.children.length; i++) {
+      var kid = host.children[i];
+      if (!kid || !kid.style || typeof kid.style.removeProperty !== "function") {
+        continue;
+      }
+      if (typeof isGridChrome === "function" && isGridChrome(kid)) continue;
+      if (!looksLikeFindlyPercentColLock(kid)) continue;
+      try {
+        kid.style.removeProperty("width");
+        kid.style.removeProperty("max-width");
+        kid.style.removeProperty("flex");
+        kid.style.removeProperty("flex-grow");
+        kid.style.removeProperty("flex-shrink");
+        kid.style.removeProperty("flex-basis");
+        if (kid.removeAttribute) kid.removeAttribute(COL_LOCK_ATTR);
+      } catch (err) {
+        /* ignore */
+      }
+    }
   }
 
   function isVisibleProductCard(el) {
@@ -1461,7 +1521,11 @@
     if (!host || !host.children) return false;
     if (isPageShellHost(host) || isProductGridIdShell(host)) return false;
     var cols = dawnFlexColumnCount(host);
-    if (cols < 2) return false;
+    /* <2 cols: clear Findly multi-col locks only; theme styles stay. */
+    if (cols < 2) {
+      clearDawnFlexColumnWidths(host);
+      return false;
+    }
     var hostW = hostLayoutWidth(host);
     if (hostW < 120) return false;
     var items = [];
@@ -1545,6 +1609,11 @@
       items[i].style.setProperty("flex-shrink", "0", "important");
       items[i].style.setProperty("flex-basis", "auto", "important");
       items[i].style.setProperty("box-sizing", "border-box");
+      try {
+        items[i].setAttribute(COL_LOCK_ATTR, "1");
+      } catch (attrErr) {
+        /* ignore */
+      }
     }
     normalizeCardMediaRatio(host);
     return true;
