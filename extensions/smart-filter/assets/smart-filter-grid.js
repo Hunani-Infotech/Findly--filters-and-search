@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v40";
+  var STYLE_ID = "findly-grid-takeover-v41";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -2916,10 +2916,25 @@
       }
     }
     if (!main || !isColumnMain(main)) {
-      main = document.querySelector(".sf-collection-layout > .sf-layout-main");
-      if (main && !isColumnMain(main)) main = null;
+      /* Last resort: direct column under the layout (never require isPageShellHost). */
+      main =
+        (layout && layout.querySelector(":scope > .sf-layout-main")) ||
+        document.querySelector(".sf-collection-layout > .sf-layout-main");
+      if (main && !isColumnMain(main)) {
+        /* Still use it if it is clearly our column wrapper with listing children. */
+        if (
+          main.classList &&
+          main.classList.contains("sf-layout-main") &&
+          !isProductGridLike(main) &&
+          !isProductGridIdShell(main)
+        ) {
+          /* keep main */
+        } else {
+          main = null;
+        }
+      }
     }
-    return main && isColumnMain(main) ? main : null;
+    return main || null;
   }
 
   /**
@@ -8153,20 +8168,36 @@
   function isColumnMain(el) {
     if (!el || el.nodeType !== 1 || !el.classList) return false;
     if (!el.classList.contains("sf-layout-main")) return false;
-    /* Dawn search stamps sf-layout-main on DIV#product-grid — reject that. */
-    if (
-      isProductGridLike(el) ||
-      isThemeManagedGrid(el) ||
-      isProductGridIdShell(el) ||
-      isPageShellHost(el) ||
-      isResultsListEl(el)
-    ) {
+    /*
+     * Accept the real product column (.sf-layout-main div). Do NOT call
+     * isPageShellHost / isThemeManagedGrid here — those treat every
+     * .sf-layout-main as a shell / display:grid host and blocked toolbar
+     * placement (off-canvas: orphan .sf-sort-host after .collection).
+     * Only reject grids wrongly stamped with sf-layout-main.
+     */
+    if (isProductGridLike(el) || isProductGridIdShell(el) || isResultsListEl(el)) {
       return false;
     }
-    /* Never treat the filter sidebar as the product column. */
     if (el.classList.contains("sf-layout-aside")) return false;
     if (el.classList.contains("smart-filter")) return false;
     if (el.classList.contains("sf-collection-layout")) return false;
+    var id = String(el.id || "");
+    if (id === "ProductGridContainer" || id === "CollectionProductGrid") {
+      return false;
+    }
+    if (el.classList.contains("collection-wrapper")) return false;
+    if (
+      el.classList.contains("product-grid-container") &&
+      !el.classList.contains("product-grid")
+    ) {
+      return false;
+    }
+    if (
+      el.classList.contains("template-search__results") &&
+      !isProductGridLike(el)
+    ) {
+      return false;
+    }
     return true;
   }
 
