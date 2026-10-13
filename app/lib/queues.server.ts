@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { Prisma, type QueueJob, type QueueJobStatus } from "@prisma/client";
 import prisma from "../db.server";
@@ -78,23 +79,82 @@ async function isRunAtInFuture(id: string) {
   return Boolean(rows[0]?.future);
 }
 
+/** Never throws when the row was already removed by a concurrent enqueue. */
+async function deleteJobByIdQuiet(id: string) {
+  await prisma.queueJob.deleteMany({ where: { id } });
+}
+
+/**
+ * Insert a pending job. When jobKey is set, use ON CONFLICT so concurrent
+ * enqueues never throw unique-constraint errors (return the winner's row).
+ */
 async function insertJob(
   type: SyncJobName,
   payload: Record<string, unknown>,
   opts?: { jobKey?: string; delay?: number },
 ) {
-  // Placeholder runAt; immediately rewritten with Postgres NOW() to avoid skew.
-  const created = await prisma.queueJob.create({
-    data: {
-      type,
-      payload: payload as Prisma.InputJsonValue,
-      jobKey: opts?.jobKey,
-      status: "pending",
-      maxAttempts: 3,
-      runAt: new Date(0),
-    },
-  });
-  return (await setRunAtFromDb(created.id, opts?.delay ?? 0)) ?? created;
+  const delayMs = Math.max(0, Math.floor(opts?.delay ?? 0));
+  const jobKey = opts?.jobKey;
+
+  // No jobKey → no unique race; keep Prisma create + DB-clock runAt.
+  if (!jobKey) {
+    const created = await prisma.queueJob.create({
+      data: {
+        type,
+        payload: payload as Prisma.InputJsonValue,
+        status: "pending",
+        maxAttempts: 3,
+        runAt: new Date(0),
+      },
+    });
+    return (await setRunAtFromDb(created.id, delayMs)) ?? created;
+  }
+
+  const payloadJson = JSON.stringify(payload);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const id = randomUUID();
+    // Single round-trip insert with Postgres NOW() for runAt (no client skew).
+    // DO NOTHING on jobKey conflict → no P2002 / prisma:error noise.
+    const inserted = await prisma.$queryRaw<QueueJob[]>`
+      INSERT INTO "QueueJob" (
+        id, type, payload, status, attempts, "maxAttempts",
+        "runAt", "jobKey", "createdAt", "updatedAt"
+      )
+      VALUES (
+        ${id},
+        ${type},
+        ${payloadJson}::jsonb,
+        'pending'::"QueueJobStatus",
+        0,
+        3,
+        NOW() + (${delayMs}::bigint * INTERVAL '1 millisecond'),
+        ${jobKey},
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT ("jobKey") DO NOTHING
+      RETURNING *
+    `;
+    if (inserted[0]) return inserted[0];
+
+    const existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+    if (!existing) {
+      // Conflict then deleted — retry insert.
+      continue;
+    }
+    if (existing.status === "completed" || existing.status === "failed") {
+      // Replace terminal row (same as former delete-then-create).
+      await deleteJobByIdQuiet(existing.id);
+      continue;
+    }
+    // pending / processing — coalesce onto the winner (existing behavior).
+    return existing;
+  }
+
+  const fallback = await prisma.queueJob.findUnique({ where: { jobKey } });
+  if (fallback) return fallback;
+  throw new Error(`Failed to enqueue ${type} (jobKey=${jobKey}) after races`);
 }
 
 /**
@@ -115,17 +175,20 @@ export async function enqueueSyncJob(
     const existing = await prisma.queueJob.findUnique({ where: { jobKey } });
     if (existing) {
       if (existing.status === "failed" || existing.status === "completed") {
-        await prisma.queueJob.delete({ where: { id: existing.id } }).catch(() => {});
+        await deleteJobByIdQuiet(existing.id);
       } else if (
         existing.status === "pending" &&
         (await isRunAtInFuture(existing.id))
       ) {
         // Delayed (backoff / explicit delay): refresh delay if caller asked.
         if (opts?.delay != null) {
-          await prisma.queueJob.update({
-            where: { id: existing.id },
+          const refreshed = await prisma.queueJob.updateMany({
+            where: { id: existing.id, status: "pending" },
             data: { payload: data as Prisma.InputJsonValue },
           });
+          if (refreshed.count === 0) {
+            return insertJob(name, data, { jobKey, delay: opts.delay });
+          }
           return (await setRunAtFromDb(existing.id, opts.delay)) ?? existing;
         }
         return existing;
@@ -157,18 +220,22 @@ export async function enqueueSyncJob(
           });
           if (followup) {
             if (followup.status === "failed" || followup.status === "completed") {
-              await prisma.queueJob
-                .delete({ where: { id: followup.id } })
-                .catch(() => {});
+              await deleteJobByIdQuiet(followup.id);
             } else if (
               followup.status === "pending" &&
               (await isRunAtInFuture(followup.id))
             ) {
               if (opts?.delay != null) {
-                await prisma.queueJob.update({
-                  where: { id: followup.id },
+                const refreshed = await prisma.queueJob.updateMany({
+                  where: { id: followup.id, status: "pending" },
                   data: { payload: data as Prisma.InputJsonValue },
                 });
+                if (refreshed.count === 0) {
+                  return insertJob(name, data, {
+                    jobKey: followupKey,
+                    delay: opts.delay,
+                  });
+                }
                 return (await setRunAtFromDb(followup.id, opts.delay)) ?? followup;
               }
               return followup;
