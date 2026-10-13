@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-theme-compat-v11";
+  var STYLE_ID = "findly-theme-compat-v12";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
   var PROTECT =
@@ -268,6 +268,7 @@
       "findly-theme-compat-v9",
       "findly-theme-compat-v10",
       "findly-theme-compat-v11",
+      "findly-theme-compat-v12",
     ];
     var oi;
     for (oi = 0; oi < oldIds.length; oi++) {
@@ -344,12 +345,24 @@
       ".collection-wrapper:has(.collection-wrapper--full-width)>.sf-collection-layout{grid-column:var(--full-width,1 / -1)!important}" +
       "@media(max-width:989px){" +
       ".sf-collection-layout--left,.sf-collection-layout--right," +
-      ".sf-collection-layout--top,.sf-collection-layout--offcanvas{" +
+      ".sf-collection-layout--top{" +
       "display:block!important;grid-template-columns:none!important;gap:0!important}" +
+      ".sf-collection-layout--offcanvas{" +
+      "display:flex!important;flex-direction:column;grid-template-columns:none!important;gap:0!important}" +
       ".sf-collection-layout>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
       ".sf-collection-layout>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
       "{display:none!important}" +
       "}" +
+      ".sf-collection-layout--offcanvas{display:flex!important;flex-direction:column;width:100%}" +
+      ".sf-collection-layout--offcanvas>.sf-layout-aside," +
+      ".sf-collection-layout--offcanvas>.shopify-block.sf-layout-aside," +
+      ".sf-collection-layout--offcanvas>.smart-filter," +
+      ".sf-collection-layout--offcanvas>.shopify-block:has(.smart-filter){order:-2}" +
+      ".sf-collection-layout--offcanvas>.sf-toolbar," +
+      ".sf-collection-layout--offcanvas>.sf-sort-host," +
+      ".sf-collection-layout--offcanvas>.sf-page-chips{order:-1}" +
+      ".sf-collection-layout--offcanvas>.sf-layout-main{order:1}" +
+      ".sf-collection-layout--offcanvas>.sf-pager{order:20}" +
       ".sf-collection-layout--offcanvas>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
       ".sf-collection-layout--offcanvas>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
       "{display:none!important}" +

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v39";
+  var STYLE_ID = "findly-grid-takeover-v40";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -478,6 +478,7 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById("findly-theme-bridge-v19") ||
       document.getElementById("findly-theme-bridge-v18") ||
       document.getElementById("findly-theme-bridge-v17") ||
       document.getElementById("findly-theme-bridge-v16") ||
@@ -496,13 +497,13 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v18") {
+    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v19") {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v18";
+      bridge.id = "findly-theme-bridge-v19";
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -550,10 +551,28 @@
         ".main-collection-grid>.sf-page-chips,results-list>.sf-page-chips," +
         ".sf-layout-main>.sf-page-chips,.collection-wrapper>.sf-page-chips" +
         "{grid-column:1/-1!important;width:100%!important;max-width:100%!important}" +
-        ".sf-collection-layout>.sf-pager,.sf-collection-layout>.sf-toolbar,.sf-collection-layout>.sf-page-chips," +
-        ".sf-collection-layout>.sf-sort-host," +
-        ".sf-collection-layout>:not(.sf-layout-aside):not(.sf-layout-main):not(.smart-filter):not(.shopify-block)" +
+        /* Pager only at the bottom — never push toolbar/sort below products
+           (off-canvas is display:flex/block; order:20 on sort was a common bug). */
+        ".sf-collection-layout>.sf-pager," +
+        ".sf-collection-layout>:not(.sf-layout-aside):not(.sf-layout-main):not(.smart-filter):not(.shopify-block):not(.sf-toolbar):not(.sf-sort-host):not(.sf-search-host):not(.sf-page-chips):not(.sf-total-count)" +
         "{flex:1 1 100%;width:100%;max-width:100%;order:20}" +
+        ".sf-collection-layout>.sf-toolbar,.sf-collection-layout>.sf-sort-host," +
+        ".sf-collection-layout>.sf-search-host,.sf-collection-layout>.sf-page-chips," +
+        ".sf-collection-layout>.sf-total-count" +
+        "{flex:0 0 auto;width:100%;max-width:100%;order:-1}" +
+        ".sf-collection-layout--offcanvas{display:flex!important;flex-direction:column;gap:0;width:100%}" +
+        ".sf-collection-layout--offcanvas>.sf-layout-aside," +
+        ".sf-collection-layout--offcanvas>.shopify-block.sf-layout-aside," +
+        ".sf-collection-layout--offcanvas>.smart-filter," +
+        ".sf-collection-layout--offcanvas>.shopify-block:has(.smart-filter)" +
+        "{order:-2}" +
+        ".sf-collection-layout--offcanvas>.sf-toolbar," +
+        ".sf-collection-layout--offcanvas>.sf-sort-host," +
+        ".sf-collection-layout--offcanvas>.sf-search-host," +
+        ".sf-collection-layout--offcanvas>.sf-page-chips" +
+        "{order:-1}" +
+        ".sf-collection-layout--offcanvas>.sf-layout-main{order:1;width:100%;max-width:100%}" +
+        ".sf-collection-layout--offcanvas>.sf-pager{order:20}" +
         ".sf-layout-main .product-grid,.sf-layout-main ul.product-grid," +
         ".sf-layout-main ol.product-grid,.sf-layout-main .main-collection-grid," +
         ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:flex-start!important}" +
@@ -613,8 +632,10 @@
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;max-width:100%!important;visibility:visible!important}" +
         "@media(max-width:989px){" +
         ".sf-collection-layout--left,.sf-collection-layout--right," +
-        ".sf-collection-layout--top,.sf-collection-layout--offcanvas{" +
+        ".sf-collection-layout--top{" +
         "display:block!important;grid-template-columns:none!important;gap:0!important}" +
+        ".sf-collection-layout--offcanvas{" +
+        "display:flex!important;flex-direction:column;grid-template-columns:none!important;gap:0!important}" +
         ".sf-collection-layout>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
         ".sf-collection-layout>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
         "{display:none!important}" +
@@ -2852,6 +2873,223 @@
     }
   }
 
+  function isLeadingListingChrome(el) {
+    if (!el || el.nodeType !== 1 || !el.classList) return false;
+    return (
+      el.classList.contains("sf-toolbar") ||
+      el.classList.contains("sf-sort-host") ||
+      el.classList.contains("sf-search-host") ||
+      el.classList.contains("sf-page-chips") ||
+      el.classList.contains("sf-total-count")
+    );
+  }
+
+  function firstListingChildInMain(main) {
+    if (!main || !main.children) return null;
+    var i;
+    for (i = 0; i < main.children.length; i++) {
+      var child = main.children[i];
+      if (!child || child.nodeType !== 1) continue;
+      if (isLeadingListingChrome(child)) continue;
+      if (child.classList && child.classList.contains("sf-pager")) continue;
+      return child;
+    }
+    return null;
+  }
+
+  function resolveColumnMain(widget) {
+    var layout = document.querySelector(".sf-collection-layout");
+    var main =
+      findColumnMainContaining(
+        (widget && widget._gridParent) ||
+          (widget && widget._themeGridShell) ||
+          null,
+      ) || null;
+    if ((!main || !isColumnMain(main)) && layout) {
+      var mains = layout.querySelectorAll(":scope > .sf-layout-main, .sf-layout-main");
+      var i;
+      for (i = 0; i < mains.length; i++) {
+        if (isColumnMain(mains[i])) {
+          main = mains[i];
+          break;
+        }
+      }
+    }
+    if (!main || !isColumnMain(main)) {
+      main = document.querySelector(".sf-collection-layout > .sf-layout-main");
+      if (main && !isColumnMain(main)) main = null;
+    }
+    return main && isColumnMain(main) ? main : null;
+  }
+
+  /**
+   * Off-canvas regression: sort-host was left as a sibling AFTER div.collection
+   * with no .sf-toolbar. Force toolbar + sort above the product listing.
+   */
+  function ensureListingChromeAboveProducts(widget) {
+    var main = resolveColumnMain(widget);
+    if (!main) return null;
+    if (main.classList) main.classList.add("sf-layout-main");
+
+    var listing = firstListingChildInMain(main);
+    var toolbar =
+      (main.querySelector && main.querySelector(":scope > .sf-toolbar")) ||
+      document.querySelector(".sf-toolbar");
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.className = "sf-toolbar";
+    }
+
+    var searchHost =
+      toolbar.querySelector(".sf-search-host") ||
+      document.querySelector(".sf-search-host");
+    if (!searchHost) {
+      searchHost = document.createElement("div");
+      searchHost.className = "sf-search-host";
+    }
+    searchHost.classList.add("sf-toolbar-search");
+    if (searchHost.parentNode !== toolbar) {
+      toolbar.insertBefore(searchHost, toolbar.firstChild);
+    }
+
+    var end = toolbar.querySelector(".sf-toolbar-end");
+    if (!end) {
+      end = document.createElement("div");
+      end.className = "sf-toolbar-end";
+    }
+    if (end.parentNode !== toolbar) toolbar.appendChild(end);
+
+    var actions = end.querySelector(".sf-toolbar-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "sf-toolbar-actions";
+    }
+    if (actions.parentNode !== end) end.insertBefore(actions, end.firstChild);
+
+    var sortHost =
+      actions.querySelector(".sf-sort-host") ||
+      toolbar.querySelector(".sf-sort-host") ||
+      (main.querySelector && main.querySelector(".sf-sort-host")) ||
+      document.querySelector(".sf-sort-host");
+    if (!sortHost) {
+      sortHost = document.createElement("div");
+      sortHost.className = "sf-sort-host";
+    }
+    if (sortHost.parentNode !== actions) actions.appendChild(sortHost);
+
+    if (widget && widget.sortWrap && !widget.sortWrap.hidden) {
+      widget.sortWrap.classList.add("sf-sort-toolbar");
+      if (widget.sortWrap.parentNode !== sortHost) {
+        sortHost.appendChild(widget.sortWrap);
+      }
+    }
+
+    /* Drop duplicate orphan hosts left after a prior bad placement. */
+    var orphans = main.querySelectorAll
+      ? main.querySelectorAll(":scope > .sf-sort-host, :scope > .sf-search-host")
+      : [];
+    var oi;
+    for (oi = 0; oi < orphans.length; oi++) {
+      if (orphans[oi] === sortHost || orphans[oi] === searchHost) continue;
+      if (toolbar.contains(orphans[oi])) continue;
+      if (orphans[oi].parentNode) orphans[oi].parentNode.removeChild(orphans[oi]);
+    }
+
+    if (
+      toolbar.parentNode !== main ||
+      (listing && toolbar !== listing && toolbar.nextSibling !== listing)
+    ) {
+      if (!safeInsertBefore(main, toolbar, listing || main.firstChild)) {
+        if (toolbar.parentNode !== main) main.insertBefore(toolbar, main.firstChild);
+      }
+    }
+
+    placeMobileToolbarToggle(widget);
+    return main;
+  }
+
+  function listingChromeIsMisplaced(main) {
+    if (!main || !main.children) return false;
+    var listing = firstListingChildInMain(main);
+    var toolbar = main.querySelector && main.querySelector(":scope > .sf-toolbar");
+    var orphanSort =
+      main.querySelector && main.querySelector(":scope > .sf-sort-host");
+    /* Orphan sort after/beside .collection (the live off-canvas bug). */
+    if (orphanSort) return true;
+    if (!toolbar) {
+      var sortAnywhere = main.querySelector && main.querySelector(".sf-sort-host");
+      if (sortAnywhere && listing) {
+        var pos = sortAnywhere.compareDocumentPosition(listing);
+        /* listing precedes sort → sort is below products */
+        if (pos & Node.DOCUMENT_POSITION_PRECEDING) return true;
+      }
+      return !!sortAnywhere;
+    }
+    if (listing && toolbar.nextSibling !== listing) return true;
+    return false;
+  }
+
+  /** Keep off-canvas sort above products when theme/widget DOM reshuffles. */
+  function armOffcanvasChromeGuard(widget) {
+    if (!widget || !isOffcanvasPosition(widget)) return;
+    var main = resolveColumnMain(widget);
+    if (!main) return;
+    ensureListingChromeAboveProducts(widget);
+    if (main.getAttribute && main.getAttribute("data-sf-chrome-guard") === "1") {
+      return;
+    }
+    if (main.setAttribute) main.setAttribute("data-sf-chrome-guard", "1");
+    var queued = 0;
+    function reassert() {
+      queued = 0;
+      try {
+        if (listingChromeIsMisplaced(main) || !main.querySelector(":scope > .sf-toolbar")) {
+          ensureListingChromeAboveProducts(widget);
+        }
+      } catch (err) {
+        /* guard is best-effort */
+      }
+    }
+    function schedule() {
+      if (queued) return;
+      queued = 1;
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(reassert);
+      } else {
+        setTimeout(reassert, 0);
+      }
+    }
+    if (typeof MutationObserver === "function") {
+      try {
+        var obs = new MutationObserver(schedule);
+        obs.observe(main, { childList: true, subtree: true });
+        widget._sfChromeGuardObs = obs;
+      } catch (obsErr) {
+        /* ignore */
+      }
+    }
+    var ticks = 0;
+    if (widget._sfChromeGuardTimer) {
+      try {
+        clearInterval(widget._sfChromeGuardTimer);
+      } catch (clearErr) {
+        /* ignore */
+      }
+    }
+    widget._sfChromeGuardTimer = setInterval(function () {
+      reassert();
+      ticks += 1;
+      if (ticks >= 40) {
+        try {
+          clearInterval(widget._sfChromeGuardTimer);
+        } catch (doneErr) {
+          /* ignore */
+        }
+        widget._sfChromeGuardTimer = 0;
+      }
+    }, 250);
+  }
+
   function normalizeLayoutShell(layout) {
     if (!layout || !layout.children) return;
     var aside = null;
@@ -2882,6 +3120,13 @@
         continue;
       }
       if (node.classList && node.classList.contains("sf-layout-aside")) {
+        continue;
+      }
+      /* Toolbar/sort must stay above the product listing. appendChild alone
+         parked them below products (especially visible in off-canvas). */
+      if (isLeadingListingChrome(node)) {
+        var listing = firstListingChildInMain(main);
+        if (!safeInsertBefore(main, node, listing)) main.appendChild(node);
         continue;
       }
       main.appendChild(node);
@@ -7980,25 +8225,32 @@
         widget._themeGridShell) ||
       main.querySelector(":scope > [data-findly-grid-shell='1']") ||
       main.querySelector(
-        ":scope > #ProductGridContainer, :scope > #product-grid, :scope > .product-grid-container, :scope > .template-search__results",
+        ":scope > .collection, :scope > #ProductGridContainer, :scope > #product-grid, :scope > .product-grid-container, :scope > .template-search__results",
       ) ||
       main.querySelector("[data-findly-grid-shell='1']") ||
       main.querySelector(
-        "#ProductGridContainer, #product-grid, .product-grid-container, .template-search__results",
+        ":scope > .collection, #ProductGridContainer, #product-grid, .product-grid-container, .template-search__results",
       );
     var toolbar =
       document.querySelector(".sf-toolbar") ||
       layout.querySelector(".sf-toolbar") ||
       main.querySelector(".sf-toolbar");
+    /* No toolbar yet — still return main so callers can build chrome above .collection. */
     if (!toolbar) return main;
     /* Always re-home toolbar into the product column before the listing shell. */
     if (shell && main.contains(shell)) {
       if (toolbar.parentNode !== main || toolbar.nextElementSibling !== shell) {
         safeInsertBefore(main, toolbar, shell);
       }
-    } else if (toolbar.parentNode !== main) {
-      if (!safeInsertBefore(main, toolbar, main.firstChild)) {
-        main.appendChild(toolbar);
+    } else {
+      var listing = firstListingChildInMain(main);
+      if (
+        toolbar.parentNode !== main ||
+        (listing && toolbar.nextSibling !== listing)
+      ) {
+        if (!safeInsertBefore(main, toolbar, listing || main.firstChild)) {
+          if (toolbar.parentNode !== main) main.appendChild(toolbar);
+        }
       }
     }
     return main;
@@ -8284,11 +8536,15 @@
     if (host.parentNode && isListingChromeHost(host.parentNode)) {
       /* will be moved below */
     }
-    if (before && before.parentNode === parent) {
-      if (host.nextSibling !== before) safeInsertBefore(parent, host, before);
-    } else if (host.parentNode !== parent) {
-      if (!safeInsertBefore(parent, host, parent.firstChild)) {
-        parent.appendChild(host);
+    /* Always re-home: a toolbar already inside parent but after the listing
+       used to be left there when `before` failed the direct-child check. */
+    var anchor =
+      before && before.parentNode === parent
+        ? before
+        : firstListingChildInMain(parent) || parent.firstChild;
+    if (host.parentNode !== parent || (anchor && host.nextSibling !== anchor)) {
+      if (!safeInsertBefore(parent, host, anchor)) {
+        if (host.parentNode !== parent) parent.appendChild(host);
       }
     }
 
@@ -8386,6 +8642,7 @@
     syncToolbarLoading();
     placeMobilePageChips(widget);
     ensureToolbarInColumnMain(widget);
+    ensureListingChromeAboveProducts(widget);
   }
 
   var THEME_PAGER_SEL_GRID =
@@ -8724,17 +8981,22 @@
         mountFindlyPager(this);
         placeCollectionSearchOnGrid(this);
         ensureToolbarInColumnMain(this);
+        ensureListingChromeAboveProducts(this);
         /* Hoist toolbar again after mount — search often leaves it in the shell. */
-        var layoutNow = document.querySelector(".sf-collection-layout");
-        var mainNow = ensureToolbarInColumnMain(this);
+        var mainNow = ensureToolbarInColumnMain(this) || resolveColumnMain(this);
+        ensureListingChromeAboveProducts(this);
         var shellNow =
           (this && this._themeGridShell) ||
           (mainNow &&
             (mainNow.querySelector("[data-findly-grid-shell='1']") ||
-              mainNow.querySelector("#ProductGridContainer, #product-grid")));
+              mainNow.querySelector(
+                ":scope > .collection, #ProductGridContainer, #product-grid, .product-grid-container",
+              )));
         if (mainNow && shellNow && isColumnMain(mainNow)) {
           placeChromeBeforeListing(mainNow, shellNow);
         }
+        ensureListingChromeAboveProducts(this);
+        armOffcanvasChromeGuard(this);
         scheduleRelockProductGridTracks(this);
       } catch (syncErr) {
         try {
@@ -9401,18 +9663,20 @@
         placeCollectionSearchOnGrid(this);
         if (origPlaceSort) origPlaceSort.call(this);
         placeCollectionSearchOnGrid(this);
-        var layout = document.querySelector(".sf-collection-layout");
-        var main = layout && layout.querySelector(".sf-layout-main");
+        var main = resolveColumnMain(this);
         var shell =
           (this && this._themeGridShell) ||
           (main &&
             (main.querySelector("[data-findly-grid-shell='1']") ||
               main.querySelector(
-                "#ProductGridContainer, #product-grid, .product-grid-container",
+                ":scope > .collection, #ProductGridContainer, #product-grid, .product-grid-container",
               )));
         if (main && shell && isColumnMain(main)) {
           placeChromeBeforeListing(main, shell);
         }
+        /* Off-canvas: orphan .sf-sort-host after .collection — force above products. */
+        ensureListingChromeAboveProducts(this);
+        armOffcanvasChromeGuard(this);
         enhanceSortMenu(this);
       } finally {
         this._placingSort = false;
