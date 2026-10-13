@@ -952,10 +952,9 @@ export default function SettingsPage() {
                         grid. Off-canvas uses a Filter button that opens a
                         drawer on every screen size. Below 990px, Vertical and
                         Horizontal also use the Filter button + drawer so the
-                        product grid stays full width. Layout is controlled here
-                        in the app — the theme editor &quot;Filter tree style&quot;
-                        is only a first-paint default and will be overridden
-                        after settings load. Add Collection filters to the
+                        product grid stays full width. Layout, product counts,
+                        and custom CSS are controlled here in the app (not in
+                        the theme editor). Add Collection filters to the
                         collection template in the theme editor to place the
                         widget; use the app embed only if your theme has no
                         app-block slot.

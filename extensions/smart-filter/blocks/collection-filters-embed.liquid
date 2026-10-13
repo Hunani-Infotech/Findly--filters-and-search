@@ -21,6 +21,12 @@
 <script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter.min.js' | asset_url }}" defer></script>
+{% comment %}
+  Layout / counts / custom CSS are owned by Findly app Settings (proxy JSON after
+  load). Theme-editor duplicates were removed from the schema. First-paint uses
+  fixed defaults that match DEFAULT_APP_SETTINGS; orphan custom_css values from
+  older theme saves still inject so existing merchant CSS is not dropped.
+{% endcomment %}
 <script type="application/json" id="findly-embed-config">
 {
   "productGridSelector": {{ block.settings.product_grid_selector | json }},
@@ -68,7 +74,7 @@
 {% endif %}
 <div
   id="smart-filter-embed"
-  class="smart-filter smart-filter--{{ block.settings.position }} sf-layout-stub"
+  class="smart-filter smart-filter--left sf-layout-stub"
   data-embed="true"
   data-embed-config="findly-embed-config"
   data-product-grid-selector="{{ block.settings.product_grid_selector | escape }}"
@@ -78,8 +84,8 @@
   data-page-size="{{ sf_page_size }}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
-  data-position="{{ block.settings.position }}"
-  data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
+  data-position="left"
+  data-show-counts="true"
   data-locale="{{ request.locale.iso_code }}"
   data-country="{{ localization.country.iso_code }}"
   data-currency="{{ cart.currency.iso_code }}"
@@ -205,41 +211,6 @@
   "settings": [
     {
       "type": "header",
-      "content": "t:blocks.collection_filters_embed.settings.headers.layout"
-    },
-    {
-      "type": "select",
-      "id": "position",
-      "label": "t:blocks.collection_filters_embed.settings.position.label",
-      "info": "t:blocks.collection_filters_embed.settings.position.info",
-      "options": [
-        {
-          "value": "left",
-          "label": "t:blocks.collection_filters_embed.settings.position.options.left"
-        },
-        {
-          "value": "right",
-          "label": "t:blocks.collection_filters_embed.settings.position.options.right"
-        },
-        {
-          "value": "top",
-          "label": "t:blocks.collection_filters_embed.settings.position.options.top"
-        },
-        {
-          "value": "offcanvas",
-          "label": "t:blocks.collection_filters_embed.settings.position.options.offcanvas"
-        }
-      ],
-      "default": "left"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_counts",
-      "label": "t:blocks.collection_filters_embed.settings.show_counts.label",
-      "default": true
-    },
-    {
-      "type": "header",
       "content": "t:blocks.collection_filters_embed.settings.headers.theme_integration"
     },
     {
@@ -264,12 +235,6 @@
       "id": "custom_javascript",
       "label": "t:blocks.collection_filters_embed.settings.custom_javascript.label",
       "info": "t:blocks.collection_filters_embed.settings.custom_javascript.info"
-    },
-    {
-      "type": "textarea",
-      "id": "custom_css",
-      "label": "t:blocks.collection_filters_embed.settings.custom_css.label",
-      "info": "t:blocks.collection_filters_embed.settings.custom_css.info"
     },
     {
       "type": "header",

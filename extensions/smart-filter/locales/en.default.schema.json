@@ -2,40 +2,12 @@
   "blocks": {
     "collection_filters": {
       "name": "Collection filters",
-      "settings": {
-        "position": {
-          "label": "Filter tree style",
-          "info": "First-paint default only. Findly app Settings → Filter panel overrides this after load.",
-          "options": {
-            "left": "Vertical (left)",
-            "right": "Vertical (right)",
-            "top": "Horizontal",
-            "offcanvas": "Off-canvas"
-          }
-        },
-        "show_counts": {
-          "label": "Show product counts"
-        }
-      }
+      "settings": {}
     },
     "collection_filters_embed": {
       "name": "Collection filters (app embed)",
       "settings": {
-        "position": {
-          "label": "Filter tree style",
-          "info": "First-paint default only. Findly app Settings → Filter panel overrides this after load.",
-          "options": {
-            "left": "Vertical (left)",
-            "right": "Vertical (right)",
-            "top": "Horizontal",
-            "offcanvas": "Off-canvas"
-          }
-        },
-        "show_counts": {
-          "label": "Show product counts"
-        },
         "headers": {
-          "layout": "Layout",
           "theme_integration": "Theme integration",
           "custom_code": "Custom code",
           "custom_templates": "Custom templates"
@@ -51,10 +23,6 @@
         "custom_javascript": {
           "label": "Custom javascript",
           "info": "Runs on the storefront after Findly loads. Merchant-owned code."
-        },
-        "custom_css": {
-          "label": "Custom css",
-          "info": "Add custom styles to Filter and the app product grid."
         },
         "product_template": {
           "label": "Load Custom Product Template",

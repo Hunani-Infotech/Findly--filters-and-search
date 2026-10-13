@@ -21,16 +21,20 @@
 {% if collection.products.size >= 8 and collection.products.size <= 48 %}
   {% assign sf_page_size = collection.products.size %}
 {% endif %}
+{% comment %}
+  Layout and product counts are owned by Findly app Settings (proxy after load).
+  First-paint defaults match DEFAULT_APP_SETTINGS (left / show counts on).
+{% endcomment %}
 <div
   id="smart-filter-root"
-  class="smart-filter smart-filter--{{ block.settings.position }} sf-layout-stub"
+  class="smart-filter smart-filter--left sf-layout-stub"
   data-collection-id="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-page-size="{{ sf_page_size }}"
   data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
   data-proxy-base="/apps/smart-filter"
-  data-position="{{ block.settings.position }}"
-  data-show-counts="{% if block.settings.show_counts %}true{% else %}false{% endif %}"
+  data-position="left"
+  data-show-counts="true"
   data-locale="{{ request.locale.iso_code }}"
   data-country="{{ localization.country.iso_code }}"
   data-currency="{{ cart.currency.iso_code }}"
@@ -158,38 +162,6 @@
   },
   "stylesheet": "smart-filter.min.css",
   "javascript": "smart-filter.min.js",
-  "settings": [
-    {
-      "type": "select",
-      "id": "position",
-      "label": "t:blocks.collection_filters.settings.position.label",
-      "info": "t:blocks.collection_filters.settings.position.info",
-      "options": [
-        {
-          "value": "left",
-          "label": "t:blocks.collection_filters.settings.position.options.left"
-        },
-        {
-          "value": "right",
-          "label": "t:blocks.collection_filters.settings.position.options.right"
-        },
-        {
-          "value": "top",
-          "label": "t:blocks.collection_filters.settings.position.options.top"
-        },
-        {
-          "value": "offcanvas",
-          "label": "t:blocks.collection_filters.settings.position.options.offcanvas"
-        }
-      ],
-      "default": "left"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_counts",
-      "label": "t:blocks.collection_filters.settings.show_counts.label",
-      "default": true
-    }
-  ]
+  "settings": []
 }
 {% endschema %}
