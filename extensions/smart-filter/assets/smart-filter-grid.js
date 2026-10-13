@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v41";
+  var STYLE_ID = "findly-grid-takeover-v42";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -2999,13 +2999,37 @@
       }
     }
 
+    /* Product count must live under toolbar-end (not below the grid). */
+    var countEl =
+      end.querySelector(".sf-total-count") ||
+      (main.querySelector && main.querySelector(".sf-total-count")) ||
+      document.querySelector(".sf-total-count");
+    if (!countEl) {
+      countEl = document.createElement("div");
+      countEl.className = "sf-total-count";
+      countEl.setAttribute("data-sf-total-count", "");
+    }
+    if (countEl.parentNode !== end) end.appendChild(countEl);
+    if (widget) {
+      widget.totalCountEl = countEl;
+      countEl.hidden = widget.showTotalProductCount === false;
+    }
+
     /* Drop duplicate orphan hosts left after a prior bad placement. */
     var orphans = main.querySelectorAll
-      ? main.querySelectorAll(":scope > .sf-sort-host, :scope > .sf-search-host")
+      ? main.querySelectorAll(
+          ":scope > .sf-sort-host, :scope > .sf-search-host, :scope > .sf-total-count",
+        )
       : [];
     var oi;
     for (oi = 0; oi < orphans.length; oi++) {
-      if (orphans[oi] === sortHost || orphans[oi] === searchHost) continue;
+      if (
+        orphans[oi] === sortHost ||
+        orphans[oi] === searchHost ||
+        orphans[oi] === countEl
+      ) {
+        continue;
+      }
       if (toolbar.contains(orphans[oi])) continue;
       if (orphans[oi].parentNode) orphans[oi].parentNode.removeChild(orphans[oi]);
     }
@@ -3029,8 +3053,10 @@
     var toolbar = main.querySelector && main.querySelector(":scope > .sf-toolbar");
     var orphanSort =
       main.querySelector && main.querySelector(":scope > .sf-sort-host");
-    /* Orphan sort after/beside .collection (the live off-canvas bug). */
-    if (orphanSort) return true;
+    var orphanCount =
+      main.querySelector && main.querySelector(":scope > .sf-total-count");
+    /* Orphan sort/count after/beside .collection (off-canvas regression). */
+    if (orphanSort || orphanCount) return true;
     if (!toolbar) {
       var sortAnywhere = main.querySelector && main.querySelector(".sf-sort-host");
       if (sortAnywhere && listing) {
@@ -3041,6 +3067,9 @@
       return !!sortAnywhere;
     }
     if (listing && toolbar.nextSibling !== listing) return true;
+    /* Count exists but not inside the toolbar → below-grid bug. */
+    var countAnywhere = main.querySelector && main.querySelector(".sf-total-count");
+    if (countAnywhere && !toolbar.contains(countAnywhere)) return true;
     return false;
   }
 
@@ -9075,10 +9104,15 @@
     var origCount = proto.syncThemeProductCount;
     proto.syncThemeProductCount = function (count) {
       placeCollectionSearchOnGrid(this);
-      var el = this.totalCountEl || document.querySelector(".sf-total-count");
+      ensureListingChromeAboveProducts(this);
+      var el =
+        this.totalCountEl ||
+        document.querySelector(".sf-toolbar .sf-total-count") ||
+        document.querySelector(".sf-total-count");
       var show = this.showTotalProductCount !== false;
       var n = Number(count);
       if (el) {
+        this.totalCountEl = el;
         el.hidden = !show;
         if (show && Number.isFinite(n) && n >= 0) {
           el.textContent = this.productCountLabel
@@ -9093,6 +9127,7 @@
       }
       if (shouldTakeOverThemeCards(this) && origCount) origCount.call(this, count);
       scrubToolbarCountDupes(this);
+      ensureListingChromeAboveProducts(this);
       if (Number.isFinite(n) && n >= 0) this._statusProductCount = n;
       if (this.syncThemePager) this.syncThemePager();
       else if (shouldTakeOverThemeCards(this)) applyPagerByDisplayedCount(this, n);
