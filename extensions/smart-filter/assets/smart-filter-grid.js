@@ -8,9 +8,10 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v44";
+  var STYLE_ID = "findly-grid-takeover-v45";
   /* Marks product cards whose widths Findly set — only those get cleared. */
   var COL_LOCK_ATTR = "data-sf-col-lock";
+  var BRIDGE_STYLE_ID = "findly-theme-bridge-v20";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -480,6 +481,7 @@
     style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
+      document.getElementById(BRIDGE_STYLE_ID) ||
       document.getElementById("findly-theme-bridge-v19") ||
       document.getElementById("findly-theme-bridge-v18") ||
       document.getElementById("findly-theme-bridge-v17") ||
@@ -499,13 +501,13 @@
       document.getElementById("findly-theme-bridge-v3") ||
       document.getElementById("findly-theme-bridge-v2") ||
       document.getElementById("findly-theme-bridge");
-    if (existingBridge && existingBridge.id !== "findly-theme-bridge-v19") {
+    if (existingBridge && existingBridge.id !== BRIDGE_STYLE_ID) {
       if (existingBridge.parentNode) existingBridge.parentNode.removeChild(existingBridge);
       existingBridge = null;
     }
     if (!existingBridge) {
       var bridge = document.createElement("style");
-      bridge.id = "findly-theme-bridge-v19";
+      bridge.id = BRIDGE_STYLE_ID;
       bridge.textContent =
         "[data-smart-filter-hidden='true'],[data-findly-theme-hidden='1']{display:none!important}" +
         GRID_BUSY_CSS +
@@ -520,7 +522,9 @@
         PRODUCT_GRID_SHELL_CSS +
         ".sf-layout-aside,.sf-layout-main{box-sizing:border-box;min-width:0}" +
         ".sf-layout-main:not(ul):not(ol):not(results-list):not(.product-grid):not(.main-collection-grid):not(product-list)" +
-        "{display:block;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
+        "{display:flex;flex-direction:column;flex:1 1 0%;min-width:0;width:auto;max-width:100%}" +
+        ".sf-layout-main>.sf-toolbar{order:-1;flex:0 0 auto;width:100%}" +
+        ".sf-layout-main>.sf-pager{order:20}" +
         "ul.product-grid.sf-layout-main,ol.product-grid.sf-layout-main," +
         ".product-grid.sf-layout-main,.main-collection-grid.sf-layout-main," +
         "results-list.sf-layout-main,product-list.sf-layout-main" +
@@ -634,10 +638,21 @@
         "{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:center!important;align-items:center;grid-column:1/-1!important;width:100%!important;max-width:100%!important;visibility:visible!important}" +
         "@media(max-width:989px){" +
         ".sf-collection-layout--left,.sf-collection-layout--right," +
-        ".sf-collection-layout--top{" +
-        "display:block!important;grid-template-columns:none!important;gap:0!important}" +
-        ".sf-collection-layout--offcanvas{" +
+        ".sf-collection-layout--top,.sf-collection-layout--offcanvas{" +
         "display:flex!important;flex-direction:column;grid-template-columns:none!important;gap:0!important}" +
+        ".sf-collection-layout--left>.sf-toolbar,.sf-collection-layout--left>.sf-sort-host," +
+        ".sf-collection-layout--left>.sf-search-host,.sf-collection-layout--left>.sf-page-chips," +
+        ".sf-collection-layout--left>.sf-total-count," +
+        ".sf-collection-layout--right>.sf-toolbar,.sf-collection-layout--right>.sf-sort-host," +
+        ".sf-collection-layout--right>.sf-search-host,.sf-collection-layout--right>.sf-page-chips," +
+        ".sf-collection-layout--right>.sf-total-count," +
+        ".sf-collection-layout--top>.sf-toolbar,.sf-collection-layout--top>.sf-sort-host," +
+        ".sf-collection-layout--top>.sf-search-host,.sf-collection-layout--top>.sf-page-chips," +
+        ".sf-collection-layout--top>.sf-total-count{order:-1}" +
+        ".sf-collection-layout--left>.sf-layout-main,.sf-collection-layout--right>.sf-layout-main," +
+        ".sf-collection-layout--top>.sf-layout-main{order:1}" +
+        ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--right>.sf-pager," +
+        ".sf-collection-layout--top>.sf-pager{order:20}" +
         ".sf-collection-layout>.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))," +
         ".sf-collection-layout>.shopify-block.sf-layout-aside:not(:has([data-drawer-toggle])):not(:has([data-drawer-panel]))" +
         "{display:none!important}" +
@@ -655,18 +670,27 @@
         ".sf-collection-layout--left>.shopify-block:has(.smart-filter)" +
         "{grid-column:1!important;width:320px;max-width:320px;min-width:320px}" +
         ".sf-collection-layout--left>.sf-layout-main,.sf-collection-layout--left>.sf-toolbar," +
-        ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--left>.sf-sort-host" +
+        ".sf-collection-layout--left>.sf-pager,.sf-collection-layout--left>.sf-sort-host," +
+        ".sf-collection-layout--left>.sf-search-host,.sf-collection-layout--left>.sf-total-count," +
+        ".sf-collection-layout--left>.sf-page-chips" +
         "{grid-column:2!important;min-width:0!important;width:auto!important;max-width:none!important}" +
         ".sf-collection-layout--right>.sf-layout-aside,.sf-collection-layout--right>.smart-filter," +
         ".sf-collection-layout--right>.shopify-block:has(.smart-filter)" +
         "{grid-column:2!important;width:320px;max-width:320px;min-width:320px}" +
         ".sf-collection-layout--right>.sf-layout-main,.sf-collection-layout--right>.sf-toolbar," +
-        ".sf-collection-layout--right>.sf-pager" +
+        ".sf-collection-layout--right>.sf-pager,.sf-collection-layout--right>.sf-sort-host," +
+        ".sf-collection-layout--right>.sf-search-host,.sf-collection-layout--right>.sf-total-count," +
+        ".sf-collection-layout--right>.sf-page-chips" +
         "{grid-column:1!important;min-width:0!important;max-width:none!important}" +
         ".sf-collection-layout--top{display:flex!important;flex-direction:column;gap:16px;width:100%}" +
         ".sf-collection-layout--top>.sf-layout-aside,.sf-collection-layout--top>.smart-filter," +
         ".sf-collection-layout--top>.shopify-block:has(.smart-filter)" +
-        "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important}" +
+        "{flex:0 0 auto!important;width:100%!important;max-width:100%!important;min-width:0!important;order:-2}" +
+        ".sf-collection-layout--top>.sf-toolbar,.sf-collection-layout--top>.sf-sort-host," +
+        ".sf-collection-layout--top>.sf-search-host,.sf-collection-layout--top>.sf-page-chips," +
+        ".sf-collection-layout--top>.sf-total-count{order:-1}" +
+        ".sf-collection-layout--top>.sf-layout-main{order:1}" +
+        ".sf-collection-layout--top>.sf-pager{order:20}" +
         ".sf-toggle,.sf-sort-host .sf-toggle-toolbar{display:none!important}" +
         ".smart-filter--offcanvas .sf-toggle," +
         ".sf-collection-layout--offcanvas .sf-toggle," +
@@ -3135,16 +3159,23 @@
       }
       return !!sortAnywhere;
     }
-    if (listing && toolbar.nextSibling !== listing) return true;
+    if (listing) {
+      var rel = toolbar.compareDocumentPosition(listing);
+      /* listing precedes toolbar → sort/count render below products */
+      if (rel & Node.DOCUMENT_POSITION_PRECEDING) return true;
+    }
     /* Count exists but not inside the toolbar → below-grid bug. */
     var countAnywhere = main.querySelector && main.querySelector(".sf-total-count");
     if (countAnywhere && !toolbar.contains(countAnywhere)) return true;
     return false;
   }
 
-  /** Keep off-canvas sort above products when theme/widget DOM reshuffles. */
-  function armOffcanvasChromeGuard(widget) {
-    if (!widget || !isOffcanvasPosition(widget)) return;
+  /**
+   * Keep sort/count above products for ALL filter layouts (left/right/top/
+   * offcanvas) when themes reshuffle DOM. Previously offcanvas-only.
+   */
+  function armListingChromeGuard(widget) {
+    if (!widget) return;
     var main = resolveColumnMain(widget);
     if (!main) return;
     ensureListingChromeAboveProducts(widget);
@@ -3203,6 +3234,11 @@
     }, 250);
   }
 
+  /* Back-compat name — guard now covers all 4 layouts. */
+  function armOffcanvasChromeGuard(widget) {
+    return armListingChromeGuard(widget);
+  }
+
   function normalizeLayoutShell(layout) {
     if (!layout || !layout.children) return;
     var aside = null;
@@ -3239,7 +3275,9 @@
          parked them below products (especially visible in off-canvas). */
       if (isLeadingListingChrome(node)) {
         var listing = firstListingChildInMain(main);
-        if (!safeInsertBefore(main, node, listing)) main.appendChild(node);
+        if (!safeInsertBefore(main, node, listing)) {
+          main.insertBefore(node, listing || main.firstChild);
+        }
         continue;
       }
       main.appendChild(node);
@@ -6736,7 +6774,9 @@
       toolbar.className = "sf-toolbar";
     }
     var before = shell && main.contains(shell) ? shell : main.firstChild;
-    if (!safeInsertBefore(main, toolbar, before)) main.appendChild(toolbar);
+    if (!safeInsertBefore(main, toolbar, before)) {
+      main.insertBefore(toolbar, before || main.firstChild);
+    }
     return toolbar;
   }
 
@@ -8378,7 +8418,9 @@
         (listing && toolbar.nextSibling !== listing)
       ) {
         if (!safeInsertBefore(main, toolbar, listing || main.firstChild)) {
-          if (toolbar.parentNode !== main) main.appendChild(toolbar);
+          if (toolbar.parentNode !== main) {
+            main.insertBefore(toolbar, listing || main.firstChild);
+          }
         }
       }
     }
@@ -8673,7 +8715,9 @@
         : firstListingChildInMain(parent) || parent.firstChild;
     if (host.parentNode !== parent || (anchor && host.nextSibling !== anchor)) {
       if (!safeInsertBefore(parent, host, anchor)) {
-        if (host.parentNode !== parent) parent.appendChild(host);
+        if (host.parentNode !== parent) {
+          parent.insertBefore(host, anchor || parent.firstChild);
+        }
       }
     }
 
@@ -9125,7 +9169,7 @@
           placeChromeBeforeListing(mainNow, shellNow);
         }
         ensureListingChromeAboveProducts(this);
-        armOffcanvasChromeGuard(this);
+        armListingChromeGuard(this);
         scheduleRelockProductGridTracks(this);
       } catch (syncErr) {
         try {
@@ -9809,9 +9853,9 @@
         if (main && shell && isColumnMain(main)) {
           placeChromeBeforeListing(main, shell);
         }
-        /* Off-canvas: orphan .sf-sort-host after .collection — force above products. */
+        /* All layouts: keep toolbar/sort/count above the product listing. */
         ensureListingChromeAboveProducts(this);
-        armOffcanvasChromeGuard(this);
+        armListingChromeGuard(this);
         enhanceSortMenu(this);
       } finally {
         this._placingSort = false;
