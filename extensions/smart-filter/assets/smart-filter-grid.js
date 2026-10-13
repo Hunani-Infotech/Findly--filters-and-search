@@ -8,10 +8,10 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v45";
+  var STYLE_ID = "findly-grid-takeover-v46";
   /* Marks product cards whose widths Findly set — only those get cleared. */
   var COL_LOCK_ATTR = "data-sf-col-lock";
-  var BRIDGE_STYLE_ID = "findly-theme-bridge-v20";
+  var BRIDGE_STYLE_ID = "findly-theme-bridge-v21";
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -482,6 +482,7 @@
     (document.head || document.documentElement).appendChild(style);
     var existingBridge =
       document.getElementById(BRIDGE_STYLE_ID) ||
+      document.getElementById("findly-theme-bridge-v20") ||
       document.getElementById("findly-theme-bridge-v19") ||
       document.getElementById("findly-theme-bridge-v18") ||
       document.getElementById("findly-theme-bridge-v17") ||
@@ -4454,6 +4455,52 @@
     return false;
   }
 
+  /** True when el owns Findly listing chrome (search/sort) — never busy-paint it. */
+  function containsFindlyListingChrome(el) {
+    if (!el || !el.querySelector) return false;
+    try {
+      if (el.querySelector(":scope > .sf-toolbar, :scope > .sf-sort-host, :scope > .sf-search-host, :scope > .sf-total-count")) {
+        return true;
+      }
+      if (el.classList && el.classList.contains("sf-toolbar")) return true;
+      return Boolean(el.querySelector(".sf-toolbar"));
+    } catch (err) {
+      return Boolean(el.querySelector(".sf-toolbar, .sf-sort-host, .sf-total-count"));
+    }
+  }
+
+  /** Prefer a card-grid / ProductGridContainer that does not wrap Findly chrome. */
+  function narrowBusyHost(el) {
+    if (!el || !el.querySelector) return el && !isTooWideBusyHost(el) ? el : null;
+    if (!containsFindlyListingChrome(el) && !isTooWideBusyHost(el) && matchesBusyHost(el)) {
+      return el;
+    }
+    var inner =
+      el.querySelector(".main-collection-grid") ||
+      el.querySelector("ul#product-grid, ol#product-grid, ul#ProductGrid, ol#ProductGrid") ||
+      el.querySelector("ul.product-grid, ol.product-grid") ||
+      el.querySelector(".sf-app-grid") ||
+      el.querySelector("#ProductGridContainer #product-grid, #ProductGridContainer .product-grid") ||
+      el.querySelector("#product-grid") ||
+      el.querySelector(".product-grid");
+    if (inner && !isTooWideBusyHost(inner) && !containsFindlyListingChrome(inner)) {
+      return inner;
+    }
+    var shell =
+      el.querySelector("#ProductGridContainer") ||
+      el.querySelector("#CollectionProductGrid") ||
+      el.querySelector(".product-grid-container");
+    if (
+      shell &&
+      !containsFindlyListingChrome(shell) &&
+      !isTooWideBusyHost(shell)
+    ) {
+      return shell;
+    }
+    if (!containsFindlyListingChrome(el) && !isTooWideBusyHost(el)) return el;
+    return null;
+  }
+
   function isTooWideBusyHost(el) {
     if (!el || el.nodeType !== 1) return true;
     var tag = String(el.tagName || "").toLowerCase();
@@ -4462,6 +4509,18 @@
       return true;
     }
     if (el.classList && el.classList.contains("sf-collection-layout")) {
+      return true;
+    }
+    /* Column main that holds toolbar+listing — busy must target the grid only. */
+    if (
+      el.classList &&
+      el.classList.contains("sf-layout-main") &&
+      !matchesBusyHost(el) &&
+      containsFindlyListingChrome(el)
+    ) {
+      return true;
+    }
+    if (containsFindlyListingChrome(el) && !matchesBusyHost(el)) {
       return true;
     }
     if (!el.querySelector) return false;
@@ -4481,10 +4540,18 @@
       node = node.parentElement;
       hops += 1;
       if (!node || isTooWideBusyHost(node)) break;
-      if (matchesBusyHost(node)) found = node;
+      if (matchesBusyHost(node) && !containsFindlyListingChrome(node)) {
+        found = node;
+      }
     }
     if (found) return found;
-    if (el && !isTooWideBusyHost(el)) return el;
+    if (el) {
+      var narrowed = narrowBusyHost(el);
+      if (narrowed) return narrowed;
+    }
+    if (el && !isTooWideBusyHost(el) && !containsFindlyListingChrome(el)) {
+      return el;
+    }
     return null;
   }
 
@@ -4555,21 +4622,48 @@
   }
 
   function findThemeLoadingContainer(host, overlay) {
+    var candidates = [];
     if (overlay && overlay.parentElement && overlay.parentElement.nodeType === 1) {
-      return overlay.parentElement;
+      candidates.push(overlay.parentElement);
     }
     if (host && host.closest) {
-      return (
-        host.closest("#ProductGridContainer") ||
-        host.closest("#CollectionProductGrid") ||
-        host.closest("#CollectionAjaxContent") ||
-        host.closest(".product-grid-container") ||
-        host.closest(".collection") ||
-        host.closest("results-list") ||
-        host
+      candidates.push(
+        host.closest("#ProductGridContainer"),
+        host.closest("#CollectionProductGrid"),
+        host.closest("#CollectionAjaxContent"),
+        host.closest(".product-grid-container"),
+        host.closest(".collection"),
+        host.closest("results-list"),
+        host,
       );
     }
-    return host || null;
+    var i;
+    for (i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      if (!c || c.nodeType !== 1) continue;
+      /* Never mark a node that owns Findly search/sort — theme overlay blanks chrome. */
+      if (containsFindlyListingChrome(c)) continue;
+      if (isTooWideBusyHost(c) && !matchesBusyHost(c)) continue;
+      return c;
+    }
+    /* Overlay parent had chrome — try a nested grid shell under it. */
+    var scope =
+      (overlay && overlay.parentElement) || host || null;
+    if (scope && scope.querySelector) {
+      var nested =
+        scope.querySelector("#ProductGridContainer") ||
+        scope.querySelector("#CollectionProductGrid") ||
+        scope.querySelector(".product-grid-container") ||
+        scope.querySelector("ul#product-grid, ol#product-grid, ul.product-grid");
+      if (
+        nested &&
+        !containsFindlyListingChrome(nested) &&
+        !(isTooWideBusyHost(nested) && !matchesBusyHost(nested))
+      ) {
+        return nested;
+      }
+    }
+    return null;
   }
 
   function rememberThemeLoaderPrev(el) {
@@ -4645,19 +4739,44 @@
     var overlay = findThemeLoadingOverlay(host);
     var container = findThemeLoadingContainer(host, overlay);
     if (!overlay && !container) return false;
+    /* If theme overlay's parent still owns Findly chrome, skip theme path —
+       Findly grid busy will target the card grid only. */
+    if (container && containsFindlyListingChrome(container)) {
+      container = null;
+    }
+    /*
+     * Dawn .loading-overlay is often a child of .collection. If that same
+     * .collection now also holds .sf-toolbar, forcing the overlay visible
+     * blanks search/sort even when we mark a nested #ProductGridContainer.
+     * Only use the theme overlay when it lives inside a chrome-free container.
+     */
+    if (overlay) {
+      var overlayParent = overlay.parentElement;
+      var overlayCoversChrome =
+        (overlayParent && containsFindlyListingChrome(overlayParent)) ||
+        (container &&
+          overlayParent &&
+          overlayParent !== container &&
+          !container.contains(overlay) &&
+          containsFindlyListingChrome(overlayParent));
+      if (overlayCoversChrome) {
+        return false;
+      }
+    }
+    if (!container) return false;
     /* Require a real overlay OR a known theme grid shell — avoid marking
        arbitrary nodes with .loading on themes that have no loader markup. */
     var shellOk =
-      container &&
-      (isPageShellHost(container) ||
-        (container.id &&
-          /ProductGrid|CollectionProduct|CollectionAjax/i.test(container.id)) ||
-        (container.classList &&
-          (container.classList.contains("product-grid-container") ||
-            container.classList.contains("collection") ||
-            container.classList.contains("loading-overlay"))) ||
-        overlay);
-    if (!shellOk && !overlay) return false;
+      isPageShellHost(container) ||
+      matchesBusyHost(container) ||
+      (container.id &&
+        /ProductGrid|CollectionProduct|CollectionAjax/i.test(container.id)) ||
+      (container.classList &&
+        (container.classList.contains("product-grid-container") ||
+          container.classList.contains("collection") ||
+          container.classList.contains("loading-overlay"))) ||
+      overlay;
+    if (!shellOk) return false;
 
     if (overlay) {
       rememberThemeLoaderPrev(overlay);
@@ -4672,14 +4791,12 @@
       }
       overlay.setAttribute("data-findly-theme-loader", "1");
     }
-    if (container) {
-      if (container.classList) {
-        container.classList.add("loading");
-        container.classList.add("is-loading");
-      }
-      container.setAttribute("aria-busy", "true");
-      container.setAttribute("data-findly-theme-loading", "1");
+    if (container.classList) {
+      container.classList.add("loading");
+      container.classList.add("is-loading");
     }
+    container.setAttribute("aria-busy", "true");
+    container.setAttribute("data-findly-theme-loading", "1");
     return true;
   }
 
@@ -4916,7 +5033,11 @@
       return;
     }
     host = skeletonMountHost(host || discoverBusyHost());
-    /* Prefer theme default loader (Dawn/Horizon overlay) when present. */
+    if (host && containsFindlyListingChrome(host)) {
+      host = narrowBusyHost(host) || discoverBusyHost(host);
+    }
+    /* Prefer theme default loader (Dawn/Horizon overlay) when present —
+       but only on a shell that does not wrap Findly search/sort. */
     if (setThemeGridLoading(host, true)) {
       removeBusyOverlay();
       try {
@@ -4937,6 +5058,13 @@
     if (!host) {
       setFilterLoading(true);
       return;
+    }
+    if (containsFindlyListingChrome(host)) {
+      host = narrowBusyHost(host);
+      if (!host) {
+        setFilterLoading(true);
+        return;
+      }
     }
     var stale = document.querySelectorAll(".findly-grid-is-busy");
     var s;
