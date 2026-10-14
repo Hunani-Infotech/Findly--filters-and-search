@@ -5540,6 +5540,11 @@
 
   function paintThemeCardImage(img, nextUrl) {
     if (!img || !nextUrl) return;
+    /* Hard stop — never rewrite color-swatch imgs (any theme). */
+    if (img.getAttribute("data-sf-swatch-lock") === "1") return;
+    if (typeof isThemeCardSwatchByMarkup === "function" && isThemeCardSwatchByMarkup(img)) {
+      return;
+    }
     var cur = img.getAttribute("src") || "";
     var orig = img.getAttribute("data-sf-orig-src") || cur;
     var origSet =
@@ -5608,15 +5613,39 @@
     " [data-swatch], [data-option-swatch], [data-color-swatch]," +
     " [data-variant-swatch]";
 
-  /* Build marker for console: window.__FINDLY_SWATCH_GUARD === 4 */
+  /* Build marker for console: window.__FINDLY_SWATCH_GUARD === 5 */
   try {
-    window.__FINDLY_SWATCH_GUARD = 4;
+    window.__FINDLY_SWATCH_GUARD = 5;
   } catch (err) {
     /* ignore */
   }
 
   function themeCardHasMediaHint(img, mediaRoot) {
     return Boolean(mediaRoot && mediaRoot.contains && mediaRoot.contains(img));
+  }
+
+  /** Prefer a media node that does not wrap color swatches. */
+  function themeCardMediaRoot(card) {
+    if (!card || !card.querySelectorAll) return null;
+    var nodes;
+    try {
+      nodes = card.querySelectorAll(THEME_CARD_MEDIA_SELECTOR);
+    } catch (err) {
+      return null;
+    }
+    if (!nodes || !nodes.length) return null;
+    var fallback = nodes[0];
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var hasSwatch = false;
+      try {
+        hasSwatch = Boolean(nodes[i].querySelector(THEME_CARD_SWATCH_SELECTOR));
+      } catch (err2) {
+        hasSwatch = false;
+      }
+      if (!hasSwatch) return nodes[i];
+    }
+    return fallback;
   }
 
   /**
@@ -5725,17 +5754,13 @@
    */
   function themeCardProductImages(card) {
     if (!card || !card.querySelectorAll) return [];
-    var media = null;
-    try {
-      media = card.querySelector(THEME_CARD_MEDIA_SELECTOR);
-    } catch (err) {
-      media = null;
-    }
+    var media = themeCardMediaRoot(card);
     var scope = media || card;
     var imgs = scope.querySelectorAll("img");
     var out = [];
     var i;
     for (i = 0; i < imgs.length; i++) {
+      if (isThemeCardSwatchByMarkup(imgs[i])) continue;
       if (isThemeCardSwatchImage(imgs[i], media)) continue;
       out.push(imgs[i]);
     }
@@ -5743,6 +5768,7 @@
     if (!out.length && media) {
       imgs = card.querySelectorAll("img");
       for (i = 0; i < imgs.length; i++) {
+        if (isThemeCardSwatchByMarkup(imgs[i])) continue;
         if (isThemeCardSwatchImage(imgs[i], null)) continue;
         out.push(imgs[i]);
       }
@@ -5781,25 +5807,22 @@
     } catch (err2) {
       /* ignore */
     }
+    img.setAttribute("data-sf-swatch-lock", "1");
     return true;
   }
 
   /**
    * Restore color-swatch imgs previously overwritten (data-sf-orig-src).
-   * Uses the same all-theme detector as paint-skip — not Dawn/Horizon-only.
+   * Forced for known swatch containers — do not rely on size alone.
    */
   function restoreThemeCardSwatchImages(card) {
     if (!card || !card.querySelectorAll) return;
-    var media = null;
-    try {
-      media = card.querySelector(THEME_CARD_MEDIA_SELECTOR);
-    } catch (err) {
-      media = null;
-    }
     var imgs = card.querySelectorAll("img[data-sf-orig-src]");
     var i;
     for (i = 0; i < imgs.length; i++) {
-      if (!isThemeCardSwatchImage(imgs[i], media)) continue;
+      if (!isThemeCardSwatchByMarkup(imgs[i]) && !isThemeCardSwatchImage(imgs[i], null)) {
+        continue;
+      }
       restoreOneThemeCardSwatchImage(imgs[i]);
     }
   }
@@ -5811,8 +5834,46 @@
     var imgs = scope.querySelectorAll("img[data-sf-orig-src]");
     var i;
     for (i = 0; i < imgs.length; i++) {
-      if (!isThemeCardSwatchImage(imgs[i], null)) continue;
+      if (!isThemeCardSwatchByMarkup(imgs[i]) && !isThemeCardSwatchImage(imgs[i], null)) {
+        continue;
+      }
       restoreOneThemeCardSwatchImage(imgs[i]);
+    }
+    /* Hard pass for this theme's markup even if detection missed an edge case. */
+    var forced;
+    try {
+      forced = scope.querySelectorAll(
+        ".product-color-swatches img[data-sf-orig-src]," +
+          " .color-swatch img[data-sf-orig-src]," +
+          " .color-swatch-circle img[data-sf-orig-src]," +
+          " .product-option-values img[data-sf-orig-src]",
+      );
+    } catch (err) {
+      forced = [];
+    }
+    for (i = 0; i < forced.length; i++) restoreOneThemeCardSwatchImage(forced[i]);
+  }
+
+  /**
+   * Restore now + after layout/theme scripts may re-touch imgs on the same tick.
+   * Fixes "console repair works, reload breaks again".
+   */
+  function scheduleSwatchRestore(root) {
+    restoreAllThemeCardSwatchImages(root);
+    var run = function () {
+      restoreAllThemeCardSwatchImages(root);
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function () {
+        run();
+        setTimeout(run, 0);
+        setTimeout(run, 50);
+        setTimeout(run, 200);
+      });
+    } else {
+      setTimeout(run, 0);
+      setTimeout(run, 50);
+      setTimeout(run, 200);
     }
   }
 
@@ -6018,6 +6079,7 @@
       }
       /* Repair swatches overwritten by an older Findly build (data-sf-orig-src). */
       restoreThemeCardSwatchImages(card);
+      scheduleSwatchRestore(card);
     }
     var title = product.title || handle;
     if (title) setThemeCardTitle(card, title);
@@ -6230,7 +6292,7 @@
       showCardTree(clone);
       clone._sfMounted = true;
     }
-    restoreAllThemeCardSwatchImages(parent);
+    scheduleSwatchRestore(parent);
   }
 
   function markGridTakeover(widget) {
@@ -9904,23 +9966,23 @@
         var shownNative = countAllowedInHost(parent, sliced.handles);
         var neededNative = uniqueAllowedCount(sliced.handles);
         if (neededNative > 0 && shownNative >= neededNative) {
-          restoreAllThemeCardSwatchImages(parent);
+          scheduleSwatchRestore(parent);
           return true;
         }
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
         if (!shouldTakeOverThemeCards(this)) {
-          restoreAllThemeCardSwatchImages(parent);
+          scheduleSwatchRestore(parent);
           return shownNative > 0;
         }
         if (shownNative > 0) {
-          restoreAllThemeCardSwatchImages(parent);
+          scheduleSwatchRestore(parent);
           return true;
         }
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
         if (shownNative > 0) {
-          restoreAllThemeCardSwatchImages(parent);
+          scheduleSwatchRestore(parent);
           return true;
         }
         /* Takeover hid Liquid cards but clones/cache missed — fall through to
