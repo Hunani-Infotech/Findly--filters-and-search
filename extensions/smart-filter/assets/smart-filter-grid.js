@@ -5613,9 +5613,14 @@
     " [data-swatch], [data-option-swatch], [data-color-swatch]," +
     " [data-variant-swatch]";
 
-  /* Build marker for console: window.__FINDLY_SWATCH_GUARD === 6 */
+  /* Build marker for console: window.__FINDLY_SWATCH_GUARD === 7 */
   try {
-    window.__FINDLY_SWATCH_GUARD = 6;
+    window.__FINDLY_SWATCH_GUARD = 7;
+    /* Tear down v5/v6 document MutationObserver if a prior bundle left it running. */
+    if (window.__FINDLY_SWATCH_OBS && window.__FINDLY_SWATCH_OBS.disconnect) {
+      window.__FINDLY_SWATCH_OBS.disconnect();
+      window.__FINDLY_SWATCH_OBS = null;
+    }
   } catch (err) {
     /* ignore */
   }
@@ -5806,6 +5811,18 @@
     if (!img) return false;
     var orig = absolutizeThemeCardUrl(img.getAttribute("data-sf-orig-src") || "");
     if (!orig) return false;
+    var cur = absolutizeThemeCardUrl(
+      img.getAttribute("src") || img.currentSrc || "",
+    );
+    var origKey = shopifyImageKey(orig);
+    var curKey = shopifyImageKey(cur);
+    /* Already restored — avoid no-op writes that retrigger observers/layout. */
+    if (origKey && curKey && origKey === curKey) {
+      if (img.getAttribute("data-sf-swatch-lock") !== "1") {
+        img.setAttribute("data-sf-swatch-lock", "1");
+      }
+      return false;
+    }
     var origSet = String(img.getAttribute("data-sf-orig-srcset") || "").trim();
     /* Clear product srcset first — otherwise currentSrc keeps the featured image. */
     img.removeAttribute("srcset");
@@ -5970,60 +5987,39 @@
     restoreAllThemeCardSwatchImages(scope);
   }
 
-  function ensureSwatchOverwriteObserver() {
-    if (window.__FINDLY_SWATCH_OBS || typeof MutationObserver === "undefined") {
-      return;
-    }
-    try {
-      var obs = new MutationObserver(function (mutations) {
-        var m;
-        for (m = 0; m < mutations.length; m++) {
-          var rec = mutations[m];
-          if (rec.type !== "attributes") continue;
-          if (rec.attributeName !== "src" && rec.attributeName !== "srcset") {
-            continue;
-          }
-          var img = rec.target;
-          if (!img || img.nodeType !== 1) continue;
-          if (!isThemeCardSwatchByMarkup(img)) continue;
-          if (!img.getAttribute("data-sf-orig-src")) continue;
-          restoreOneThemeCardSwatchImage(img);
-        }
-      });
-      obs.observe(document.documentElement || document.body, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ["src", "srcset"],
-      });
-      window.__FINDLY_SWATCH_OBS = obs;
-    } catch (err) {
-      /* ignore */
-    }
-  }
-
   /**
-   * Restore now + after smart-filter.js applyVariantImages (afterGrid).
+   * Debounced repair after grid paint. Do NOT use a document-wide MutationObserver
+   * on img src — restore writes src/srcset and that caused an infinite loop / freeze.
+   * One immediate pass + one delayed pass (after applyVariantImages in afterGrid).
    */
+  var _swatchRestoreTimer = 0;
+  var _swatchRestoreWidget = null;
+  var _swatchRestoreRoot = null;
+
   function scheduleSwatchRestore(root, widget) {
-    ensureSwatchOverwriteObserver();
-    repairVariantImagesAfterGrid(widget, root);
-    var run = function () {
-      repairVariantImagesAfterGrid(widget, root);
-    };
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(function () {
-        run();
-        setTimeout(run, 0);
-        setTimeout(run, 50);
-        setTimeout(run, 200);
-        setTimeout(run, 600);
-      });
-    } else {
-      setTimeout(run, 0);
-      setTimeout(run, 50);
-      setTimeout(run, 200);
-      setTimeout(run, 600);
-    }
+    _swatchRestoreWidget = widget || _swatchRestoreWidget;
+    _swatchRestoreRoot = root || _swatchRestoreRoot;
+    if (_swatchRestoreTimer) return;
+    _swatchRestoreTimer = setTimeout(function () {
+      _swatchRestoreTimer = 0;
+      var w = _swatchRestoreWidget;
+      var r = _swatchRestoreRoot;
+      _swatchRestoreWidget = null;
+      _swatchRestoreRoot = null;
+      try {
+        repairVariantImagesAfterGrid(w, r);
+      } catch (err) {
+        /* never block the filter UI */
+      }
+      /* Second pass after smart-filter.js applyVariantImages (afterGrid). */
+      setTimeout(function () {
+        try {
+          repairVariantImagesAfterGrid(w, r);
+        } catch (err2) {
+          /* ignore */
+        }
+      }, 120);
+    }, 0);
   }
 
   function firstThemeCardSample(widget, parent) {
@@ -6226,9 +6222,8 @@
         if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
         if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
       }
-      /* Repair swatches overwritten by an older Findly build (data-sf-orig-src). */
+      /* Per-card restore only — full-grid repair is debounced via scheduleSwatchRestore. */
       restoreThemeCardSwatchImages(card);
-      scheduleSwatchRestore(card, widget);
     }
     var title = product.title || handle;
     if (title) setThemeCardTitle(card, title);
@@ -9722,7 +9717,6 @@
   function patchWidget(widget) {
     if (!widget) return;
     liftOutOfThemeForm(widget);
-    ensureSwatchOverwriteObserver();
     var proto = Object.getPrototypeOf(widget);
     if (!proto || proto.__findlyGridPatched) return;
     proto.__findlyGridPatched = true;
