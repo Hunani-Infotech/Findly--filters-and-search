@@ -5575,6 +5575,135 @@
     );
   }
 
+  var THEME_CARD_MEDIA_SELECTOR =
+    ".card__media, .card-media, .card__media-wrapper, .media-wrapper," +
+    " .product-card__image, .product-card__media, .product-card-media," +
+    " .product-card__figure, .product-item__image, .product-item__image-wrapper," +
+    " .grid-view-item__image, .product-block__image, .productitem--image," +
+    " .product-image, .product__media, .product-media, .image-wrap," +
+    " .card__img, .product-card-image, [class*='card__media']," +
+    " [class*='product-card__image'], [class*='product-item__image']," +
+    " [class*='product-image'], .media";
+
+  var THEME_CARD_SWATCH_SELECTOR =
+    ".swatch, .swatches, .swatch-element, .swatch-list, .swatch-wrapper," +
+    " .color-swatch, .color-swatches, .color-list, .colors, .colours," +
+    " .product-colors, .product-colours, .product-card__swatch," +
+    " .product-card-swatches, .product-card__colors, .product-item__swatch," +
+    " .product-item__swatches, .product-block__swatch, .variant-swatch," +
+    " .option-swatch, .option-colors, .sf-app-card-swatch," +
+    " .sf-app-card-swatches, .product-form__input--swatch," +
+    " [class*='swatch'], [class*='Swatch'], [data-swatch]," +
+    " [data-option-swatch], [data-color-swatch], [data-variant-swatch]";
+
+  /**
+   * True for color/option swatch imgs on any theme. Must stay false for product
+   * media / hover imgs so card remapping behavior stays the same as before.
+   */
+  function isThemeCardSwatchImage(img, mediaRoot) {
+    if (!img || img.nodeType !== 1) return false;
+    /* Never treat primary media photos as swatches (size attrs vary by theme). */
+    if (mediaRoot && mediaRoot.contains && mediaRoot.contains(img)) {
+      if (!img.closest) return false;
+      try {
+        return Boolean(img.closest(THEME_CARD_SWATCH_SELECTOR));
+      } catch (err) {
+        return false;
+      }
+    }
+    var className = String(img.className || "");
+    if (
+      /swatch|color[-_]?dot|color[-_]?chip|colour[-_]?chip|option[-_]?color|variant[-_]?color/i.test(
+        className,
+      )
+    ) {
+      return true;
+    }
+    if (
+      img.getAttribute("data-swatch") != null ||
+      img.getAttribute("data-option-swatch") != null ||
+      img.getAttribute("data-color-swatch") != null ||
+      img.getAttribute("data-variant-swatch") != null
+    ) {
+      return true;
+    }
+    /* Tiny imgs outside media are swatches/icons on almost every theme. */
+    var w =
+      Number(img.getAttribute("width")) ||
+      Number(img.getAttribute("data-width")) ||
+      0;
+    var h =
+      Number(img.getAttribute("height")) ||
+      Number(img.getAttribute("data-height")) ||
+      0;
+    if ((w > 0 && w <= 72) || (h > 0 && h <= 72)) return true;
+    if (!img.closest) return false;
+    try {
+      if (img.closest(THEME_CARD_SWATCH_SELECTOR)) return true;
+      if (img.closest("[role='radiogroup']")) return true;
+    } catch (err) {
+      /* Invalid selector in older engines — ignore. */
+    }
+    /* Themes that omit "swatch" (e.g. .sf-color, .js-color-list). */
+    var parent = img.parentElement;
+    var depth = 0;
+    while (parent && depth < 4) {
+      var pClass = String(parent.className || "");
+      var pId = String(parent.id || "");
+      var hint = pClass + " " + pId;
+      if (
+        /swatch/i.test(hint) ||
+        /(^|[\s_-])(colors|colours)([\s_-]|$)/i.test(hint) ||
+        /(color|colour)[-_]?(swatch|chip|dot|option|list|picker|circle)/i.test(
+          hint,
+        ) ||
+        /(^|[\s_-])(sf-color|js-color)([\s_-]|$)/i.test(hint)
+      ) {
+        if (
+          !/(product[-_]?image|card[-_]?media|media[-_]?wrapper|featured[-_]?image)/i.test(
+            pClass,
+          )
+        ) {
+          return true;
+        }
+      }
+      parent = parent.parentElement;
+      depth += 1;
+    }
+    return false;
+  }
+
+  /**
+   * Same product imgs as before (main + hover/secondary), minus color swatches.
+   * Works across themes: media-scoped when possible, else full-card walk.
+   */
+  function themeCardProductImages(card) {
+    if (!card || !card.querySelectorAll) return [];
+    var media = null;
+    try {
+      media = card.querySelector(THEME_CARD_MEDIA_SELECTOR);
+    } catch (err) {
+      media = null;
+    }
+    var scope = media || card;
+    var imgs = scope.querySelectorAll("img");
+    var out = [];
+    var i;
+    for (i = 0; i < imgs.length; i++) {
+      if (isThemeCardSwatchImage(imgs[i], media)) continue;
+      out.push(imgs[i]);
+    }
+    /* Media node empty / only swatches — fall back to full-card (legacy). */
+    if (!out.length && media) {
+      imgs = card.querySelectorAll("img");
+      for (i = 0; i < imgs.length; i++) {
+        if (isThemeCardSwatchImage(imgs[i], null)) continue;
+        out.push(imgs[i]);
+      }
+    }
+    return out;
+  }
+
   function firstThemeCardSample(widget, parent) {
     function pick(el) {
       var outer = resolveOuterThemeCard(el) || el;
@@ -5768,10 +5897,9 @@
     }
     var imgUrl = product.variantImageUrl || product.imageUrl || "";
     if (card.querySelector) {
-      paintThemeCardImage(card.querySelector("img"), imgUrl);
-      var imgs = card.querySelectorAll("img");
+      var imgs = themeCardProductImages(card);
       for (i = 0; i < imgs.length; i++) {
-        if (imgUrl && i > 0) paintThemeCardImage(imgs[i], imgUrl);
+        if (imgUrl) paintThemeCardImage(imgs[i], imgUrl);
         if (product.title) imgs[i].setAttribute("alt", product.title);
         if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
         if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
