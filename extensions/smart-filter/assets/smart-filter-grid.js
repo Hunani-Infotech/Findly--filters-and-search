@@ -5575,6 +5575,11 @@
     );
   }
 
+  /**
+   * Media wrappers across common Shopify themes (Dawn, Horizon, Impulse,
+   * Prestige, Warehouse, Focal, Debut, Brooklyn, custom sf-* themes, etc.).
+   * Not Dawn-only — used only as a hint for where product photos live.
+   */
   var THEME_CARD_MEDIA_SELECTOR =
     ".card__media, .card-media, .card__media-wrapper, .media-wrapper," +
     " .product-card__image, .product-card__media, .product-card-media," +
@@ -5596,21 +5601,33 @@
     " [class*='swatch'], [class*='Swatch'], [data-swatch]," +
     " [data-option-swatch], [data-color-swatch], [data-variant-swatch]";
 
+  function themeCardHasMediaHint(img, mediaRoot) {
+    return Boolean(mediaRoot && mediaRoot.contains && mediaRoot.contains(img));
+  }
+
   /**
-   * True for color/option swatch imgs on any theme. Must stay false for product
-   * media / hover imgs so card remapping behavior stays the same as before.
+   * Tiny chip heuristic — only for imgs outside product media so we never
+   * skip a main/hover photo that uses small width/height attrs or LQIP.
    */
-  function isThemeCardSwatchImage(img, mediaRoot) {
+  function isThemeCardSwatchBySize(img) {
+    if (!img) return false;
+    var w =
+      Number(img.getAttribute("width")) ||
+      Number(img.getAttribute("data-width")) ||
+      0;
+    var h =
+      Number(img.getAttribute("height")) ||
+      Number(img.getAttribute("data-height")) ||
+      0;
+    if ((w > 0 && w <= 96) || (h > 0 && h <= 96)) return true;
+    var cw = img.clientWidth || 0;
+    var ch = img.clientHeight || 0;
+    if ((cw > 0 && cw <= 48) || (ch > 0 && ch <= 48)) return true;
+    return false;
+  }
+
+  function isThemeCardSwatchByMarkup(img) {
     if (!img || img.nodeType !== 1) return false;
-    /* Never treat primary media photos as swatches (size attrs vary by theme). */
-    if (mediaRoot && mediaRoot.contains && mediaRoot.contains(img)) {
-      if (!img.closest) return false;
-      try {
-        return Boolean(img.closest(THEME_CARD_SWATCH_SELECTOR));
-      } catch (err) {
-        return false;
-      }
-    }
     var className = String(img.className || "");
     if (
       /swatch|color[-_]?dot|color[-_]?chip|colour[-_]?chip|option[-_]?color|variant[-_]?color/i.test(
@@ -5627,24 +5644,13 @@
     ) {
       return true;
     }
-    /* Tiny imgs outside media are swatches/icons on almost every theme. */
-    var w =
-      Number(img.getAttribute("width")) ||
-      Number(img.getAttribute("data-width")) ||
-      0;
-    var h =
-      Number(img.getAttribute("height")) ||
-      Number(img.getAttribute("data-height")) ||
-      0;
-    if ((w > 0 && w <= 72) || (h > 0 && h <= 72)) return true;
     if (!img.closest) return false;
     try {
       if (img.closest(THEME_CARD_SWATCH_SELECTOR)) return true;
       if (img.closest("[role='radiogroup']")) return true;
     } catch (err) {
-      /* Invalid selector in older engines — ignore. */
+      /* ignore unsupported selectors */
     }
-    /* Themes that omit "swatch" (e.g. .sf-color, .js-color-list). */
     var parent = img.parentElement;
     var depth = 0;
     while (parent && depth < 4) {
@@ -5674,8 +5680,34 @@
   }
 
   /**
-   * Same product imgs as before (main + hover/secondary), minus color swatches.
-   * Works across themes: media-scoped when possible, else full-card walk.
+   * Color/option swatch img on any theme. Product media imgs must stay false
+   * so filter/sort remapping still updates main + hover photos as before.
+   */
+  function isThemeCardSwatchImage(img, mediaRoot) {
+    if (!img || img.nodeType !== 1) return false;
+    if (isThemeCardSwatchByMarkup(img)) return true;
+    if (!isThemeCardSwatchBySize(img)) return false;
+    /* Outside media: any tiny img is a chip/icon — safe to skip. */
+    if (!themeCardHasMediaHint(img, mediaRoot)) return true;
+    /*
+     * Inside media: skip tiny imgs only when a normal product photo peer exists.
+     * Avoids skipping a lone LQIP/main img that uses small width attrs.
+     */
+    if (!mediaRoot || !mediaRoot.querySelectorAll) return false;
+    var peers = mediaRoot.querySelectorAll("img");
+    var i;
+    for (i = 0; i < peers.length; i++) {
+      if (peers[i] === img) continue;
+      if (isThemeCardSwatchByMarkup(peers[i])) continue;
+      if (!isThemeCardSwatchBySize(peers[i])) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Same behavior as painting every card img, minus color-swatch imgs.
+   * Prefer media-scoped imgs when a media node exists (avoids title-row icons);
+   * otherwise walk the whole card like the original implementation.
    */
   function themeCardProductImages(card) {
     if (!card || !card.querySelectorAll) return [];
@@ -5693,7 +5725,7 @@
       if (isThemeCardSwatchImage(imgs[i], media)) continue;
       out.push(imgs[i]);
     }
-    /* Media node empty / only swatches — fall back to full-card (legacy). */
+    /* Media matched but yielded nothing usable — fall back to full-card walk. */
     if (!out.length && media) {
       imgs = card.querySelectorAll("img");
       for (i = 0; i < imgs.length; i++) {
@@ -5702,6 +5734,31 @@
       }
     }
     return out;
+  }
+
+  /** Restore swatch imgs overwritten by an older Findly build (data-sf-orig-src). */
+  function restoreThemeCardSwatchImages(card) {
+    if (!card || !card.querySelectorAll) return;
+    var media = null;
+    try {
+      media = card.querySelector(THEME_CARD_MEDIA_SELECTOR);
+    } catch (err) {
+      media = null;
+    }
+    var imgs = card.querySelectorAll("img[data-sf-orig-src]");
+    var i;
+    for (i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      if (!isThemeCardSwatchImage(img, media)) continue;
+      var orig = img.getAttribute("data-sf-orig-src") || "";
+      var origSet = img.getAttribute("data-sf-orig-srcset") || "";
+      if (!orig) continue;
+      if ((img.getAttribute("src") || "") !== orig) {
+        img.setAttribute("src", orig);
+      }
+      if (origSet) img.setAttribute("srcset", origSet);
+      else img.removeAttribute("srcset");
+    }
   }
 
   function firstThemeCardSample(widget, parent) {
@@ -5904,6 +5961,8 @@
         if (!imgs[i].getAttribute("loading")) imgs[i].setAttribute("loading", "lazy");
         if (!imgs[i].getAttribute("decoding")) imgs[i].setAttribute("decoding", "async");
       }
+      /* Repair swatches overwritten by an older Findly build (data-sf-orig-src). */
+      restoreThemeCardSwatchImages(card);
     }
     var title = product.title || handle;
     if (title) setThemeCardTitle(card, title);
