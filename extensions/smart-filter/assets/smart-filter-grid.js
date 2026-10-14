@@ -5590,16 +5590,30 @@
     " [class*='product-card__image'], [class*='product-item__image']," +
     " [class*='product-image'], .media";
 
+  /*
+   * Includes SoFetch / custom themes: .color-swatch, .color-swatch-circle,
+   * .product-color-swatches, .product-option-values (verified on storefront).
+   */
   var THEME_CARD_SWATCH_SELECTOR =
     ".swatch, .swatches, .swatch-element, .swatch-list, .swatch-wrapper," +
-    " .color-swatch, .color-swatches, .color-list, .colors, .colours," +
+    " .color-swatch, .color-swatches, .color-swatch-circle," +
+    " .product-color-swatches, .product-option-values," +
+    " .color-list, .colors, .colours," +
     " .product-colors, .product-colours, .product-card__swatch," +
     " .product-card-swatches, .product-card__colors, .product-item__swatch," +
     " .product-item__swatches, .product-block__swatch, .variant-swatch," +
     " .option-swatch, .option-colors, .sf-app-card-swatch," +
     " .sf-app-card-swatches, .product-form__input--swatch," +
-    " [class*='swatch'], [class*='Swatch'], [data-swatch]," +
-    " [data-option-swatch], [data-color-swatch], [data-variant-swatch]";
+    " [class*='swatch'], [class*='Swatch'], [class*='color-swatch']," +
+    " [data-swatch], [data-option-swatch], [data-color-swatch]," +
+    " [data-variant-swatch]";
+
+  /* Build marker for console: window.__FINDLY_SWATCH_GUARD === 4 */
+  try {
+    window.__FINDLY_SWATCH_GUARD = 4;
+  } catch (err) {
+    /* ignore */
+  }
 
   function themeCardHasMediaHint(img, mediaRoot) {
     return Boolean(mediaRoot && mediaRoot.contains && mediaRoot.contains(img));
@@ -5736,7 +5750,22 @@
     return out;
   }
 
-  /** Restore swatch imgs overwritten by an older Findly build (data-sf-orig-src). */
+  function restoreOneThemeCardSwatchImage(img) {
+    if (!img) return false;
+    var orig = img.getAttribute("data-sf-orig-src") || "";
+    if (!orig) return false;
+    var origSet = img.getAttribute("data-sf-orig-srcset") || "";
+    var cur = img.getAttribute("src") || "";
+    if (cur !== orig) img.setAttribute("src", orig);
+    if (origSet) img.setAttribute("srcset", origSet);
+    else img.removeAttribute("srcset");
+    return true;
+  }
+
+  /**
+   * Restore color-swatch imgs previously overwritten (data-sf-orig-src).
+   * Uses the same all-theme detector as paint-skip — not Dawn/Horizon-only.
+   */
   function restoreThemeCardSwatchImages(card) {
     if (!card || !card.querySelectorAll) return;
     var media = null;
@@ -5748,16 +5777,20 @@
     var imgs = card.querySelectorAll("img[data-sf-orig-src]");
     var i;
     for (i = 0; i < imgs.length; i++) {
-      var img = imgs[i];
-      if (!isThemeCardSwatchImage(img, media)) continue;
-      var orig = img.getAttribute("data-sf-orig-src") || "";
-      var origSet = img.getAttribute("data-sf-orig-srcset") || "";
-      if (!orig) continue;
-      if ((img.getAttribute("src") || "") !== orig) {
-        img.setAttribute("src", orig);
-      }
-      if (origSet) img.setAttribute("srcset", origSet);
-      else img.removeAttribute("srcset");
+      if (!isThemeCardSwatchImage(imgs[i], media)) continue;
+      restoreOneThemeCardSwatchImage(imgs[i]);
+    }
+  }
+
+  /** After a grid pass, repair any already-painted swatch imgs in scope. */
+  function restoreAllThemeCardSwatchImages(root) {
+    var scope = root || document;
+    if (!scope.querySelectorAll) return;
+    var imgs = scope.querySelectorAll("img[data-sf-orig-src]");
+    var i;
+    for (i = 0; i < imgs.length; i++) {
+      if (!isThemeCardSwatchImage(imgs[i], null)) continue;
+      restoreOneThemeCardSwatchImage(imgs[i]);
     }
   }
 
@@ -6175,6 +6208,7 @@
       showCardTree(clone);
       clone._sfMounted = true;
     }
+    restoreAllThemeCardSwatchImages(parent);
   }
 
   function markGridTakeover(widget) {
@@ -9847,14 +9881,26 @@
         }
         var shownNative = countAllowedInHost(parent, sliced.handles);
         var neededNative = uniqueAllowedCount(sliced.handles);
-        if (neededNative > 0 && shownNative >= neededNative) return true;
+        if (neededNative > 0 && shownNative >= neededNative) {
+          restoreAllThemeCardSwatchImages(parent);
+          return true;
+        }
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
-        if (!shouldTakeOverThemeCards(this)) return shownNative > 0;
-        if (shownNative > 0) return true;
+        if (!shouldTakeOverThemeCards(this)) {
+          restoreAllThemeCardSwatchImages(parent);
+          return shownNative > 0;
+        }
+        if (shownNative > 0) {
+          restoreAllThemeCardSwatchImages(parent);
+          return true;
+        }
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
-        if (shownNative > 0) return true;
+        if (shownNative > 0) {
+          restoreAllThemeCardSwatchImages(parent);
+          return true;
+        }
         /* Takeover hid Liquid cards but clones/cache missed — fall through to
            origApply (.sf-app-card) so search/filter pages still show a grid. */
         if (uniqueAllowedCount(sliced.handles) === 0) return true;
