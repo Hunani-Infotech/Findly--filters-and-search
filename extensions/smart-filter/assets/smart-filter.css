@@ -2913,6 +2913,15 @@ results-list > .sf-toolbar {
  * Match Dawn column math; flex-grow 0 so 1 result stays one card wide.
  */
 @media screen and (min-width: 990px) {
+  .sf-collection-layout .sf-layout-main .grid--2-col-desktop.product-grid > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--2-col-desktop > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--2-col-desktop > li {
+    width: calc(50% - var(--grid-desktop-horizontal-spacing, 8px) / 2) !important;
+    max-width: calc(50% - var(--grid-desktop-horizontal-spacing, 8px) / 2) !important;
+    flex: 0 0 auto !important;
+    box-sizing: border-box !important;
+  }
+
   .sf-collection-layout .sf-layout-main .grid--3-col-desktop.product-grid > .grid__item,
   .sf-collection-layout .sf-layout-main .grid--3-col-desktop > .grid__item,
   .sf-collection-layout .sf-layout-main .grid--3-col-desktop > li {
@@ -2931,11 +2940,20 @@ results-list > .sf-toolbar {
     box-sizing: border-box !important;
   }
 
-  .sf-collection-layout .sf-layout-main .grid--2-col-desktop.product-grid > .grid__item,
-  .sf-collection-layout .sf-layout-main .grid--2-col-desktop > .grid__item,
-  .sf-collection-layout .sf-layout-main .grid--2-col-desktop > li {
-    width: calc(50% - var(--grid-desktop-horizontal-spacing, 8px) / 2) !important;
-    max-width: calc(50% - var(--grid-desktop-horizontal-spacing, 8px) / 2) !important;
+  .sf-collection-layout .sf-layout-main .grid--5-col-desktop.product-grid > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--5-col-desktop > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--5-col-desktop > li {
+    width: calc(20% - var(--grid-desktop-horizontal-spacing, 8px) * 4 / 5) !important;
+    max-width: calc(20% - var(--grid-desktop-horizontal-spacing, 8px) * 4 / 5) !important;
+    flex: 0 0 auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .sf-collection-layout .sf-layout-main .grid--6-col-desktop.product-grid > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--6-col-desktop > .grid__item,
+  .sf-collection-layout .sf-layout-main .grid--6-col-desktop > li {
+    width: calc(16.66% - var(--grid-desktop-horizontal-spacing, 8px) * 5 / 6) !important;
+    max-width: calc(16.66% - var(--grid-desktop-horizontal-spacing, 8px) * 5 / 6) !important;
     flex: 0 0 auto !important;
     box-sizing: border-box !important;
   }

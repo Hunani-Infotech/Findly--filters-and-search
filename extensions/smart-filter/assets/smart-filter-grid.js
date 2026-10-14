@@ -8,10 +8,12 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v46";
+  var STYLE_ID = "findly-grid-takeover-v47";
   /* Marks product cards whose widths Findly set — only those get cleared. */
   var COL_LOCK_ATTR = "data-sf-col-lock";
   var BRIDGE_STYLE_ID = "findly-theme-bridge-v21";
+  /* Used only when the theme has no Dawn/Horizon column signal. */
+  var FINDLY_DEFAULT_DESKTOP_COLS = 3;
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -584,6 +586,11 @@
         ".sf-layout-main ol.product-grid,.sf-layout-main .main-collection-grid," +
         ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:flex-start!important}" +
         "@media screen and (min-width:990px){" +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>li" +
+        "{width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "max-width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}" +
         ".sf-collection-layout .sf-layout-main .grid--3-col-desktop>.grid__item," +
         ".sf-collection-layout .sf-layout-main .grid--3-col-desktop>li" +
         "{width:calc(33.33% - var(--grid-desktop-horizontal-spacing,8px)*2/3)!important;" +
@@ -594,10 +601,15 @@
         "{width:calc(25% - var(--grid-desktop-horizontal-spacing,8px)*3/4)!important;" +
         "max-width:calc(25% - var(--grid-desktop-horizontal-spacing,8px)*3/4)!important;" +
         "flex:0 0 auto!important;box-sizing:border-box!important}" +
-        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>.grid__item," +
-        ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>li" +
-        "{width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
-        "max-width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
+        ".sf-collection-layout .sf-layout-main .grid--5-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--5-col-desktop>li" +
+        "{width:calc(20% - var(--grid-desktop-horizontal-spacing,8px)*4/5)!important;" +
+        "max-width:calc(20% - var(--grid-desktop-horizontal-spacing,8px)*4/5)!important;" +
+        "flex:0 0 auto!important;box-sizing:border-box!important}" +
+        ".sf-collection-layout .sf-layout-main .grid--6-col-desktop>.grid__item," +
+        ".sf-collection-layout .sf-layout-main .grid--6-col-desktop>li" +
+        "{width:calc(16.66% - var(--grid-desktop-horizontal-spacing,8px)*5/6)!important;" +
+        "max-width:calc(16.66% - var(--grid-desktop-horizontal-spacing,8px)*5/6)!important;" +
         "flex:0 0 auto!important;box-sizing:border-box!important}}" +
         "@media screen and (min-width:750px) and (max-width:989px){" +
         ".sf-collection-layout .sf-layout-main .grid--2-col-tablet-down>.grid__item," +
@@ -1349,6 +1361,185 @@
     }
   }
 
+  function clampThemeCols(n) {
+    n = Number(n) || 0;
+    if (n < 2 || n > 8) return 0;
+    return n | 0;
+  }
+
+  /**
+   * Parse a column count from theme tokens: plain ints, repeat(N, …), or
+   * fixed track lists. Returns 0 for auto-fill/fit / unknown.
+   */
+  function parseColumnCountToken(raw) {
+    var text = String(raw == null ? "" : raw).trim();
+    if (!text) return 0;
+    if (/^\d+(\.\d+)?$/.test(text)) return clampThemeCols(parseInt(text, 10));
+    if (/auto-fill|auto-fit/i.test(text)) return 0;
+    var rep = text.match(/repeat\(\s*(\d+)\s*,/i);
+    if (rep) return clampThemeCols(parseInt(rep[1], 10));
+    var stripped = text
+      .replace(/minmax\([^)]*\)/gi, "X")
+      .replace(/min\([^)]*\)/gi, "X")
+      .replace(/max\([^)]*\)/gi, "X")
+      .replace(/clamp\([^)]*\)/gi, "X")
+      .replace(/\[[^\]]*]/g, " ");
+    if (/auto-fill|auto-fit/i.test(stripped)) return 0;
+    var parts = stripped.split(/\s+/).filter(function (p) {
+      return p && p !== "/";
+    });
+    if (parts.length >= 2 && parts.length <= 8) return clampThemeCols(parts.length);
+    return 0;
+  }
+
+  function readColumnCountFromClassName(className) {
+    var cls = String(className || "");
+    if (!cls) return 0;
+    var patterns = [
+      /\bgrid--(\d+)-col-desktop\b/i,
+      /\bgrid--(\d+)-col\b/i,
+      /\bgrid-cols-(\d+)\b/i,
+      /\b(?:md|lg|xl|2xl):grid-cols-(\d+)\b/i,
+      /\bcolumns?-(\d+)(?:-desktop)?\b/i,
+      /\bcols?-(\d+)(?:-desktop)?\b/i,
+      /\bproducts?-per-row-(\d+)\b/i,
+      /\bper-row-(\d+)\b/i,
+      /\blarge-block-grid-(\d+)\b/i,
+      /\bmedium-block-grid-(\d+)\b/i,
+      /\bsmall-block-grid-(\d+)\b/i,
+    ];
+    var i;
+    for (i = 0; i < patterns.length; i++) {
+      var m = cls.match(patterns[i]);
+      if (m) {
+        var n = clampThemeCols(parseInt(m[1], 10));
+        if (n) return n;
+      }
+    }
+    return 0;
+  }
+
+  /** Debut / Brooklyn / Foundation-style width utilities on cards. */
+  function readColumnCountFromFoundationChild(host) {
+    if (!host || !host.children) return 0;
+    var FRACTIONS = {
+      "one-half": 2,
+      "one-third": 3,
+      "one-quarter": 4,
+      "one-fifth": 5,
+      "one-sixth": 6,
+    };
+    var i;
+    var limit = Math.min(host.children.length, 8);
+    for (i = 0; i < limit; i++) {
+      var kid = host.children[i];
+      if (!kid || kid.nodeType !== 1) continue;
+      if (typeof isGridChrome === "function" && isGridChrome(kid)) continue;
+      var cls = String(kid.className || "");
+      var m = cls.match(
+        /\b(?:medium-up|large-up|large|medium|widescreen)--(one-(?:half|third|quarter|fifth|sixth))\b/i,
+      );
+      if (!m) m = cls.match(/\b(one-(?:half|third|quarter|fifth|sixth))\b/i);
+      if (m && FRACTIONS[m[1]]) return FRACTIONS[m[1]];
+    }
+    return 0;
+  }
+
+  function readColumnCountFromDataAttrs(el) {
+    if (!el || !el.getAttribute) return 0;
+    var keys = [
+      "data-columns",
+      "data-cols",
+      "data-grid-columns",
+      "data-desktop-columns",
+      "data-products-per-row",
+      "data-per-row",
+      "data-column-count",
+      "data-columns-desktop",
+      "columns",
+    ];
+    var i;
+    for (i = 0; i < keys.length; i++) {
+      var n = parseColumnCountToken(el.getAttribute(keys[i]));
+      if (n) return n;
+    }
+    return 0;
+  }
+
+  function readColumnCountFromCssVars(host) {
+    if (!host || typeof window.getComputedStyle !== "function") return 0;
+    var vars = [
+      "--product-grid-columns-desktop",
+      "--product-grid-columns",
+      "--columns-desktop",
+      "--grid-columns-desktop",
+      "--grid-columns",
+      "--columns",
+      "--cols",
+      "--product-list-columns",
+      "--collection-columns",
+      "--products-per-row",
+      "--column-count",
+      "--grid-column-count",
+    ];
+    try {
+      var cs = window.getComputedStyle(host);
+      var i;
+      for (i = 0; i < vars.length; i++) {
+        var n = parseColumnCountToken(cs.getPropertyValue(vars[i]));
+        if (n) return n;
+      }
+    } catch (err) {
+      return 0;
+    }
+    return 0;
+  }
+
+  function readColumnCountFromComputedTracks(host) {
+    if (!host || typeof window.getComputedStyle !== "function") return 0;
+    try {
+      var cs = window.getComputedStyle(host);
+      if (String(cs.display || "").indexOf("grid") === -1) return 0;
+      return parseColumnCountToken(cs.gridTemplateColumns);
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  /**
+   * Theme-agnostic desktop column count. Prefer explicit theme signals over
+   * Findly defaults. Works for Dawn, Horizon, and most OS 2.0 / legacy themes.
+   */
+  function resolveThemeDesktopColumnCount(host) {
+    if (!host) return 0;
+    var n = readColumnCountFromClassName(host.className);
+    if (n) return n;
+    n = readColumnCountFromDataAttrs(host);
+    if (n) return n;
+    if (host.parentElement) {
+      n = readColumnCountFromDataAttrs(host.parentElement);
+      if (n) return n;
+      n = readColumnCountFromClassName(host.parentElement.className);
+      if (n) return n;
+    }
+    n = readColumnCountFromCssVars(host);
+    if (n) return n;
+    if (host.parentElement) {
+      n = readColumnCountFromCssVars(host.parentElement);
+      if (n) return n;
+    }
+    n = readColumnCountFromFoundationChild(host);
+    if (n) return n;
+    n = readColumnCountFromComputedTracks(host);
+    if (n) return n;
+    return 0;
+  }
+
+  /** @deprecated name kept — now delegates to theme-agnostic resolver on desktop. */
+  function readHorizonDesktopColCount(host) {
+    return resolveThemeDesktopColumnCount(host);
+  }
+
   function dawnFlexColumnCount(host) {
     if (!host || !host.classList) return 0;
     var cls = String(host.className || "");
@@ -1358,13 +1549,16 @@
     var deskN = desk ? Math.max(1, Number(desk[1]) || 0) : 0;
     var tabletN = tablet ? Math.max(1, Number(tablet[1]) || 0) : 0;
     var mobileN = mobile ? Math.max(1, Number(mobile[1]) || 0) : 0;
+    var themeN = 0;
     try {
       if (
         typeof window.matchMedia === "function" &&
         window.matchMedia("(min-width: 990px)").matches
       ) {
-        /* Desktop (≥990): unchanged — desktop class first. */
+        /* Desktop (≥990): any theme column signal first. */
         if (deskN) return deskN;
+        themeN = resolveThemeDesktopColumnCount(host);
+        if (themeN) return themeN;
         if (tabletN) return tabletN;
         if (mobileN) return mobileN;
         return 0;
@@ -1390,6 +1584,18 @@
     if (mobileN) return mobileN;
     if (tabletN) return tabletN;
     return 0;
+  }
+
+  function syncDawnDesktopColClass(host, cols) {
+    if (!host || !host.classList || cols < 2) return;
+    /* Dawn ships 2–6 desktop col classes; clamp Findly-applied sync only. */
+    cols = Math.max(2, Math.min(6, cols | 0));
+    var n;
+    for (n = 2; n <= 6; n++) {
+      var name = "grid--" + n + "-col-desktop";
+      if (n === cols) host.classList.add(name);
+      else host.classList.remove(name);
+    }
   }
 
   /** True for Findly %/calc column locks (incl. older builds without data-sf-col-lock). */
@@ -1460,9 +1666,15 @@
   }
 
   /**
-   * Collection report: grid--3-col-desktop + card images ~310px.
-   * Search theme ships grid--4-col-desktop and often loses .ratio height.
-   * Align search listing to the collection card arrangement inside Findly layout.
+   * Prefer any theme's column count when present. Never downgrade N → 3.
+   *
+   * Preserved behavior:
+   * - Crush prevention / flex width locks still run via ensureDawnFlexColumnWidths
+   *   using whatever N the theme (or Findly fallback) provides.
+   * - Search pages with no theme column signal still get Findly's default 3-col
+   *   + tablet-down (same as before when !desk on search).
+   * - Collection pages without a column signal are left alone so CSS-grid /
+   *   non-Dawn themes are not forced onto Dawn flex classes.
    */
   function alignProductGridToCollection(host) {
     host = resolveListingCardGrid(host) || preferProductCardGrid(host) || host;
@@ -1470,23 +1682,28 @@
     if (!host.closest || !host.closest(".sf-collection-layout .sf-layout-main")) {
       return host;
     }
-    var cls = String(host.className || "");
-    var desk = cls.match(/\bgrid--(\d+)-col-desktop\b/);
-    var cols = desk ? Number(desk[1]) || 0 : 0;
-    /* Prefer collection's 3-col desktop arrangement when search is 4+. */
-    if (cols >= 4 || (!desk && isSearchPageContext())) {
-      host.classList.remove(
-        "grid--4-col-desktop",
-        "grid--5-col-desktop",
-        "grid--6-col-desktop",
-      );
-      if (!host.classList.contains("grid--3-col-desktop")) {
-        host.classList.add("grid--3-col-desktop");
-      }
+    var themeCols = resolveThemeDesktopColumnCount(host);
+
+    if (themeCols >= 2) {
+      /* Theme already declared N — keep it; do not invent/swap Dawn classes. */
+      host.setAttribute("data-sf-aligned-cols", String(themeCols));
+      return host;
+    }
+
+    /*
+     * No theme column signal. Only apply Findly's default on search pages
+     * (historical path: !desk && isSearchPageContext). Do not mutate
+     * collection CSS-grid hosts that intentionally omit column classes.
+     */
+    if (isSearchPageContext()) {
+      syncDawnDesktopColClass(host, FINDLY_DEFAULT_DESKTOP_COLS);
       if (!host.classList.contains("grid--2-col-tablet-down")) {
         host.classList.add("grid--2-col-tablet-down");
       }
-      host.setAttribute("data-sf-aligned-cols", "3");
+      host.setAttribute(
+        "data-sf-aligned-cols",
+        String(FINDLY_DEFAULT_DESKTOP_COLS),
+      );
     }
     return host;
   }
@@ -1599,9 +1816,9 @@
       gap = 0;
     }
     /*
-     * Always size by the theme/aligned column count (e.g. 3-col), never by
-     * visible card count — 1 result must stay one column wide, not full-bleed.
-     * (alignProductGridToCollection already maps search 4-col → 3-col.)
+     * Always size by the theme/aligned column count (Dawn/Horizon, else
+     * Findly default), never by visible card count — 1 result must stay one
+     * column wide, not full-bleed.
      */
     var frac = 100 / cols;
     var spacingShare = gap > 0 ? (gap * (cols - 1)) / cols : 0;
@@ -1714,35 +1931,48 @@
     if (snap.horizonCols) {
       host.style.setProperty("--product-grid-columns-desktop", snap.horizonCols);
     }
-    var inFilterMain =
-      host.closest && host.closest(".sf-collection-layout .sf-layout-main");
     var dawnCols = dawnFlexColumnCount(host);
-    /* Stale full-bleed px snaps break search/collection after sidebar narrows —
-       prefer Dawn class columns or Horizon vars instead. */
+    /*
+     * CSS-grid themes (Horizon and many OS 2.0 themes): keep grid layout.
+     * Never force Dawn-style flex width locks onto an actual CSS grid host —
+     * that broke non-Dawn themes once column detection improved.
+     */
     if (
       tracksLookLikeAbsolutePixels(snap.gridTemplateColumns) &&
       dawnCols >= 2
     ) {
+      /* Stale full-bleed px snaps after sidebar narrows — rebuild as grid. */
       clearThemeGridSnap(host);
-      ensureDawnFlexColumnWidths(host, true);
-      return;
-    }
-    /* Keep dawnCols tracks even with fewer results — never collapse to 1 full-bleed column. */
-    if (inFilterMain && dawnCols >= 2) {
       host.style.setProperty("width", "100%", "important");
       host.style.setProperty("max-width", "100%", "important");
-      ensureDawnFlexColumnWidths(host, true);
+      host.style.setProperty(
+        "grid-template-columns",
+        "repeat(" + dawnCols + ", minmax(0, 1fr))",
+      );
+      normalizeCardMediaRatio(host);
       return;
     }
     if (tracksLookUsable(snap.gridTemplateColumns)) {
+      host.style.setProperty("width", "100%", "important");
+      host.style.setProperty("max-width", "100%", "important");
       host.style.setProperty("grid-template-columns", snap.gridTemplateColumns);
-    } else if (!snap.horizonCols) {
-      if (dawnCols >= 2) {
-        ensureDawnFlexColumnWidths(host, true);
-      } else {
-        ensureFallbackProductGridTracks(host);
-      }
+      normalizeCardMediaRatio(host);
+      return;
     }
+    if (dawnCols >= 2) {
+      host.style.setProperty("width", "100%", "important");
+      host.style.setProperty("max-width", "100%", "important");
+      host.style.setProperty(
+        "grid-template-columns",
+        "repeat(" + dawnCols + ", minmax(0, 1fr))",
+      );
+      normalizeCardMediaRatio(host);
+      return;
+    }
+    if (!snap.horizonCols) {
+      ensureFallbackProductGridTracks(host);
+    }
+    normalizeCardMediaRatio(host);
   }
 
   function scheduleRelockProductGridTracks(widget) {
@@ -1766,9 +1996,24 @@
         clearThemeGridSnap(host);
       }
       lockThemeGridTracks(host);
-      /* Always force fill after sidebar layout on search/collection filter pages. */
+      /*
+       * Flex themes (Dawn etc.): re-lock % widths after sidebar layout.
+       * CSS-grid themes: lockThemeGridTracks already preserved/rebuilt tracks —
+       * do not force Dawn flex locks onto them.
+       */
       if (host.closest && host.closest(".sf-collection-layout .sf-layout-main")) {
-        ensureDawnFlexColumnWidths(host, true);
+        var relockFlex = false;
+        try {
+          if (typeof window.getComputedStyle === "function") {
+            relockFlex =
+              String(window.getComputedStyle(host).display || "").indexOf(
+                "flex",
+              ) !== -1;
+          }
+        } catch (relockErr) {
+          relockFlex = false;
+        }
+        if (relockFlex) ensureDawnFlexColumnWidths(host, true);
       }
     };
     if (typeof requestAnimationFrame === "function") {
