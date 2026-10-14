@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v47";
+  var STYLE_ID = "findly-grid-takeover-v48";
   /* Marks product cards whose widths Findly set — only those get cleared. */
   var COL_LOCK_ATTR = "data-sf-col-lock";
   var BRIDGE_STYLE_ID = "findly-theme-bridge-v21";
@@ -70,6 +70,8 @@
     ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)" +
     ":not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination])" +
     ":not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination)";
+  /* Card / list grids only (not shell wrappers like #ProductGridContainer —
+     hiding a shell's children would also hide an inner skeleton host). */
   var GRID_BUSY_HOSTS = [
     ".main-collection-grid",
     "#product-grid",
@@ -78,6 +80,38 @@
     "ol.product-grid",
     ".product-grid",
     ".sf-app-grid",
+    "#main-collection-product-grid",
+    "#collection-products",
+    "#product-loop",
+    "#product-list",
+    "#CollectionLoop",
+    ".collection-grid",
+    ".collection-products",
+    ".collection-product-list",
+    ".collection__products",
+    ".product-list",
+    ".product-list__inner",
+    ".product-listing",
+    ".ProductList",
+    ".ProductList--grid",
+    ".products-grid",
+    ".products-list",
+    ".productgrid--items",
+    ".productgrid",
+    ".grid--view-items",
+    ".grid-products",
+    ".grid-uniform",
+    ".grid--uniform",
+    "product-list",
+    "[data-product-grid]",
+    "[data-products-grid]",
+    "[data-collection-products]",
+    "[data-product-list]",
+    "[product-grid-view]",
+    "[data-id='product-grid']",
+    ".boost-pfs-filter-products",
+    ".boost-sd-grid",
+    ".sf-grid",
   ];
   var GRID_COUNT_HIDE =
     "html.sf-filter-loading .product-count," +
@@ -187,8 +221,13 @@
     ".findly-grid-is-busy .sf-sort{pointer-events:auto}" +
     ".findly-grid-is-busy>" +
     GRID_RESULT_HIDE +
+    ",html.sf-filter-loading [data-findly-skel-host='1']>" +
+    GRID_RESULT_HIDE +
     "{display:none!important}" +
     gridBusyNestedHideCss() +
+    "html.sf-filter-loading [data-findly-skel-host='1'] " +
+    BUSY_NESTED_CARD +
+    "{display:none!important}" +
     ".findly-grid-is-busy[" +
     SKEL_ATTR +
     "='1'],.findly-grid-is-busy [" +
@@ -198,6 +237,7 @@
     "='1']{opacity:1!important;visibility:visible!important;position:relative;z-index:81}" +
     gridLoadingHideCss("html.sf-filter-loading") +
     gridLoadingMinCss("html.sf-filter-loading") +
+    "html.sf-filter-loading [data-findly-skel-host='1']{position:relative;min-height:22rem}" +
     GRID_COUNT_HIDE +
     TOOLBAR_LOADING_CSS +
     GRID_PAGER_HIDE +
@@ -4801,18 +4841,19 @@
   }
 
   function isBusyPainted() {
-    if (document.querySelector("[data-findly-theme-loading='1'], [data-findly-theme-loader='1']")) {
+    if (
+      document.querySelector(
+        "[data-findly-theme-loading='1'], [data-findly-theme-loader='1'], .findly-grid-is-busy, [data-findly-skel-host='1']",
+      )
+    ) {
       return true;
     }
     var skels = document.querySelectorAll("[" + SKEL_ATTR + "='1']");
     var i;
     for (i = 0; i < skels.length; i++) {
       var parent = skels[i].parentElement;
-      if (
-        parent &&
-        matchesBusyHost(parent) &&
-        !isTooWideBusyHost(parent)
-      ) {
+      if (!parent || isTooWideBusyHost(parent)) continue;
+      if (matchesBusyHost(parent) || parent.getAttribute("data-findly-skel-host") === "1") {
         return true;
       }
     }
@@ -5045,9 +5086,26 @@
     return true;
   }
 
+  function customProductGridFromRoot() {
+    var root =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    if (!root || !root.getAttribute) return null;
+    var sel = String(root.getAttribute("data-product-grid-selector") || "").trim();
+    if (!sel) return null;
+    try {
+      var el = document.querySelector(sel);
+      if (el && el.nodeType === 1 && !isTooWideBusyHost(el)) return el;
+    } catch (err) {
+      /* invalid merchant selector */
+    }
+    return null;
+  }
+
   function discoverBusyHost(hint) {
     var parent =
       hint ||
+      customProductGridFromRoot() ||
       document.querySelector(PRODUCT_GRID_SELECTOR) ||
       findResultsList();
     var host = resolveCardHost(parent) || parent;
@@ -5216,10 +5274,21 @@
   function setFilterLoading(on) {
     var root = document.documentElement;
     if (!root || !root.classList) return;
+    var isOn = root.classList.contains("sf-filter-loading");
+    var isReady = root.classList.contains("sf-filter-ready");
+    /* No-op when state already matches — avoids class thrash that blinks the grid. */
     if (on) {
+      if (isOn && !isReady) {
+        syncToolbarLoading(true);
+        return;
+      }
       root.classList.add("sf-filter-loading");
       root.classList.remove("sf-filter-ready");
     } else {
+      if (!isOn && isReady) {
+        syncToolbarLoading(false);
+        return;
+      }
       root.classList.remove("sf-filter-loading");
       root.classList.add("sf-filter-ready");
     }
@@ -5244,6 +5313,17 @@
 
   function paintGridBusy(host, on) {
     if (!on) {
+      var wasBusy =
+        isFilterLoading() ||
+        isBusyPainted() ||
+        Boolean(document.querySelector(".findly-grid-is-busy")) ||
+        Boolean(document.getElementById("findly-grid-busy-overlay"));
+      if (!wasBusy) {
+        /* Never entered busy on this cycle (idle reload with deferred busy) —
+           skip skeleton clear + forceCardVisible which re-paints every card. */
+        setFilterLoading(false);
+        return;
+      }
       setThemeGridLoading(host, false);
       removeBusyOverlay();
       setFilterLoading(false);
@@ -5281,8 +5361,9 @@
     if (host && containsFindlyListingChrome(host)) {
       host = narrowBusyHost(host) || discoverBusyHost(host);
     }
-    /* Prefer theme default loader (Dawn/Horizon overlay) when present —
-       but only on a shell that does not wrap Findly search/sort. */
+    /* Prefer theme-native loader when present (any theme with .loading-overlay /
+       .is-loading markup) — still keep sf-filter-loading so Liquid cards stay
+       hidden on every theme until settle (avoids blink under the spinner). */
     if (setThemeGridLoading(host, true)) {
       removeBusyOverlay();
       try {
@@ -5296,8 +5377,7 @@
         staleTheme[st].classList.remove("findly-grid-is-busy");
         staleTheme[st].removeAttribute("data-findly-skel-host");
       }
-      /* Do not set sf-filter-loading — that hides Liquid cards for Findly skeletons. */
-      syncToolbarLoading(true);
+      setFilterLoading(true);
       return;
     }
     if (!host) {
@@ -5343,22 +5423,25 @@
       return;
     }
     armFilterReadyFailsafe();
+    /* First paint: keep loading gate + skeletons until Widget reveals once.
+       Only skip when already ready AND no busy UI (post-settle). */
     var root = document.documentElement;
     if (
       root &&
       root.classList &&
       root.classList.contains("sf-filter-ready") &&
+      !root.classList.contains("sf-filter-loading") &&
       !isBusyPainted()
     ) {
       return;
     }
+    setFilterLoading(true);
     var host = discoverBusyHost();
     if (host) {
       paintGridBusy(host, true);
       return;
     }
     if (isBusyPainted()) {
-      setFilterLoading(true);
       return;
     }
     attempt = attempt || 0;
@@ -6945,8 +7028,9 @@
     if (!self) return;
     if (self._importingCards) return;
     if (self._loadingPage || self._inflight) return;
-    /* Same filter cycle already painted — skip a second full hide/show/reorder pass. */
-    if (alreadyPaintedGrid(self) && shouldTakeOverThemeCards(self)) return;
+    /* Same filter cycle already painted — skip another full hide/show/reorder
+       (idle reload used to re-paint Liquid cards 2–3 extra times here). */
+    if (alreadyPaintedGrid(self)) return;
     if (self.isAppGridMode && self.isAppGridMode()) {
       var parent = self._gridParent;
       if (parent && self.hideNativeGridCards) self.hideNativeGridCards(parent);
@@ -10075,7 +10159,10 @@
         Math.max(1, Number(this.page) || 1) <= 1 &&
         !this._loadingPage
       ) {
-        applyNativeFilterGrid(null, this._gridParent);
+        if (!alreadyPaintedGrid(this)) {
+          applyNativeFilterGrid(null, this._gridParent);
+          markGridPainted(this);
+        }
         return;
       }
       if (origLegacy) origLegacy.call(this, data, handles);
@@ -10806,6 +10893,14 @@
       if (parent && parent.isConnected !== false) this._gridParent = parent;
       else parent = ensureProductGridMounted(this) || parent;
       if (parent && parent.isConnected !== false) this._gridParent = parent;
+      /* afterGrid / fetch then often re-enter after the first paint — bail early
+         so idle reloads do not hide/show/reorder Liquid cards again. */
+      if (alreadyPaintedGrid(this) && !this._importingCards) {
+        var shownFast = countAllowedInHost(parent, handles);
+        syncGridEmptyState(this, parent, handles, shownFast);
+        placeCollectionSearchOnGrid(this);
+        return;
+      }
       if (
         !shouldTakeOverThemeCards(this) &&
         Math.max(1, Number(this.page) || 1) <= 1 &&
@@ -10814,13 +10909,6 @@
         applyNativeFilterGrid(null, parent);
         markGridPainted(this);
         syncGridEmptyState(this, parent, null, 0);
-        placeCollectionSearchOnGrid(this);
-        return;
-      }
-      /* afterGrid often re-enters here after applyInterceptGrid already painted. */
-      if (alreadyPaintedGrid(this) && !this._importingCards) {
-        var shownFast = countAllowedInHost(parent, handles);
-        syncGridEmptyState(this, parent, handles, shownFast);
         placeCollectionSearchOnGrid(this);
         return;
       }

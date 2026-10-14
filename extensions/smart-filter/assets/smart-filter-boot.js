@@ -1,17 +1,20 @@
 /**
- * First-paint layout stub only (LCP-safe). Does NOT hide Liquid product
- * cards or inject grid skeletons — that competed with LCP. Filter panel
- * skeleton lives in Liquid; interactive Widget boots via requestIdleCallback.
- * setGridBusy() in smart-filter-grid.js still mounts skeletons when the
- * shopper applies filters after hydrate.
+ * Keep the first-paint loading gate until the Widget settles filters.
+ * Liquid sets html.sf-filter-loading (hides theme cards via check.css).
+ * bootEarlyGridBusy() in smart-filter-grid.js mounts skeletons; the Widget
+ * clears loading once on first setGridBusy(false). Failsafe: 2.5s in grid.js.
  */
 (function () {
   "use strict";
   if (window.__findlyGridBoot) return;
   window.__findlyGridBoot = true;
   var root = document.documentElement;
-  if (root && root.classList) {
-    root.classList.remove("sf-filter-loading");
-    root.classList.add("sf-filter-ready");
+  if (!root || !root.classList) return;
+  if (
+    document.getElementById("smart-filter-root") ||
+    document.getElementById("smart-filter-embed")
+  ) {
+    root.classList.add("sf-filter-loading");
+    root.classList.remove("sf-filter-ready");
   }
 })();

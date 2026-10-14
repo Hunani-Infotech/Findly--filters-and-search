@@ -5432,13 +5432,9 @@
     }
     this.markFiltersApplied();
     this.hydrateFromCache();
-    this._deferGridBusy = !hasPersistableHashState(
-      this.selected,
-      this.price,
-      this.sort,
-      this.collectionQuery || this.searchQuery,
-      this.defaultSort || "manual",
-    );
+    /* Never defer first-load busy — Liquid already gated with sf-filter-loading;
+       setGridBusy(true) mounts skeletons; one setGridBusy(false) reveals products. */
+    this._deferGridBusy = false;
     this.fetchFilters();
     this.syncCollectionLayout();
     this.inheritThemeType();

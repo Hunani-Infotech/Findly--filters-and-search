@@ -428,3 +428,317 @@
   setTimeout(boot, 0);
   setTimeout(boot, 500);
 })();
+
+/**
+ * Grid blink / reload paint probe.
+ * Survives reload because it ships with the theme extension (not a console paste).
+ *
+ * Enable:  ?findly_blink=1  OR  localStorage.findly_blink=1
+ * Share:   __FINDLY_BLINK_SHARE()   → copies JSON summary to clipboard
+ * Disable: __FINDLY_BLINK_OFF()
+ */
+(function () {
+  "use strict";
+
+  var TAG = "[Findly blink]";
+  var FLAG = "findly_blink";
+  var REPORT_KEY = "findly_blink_report";
+
+  function blinkOn() {
+    try {
+      if (window.__FINDLY_BLINK) return true;
+      if (new RegExp("[?&]" + FLAG + "=1(?:&|$)").test(window.location.search || "")) {
+        return true;
+      }
+      if (window.localStorage && localStorage.getItem(FLAG) === "1") return true;
+    } catch (err) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  if (!blinkOn()) {
+    window.__FINDLY_BLINK_ON = function () {
+      try {
+        localStorage.setItem(FLAG, "1");
+      } catch (err) {
+        /* ignore */
+      }
+      console.log(TAG, "Armed. Hard-reload this page now.");
+    };
+    window.__FINDLY_BLINK_SHARE = function () {
+      var raw = null;
+      try {
+        raw = localStorage.getItem(REPORT_KEY);
+      } catch (err) {
+        /* ignore */
+      }
+      if (!raw) {
+        console.log(TAG, "No report yet. Run __FINDLY_BLINK_ON() then hard-reload.");
+        return null;
+      }
+      console.log(TAG, raw);
+      try {
+        if (typeof copy === "function") copy(raw);
+        console.log(TAG, "Copied last report to clipboard — paste in chat.");
+      } catch (err2) {
+        /* ignore */
+      }
+      try {
+        return JSON.parse(raw);
+      } catch (err3) {
+        return raw;
+      }
+    };
+    window.__FINDLY_BLINK_OFF = function () {
+      try {
+        localStorage.removeItem(FLAG);
+        localStorage.removeItem(REPORT_KEY);
+      } catch (err) {
+        /* ignore */
+      }
+      console.log(TAG, "Disarmed.");
+    };
+    return;
+  }
+
+  try {
+    localStorage.setItem(FLAG, "1");
+  } catch (err) {
+    /* ignore */
+  }
+
+  if (window.__FINDLY_BLINK_PROBE) return;
+  window.__FINDLY_BLINK_PROBE = true;
+
+  var log = [];
+  var t0 =
+    typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
+  var settleTimer = 0;
+  var shared = false;
+
+  function nowMs() {
+    return typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
+  }
+
+  function persist() {
+    var syncN = 0;
+    var busyN = 0;
+    var clsN = 0;
+    var i;
+    for (i = 0; i < log.length; i++) {
+      if (log[i].event === "syncProductGrid") syncN += 1;
+      else if (log[i].event === "setGridBusy") busyN += 1;
+      else if (log[i].event === "html-class") clsN += 1;
+    }
+    var payload = {
+      url: String(window.location.href || ""),
+      when: new Date().toISOString(),
+      summary: {
+        syncProductGrid: syncN,
+        setGridBusy: busyN,
+        htmlClass: clsN,
+        total: log.length,
+      },
+      events: log,
+    };
+    var text = JSON.stringify(payload, null, 2);
+    try {
+      localStorage.setItem(REPORT_KEY, text);
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      window.__FINDLY_BLINK_LAST = payload;
+    } catch (err2) {
+      /* ignore */
+    }
+    return { payload: payload, text: text };
+  }
+
+  function recordBlink(event, extra) {
+    var row = {
+      ms: Math.round(nowMs() - t0),
+      event: event,
+      loading: Boolean(
+        document.documentElement &&
+          document.documentElement.classList &&
+          document.documentElement.classList.contains("sf-filter-loading"),
+      ),
+      ready: Boolean(
+        document.documentElement &&
+          document.documentElement.classList &&
+          document.documentElement.classList.contains("sf-filter-ready"),
+      ),
+      busy: Boolean(document.querySelector(".findly-grid-is-busy")),
+      skel: document.querySelectorAll("[data-findly-skel='1']").length,
+      extra: extra || null,
+    };
+    log.push(row);
+    if (typeof console !== "undefined" && console.log) {
+      console.log(TAG, row.ms + "ms", event, row);
+    }
+    persist();
+    if (settleTimer) window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(function () {
+      settleTimer = 0;
+      autoShare();
+    }, 2500);
+  }
+
+  function autoShare() {
+    if (shared) return;
+    shared = true;
+    var out = persist();
+    var s = out.payload.summary;
+    var line =
+      TAG +
+      " SETTLED syncProductGrid:" +
+      s.syncProductGrid +
+      " setGridBusy:" +
+      s.setGridBusy +
+      " html-class:" +
+      s.htmlClass +
+      " total:" +
+      s.total +
+      ". Run __FINDLY_BLINK_SHARE() to copy JSON.";
+    if (typeof console !== "undefined" && console.info) {
+      console.info(line);
+    } else if (typeof console !== "undefined" && console.log) {
+      console.log(line);
+    }
+  }
+
+  recordBlink("probe-start");
+
+  if (document.documentElement && document.documentElement.classList) {
+    try {
+      new MutationObserver(function () {
+        recordBlink(
+          "html-class",
+          String(document.documentElement.className || ""),
+        );
+      }).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function wrapWidget(widget) {
+    if (!widget || widget.__findlyBlinkWrapped) return;
+    widget.__findlyBlinkWrapped = true;
+    if (typeof widget.syncProductGrid === "function") {
+      var origSync = widget.syncProductGrid;
+      widget.syncProductGrid = function (handles) {
+        recordBlink("syncProductGrid", {
+          handles: Array.isArray(handles)
+            ? handles.length
+            : handles == null
+              ? null
+              : 1,
+        });
+        return origSync.apply(this, arguments);
+      };
+    }
+    if (typeof widget.setGridBusy === "function") {
+      var origBusy = widget.setGridBusy;
+      widget.setGridBusy = function (busy) {
+        recordBlink("setGridBusy", { busy: Boolean(busy) });
+        return origBusy.apply(this, arguments);
+      };
+    }
+  }
+
+  function installWidgetHook() {
+    var held = window.__FINDLY_FILTER_WIDGET;
+    if (held) wrapWidget(held);
+    try {
+      var desc = Object.getOwnPropertyDescriptor(
+        window,
+        "__FINDLY_FILTER_WIDGET",
+      );
+      if (desc && desc.set && desc.set.__findlyBlinkHook) {
+        if (held) wrapWidget(held);
+        return;
+      }
+      if (desc && desc.get && desc.set) {
+        var prevSet = desc.set;
+        var prevGet = desc.get;
+        var setWrapped = function (widget) {
+          prevSet.call(this, widget);
+          wrapWidget(widget);
+        };
+        setWrapped.__findlyBlinkHook = true;
+        Object.defineProperty(window, "__FINDLY_FILTER_WIDGET", {
+          configurable: true,
+          enumerable: true,
+          get: function () {
+            return prevGet.call(this);
+          },
+          set: setWrapped,
+        });
+      } else {
+        var box = held;
+        var setDirect = function (widget) {
+          box = widget;
+          wrapWidget(widget);
+        };
+        setDirect.__findlyBlinkHook = true;
+        Object.defineProperty(window, "__FINDLY_FILTER_WIDGET", {
+          configurable: true,
+          enumerable: true,
+          get: function () {
+            return box;
+          },
+          set: setDirect,
+        });
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    if (held) wrapWidget(held);
+  }
+
+  installWidgetHook();
+  setTimeout(installWidgetHook, 0);
+  setTimeout(installWidgetHook, 500);
+  setTimeout(installWidgetHook, 1500);
+
+  window.__FINDLY_BLINK_SHARE = function () {
+    var out = persist();
+    if (typeof console !== "undefined" && console.log) {
+      console.log(TAG, "report", out.payload.summary);
+      console.log(out.text);
+    }
+    try {
+      if (typeof copy === "function") {
+        copy(out.text);
+        console.log(TAG, "Copied to clipboard — paste in chat.");
+      }
+    } catch (err) {
+      console.log(TAG, "Select the JSON above and paste it in chat.");
+    }
+    return out.payload;
+  };
+
+  window.__FINDLY_BLINK_OFF = function () {
+    try {
+      localStorage.removeItem(FLAG);
+    } catch (err) {
+      /* ignore */
+    }
+    console.log(TAG, "Disarmed. Reload once; probe will not run again.");
+  };
+
+  console.info(
+    TAG,
+    "Recording this page load (built-in). Wait ~3s after products settle, then run __FINDLY_BLINK_SHARE()",
+  );
+})();

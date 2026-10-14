@@ -1,9 +1,9 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.min.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'smart-filter-ui.min.css' | asset_url }}" media="all">
-{% # LCP-safe: leave Liquid products visible; do not preload filters API. %}
+{% # Theme-agnostic first-paint gate: hide Liquid products once until filters settle. %}
 <script>
-  document.documentElement.classList.remove("sf-filter-loading");
-  document.documentElement.classList.add("sf-filter-ready");
+  document.documentElement.classList.add("sf-filter-loading");
+  document.documentElement.classList.remove("sf-filter-ready");
 </script>
 <script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
