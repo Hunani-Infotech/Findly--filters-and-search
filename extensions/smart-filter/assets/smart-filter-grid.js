@@ -5750,15 +5750,37 @@
     return out;
   }
 
+  function absolutizeThemeCardUrl(url) {
+    var raw = String(url || "").trim();
+    if (!raw) return "";
+    if (raw.indexOf("//") === 0) return "https:" + raw;
+    return raw;
+  }
+
   function restoreOneThemeCardSwatchImage(img) {
     if (!img) return false;
-    var orig = img.getAttribute("data-sf-orig-src") || "";
+    var orig = absolutizeThemeCardUrl(img.getAttribute("data-sf-orig-src") || "");
     if (!orig) return false;
-    var origSet = img.getAttribute("data-sf-orig-srcset") || "";
-    var cur = img.getAttribute("src") || "";
-    if (cur !== orig) img.setAttribute("src", orig);
-    if (origSet) img.setAttribute("srcset", origSet);
-    else img.removeAttribute("srcset");
+    var origSet = String(img.getAttribute("data-sf-orig-srcset") || "").trim();
+    /* Clear product srcset first — otherwise currentSrc keeps the featured image. */
+    img.removeAttribute("srcset");
+    try {
+      img.srcset = "";
+    } catch (err) {
+      /* ignore */
+    }
+    if (origSet) {
+      img.setAttribute(
+        "srcset",
+        origSet.replace(/(^|[\s,])\/\//g, "$1https://"),
+      );
+    }
+    img.setAttribute("src", orig);
+    try {
+      img.src = orig;
+    } catch (err2) {
+      /* ignore */
+    }
     return true;
   }
 
