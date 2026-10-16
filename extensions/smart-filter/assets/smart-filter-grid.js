@@ -6706,6 +6706,91 @@
     return widget._keepThemeCards === false;
   }
 
+  /**
+   * True when the host (or its inner card grid) already has theme / app product
+   * cards. Used so empty-theme fallback never replaces a working Liquid grid.
+   */
+  function themeHostHasProductCards(parent) {
+    if (!parent) return false;
+    var cards = collectThemeCards(parent);
+    if (cards && cards.length) return true;
+    var inner = queryInnerCardGrid(parent);
+    if (inner && inner !== parent) {
+      var innerCards = collectThemeCards(inner);
+      if (innerCards && innerCards.length) return true;
+    }
+    if (parent.querySelector && parent.querySelector(".sf-app-card")) return true;
+    return false;
+  }
+
+  /**
+   * Standard empty-theme fallback (all themes): when the filters API returned
+   * products/handles but Liquid rendered zero product cards, paint DEFAULT
+   * .sf-app-card via applyAppGrid. No-op when the theme already has cards.
+   */
+  function ensureAppCardsIfThemeEmpty(widget, handles, parent, append) {
+    if (!widget || typeof widget.applyAppGrid !== "function") return false;
+    parent =
+      preferProductCardGrid(resolveCardHost(parent) || parent) ||
+      parent ||
+      widget._gridParent;
+    if (!parent) return false;
+    var list =
+      Array.isArray(handles) && handles.length
+        ? handles
+        : widget._allFilterHandles || widget._visibleHandles || [];
+    if (!uniqueAllowedCount(list)) return false;
+    if (countAllowedInHost(parent, list) > 0) return false;
+    if (themeHostHasProductCards(parent)) return false;
+    var products = widget._lastProducts || [];
+    if (
+      widget._lastFilterData &&
+      Array.isArray(widget._lastFilterData.products) &&
+      widget._lastFilterData.products.length
+    ) {
+      products = widget._lastFilterData.products;
+    }
+    if (!products.length && !list.length) return false;
+    widget._skipPageSlice = true;
+    var painted = false;
+    try {
+      painted = !!widget.applyAppGrid(
+        { products: products },
+        list,
+        Boolean(append),
+      );
+    } finally {
+      widget._skipPageSlice = false;
+    }
+    var appN =
+      (parent.querySelectorAll &&
+        parent.querySelectorAll(".sf-app-card").length) ||
+      0;
+    if (
+      painted ||
+      appN > 0 ||
+      (widget._shownHandles && widget._shownHandles.length)
+    ) {
+      if (!(widget._shownHandles && widget._shownHandles.length)) {
+        widget._shownHandles = list.slice();
+      }
+      widget._visibleHandles = (widget._shownHandles || list).slice();
+      if (parent && parent.isConnected !== false) widget._gridParent = parent;
+      markGridPainted(widget);
+      syncGridEmptyState(
+        widget,
+        parent,
+        list,
+        Math.max(
+          appN,
+          uniqueAllowedCount(widget._shownHandles || list),
+        ),
+      );
+      return true;
+    }
+    return false;
+  }
+
   function fillMissingFilterCards(widget, handles, parent) {
     if (!widget || widget._importingCards || !handles || !handles.length) return;
     if (!shouldTakeOverThemeCards(widget)) return;
@@ -10198,8 +10283,11 @@
       ) {
         if (!alreadyPaintedGrid(this)) {
           applyNativeFilterGrid(null, this._gridParent);
-          markGridPainted(this);
         }
+        /* Empty theme grid: paint API products via .sf-app-card (no-op when
+           Liquid already rendered cards). */
+        ensureAppCardsIfThemeEmpty(this, handles, this._gridParent, false);
+        markGridPainted(this);
         return;
       }
       if (origLegacy) origLegacy.call(this, data, handles);
@@ -10239,23 +10327,34 @@
         }
         fillGapsWithThemeClones(this, sliced.handles, parent);
         shownNative = countAllowedInHost(parent, sliced.handles);
+        var themeCardsPresent = themeHostHasProductCards(parent);
         if (!shouldTakeOverThemeCards(this)) {
-          scheduleSwatchRestore(parent, this);
-          return shownNative > 0;
+          /* Idle / keep-theme: leave working Liquid alone. */
+          if (shownNative > 0 || themeCardsPresent) {
+            scheduleSwatchRestore(parent, this);
+            return true;
+          }
+          if (uniqueAllowedCount(sliced.handles) === 0) {
+            scheduleSwatchRestore(parent, this);
+            return true;
+          }
+          /* Empty Liquid host + API handles — fall through to DEFAULT
+             .sf-app-card so collection pages are not blank (all themes). */
+        } else {
+          if (shownNative > 0) {
+            scheduleSwatchRestore(parent, this);
+            return true;
+          }
+          fillGapsWithThemeClones(this, sliced.handles, parent);
+          shownNative = countAllowedInHost(parent, sliced.handles);
+          if (shownNative > 0) {
+            scheduleSwatchRestore(parent, this);
+            return true;
+          }
+          /* Takeover hid Liquid cards but clones/cache missed — fall through to
+             origApply (.sf-app-card) so search/filter pages still show a grid. */
+          if (uniqueAllowedCount(sliced.handles) === 0) return true;
         }
-        if (shownNative > 0) {
-          scheduleSwatchRestore(parent, this);
-          return true;
-        }
-        fillGapsWithThemeClones(this, sliced.handles, parent);
-        shownNative = countAllowedInHost(parent, sliced.handles);
-        if (shownNative > 0) {
-          scheduleSwatchRestore(parent, this);
-          return true;
-        }
-        /* Takeover hid Liquid cards but clones/cache missed — fall through to
-           origApply (.sf-app-card) so search/filter pages still show a grid. */
-        if (uniqueAllowedCount(sliced.handles) === 0) return true;
       }
       /* Before painting .sf-app-card: reclaim live theme grid so hideNativeGridCards
          runs on the same parent as Liquid cards (standard path — no dual listing). */
@@ -10364,7 +10463,16 @@
           : Promise.resolve(false);
       }
       if (this._sfNativeListing && isNativeThemeGridState(this) && !this._loadingPage) {
-        return Promise.resolve(true);
+        var nativeHost = preferProductCardGrid(
+          resolveCardHost(this._gridParent) || this._gridParent,
+        );
+        if (
+          themeHostHasProductCards(nativeHost) ||
+          countAllowedInHost(nativeHost, handles) > 0
+        ) {
+          return Promise.resolve(true);
+        }
+        /* Empty Liquid host — continue so seed / app-grid fallback can run. */
       }
       if (!this.missingHandles(handles).length) return Promise.resolve(true);
 
@@ -10592,6 +10700,7 @@
         !this._loadingPage
       ) {
         applyNativeFilterGrid(null, host);
+        ensureAppCardsIfThemeEmpty(this, handles, host, append);
         markGridPainted(this);
         return true;
       }
@@ -10934,6 +11043,22 @@
          so idle reloads do not hide/show/reorder Liquid cards again. */
       if (alreadyPaintedGrid(this) && !this._importingCards) {
         var shownFast = countAllowedInHost(parent, handles);
+        var hasApp =
+          this._appGridActive &&
+          parent &&
+          parent.querySelector &&
+          parent.querySelector(".sf-app-card");
+        if (
+          shownFast === 0 &&
+          !hasApp &&
+          uniqueAllowedCount(handles) > 0 &&
+          !themeHostHasProductCards(parent)
+        ) {
+          if (ensureAppCardsIfThemeEmpty(this, handles, parent, false)) {
+            placeCollectionSearchOnGrid(this);
+            return;
+          }
+        }
         syncGridEmptyState(this, parent, handles, shownFast);
         placeCollectionSearchOnGrid(this);
         return;
@@ -10944,8 +11069,10 @@
         !this._loadingPage
       ) {
         applyNativeFilterGrid(null, parent);
-        markGridPainted(this);
-        syncGridEmptyState(this, parent, null, 0);
+        if (!ensureAppCardsIfThemeEmpty(this, handles, parent, false)) {
+          markGridPainted(this);
+          syncGridEmptyState(this, parent, null, 0);
+        }
         placeCollectionSearchOnGrid(this);
         return;
       }
