@@ -3809,6 +3809,27 @@ html.sf-pager-unneeded .ajaxinate-pagination {
   display: none !important;
 }
 
+/* Zero filter matches: hide listing cards (incl. .sf-app-card) while empty copy shows. */
+.sf-app-grid.sf-grid-is-empty > .sf-app-card,
+.sf-app-grid.sf-grid-is-empty > .grid__item,
+.sf-app-grid.sf-grid-is-empty > .product-grid__item,
+.sf-app-grid.sf-grid-is-empty > [data-product-handle],
+.sf-app-grid.sf-grid-is-empty > product-card,
+.sf-app-grid.sf-grid-is-empty > product-item,
+.sf-grid-is-empty > .sf-app-card,
+.sf-grid-is-empty > .grid__item:not(.sf-grid-empty),
+.sf-grid-is-empty > [data-product-handle] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.sf-app-grid.sf-grid-is-empty > .sf-grid-empty,
+.sf-grid-is-empty > .sf-grid-empty,
+#findly-grid-empty {
+  display: flex !important;
+  visibility: visible !important;
+}
+
 .sf-app-card {
   position: relative;
   display: flex;

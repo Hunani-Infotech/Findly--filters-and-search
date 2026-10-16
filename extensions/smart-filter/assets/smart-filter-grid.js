@@ -261,7 +261,20 @@
     "findly-grid-empty,.sf-grid-empty{grid-column:1/-1;width:100%;min-height:12rem;display:flex;flex-direction:column;" +
     "align-items:center;justify-content:center;text-align:center;padding:2.5rem 1.5rem;box-sizing:border-box}" +
     ".sf-grid-empty-title{margin:0 0 .4rem;font-size:1.05rem;font-weight:650}" +
-    ".sf-grid-empty-text{margin:0;opacity:.7;font-size:.9rem}";
+    ".sf-grid-empty-text{margin:0;opacity:.7;font-size:.9rem}" +
+    /* Empty filter results: hide listing cards (incl. .sf-app-card, which the
+       normal .sf-app-grid child rule deliberately leaves visible). */
+    ".sf-app-grid.sf-grid-is-empty>.sf-app-card," +
+    ".sf-app-grid.sf-grid-is-empty>.grid__item," +
+    ".sf-app-grid.sf-grid-is-empty>.product-grid__item," +
+    ".sf-app-grid.sf-grid-is-empty>[data-product-handle]," +
+    ".sf-app-grid.sf-grid-is-empty>product-card," +
+    ".sf-app-grid.sf-grid-is-empty>product-item," +
+    ".sf-grid-is-empty>.sf-app-card," +
+    ".sf-grid-is-empty>.grid__item:not(.sf-grid-empty)," +
+    ".sf-grid-is-empty>[data-product-handle]{display:none!important;visibility:hidden!important}" +
+    ".sf-app-grid.sf-grid-is-empty>.sf-grid-empty," +
+    ".sf-grid-is-empty>.sf-grid-empty,#findly-grid-empty{display:flex!important;visibility:visible!important}";
   var STRICT_CARD_SELECTOR = [
     "product-card",
     "product-item",
@@ -5597,6 +5610,33 @@
     return n;
   }
 
+  /**
+   * Hide listing cards in the host when filtered results are empty.
+   * Uses collectTrayAndGridCards (theme-agnostic) — does not invent Dawn/Horizon
+   * selectors and does not hide nested product-grid shells or Findly chrome.
+   */
+  function hideAllListingCardsInHost(parent) {
+    if (!parent) return;
+    var cards = collectTrayAndGridCards(parent);
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      if (!cards[i] || !cards[i].el) continue;
+      hideEl(cards[i].el);
+    }
+    /* App-grid fallback cards (may lack a parseable handle on some themes). */
+    if (!parent.querySelectorAll) return;
+    var apps = parent.querySelectorAll(".sf-app-card");
+    for (i = 0; i < apps.length; i++) {
+      if (
+        apps[i].closest &&
+        apps[i].closest(".sf-grid-empty, #" + EMPTY_ID)
+      ) {
+        continue;
+      }
+      hideEl(apps[i]);
+    }
+  }
+
   function syncGridEmptyState(widget, parent, handles, shownCount) {
     if (isBusyPainted() || (widget && widget._importingCards)) return;
     var emptyEl = document.getElementById(EMPTY_ID);
@@ -5608,10 +5648,15 @@
       none = false;
     }
     if (!none) {
+      if (parent && parent.classList) parent.classList.remove("sf-grid-is-empty");
       if (emptyEl && emptyEl.parentNode) emptyEl.parentNode.removeChild(emptyEl);
       return;
     }
     if (!parent) return;
+    /* Hide leftover cards in place. Do not stripAppCards — that drops
+       .sf-app-grid and can remount cached cards over the empty state. */
+    if (parent.classList) parent.classList.add("sf-grid-is-empty");
+    hideAllListingCardsInHost(parent);
     if (!emptyEl) {
       emptyEl = document.createElement("div");
       emptyEl.id = EMPTY_ID;
@@ -5628,6 +5673,10 @@
     emptyEl.querySelector(".sf-grid-empty-text").textContent =
       "Try another filter or clear all filters.";
     if (emptyEl.parentNode !== parent) parent.appendChild(emptyEl);
+    emptyEl.hidden = false;
+    emptyEl.removeAttribute("data-smart-filter-hidden");
+    if (emptyEl.style) emptyEl.style.removeProperty("display");
+    showEl(emptyEl);
   }
 
   // keep-theme-cards: on first unfiltered load (and after Clear All / removing
@@ -7163,14 +7212,18 @@
 
   function applyNativeFilterGrid(handles, hint) {
     var parent = preferProductCardGrid(resolveCardHost(hint) || hint);
-    stripAppCards(parent || document);
     if (!parent) return false;
     var widget = window.__FINDLY_FILTER_WIDGET;
+    var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
+    /* Filtering (incl. empty results): keep .sf-app-card nodes and hide/show
+       in place. stripAppCards is only for full native Liquid restore. */
+    if (!allowed) {
+      stripAppCards(parent || document);
+    }
     if (widget && !widget._nativeGridOrder) {
       snapshotNativeGridOrder(widget, parent);
     }
     lockThemeGridTracks(parent);
-    var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
     var restrictNative = false;
     if (!allowed && widget && widget._nativeGridOrder) {
       restoreNativeGridOrder(widget);
@@ -11452,6 +11505,20 @@
          so idle reloads do not hide/show/reorder Liquid cards again. */
       if (alreadyPaintedGrid(this) && !this._importingCards) {
         var shownFast = countAllowedInHost(parent, handles);
+        /* Empty *filtered* results must still hide leftover cards on the
+           already-painted fast path. Do not run this for unfiltered empty
+           catalogs (would blank a theme with zero products incorrectly). */
+        if (
+          Array.isArray(handles) &&
+          handles.length === 0 &&
+          this.hasActiveFilters &&
+          this.hasActiveFilters()
+        ) {
+          applyNativeFilterGrid(handles, parent);
+          syncGridEmptyState(this, parent, handles, 0);
+          placeCollectionSearchOnGrid(this);
+          return;
+        }
         var hasApp =
           this._appGridActive &&
           parent &&
