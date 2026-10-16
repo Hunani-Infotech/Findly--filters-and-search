@@ -132,6 +132,12 @@
   padding-inline-start: 18px !important;
 }
 
+/* Horizontal body-ported price pop only — room for both thumbs. */
+.sf-facet-pop .sf-price {
+  padding-inline: 10px !important;
+  box-sizing: border-box !important;
+}
+
 #smart-filter-root .sf-facet.is-collapsed > .sf-options,
 #smart-filter-embed .sf-facet.is-collapsed > .sf-options,
 #smart-filter-root .sf-facet.is-collapsed > .sf-price,
@@ -167,6 +173,19 @@
   font: inherit !important;
   font-size: 0.8125em !important;
   line-height: 1.35 !important;
+}
+
+/* Thin focus ring only inside horizontal body-ported popovers. */
+.sf-facet-pop .sf-facet-search-input {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.sf-facet-pop .sf-facet-search-input:focus,
+.sf-facet-pop .sf-facet-search-input:focus-visible {
+  outline: none !important;
+  border-color: #111 !important;
+  box-shadow: 0 0 0 1px #111 !important;
 }
 
 .sf-options > li[hidden],

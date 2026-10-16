@@ -50,6 +50,17 @@ const JOBS = [
     banner: "/* generated from smart-filter-grid.js — do not edit */\n",
   },
   {
+    src: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-top-pop.js",
+    ),
+    out: path.join(
+      ROOT,
+      "extensions/smart-filter/assets/smart-filter-top-pop.min.js",
+    ),
+    banner: "/* generated from smart-filter-top-pop.js — do not edit */\n",
+  },
+  {
     src: path.join(ROOT, "extensions/smart-filter/assets/smart-filter-pager.js"),
     out: path.join(
       ROOT,

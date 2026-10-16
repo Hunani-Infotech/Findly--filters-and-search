@@ -4,6 +4,7 @@
 
 assets/smart-filter.js
 assets/smart-filter-grid.js
+assets/smart-filter-top-pop.js
 assets/smart-filter-pager.js
 assets/smart-filter-theme.js
 assets/smart-filter-fetch.js

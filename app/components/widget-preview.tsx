@@ -272,7 +272,7 @@ function FilterWidget({ settings }: { settings: WidgetPreviewSettings }) {
   const title = settings.widgetTitle.trim();
   const horizontal = settings.widgetPosition === "top";
   const collapsed =
-    settings.collapseByDefault && settings.widgetPosition !== "top";
+    settings.widgetPosition === "top" || settings.collapseByDefault;
   const counts = settings.showProductCounts;
   const showRefine = settings.showRefineBy !== false;
   const hideSingle = Boolean(settings.hideSingleValueFacets);

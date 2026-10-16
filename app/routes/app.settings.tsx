@@ -1033,7 +1033,7 @@ export default function SettingsPage() {
                         label="Collapse filter groups by default"
                         checked={settings.collapseByDefault}
                         disabled={saving || settings.widgetPosition === "top"}
-                        helpText="Does not apply to the Horizontal tree style."
+                        helpText="Horizontal layout always starts collapsed; click a filter heading to expand."
                         onChange={(checked) =>
                           setSettings((s) => ({
                             ...s,

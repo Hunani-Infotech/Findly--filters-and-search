@@ -95,7 +95,8 @@
 
 #smart-filter-root .sf-price,
 #smart-filter-embed .sf-price,
-.sf-panel.sf-drawer-portal .sf-price {
+.sf-panel.sf-drawer-portal .sf-price,
+.sf-facet-pop .sf-price {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
   gap: 12px 10px !important;
@@ -121,11 +122,12 @@
   display: none !important;
 }
 
-/* Include .sf-panel.sf-drawer-portal: mobile moves the panel to body, so
+/* Include .sf-panel.sf-drawer-portal and .sf-facet-pop: those move to body, so
    #smart-filter-root / #smart-filter-embed ancestors no longer match. */
 #smart-filter-root .sf-slider,
 #smart-filter-embed .sf-slider,
-.sf-panel.sf-drawer-portal .sf-slider {
+.sf-panel.sf-drawer-portal .sf-slider,
+.sf-facet-pop .sf-slider {
   grid-column: 1 / -1 !important;
   position: relative !important;
   display: block !important;
@@ -142,7 +144,8 @@
 
 #smart-filter-root .sf-slider-track,
 #smart-filter-embed .sf-slider-track,
-.sf-panel.sf-drawer-portal .sf-slider-track {
+.sf-panel.sf-drawer-portal .sf-slider-track,
+.sf-facet-pop .sf-slider-track {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
@@ -163,7 +166,8 @@
 /* Fill left/width come from JS — do not pin left:0 or left-thumb drag only shrinks the right edge. */
 #smart-filter-root .sf-slider-fill,
 #smart-filter-embed .sf-slider-fill,
-.sf-panel.sf-drawer-portal .sf-slider-fill {
+.sf-panel.sf-drawer-portal .sf-slider-fill,
+.sf-facet-pop .sf-slider-fill {
   position: absolute !important;
   top: 50% !important;
   height: 3px !important;
@@ -180,7 +184,8 @@
 
 #smart-filter-root .sf-slider input[type="range"],
 #smart-filter-embed .sf-slider input[type="range"],
-.sf-panel.sf-drawer-portal .sf-slider input[type="range"] {
+.sf-panel.sf-drawer-portal .sf-slider input[type="range"],
+.sf-facet-pop .sf-slider input[type="range"] {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
@@ -205,7 +210,8 @@
 
 #smart-filter-root .sf-slider input[type="range"]::-webkit-slider-runnable-track,
 #smart-filter-embed .sf-slider input[type="range"]::-webkit-slider-runnable-track,
-.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-webkit-slider-runnable-track {
+.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-webkit-slider-runnable-track,
+.sf-facet-pop .sf-slider input[type="range"]::-webkit-slider-runnable-track {
   appearance: none !important;
   -webkit-appearance: none !important;
   height: 2px !important;
@@ -215,7 +221,8 @@
 
 #smart-filter-root .sf-slider input[type="range"]::-webkit-slider-thumb,
 #smart-filter-embed .sf-slider input[type="range"]::-webkit-slider-thumb,
-.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-webkit-slider-thumb {
+.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-webkit-slider-thumb,
+.sf-facet-pop .sf-slider input[type="range"]::-webkit-slider-thumb {
   appearance: none !important;
   -webkit-appearance: none !important;
   width: 18px !important;
@@ -231,9 +238,11 @@
 #smart-filter-root .sf-slider input[type="range"]::-moz-range-track,
 #smart-filter-embed .sf-slider input[type="range"]::-moz-range-track,
 .sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-track,
+.sf-facet-pop .sf-slider input[type="range"]::-moz-range-track,
 #smart-filter-root .sf-slider input[type="range"]::-moz-range-progress,
 #smart-filter-embed .sf-slider input[type="range"]::-moz-range-progress,
-.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-progress {
+.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-progress,
+.sf-facet-pop .sf-slider input[type="range"]::-moz-range-progress {
   height: 2px !important;
   background: transparent !important;
   border: none !important;
@@ -241,7 +250,8 @@
 
 #smart-filter-root .sf-slider input[type="range"]::-moz-range-thumb,
 #smart-filter-embed .sf-slider input[type="range"]::-moz-range-thumb,
-.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-thumb {
+.sf-panel.sf-drawer-portal .sf-slider input[type="range"]::-moz-range-thumb,
+.sf-facet-pop .sf-slider input[type="range"]::-moz-range-thumb {
   width: 18px !important;
   height: 18px !important;
   border: 0 !important;
@@ -253,7 +263,8 @@
 
 #smart-filter-root .sf-slider-thumb,
 #smart-filter-embed .sf-slider-thumb,
-.sf-panel.sf-drawer-portal .sf-slider-thumb {
+.sf-panel.sf-drawer-portal .sf-slider-thumb,
+.sf-facet-pop .sf-slider-thumb {
   position: absolute !important;
   top: 50% !important;
   left: 0;
@@ -280,7 +291,8 @@
 
 #smart-filter-root .sf-slider-thumb:active,
 #smart-filter-embed .sf-slider-thumb:active,
-.sf-panel.sf-drawer-portal .sf-slider-thumb:active {
+.sf-panel.sf-drawer-portal .sf-slider-thumb:active,
+.sf-facet-pop .sf-slider-thumb:active {
   cursor: grabbing !important;
 }
 
@@ -688,7 +700,8 @@ html.sf-filter-ready .product-grid {
 }
 
 #smart-filter-root .sf-price-bounds,
-#smart-filter-embed .sf-price-bounds {
+#smart-filter-embed .sf-price-bounds,
+.sf-facet-pop .sf-price-bounds {
   grid-column: 1 / -1 !important;
   display: flex !important;
   justify-content: space-between !important;

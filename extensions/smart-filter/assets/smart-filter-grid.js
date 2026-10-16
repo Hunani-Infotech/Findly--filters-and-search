@@ -458,12 +458,13 @@
       ".smart-filter .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after," +
       ".sf-panel.sf-drawer-portal .sf-option:not(.sf-swatch):not(.sf-pill) input[type=radio]:checked::after{transform:scale(1)}" +
       ".smart-filter .sf-price,.sf-panel.sf-drawer-portal .sf-price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important}" +
+      ".sf-facet-pop .sf-price{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;width:100%!important;min-width:0!important;overflow:visible!important;padding-inline:10px!important;box-sizing:border-box!important}" +
       ".smart-filter .sf-facet.is-collapsed>.sf-options,.smart-filter .sf-facet.is-collapsed>.sf-price,.smart-filter .sf-facet.is-collapsed>.sf-dropdown-wrap,.smart-filter .sf-facet.is-collapsed>.sf-facet-search,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-options,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-price,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-dropdown-wrap,.sf-panel.sf-drawer-portal .sf-facet.is-collapsed>.sf-facet-search{display:none!important}" +
-      ".smart-filter .sf-slider,.sf-panel.sf-drawer-portal .sf-slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:27px!important;overflow:visible!important;background:transparent!important}" +
-      ".smart-filter .sf-slider-track,.sf-panel.sf-drawer-portal .sf-slider-track{position:absolute!important;left:0!important;right:0!important;top:50%!important;width:auto!important;height:2px!important;margin-top:-1px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important;background:#dcdcdc!important;z-index:0!important}" +
-      ".smart-filter .sf-slider-fill,.sf-panel.sf-drawer-portal .sf-slider-fill{position:absolute!important;top:50%!important;height:3px!important;margin-top:-1.5px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important;background:var(--sf-accent,#111)!important;z-index:1!important}" +
-      ".smart-filter .sf-slider input[type=range],.sf-panel.sf-drawer-portal .sf-slider input[type=range]{position:absolute!important;left:0!important;width:100%!important;max-width:none!important;height:23px!important;margin:0!important;padding:0!important;border:0!important;opacity:0!important;background:transparent!important;appearance:none!important;-webkit-appearance:none!important;pointer-events:none!important}" +
-      ".smart-filter .sf-slider-thumb,.sf-panel.sf-drawer-portal .sf-slider-thumb{position:absolute!important;top:50%!important;width:16px!important;height:16px!important;margin:0!important;padding:0!important;border:1.5px solid var(--sf-accent,#111)!important;border-radius:999px!important;background:#fff!important;transform:translate(-50%,-50%)!important;z-index:4!important;pointer-events:auto!important;cursor:grab!important;display:block!important;touch-action:none}" +
+      ".smart-filter .sf-slider,.sf-panel.sf-drawer-portal .sf-slider,.sf-facet-pop .sf-slider{grid-column:1/-1!important;position:relative!important;display:block!important;width:100%!important;height:27px!important;overflow:visible!important;background:transparent!important}" +
+      ".smart-filter .sf-slider-track,.sf-panel.sf-drawer-portal .sf-slider-track,.sf-facet-pop .sf-slider-track{position:absolute!important;left:0!important;right:0!important;top:50%!important;width:auto!important;height:2px!important;margin-top:-1px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important;background:#dcdcdc!important;z-index:0!important}" +
+      ".smart-filter .sf-slider-fill,.sf-panel.sf-drawer-portal .sf-slider-fill,.sf-facet-pop .sf-slider-fill{position:absolute!important;top:50%!important;height:3px!important;margin-top:-1.5px!important;border:0!important;border-radius:999px!important;pointer-events:none!important;display:block!important;background:var(--sf-accent,#111)!important;z-index:1!important}" +
+      ".smart-filter .sf-slider input[type=range],.sf-panel.sf-drawer-portal .sf-slider input[type=range],.sf-facet-pop .sf-slider input[type=range]{position:absolute!important;left:0!important;width:100%!important;max-width:none!important;height:23px!important;margin:0!important;padding:0!important;border:0!important;opacity:0!important;background:transparent!important;appearance:none!important;-webkit-appearance:none!important;pointer-events:none!important}" +
+      ".smart-filter .sf-slider-thumb,.sf-panel.sf-drawer-portal .sf-slider-thumb,.sf-facet-pop .sf-slider-thumb{position:absolute!important;top:50%!important;width:16px!important;height:16px!important;margin:0!important;padding:0!important;border:1.5px solid var(--sf-accent,#111)!important;border-radius:999px!important;background:#fff!important;transform:translate(-50%,-50%)!important;z-index:4!important;pointer-events:auto!important;cursor:grab!important;display:block!important;touch-action:none}" +
       "@media(max-width:989px){" +
       ".sf-panel,.sf-panel.sf-drawer-portal{" +
       "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
@@ -9420,14 +9421,39 @@
     });
   }
 
+  function resolveFacetSearchRoot(wrap) {
+    if (!wrap) return null;
+    /* Horizontal top popovers move .sf-facet-pop to document.body. */
+    if (wrap.classList && wrap.classList.contains("sf-facet-pop")) return wrap;
+    if (wrap._sfFacetPop && wrap._sfFacetPop.isConnected) return wrap._sfFacetPop;
+    var nestedPop =
+      wrap.querySelector && wrap.querySelector(".sf-facet-pop");
+    if (nestedPop) return nestedPop;
+    var key =
+      wrap.getAttribute && wrap.getAttribute("data-facet-key");
+    if (key) {
+      var ported = document.querySelectorAll("body > .sf-facet-pop.is-ported");
+      var p;
+      for (p = 0; p < ported.length; p++) {
+        if (ported[p].getAttribute("data-facet-owner") === key) {
+          return ported[p];
+        }
+      }
+    }
+    return wrap;
+  }
+
   function applyFacetValueQuery(wrap, query) {
     var q = String(query || "")
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+    var root = resolveFacetSearchRoot(wrap) || wrap;
     var list =
-      wrap.querySelector(".sf-options") ||
-      wrap.querySelector("select.sf-dropdown");
+      (root && root.querySelector && root.querySelector(".sf-options")) ||
+      (root && root.querySelector && root.querySelector("select.sf-dropdown")) ||
+      (wrap && wrap.querySelector && wrap.querySelector(".sf-options")) ||
+      (wrap && wrap.querySelector && wrap.querySelector("select.sf-dropdown"));
     if (!list) return;
     if (list.tagName === "SELECT") {
       var opts = list.options;
@@ -9499,7 +9525,11 @@
       if (event.key === "Enter") event.preventDefault();
     });
     input.addEventListener("input", function () {
-      applyFacetValueQuery(wrap, input.value);
+      var scope =
+        (input.closest && input.closest(".sf-facet-pop")) ||
+        (input.closest && input.closest(".sf-facet")) ||
+        wrap;
+      applyFacetValueQuery(scope, input.value);
     });
     box.appendChild(input);
     return box;
@@ -9530,13 +9560,28 @@
       var wrap = nodes[i];
       var key = wrap.getAttribute("data-facet-key");
       if (!wanted[key]) continue;
-      if (wrap.querySelector(".sf-facet-search")) continue;
-      if (wrap.querySelector(".sf-price")) continue;
+      var searchRoot = resolveFacetSearchRoot(wrap) || wrap;
+      if (
+        (searchRoot && searchRoot.querySelector(".sf-facet-search")) ||
+        wrap.querySelector(".sf-facet-search")
+      ) {
+        continue;
+      }
+      if (
+        (searchRoot && searchRoot.querySelector(".sf-price")) ||
+        wrap.querySelector(".sf-price")
+      ) {
+        continue;
+      }
       var after =
+        (searchRoot &&
+          (searchRoot.querySelector(".sf-options") ||
+            searchRoot.querySelector(".sf-dropdown-wrap"))) ||
         wrap.querySelector(".sf-options") ||
         wrap.querySelector(".sf-dropdown-wrap");
       if (!after) continue;
-      safeInsertBefore(wrap, buildFacetValueSearch(wrap, widget), after);
+      var host = after.parentNode || searchRoot || wrap;
+      safeInsertBefore(host, buildFacetValueSearch(wrap, widget), after);
     }
   }
 

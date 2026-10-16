@@ -4635,7 +4635,8 @@
     if (Object.prototype.hasOwnProperty.call(this.collapsedState, key)) {
       return this.collapsedState[key];
     }
-    if (this.position === "top") return false;
+    // Horizontal (top) layout: always start collapsed; heading click toggles.
+    if (this.position === "top") return true;
     return this.collapseByDefault;
   };
 
