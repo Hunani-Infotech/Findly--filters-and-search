@@ -1220,8 +1220,9 @@ export async function upsertProduct(
       "../workers/ensure-running.server"
     );
     await ensureWorkerRunning();
-    // Enqueued but no in-process worker (and not a dedicated-worker setup):
-    // process markets here so the job does not sit forever.
+    // Enqueued but no worker process at all (local misconfig): run markets
+    // inline so the job does not sit forever. Dedicated worker:prod and
+    // START_WORKER=0 web must never take this path.
     if (process.env.START_WORKER !== "0" && !isSyncWorkerRunning()) {
       log.warn("[sync] worker not running; syncing market prices inline");
       await syncProductMarketPrices(admin, shop.id, facet.productGid);

@@ -72,13 +72,6 @@ async function setRunAtFromDb(id: string, delayMs: number) {
   return rows[0];
 }
 
-async function isRunAtInFuture(id: string) {
-  const rows = await prisma.$queryRaw<Array<{ future: boolean }>>`
-    SELECT ("runAt" > NOW()) AS future FROM "QueueJob" WHERE id = ${id}
-  `;
-  return Boolean(rows[0]?.future);
-}
-
 /** Never throws when the row was already removed by a concurrent enqueue. */
 async function deleteJobByIdQuiet(id: string) {
   await prisma.queueJob.deleteMany({ where: { id } });
@@ -86,7 +79,11 @@ async function deleteJobByIdQuiet(id: string) {
 
 /**
  * Insert a pending job. When jobKey is set, use ON CONFLICT so concurrent
- * enqueues never throw unique-constraint errors (return the winner's row).
+ * enqueues never throw unique-constraint errors.
+ *
+ * Hot path (inventory/product storms): one round-trip inserts, or refreshes
+ * payload + debounce delay when the same jobKey is already pending.
+ * processing / terminal conflicts return no row → caller / retry loop handles.
  */
 async function insertJob(
   type: SyncJobName,
@@ -114,8 +111,8 @@ async function insertJob(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const id = randomUUID();
-    // Single round-trip insert with Postgres NOW() for runAt (no client skew).
-    // DO NOTHING on jobKey conflict → no P2002 / prisma:error noise.
+    // Insert or coalesce onto pending (extends debounce delay). WHERE false on
+    // processing/terminal → like DO NOTHING (no row returned).
     const inserted = await prisma.$queryRaw<QueueJob[]>`
       INSERT INTO "QueueJob" (
         id, type, payload, status, attempts, "maxAttempts",
@@ -133,7 +130,15 @@ async function insertJob(
         NOW(),
         NOW()
       )
-      ON CONFLICT ("jobKey") DO NOTHING
+      ON CONFLICT ("jobKey") DO UPDATE SET
+        payload = EXCLUDED.payload,
+        -- Extend debounce only while still delayed; never push a due job back.
+        "runAt" = CASE
+          WHEN "QueueJob"."runAt" > NOW() THEN EXCLUDED."runAt"
+          ELSE "QueueJob"."runAt"
+        END,
+        "updatedAt" = NOW()
+      WHERE "QueueJob".status = 'pending'::"QueueJobStatus"
       RETURNING *
     `;
     if (inserted[0]) return inserted[0];
@@ -148,7 +153,7 @@ async function insertJob(
       await deleteJobByIdQuiet(existing.id);
       continue;
     }
-    // pending / processing — coalesce onto the winner (existing behavior).
+    // pending (race) or processing — return for follow-up handling.
     return existing;
   }
 
@@ -158,112 +163,85 @@ async function insertJob(
 }
 
 /**
+ * When the primary jobKey is already processing, queue a follow-up so the
+ * latest change is not dropped. Catalog payloads are IDs only — worker refetches.
+ */
+async function enqueueFollowupWhileProcessing(
+  name: SyncJobName,
+  data: Record<string, unknown>,
+  jobKey: string,
+  existing: QueueJob,
+  delay?: number,
+) {
+  if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
+    const staleAfterMs = name === "shop.fullSync" ? 120_000 : 0;
+    const startedAt = existing.lockedAt?.getTime() ?? existing.updatedAt.getTime();
+    if (staleAfterMs && startedAt && Date.now() - startedAt > staleAfterMs) {
+      log.warn(
+        `[queue] queueing replacement ${name} for stuck ${jobKey} after ${Date.now() - startedAt}ms`,
+      );
+      return insertJob(name, data, {
+        jobKey: `${jobKey}_retry_${Date.now()}`,
+        delay,
+      });
+    }
+    return existing;
+  }
+
+  for (const suffix of ["followup", "followup2"] as const) {
+    const followupKey = `${jobKey}_${suffix}`;
+    const followup = await insertJob(name, data, {
+      jobKey: followupKey,
+      delay,
+    });
+    if (followup.status !== "processing") {
+      return followup;
+    }
+  }
+
+  return insertJob(name, data, {
+    jobKey: `${jobKey}_followup_${Date.now()}`,
+    delay,
+  });
+}
+
+/**
  * Enqueue with the same idempotency / follow-up semantics as the former BullMQ path.
  * Storage is Postgres QueueJob rows instead of Redis.
+ *
+ * Insert-first: inventory/product storms usually need one Postgres round-trip.
  */
 export async function enqueueSyncJob(
   name: SyncJobName,
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number },
 ) {
-  const { ensureWorkerRunning } = await import("../workers/ensure-running.server");
-  await ensureWorkerRunning();
-
-  const jobKey = normalizeJobKey(opts?.jobId);
-
-  if (jobKey) {
-    const existing = await prisma.queueJob.findUnique({ where: { jobKey } });
-    if (existing) {
-      if (existing.status === "failed" || existing.status === "completed") {
-        await deleteJobByIdQuiet(existing.id);
-      } else if (
-        existing.status === "pending" &&
-        (await isRunAtInFuture(existing.id))
-      ) {
-        // Delayed (backoff / explicit delay): refresh delay if caller asked.
-        if (opts?.delay != null) {
-          const refreshed = await prisma.queueJob.updateMany({
-            where: { id: existing.id, status: "pending" },
-            data: { payload: data as Prisma.InputJsonValue },
-          });
-          if (refreshed.count === 0) {
-            return insertJob(name, data, { jobKey, delay: opts.delay });
-          }
-          return (await setRunAtFromDb(existing.id, opts.delay)) ?? existing;
-        }
-        return existing;
-      } else if (existing.status === "pending") {
-        return existing;
-      } else if (existing.status === "processing") {
-        if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
-          const staleAfterMs = name === "shop.fullSync" ? 120_000 : 0;
-          const startedAt = existing.lockedAt?.getTime() ?? existing.updatedAt.getTime();
-          if (
-            staleAfterMs &&
-            startedAt &&
-            Date.now() - startedAt > staleAfterMs
-          ) {
-            log.warn(
-              `[queue] queueing replacement ${name} for stuck ${jobKey} after ${Date.now() - startedAt}ms`,
-            );
-            return insertJob(name, data, {
-              jobKey: `${jobKey}_retry_${Date.now()}`,
-              delay: opts?.delay,
-            });
-          }
-          return existing;
-        }
-        for (const suffix of ["followup", "followup2"] as const) {
-          const followupKey = `${jobKey}_${suffix}`;
-          const followup = await prisma.queueJob.findUnique({
-            where: { jobKey: followupKey },
-          });
-          if (followup) {
-            if (followup.status === "failed" || followup.status === "completed") {
-              await deleteJobByIdQuiet(followup.id);
-            } else if (
-              followup.status === "pending" &&
-              (await isRunAtInFuture(followup.id))
-            ) {
-              if (opts?.delay != null) {
-                const refreshed = await prisma.queueJob.updateMany({
-                  where: { id: followup.id, status: "pending" },
-                  data: { payload: data as Prisma.InputJsonValue },
-                });
-                if (refreshed.count === 0) {
-                  return insertJob(name, data, {
-                    jobKey: followupKey,
-                    delay: opts.delay,
-                  });
-                }
-                return (await setRunAtFromDb(followup.id, opts.delay)) ?? followup;
-              }
-              return followup;
-            } else if (followup.status === "pending") {
-              return followup;
-            } else if (followup.status === "processing") {
-              continue;
-            } else {
-              return followup;
-            }
-          }
-          return insertJob(name, data, {
-            jobKey: followupKey,
-            delay: opts?.delay,
-          });
-        }
-        return insertJob(name, data, {
-          jobKey: `${jobKey}_followup_${Date.now()}`,
-          delay: opts?.delay,
-        });
-      }
-    }
+  // Production web sets START_WORKER=0 — skip dynamic import on the hot path.
+  if (process.env.START_WORKER !== "0") {
+    const { ensureWorkerRunning } = await import(
+      "../workers/ensure-running.server"
+    );
+    await ensureWorkerRunning();
   }
 
-  return insertJob(name, data, { jobKey, delay: opts?.delay });
+  const jobKey = normalizeJobKey(opts?.jobId);
+  const job = await insertJob(name, data, { jobKey, delay: opts?.delay });
+
+  if (!jobKey || job.status !== "processing") {
+    return job;
+  }
+
+  return enqueueFollowupWhileProcessing(
+    name,
+    data,
+    jobKey,
+    job,
+    opts?.delay,
+  );
 }
 
-const DEFAULT_ENQUEUE_TIMEOUT_MS = 800;
+/** Shopify allows ~5s; keep catalog enqueue well under that with pooler headroom. */
+const DEFAULT_ENQUEUE_TIMEOUT_MS = 2500;
 
 /**
  * Reject if Postgres enqueue hangs (pooler / network blip).
@@ -303,10 +281,14 @@ export async function enqueueSyncJobWithTimeout(
           (row.status === "pending" || row.status === "processing"),
       );
 
-    // Immediate check, then one short grace for a late INSERT.
+    // Grace for a late INSERT still holding a pooler connection.
     let existing = await prisma.queueJob.findUnique({ where: { jobKey } });
     if (!isLiveMatch(existing)) {
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => setTimeout(r, 150));
+      existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+    }
+    if (!isLiveMatch(existing)) {
+      await new Promise((r) => setTimeout(r, 250));
       existing = await prisma.queueJob.findUnique({ where: { jobKey } });
     }
     if (isLiveMatch(existing) && existing) {

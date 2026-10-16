@@ -7,6 +7,8 @@ import { pruneTerminalJobs } from "../lib/queues.server";
 declare global {
   // eslint-disable-next-line no-var
   var __FINDLY_PROCESS_GUARDS__: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __findlySyncWorkerRunning: boolean | undefined;
 }
 
 /**
@@ -17,6 +19,8 @@ declare global {
  * Otherwise loop until SIGINT/SIGTERM.
  */
 process.env.FINDLY_WORKER_CHILD = "1";
+// So sync handlers skip "worker not running → inline" fallbacks (markets, etc.).
+globalThis.__findlySyncWorkerRunning = true;
 
 if (!globalThis.__FINDLY_PROCESS_GUARDS__) {
   globalThis.__FINDLY_PROCESS_GUARDS__ = true;

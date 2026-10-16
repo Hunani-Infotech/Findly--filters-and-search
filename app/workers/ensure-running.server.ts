@@ -30,7 +30,12 @@ declare global {
  * worker child). Parallelism is WORKER_COUNT (claim batch + concurrent handlers).
  */
 export function isSyncWorkerRunning() {
-  return Boolean(globalThis.__findlySyncWorkerRunning);
+  // Dedicated `worker:prod` sets FINDLY_WORKER_CHILD=1 but never starts the
+  // in-process poller flag — treat that process as a live worker too.
+  return (
+    Boolean(globalThis.__findlySyncWorkerRunning) ||
+    process.env.FINDLY_WORKER_CHILD === "1"
+  );
 }
 
 export function ensureWorkerRunning(): Promise<void> {

@@ -847,8 +847,18 @@ try {
   if (!queuesServer.includes('"compliance.customersRedact"')) {
     fail("queues.server.ts must declare SyncJobName compliance.customersRedact");
   }
-  if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*800/.test(queuesServer)) {
-    fail("DEFAULT_ENQUEUE_TIMEOUT_MS must be 800 (catalog enqueue budget)");
+  if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*2500/.test(queuesServer)) {
+    fail("DEFAULT_ENQUEUE_TIMEOUT_MS must be 2500 (catalog enqueue under Shopify 5s ACK)");
+  }
+  const ensureRunning = read("app/workers/ensure-running.server.ts");
+  if (!ensureRunning.includes('FINDLY_WORKER_CHILD === "1"')) {
+    fail(
+      "isSyncWorkerRunning must treat FINDLY_WORKER_CHILD=1 as running (no inline markets on worker:prod)",
+    );
+  }
+  const workerIndex = read("app/workers/index.ts");
+  if (!workerIndex.includes("__findlySyncWorkerRunning = true")) {
+    fail("worker:prod must set __findlySyncWorkerRunning so sync skips inline fallbacks");
   }
   if (!syncServer.includes("bumpCatalogGeneration") || !syncServer.includes("syncInventoryItem")) {
     fail("sync.server.ts must bump catalog generation and resolve inventory items");
