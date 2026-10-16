@@ -1,6 +1,9 @@
 /**
  * Filter fetch retry + stale-request helpers (companion — not schema JS cap).
  * Loaded before smart-filter.min.js via Liquid asset_url.
+ *
+ * Theme-agnostic: only wraps Widget.fetchFilters / proxy JSON. Does not touch
+ * theme product grids, Dawn/Horizon markup, or CSS selectors.
  */
 (function () {
   "use strict";
@@ -32,6 +35,14 @@
     );
   }
 
+  /** Superseded / aborted requests must not clear facets or flash the error UI. */
+  function shouldSkipFailUi(err) {
+    if (!err) return true;
+    if (err.name === STALE) return true;
+    if (err.name === "AbortError" && !err._findlyTimedOut) return true;
+    return false;
+  }
+
   function failFilterUi(widget, err) {
     if (widget && widget.failFilterLoad) widget.failFilterLoad(err);
     if (widget.autoApplyFilters === false && widget.renderApplyBar) {
@@ -54,7 +65,10 @@
       opts = opts || {};
       var attempt = Number(opts._attempt) || 0;
       var self = this;
-      return Promise.resolve(orig.apply(this, arguments)).catch(function (err) {
+      var pending = orig.apply(this, arguments);
+      /* Capture after orig so we match the request id it just started. */
+      var reqId = self._reqId;
+      return Promise.resolve(pending).catch(function (err) {
         if (
           !opts.append &&
           attempt < API.max &&
@@ -67,7 +81,18 @@
             }, API.wait * (attempt + 1));
           });
         }
-        if (!opts.append) failFilterUi(self, err);
+        /*
+          Only the latest non-append request may surface the error UI.
+          Older races (price typing, facet clicks) reject as stale/abort and
+          must leave the newer request's UI alone — any theme.
+        */
+        if (
+          !opts.append &&
+          reqId === self._reqId &&
+          !shouldSkipFailUi(err)
+        ) {
+          failFilterUi(self, err);
+        }
         throw err;
       });
     };

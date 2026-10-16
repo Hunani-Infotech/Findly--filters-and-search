@@ -15,6 +15,7 @@
 
   var HASH_KEY = "sf";
   var DEBOUNCE_MS = 300;
+  var PRICE_DEBOUNCE_MS = 450;
   var MSG_LOADING = "Loading filters…";
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
   var MSG_NO_MATCH = "No matching products.";
@@ -5339,7 +5340,7 @@
         window.clearTimeout(debounceId);
         debounceId = window.setTimeout(function () {
           self.applyRangeValues(facet, String(a), String(b), isProductPrice);
-        }, DEBOUNCE_MS);
+        }, PRICE_DEBOUNCE_MS);
       };
       low.addEventListener("input", commitFromSlider);
       high.addEventListener("input", commitFromSlider);
@@ -5353,7 +5354,7 @@
     } else {
       var onNumberCommit = function () {
         window.clearTimeout(debounceId);
-        debounceId = window.setTimeout(commitFromInputs, DEBOUNCE_MS);
+        debounceId = window.setTimeout(commitFromInputs, PRICE_DEBOUNCE_MS);
       };
       minInput.addEventListener("input", onNumberCommit);
       maxInput.addEventListener("input", onNumberCommit);
