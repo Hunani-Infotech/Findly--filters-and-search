@@ -8,12 +8,18 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-grid-takeover-v48";
+  var STYLE_ID = "findly-grid-takeover-v49";
   /* Marks product cards whose widths Findly set — only those get cleared. */
   var COL_LOCK_ATTR = "data-sf-col-lock";
   var BRIDGE_STYLE_ID = "findly-theme-bridge-v21";
   /* Used only when the theme has no Dawn/Horizon column signal. */
   var FINDLY_DEFAULT_DESKTOP_COLS = 3;
+  /*
+   * Product-grid column !important locks (CSS + JS) use this desktop floor.
+   * Sidebar layout still switches at 990; between 990–1040 the main column is
+   * narrow and Findly desktop N-col !important was fighting theme CSS.
+   */
+  var PRODUCT_GRID_DESKTOP_LOCK_MIN = 1041;
   var HOST_ID = "findly-grid-host";
   var CARD_TRAY_ID = "findly-card-tray";
   var EMPTY_ID = "findly-grid-empty";
@@ -625,7 +631,8 @@
         ".sf-layout-main .product-grid,.sf-layout-main ul.product-grid," +
         ".sf-layout-main ol.product-grid,.sf-layout-main .main-collection-grid," +
         ".sf-layout-main .sf-app-grid{width:100%!important;min-width:0;max-width:100%!important;justify-content:flex-start!important}" +
-        "@media screen and (min-width:990px){" +
+        /* Column width !important: desktop from 1041px (not 990). 990–1040 = theme CSS. */
+        "@media screen and (min-width:1041px){" +
         ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>.grid__item," +
         ".sf-collection-layout .sf-layout-main .grid--2-col-desktop>li" +
         "{width:calc(50% - var(--grid-desktop-horizontal-spacing,8px)/2)!important;" +
@@ -1580,6 +1587,20 @@
     return resolveThemeDesktopColumnCount(host);
   }
 
+  /** True when Findly must not apply desktop product-grid column !important locks. */
+  function isProductGridNarrowDesktopBand() {
+    try {
+      if (typeof window.matchMedia !== "function") return false;
+      return window.matchMedia(
+        "(min-width: 990px) and (max-width: " +
+          (PRODUCT_GRID_DESKTOP_LOCK_MIN - 1) +
+          "px)",
+      ).matches;
+    } catch (err) {
+      return false;
+    }
+  }
+
   function dawnFlexColumnCount(host) {
     if (!host || !host.classList) return 0;
     var cls = String(host.className || "");
@@ -1593,9 +1614,11 @@
     try {
       if (
         typeof window.matchMedia === "function" &&
-        window.matchMedia("(min-width: 990px)").matches
+        window.matchMedia(
+          "(min-width: " + PRODUCT_GRID_DESKTOP_LOCK_MIN + "px)",
+        ).matches
       ) {
-        /* Desktop (≥990): any theme column signal first. */
+        /* Wide desktop (≥1041): any theme column signal first. */
         if (deskN) return deskN;
         themeN = resolveThemeDesktopColumnCount(host);
         if (themeN) return themeN;
@@ -1607,9 +1630,15 @@
         typeof window.matchMedia === "function" &&
         window.matchMedia("(min-width: 750px)").matches
       ) {
-        /* Tablet (750–989): unchanged — tablet-down first, then desk. */
+        /*
+         * Tablet + narrow desktop band (750–1040): tablet-down first.
+         * 990–1040 intentionally skips desktop N so Findly !important locks
+         * do not fight theme CSS while the sidebar layout is already on.
+         */
         if (tabletN) return tabletN;
         if (mobileN) return mobileN;
+        /* In 990–1040 do not fall through to desktop col count for locks. */
+        if (isProductGridNarrowDesktopBand()) return 0;
         if (deskN) return deskN;
         return 0;
       }
@@ -1802,6 +1831,14 @@
   function ensureDawnFlexColumnWidths(host, force) {
     if (!host || !host.children) return false;
     if (isPageShellHost(host) || isProductGridIdShell(host)) return false;
+    /*
+     * 990–1040: clear any prior Findly card width !important and let theme CSS
+     * own the grid. Sidebar layout at 990 is unchanged.
+     */
+    if (isProductGridNarrowDesktopBand()) {
+      clearDawnFlexColumnWidths(host);
+      return false;
+    }
     var cols = dawnFlexColumnCount(host);
     /* <2 cols: clear Findly multi-col locks only; theme styles stay. */
     if (cols < 2) {
