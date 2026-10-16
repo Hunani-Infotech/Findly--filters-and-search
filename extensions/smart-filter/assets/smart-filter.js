@@ -15,7 +15,7 @@
 
   var HASH_KEY = "sf";
   var DEBOUNCE_MS = 300;
-  var PRICE_DEBOUNCE_MS = 450;
+  var PRICE_DEBOUNCE_MS = 600;
   var MSG_LOADING = "Loading filters…";
   var MSG_ERROR = "Filters could not be loaded. Please try again.";
   var MSG_NO_MATCH = "No matching products.";
@@ -4339,6 +4339,12 @@
             return fr && fr.stale ? fr.stale() : Promise.reject();
           }
           if (err && err.name === "FindlyStaleRequest") return;
+          if (!timedOut && ctrl && ctrl.signal && ctrl.signal.aborted) {
+            try {
+              if (err) err._findlySoftCancel = 1;
+            } catch (ignore) {}
+            return;
+          }
           if (err && err.name === "AbortError" && !timedOut) return;
           if (timedOut) {
             try {
@@ -5358,14 +5364,8 @@
       };
       minInput.addEventListener("input", onNumberCommit);
       maxInput.addEventListener("input", onNumberCommit);
-      minInput.addEventListener("change", function () {
-        window.clearTimeout(debounceId);
-        commitFromInputs();
-      });
-      maxInput.addEventListener("change", function () {
-        window.clearTimeout(debounceId);
-        commitFromInputs();
-      });
+      minInput.addEventListener("change", onNumberCommit);
+      maxInput.addEventListener("change", onNumberCommit);
     }
     return wrap;
   };

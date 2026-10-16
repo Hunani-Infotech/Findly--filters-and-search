@@ -1,9 +1,9 @@
 /**
- * Filter fetch retry + stale-request helpers (companion — not schema JS cap).
+ * Filter fetch retry + stale/abort UI guards (companion — not schema JS cap).
  * Loaded before smart-filter.min.js via Liquid asset_url.
  *
- * Theme-agnostic: only wraps Widget.fetchFilters / proxy JSON. Does not touch
- * theme product grids, Dawn/Horizon markup, or CSS selectors.
+ * Theme-agnostic: only wraps Widget.fetchFilters / failFilterLoad. No theme DOM,
+ * Dawn/Horizon selectors, or product-grid logic.
  */
 (function () {
   "use strict";
@@ -28,6 +28,7 @@
   function retry(err, timedOut) {
     if (timedOut) return true;
     if (err && err.name === STALE) return false;
+    if (err && err._findlySoftCancel) return false;
     if (err && err.name === "AbortError") return false;
     if (err instanceof TypeError) return true;
     return /failed to fetch|networkerror|load failed/i.test(
@@ -35,10 +36,11 @@
     );
   }
 
-  /** Superseded / aborted requests must not clear facets or flash the error UI. */
+  /** Races from rapid price/filter edits must not wipe facets or flash errors. */
   function shouldSkipFailUi(err) {
     if (!err) return true;
     if (err.name === STALE) return true;
+    if (err._findlySoftCancel) return true;
     if (err.name === "AbortError" && !err._findlyTimedOut) return true;
     return false;
   }
@@ -59,6 +61,18 @@
   function patchProto(proto) {
     if (!proto || proto.__findlyFetchRetry) return;
     proto.__findlyFetchRetry = true;
+
+    var origFail = proto.failFilterLoad;
+    if (origFail && !origFail.__findlyFetchGuard) {
+      proto.failFilterLoad = function (err) {
+        /* Newer request already running — leave its UI alone. */
+        if (this._inflight) return;
+        if (shouldSkipFailUi(err)) return;
+        return origFail.apply(this, arguments);
+      };
+      proto.failFilterLoad.__findlyFetchGuard = true;
+    }
+
     var orig = proto.fetchFilters;
     if (!orig) return;
     proto.fetchFilters = function (opts) {
@@ -66,7 +80,6 @@
       var attempt = Number(opts._attempt) || 0;
       var self = this;
       var pending = orig.apply(this, arguments);
-      /* Capture after orig so we match the request id it just started. */
       var reqId = self._reqId;
       return Promise.resolve(pending).catch(function (err) {
         if (
@@ -82,14 +95,14 @@
           });
         }
         /*
-          Only the latest non-append request may surface the error UI.
-          Older races (price typing, facet clicks) reject as stale/abort and
-          must leave the newer request's UI alone — any theme.
+          Only the latest non-append request may show the error UI.
+          Superseded races (typing price, rapid facet clicks) are ignored.
         */
         if (
           !opts.append &&
           reqId === self._reqId &&
-          !shouldSkipFailUi(err)
+          !shouldSkipFailUi(err) &&
+          !self._inflight
         ) {
           failFilterUi(self, err);
         }
