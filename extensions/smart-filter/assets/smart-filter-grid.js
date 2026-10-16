@@ -7302,7 +7302,10 @@
       if (!node) return false;
       isPrice =
         facet.type === "price_range" || facet.displayType === "slider";
-      if (isPrice) continue;
+      if (isPrice) {
+        syncPriceFacetDom(widget, node, facet);
+        continue;
+      }
 
       var values = facet.values || [];
       var selected = (widget.selected && widget.selected[facet.key]) || [];
@@ -9335,10 +9338,93 @@
     }
   }
 
-  function bindPriceSlider(slider) {
-    if (!slider || slider.getAttribute("data-sf-range") === "1") return;
+  function refreshBoundSlider(slider) {
+    if (!slider) return;
     var inputs = slider.querySelectorAll('input[type="range"]');
     if (inputs.length < 2) return;
+    var low = inputs[0];
+    var high = inputs[1];
+    var fill = slider.querySelector(".sf-slider-fill");
+    var thumbLow = slider.querySelector(".sf-slider-thumb-min");
+    var thumbHigh = slider.querySelector(".sf-slider-thumb-max");
+    var min = Number(low.min);
+    var max = Number(low.max);
+    var left = sliderPercent(low.value, min, max);
+    var right = sliderPercent(high.value, min, max);
+    if (thumbLow) thumbLow.style.left = left + "%";
+    if (thumbHigh) thumbHigh.style.left = right + "%";
+    if (fill) {
+      fill.style.left = Math.min(left, right) + "%";
+      fill.style.width = Math.abs(right - left) + "%";
+    }
+  }
+
+  function syncPriceFacetDom(widget, node, facet) {
+    if (!widget || !node || !facet) return;
+    var isProductPrice = facet.isProductPrice || facet.key === "price";
+    var boundMin = Number(facet.min);
+    var boundMax = Number(facet.max);
+    var hasBounds =
+      Number.isFinite(boundMin) &&
+      Number.isFinite(boundMax) &&
+      boundMax > boundMin;
+    var current = isProductPrice
+      ? [
+          widget.price && widget.price.min != null ? widget.price.min : "",
+          widget.price && widget.price.max != null ? widget.price.max : "",
+        ]
+      : (widget.selected && widget.selected[facet.key]) || ["", ""];
+    var liveMin =
+      current[0] !== "" && current[0] != null ? Number(current[0]) : boundMin;
+    var liveMax =
+      current[1] !== "" && current[1] != null ? Number(current[1]) : boundMax;
+    if (!Number.isFinite(liveMin)) liveMin = hasBounds ? boundMin : 0;
+    if (!Number.isFinite(liveMax)) liveMax = hasBounds ? boundMax : 0;
+    if (liveMin > liveMax) {
+      var swap = liveMin;
+      liveMin = liveMax;
+      liveMax = swap;
+    }
+
+    var numberInputs = node.querySelectorAll(
+      '.sf-price input[type="number"]',
+    );
+    if (numberInputs.length >= 2) {
+      numberInputs[0].value =
+        current[0] !== "" && current[0] != null
+          ? String(current[0])
+          : hasBounds
+            ? String(Math.round(boundMin))
+            : "";
+      numberInputs[1].value =
+        current[1] !== "" && current[1] != null
+          ? String(current[1])
+          : hasBounds
+            ? String(Math.round(boundMax))
+            : "";
+    }
+
+    var slider = node.querySelector(".sf-slider");
+    if (!slider || !hasBounds) return;
+    var ranges = slider.querySelectorAll('input[type="range"]');
+    if (ranges.length < 2) return;
+    ranges[0].min = String(boundMin);
+    ranges[0].max = String(boundMax);
+    ranges[0].value = String(liveMin);
+    ranges[1].min = String(boundMin);
+    ranges[1].max = String(boundMax);
+    ranges[1].value = String(liveMax);
+    refreshBoundSlider(slider);
+  }
+
+  function bindPriceSlider(slider) {
+    if (!slider) return;
+    var inputs = slider.querySelectorAll('input[type="range"]');
+    if (inputs.length < 2) return;
+    if (slider.getAttribute("data-sf-range") === "1") {
+      refreshBoundSlider(slider);
+      return;
+    }
     slider.setAttribute("data-sf-range", "1");
     var low = inputs[0];
     var high = inputs[1];
@@ -9364,14 +9450,9 @@
     }
 
     function syncThumbs() {
-      var left = sliderPercent(low.value, min, max);
-      var right = sliderPercent(high.value, min, max);
-      thumbLow.style.left = left + "%";
-      thumbHigh.style.left = right + "%";
-      if (fill) {
-        fill.style.left = Math.min(left, right) + "%";
-        fill.style.width = Math.abs(right - left) + "%";
-      }
+      min = Number(low.min);
+      max = Number(low.max);
+      refreshBoundSlider(slider);
     }
     syncThumbs();
     low.addEventListener("input", syncThumbs);
@@ -9380,6 +9461,9 @@
     function startDrag(input, other, isMin, ev) {
       ev.preventDefault();
       ev.stopPropagation();
+      min = Number(low.min);
+      max = Number(low.max);
+      step = low.step || "1";
       (isMin ? thumbLow : thumbHigh).style.zIndex = "5";
       (isMin ? thumbHigh : thumbLow).style.zIndex = "4";
       function move(e) {
@@ -9414,6 +9498,9 @@
     });
     slider.addEventListener("pointerdown", function (ev) {
       if (ev.target === thumbLow || ev.target === thumbHigh) return;
+      min = Number(low.min);
+      max = Number(low.max);
+      step = low.step || "1";
       var next = sliderValueFromX(slider, ev.clientX, min, max, step);
       var useLow =
         Math.abs(next - Number(low.value)) <= Math.abs(next - Number(high.value));
@@ -9590,6 +9677,50 @@
     var sliders = root.querySelectorAll(".sf-slider");
     var i;
     for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
+  }
+
+  /* Keep custom thumbs/fill aligned when merchants type into min/max fields. */
+  function wirePriceInputsToSlider(wrap, facet) {
+    if (!wrap || wrap.getAttribute("data-sf-price-sync") === "1") return;
+    var slider = wrap.querySelector(".sf-slider");
+    if (!slider) return;
+    var ranges = slider.querySelectorAll('input[type="range"]');
+    var numbers = wrap.querySelectorAll('input[type="number"]');
+    if (ranges.length < 2 || numbers.length < 2) return;
+    wrap.setAttribute("data-sf-price-sync", "1");
+    var low = ranges[0];
+    var high = ranges[1];
+    var minInput = numbers[0];
+    var maxInput = numbers[1];
+    var boundMin = Number(
+      facet && Number.isFinite(Number(facet.min)) ? facet.min : low.min,
+    );
+    var boundMax = Number(
+      facet && Number.isFinite(Number(facet.max)) ? facet.max : low.max,
+    );
+    if (!Number.isFinite(boundMin)) boundMin = Number(low.min);
+    if (!Number.isFinite(boundMax)) boundMax = Number(low.max);
+
+    function syncFromNumbers() {
+      var rawMin = String(minInput.value || "").trim();
+      var rawMax = String(maxInput.value || "").trim();
+      var a = rawMin === "" ? boundMin : Number(rawMin);
+      var b = rawMax === "" ? boundMax : Number(rawMax);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return;
+      if (a < boundMin) a = boundMin;
+      if (a > boundMax) a = boundMax;
+      if (b < boundMin) b = boundMin;
+      if (b > boundMax) b = boundMax;
+      if (a > b) return;
+      low.value = String(a);
+      high.value = String(b);
+      refreshBoundSlider(slider);
+    }
+
+    minInput.addEventListener("input", syncFromNumbers);
+    maxInput.addEventListener("input", syncFromNumbers);
+    minInput.addEventListener("change", syncFromNumbers);
+    maxInput.addEventListener("change", syncFromNumbers);
   }
 
   function isFindlyLayoutShell(el) {
@@ -11536,6 +11667,7 @@
         }
       }
       enhancePriceSliders(wrap);
+      wirePriceInputsToSlider(wrap, facet);
       return wrap;
     };
 
