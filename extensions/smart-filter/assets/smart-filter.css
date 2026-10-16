@@ -2912,7 +2912,12 @@ results-list > .sf-toolbar {
  * Single / partial search rows must not stretch to full main width.
  * Match Dawn column math; flex-grow 0 so 1 result stays one card wide.
  */
-@media screen and (min-width: 990px) {
+/*
+ * Desktop column !important from 1041px — not 990. Between 990–1040 the
+ * sidebar layout is already desktop but the main column is still narrow;
+ * leave product card widths to the theme in that band.
+ */
+@media screen and (min-width: 1041px) {
   .sf-collection-layout .sf-layout-main .grid--2-col-desktop.product-grid > .grid__item,
   .sf-collection-layout .sf-layout-main .grid--2-col-desktop > .grid__item,
   .sf-collection-layout .sf-layout-main .grid--2-col-desktop > li {
