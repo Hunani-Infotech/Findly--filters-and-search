@@ -6724,6 +6724,226 @@
   }
 
   /**
+   * .sf-app-grid on a page shell (e.g. .product-grid-container) hides every
+   * non-.sf-app-card child — including the theme's #product-grid UL. Always
+   * keep sf-app-grid on the card list host only (all themes).
+   */
+  function stripAppGridFromPageShells(from) {
+    var seen = typeof WeakSet !== "undefined" ? new WeakSet() : null;
+    function strip(el) {
+      if (!el || el.nodeType !== 1 || !el.classList) return;
+      if (seen) {
+        if (seen.has(el)) return;
+        seen.add(el);
+      }
+      if (!isPageShellHost(el) && !isProductGridIdShell(el)) return;
+      if (isActualCardGrid(el)) return;
+      el.classList.remove("sf-app-grid");
+    }
+    if (from && from.nodeType === 1) {
+      strip(from);
+      if (from.closest) {
+        strip(
+          from.closest(
+            ".product-grid-container, #ProductGridContainer, #CollectionProductGrid, [data-findly-grid-shell='1']",
+          ),
+        );
+      }
+    }
+    var nodes = document.querySelectorAll(
+      ".product-grid-container.sf-app-grid, #ProductGridContainer.sf-app-grid, #CollectionProductGrid.sf-app-grid, [data-findly-grid-shell='1'].sf-app-grid",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) strip(nodes[i]);
+  }
+
+  /**
+   * Copy a real theme product-grid className when available (any theme).
+   * Falls back to a minimal product-grid class — theme CSS / lockThemeGridTracks
+   * own columns; we do not invent Dawn/Horizon-only column tokens here.
+   */
+  function discoverThemeProductGridClassName(scope) {
+    scope = scope || document;
+    var sels = [
+      "ul#product-grid",
+      "ol#product-grid",
+      "ul.product-grid",
+      "ol.product-grid",
+      ".main-collection-grid",
+      ".ProductList--grid",
+      ".productgrid--items",
+      ".grid--view-items",
+      "[data-product-grid]",
+      "ul.grid",
+      "ol.grid",
+    ];
+    var i;
+    for (i = 0; i < sels.length; i++) {
+      var el = scope.querySelector && scope.querySelector(sels[i]);
+      if (!el || !el.className) continue;
+      var cls = String(el.className).trim();
+      if (!cls) continue;
+      if (
+        /product-grid|main-collection|ProductList|productgrid|grid--view|data-product-grid|grid--\d/i.test(
+          cls,
+        )
+      ) {
+        return cls
+          .replace(/\bsf-app-grid\b/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+    }
+    return "grid product-grid";
+  }
+
+  /**
+   * Resolve or create the theme card list inside a shell so app cards inherit
+   * the theme's product-grid CSS (all themes). Never paints onto the shell.
+   */
+  function ensureThemeCardGridHost(widget, hint) {
+    var parent =
+      preferProductCardGrid(resolveCardHost(hint) || hint) || hint || null;
+    if (parent && isActualCardGrid(parent)) {
+      stripAppGridFromPageShells(parent);
+      if (widget) widget._gridParent = parent;
+      return parent;
+    }
+    var shell = null;
+    if (parent && (isPageShellHost(parent) || isProductGridIdShell(parent))) {
+      shell = parent;
+    } else if (parent && parent.closest) {
+      shell = parent.closest(
+        ".product-grid-container, #ProductGridContainer, #CollectionProductGrid, [data-findly-grid-shell='1']",
+      );
+    }
+    if (!shell && widget && widget._themeGridShell) shell = widget._themeGridShell;
+    if (!shell) {
+      shell =
+        document.querySelector(
+          ".product-grid-container, #ProductGridContainer, #CollectionProductGrid",
+        ) || null;
+    }
+    if (shell) {
+      stripAppGridFromPageShells(shell);
+      var inner =
+        queryInnerCardGrid(shell) ||
+        liveProductGridIn(shell) ||
+        null;
+      if (inner && inner !== shell && isActualCardGrid(inner)) {
+        showEl(inner);
+        inner.removeAttribute("data-findly-orphan-hidden");
+        if (widget) {
+          widget._gridParent = inner;
+          widget._themeGridShell = shell;
+        }
+        return inner;
+      }
+      var section =
+        (shell.closest &&
+          shell.closest(".shopify-section, [data-section-id], .collection")) ||
+        shell;
+      var ghost =
+        (section &&
+          section.querySelector &&
+          (section.querySelector("ul.product-grid, ol.product-grid, .main-collection-grid, [data-product-grid]") ||
+            section.querySelector("ul.grid, ol.grid"))) ||
+        document.querySelector(
+          "ul.product-grid, ol.product-grid, .main-collection-grid, [data-product-grid]",
+        );
+      var tag = "ul";
+      if (ghost) {
+        var gTag = String(ghost.tagName || "").toLowerCase();
+        if (gTag === "ol" || gTag === "div" || gTag === "ul") tag = gTag;
+      }
+      var mount = shell;
+      if (shell.children) {
+        var mi;
+        for (mi = 0; mi < shell.children.length; mi++) {
+          var mKid = shell.children[mi];
+          if (
+            mKid &&
+            mKid.classList &&
+            mKid.classList.contains("collection") &&
+            !mKid.classList.contains("sf-collection-layout")
+          ) {
+            mount = mKid;
+            break;
+          }
+        }
+      }
+      var grid = document.createElement(tag);
+      if (tag === "ul" || tag === "ol") grid.id = "product-grid";
+      grid.className = discoverThemeProductGridClassName(section || document);
+      grid.setAttribute("data-findly-adopted-theme-grid", "1");
+      mount.appendChild(grid);
+      showEl(grid);
+      stripAppGridFromPageShells(shell);
+      if (widget) {
+        widget._gridParent = grid;
+        widget._themeGridShell = shell;
+      }
+      return grid;
+    }
+    if (parent) {
+      stripAppGridFromPageShells(parent);
+      if (widget) widget._gridParent = parent;
+    }
+    return parent;
+  }
+
+  /**
+   * After .sf-app-card paint: match theme list item structure + theme tracks.
+   * Does not invent Dawn/Horizon-only layouts — uses existing lock helpers.
+   */
+  function finalizeAppCardsInThemeGrid(widget, parent) {
+    parent =
+      ensureThemeCardGridHost(widget, parent) ||
+      parent ||
+      (widget && widget._gridParent);
+    if (!parent) return null;
+    stripAppGridFromPageShells(parent);
+    /* If origApply painted onto the shell, move cards into the theme list host. */
+    var shell =
+      (parent.closest &&
+        parent.closest(
+          ".product-grid-container, #ProductGridContainer, #CollectionProductGrid, [data-findly-grid-shell='1']",
+        )) ||
+      (widget && widget._themeGridShell) ||
+      null;
+    if (shell && shell !== parent && shell.querySelectorAll) {
+      var orphans = shell.querySelectorAll(".sf-app-card");
+      var oi;
+      for (oi = 0; oi < orphans.length; oi++) {
+        if (parent.contains(orphans[oi])) continue;
+        parent.appendChild(orphans[oi]);
+      }
+    }
+    if (parent.classList && isActualCardGrid(parent)) {
+      parent.classList.add("sf-app-grid");
+    } else if (
+      parent.classList &&
+      !isPageShellHost(parent) &&
+      !isProductGridIdShell(parent)
+    ) {
+      parent.classList.add("sf-app-grid");
+    }
+    stripAppGridFromPageShells(parent);
+    if (typeof restyleAppCardsAsThemeItems === "function") {
+      restyleAppCardsAsThemeItems(parent);
+    }
+    showEl(parent);
+    parent.removeAttribute("data-findly-orphan-hidden");
+    parent.removeAttribute("data-findly-theme-hidden");
+    lockThemeGridTracks(parent);
+    if (widget) {
+      widget._gridParent = parent;
+      scheduleRelockProductGridTracks(widget);
+    }
+    return parent;
+  }
+
+  /**
    * Standard empty-theme fallback (all themes): when the filters API returned
    * products/handles but Liquid rendered zero product cards, paint DEFAULT
    * .sf-app-card via applyAppGrid. No-op when the theme already has cards.
@@ -6731,9 +6951,12 @@
   function ensureAppCardsIfThemeEmpty(widget, handles, parent, append) {
     if (!widget || typeof widget.applyAppGrid !== "function") return false;
     parent =
-      preferProductCardGrid(resolveCardHost(parent) || parent) ||
-      parent ||
-      widget._gridParent;
+      ensureThemeCardGridHost(
+        widget,
+        preferProductCardGrid(resolveCardHost(parent) || parent) ||
+          parent ||
+          widget._gridParent,
+      ) || parent;
     if (!parent) return false;
     var list =
       Array.isArray(handles) && handles.length
@@ -6775,7 +6998,12 @@
         widget._shownHandles = list.slice();
       }
       widget._visibleHandles = (widget._shownHandles || list).slice();
+      parent = finalizeAppCardsInThemeGrid(widget, parent) || parent;
       if (parent && parent.isConnected !== false) widget._gridParent = parent;
+      appN =
+        (parent.querySelectorAll &&
+          parent.querySelectorAll(".sf-app-card").length) ||
+        appN;
       markGridPainted(widget);
       syncGridEmptyState(
         widget,
@@ -10009,7 +10237,9 @@
       if (parent && isPageShellHost(parent)) {
         var fromShell = queryInnerCardGrid(parent);
         if (fromShell) parent = fromShell;
+        else parent = ensureThemeCardGridHost(this, parent) || parent;
       }
+      stripAppGridFromPageShells(parent);
 
       if (parent && parent.id !== HOST_ID) {
         if (
@@ -10025,6 +10255,7 @@
         rememberThemeGridShell(this, parent);
         lockThemeGridTracks(parent);
         ensureProductGridMounted(this);
+        stripAppGridFromPageShells(this._gridParent || parent);
         placeCollectionSearchOnGrid(this);
         return this._gridParent || parent;
       }
@@ -10356,17 +10587,19 @@
           if (uniqueAllowedCount(sliced.handles) === 0) return true;
         }
       }
-      /* Before painting .sf-app-card: reclaim live theme grid so hideNativeGridCards
-         runs on the same parent as Liquid cards (standard path — no dual listing). */
+      /* Before painting .sf-app-card: reclaim / adopt the theme card list host
+         (never leave sf-app-grid on a page shell — that hides #product-grid). */
       parent = reclaimThemeGridHost(this, parent) || parent;
-      if (parent && !isPageShellHost(parent)) this._gridParent = parent;
+      parent = ensureThemeCardGridHost(this, parent) || parent;
+      stripAppGridFromPageShells(parent);
+      if (parent) this._gridParent = parent;
       var ok = origApply
         ? origApply.call(this, sliced.data, sliced.handles, append)
         : false;
-      parent = this._gridParent || parent;
-      if (parent && isGridHostEl(parent) && parent.classList) {
-        restyleAppCardsAsThemeItems(parent);
-      }
+      parent = finalizeAppCardsInThemeGrid(
+        this,
+        this._gridParent || parent,
+      ) || this._gridParent || parent;
       /* Last resort: synthetic host still in use → hide only that rival Liquid grid. */
       if (ok && shouldHideCompetingThemeGrid(this, parent)) {
         scheduleCompetingThemeHide(this, parent);
