@@ -9809,30 +9809,67 @@
     var minInput = numbers[0];
     var maxInput = numbers[1];
 
-    function syncFromNumbers() {
+    function syncFromNumbers(forceRewrite) {
       var boundMin = Number(low.min);
       var boundMax = Number(low.max);
       if (!Number.isFinite(boundMin) || !Number.isFinite(boundMax)) return;
       if (boundMax <= boundMin) return;
       var rawMin = String(minInput.value || "").trim();
       var rawMax = String(maxInput.value || "").trim();
-      var a = rawMin === "" ? boundMin : Number(rawMin);
-      var b = rawMax === "" ? boundMax : Number(rawMax);
+      var parsedMin = rawMin === "" ? NaN : Number(rawMin);
+      var parsedMax = rawMax === "" ? NaN : Number(rawMax);
+      var a = rawMin === "" ? boundMin : parsedMin;
+      var b = rawMax === "" ? boundMax : parsedMax;
       if (!Number.isFinite(a) || !Number.isFinite(b)) return;
       if (a < boundMin) a = boundMin;
       if (a > boundMax) a = boundMax;
       if (b < boundMin) b = boundMin;
       if (b > boundMax) b = boundMax;
-      if (a > b) return;
+      if (a > b) {
+        if (!forceRewrite) return;
+        var swap = a;
+        a = b;
+        b = swap;
+      }
       low.value = String(a);
       high.value = String(b);
+      /* Arrow keys already clamp via min/max; typed values do not — snap the
+         field back when the number is finished (or out of range / on blur). */
+      var minComplete =
+        rawMin !== "" && Number.isFinite(parsedMin) && !/\.$/.test(rawMin);
+      var maxComplete =
+        rawMax !== "" && Number.isFinite(parsedMax) && !/\.$/.test(rawMax);
+      var minOut =
+        minComplete && (parsedMin < boundMin || parsedMin > boundMax);
+      var maxOut =
+        maxComplete && (parsedMax < boundMin || parsedMax > boundMax);
+      if (minComplete && (forceRewrite || minOut) && minInput.value !== String(a)) {
+        minInput.value = String(a);
+      }
+      if (maxComplete && (forceRewrite || maxOut) && maxInput.value !== String(b)) {
+        maxInput.value = String(b);
+      }
       refreshBoundSlider(slider);
     }
 
-    minInput.addEventListener("input", syncFromNumbers);
-    maxInput.addEventListener("input", syncFromNumbers);
-    minInput.addEventListener("change", syncFromNumbers);
-    maxInput.addEventListener("change", syncFromNumbers);
+    minInput.addEventListener("input", function () {
+      syncFromNumbers(false);
+    });
+    maxInput.addEventListener("input", function () {
+      syncFromNumbers(false);
+    });
+    minInput.addEventListener("change", function () {
+      syncFromNumbers(true);
+    });
+    maxInput.addEventListener("change", function () {
+      syncFromNumbers(true);
+    });
+    minInput.addEventListener("blur", function () {
+      syncFromNumbers(true);
+    });
+    maxInput.addEventListener("blur", function () {
+      syncFromNumbers(true);
+    });
   }
 
   function isFindlyLayoutShell(el) {
@@ -11767,6 +11804,48 @@
         self._sfQvTimer = 0;
         origQuickview.apply(self, args);
       }, 0);
+    };
+
+    /* Arrow keys honor input min/max; typed values do not. Clamp before apply
+       so Price / Sale range fields snap to catalog bounds (e.g. max 15). */
+    var origApplyRange = proto.applyRangeValues;
+    proto.applyRangeValues = function (facet, min, max, isProductPrice) {
+      var nextMin = min == null ? "" : String(min);
+      var nextMax = max == null ? "" : String(max);
+      var boundMin = Number(facet && facet.min);
+      var boundMax = Number(facet && facet.max);
+      if (
+        Number.isFinite(boundMin) &&
+        Number.isFinite(boundMax) &&
+        boundMax > boundMin
+      ) {
+        if (nextMin !== "") {
+          var nMin = Number(nextMin);
+          if (Number.isFinite(nMin)) {
+            if (nMin < boundMin) nMin = boundMin;
+            if (nMin > boundMax) nMin = boundMax;
+            nextMin = String(nMin);
+          }
+        }
+        if (nextMax !== "") {
+          var nMax = Number(nextMax);
+          if (Number.isFinite(nMax)) {
+            if (nMax < boundMin) nMax = boundMin;
+            if (nMax > boundMax) nMax = boundMax;
+            nextMax = String(nMax);
+          }
+        }
+        if (nextMin !== "" && nextMax !== "") {
+          var a = Number(nextMin);
+          var b = Number(nextMax);
+          if (Number.isFinite(a) && Number.isFinite(b) && a > b) {
+            nextMin = String(b);
+            nextMax = String(a);
+          }
+        }
+      }
+      if (!origApplyRange) return;
+      return origApplyRange.call(this, facet, nextMin, nextMax, isProductPrice);
     };
 
     var origRenderPrice = proto.renderPriceFacet;
