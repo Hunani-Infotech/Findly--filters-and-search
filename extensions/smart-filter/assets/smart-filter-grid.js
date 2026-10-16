@@ -9402,8 +9402,13 @@
     var thumbHigh = slider.querySelector(".sf-slider-thumb-max");
     var min = Number(low.min);
     var max = Number(low.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return;
     var left = sliderPercent(low.value, min, max);
     var right = sliderPercent(high.value, min, max);
+    if (left < 0) left = 0;
+    if (left > 100) left = 100;
+    if (right < 0) right = 0;
+    if (right > 100) right = 100;
     if (thumbLow) thumbLow.style.left = left + "%";
     if (thumbHigh) thumbHigh.style.left = right + "%";
     if (fill) {
@@ -9412,8 +9417,24 @@
     }
   }
 
+  /* Price UI is Findly-owned (.sf-price / .sf-slider) — theme-agnostic.
+     Resolve body-ported horizontal pops so left/right/top/drawer all sync. */
+  function priceFacetHost(node) {
+    if (!node) return null;
+    var host = resolveFacetSearchRoot(node) || node;
+    if (host.querySelector && host.querySelector(".sf-price, .sf-slider")) {
+      return host;
+    }
+    if (node.querySelector && node.querySelector(".sf-price, .sf-slider")) {
+      return node;
+    }
+    return host;
+  }
+
   function syncPriceFacetDom(widget, node, facet) {
     if (!widget || !node || !facet) return;
+    var host = priceFacetHost(node);
+    if (!host || !host.querySelector) return;
     var isProductPrice = facet.isProductPrice || facet.key === "price";
     var boundMin = Number(facet.min);
     var boundMax = Number(facet.max);
@@ -9433,16 +9454,29 @@
       current[1] !== "" && current[1] != null ? Number(current[1]) : boundMax;
     if (!Number.isFinite(liveMin)) liveMin = hasBounds ? boundMin : 0;
     if (!Number.isFinite(liveMax)) liveMax = hasBounds ? boundMax : 0;
+    if (hasBounds) {
+      if (liveMin < boundMin) liveMin = boundMin;
+      if (liveMin > boundMax) liveMin = boundMax;
+      if (liveMax < boundMin) liveMax = boundMin;
+      if (liveMax > boundMax) liveMax = boundMax;
+    }
     if (liveMin > liveMax) {
       var swap = liveMin;
       liveMin = liveMax;
       liveMax = swap;
     }
 
-    var numberInputs = node.querySelectorAll(
-      '.sf-price input[type="number"]',
-    );
-    if (numberInputs.length >= 2) {
+    var numberInputs = host.querySelectorAll('.sf-price input[type="number"]');
+    if (numberInputs.length < 2) {
+      numberInputs = host.querySelectorAll('input[type="number"]');
+    }
+    var active = document.activeElement;
+    var editing =
+      active &&
+      numberInputs.length >= 2 &&
+      (active === numberInputs[0] || active === numberInputs[1]);
+    /* Do not clobber values while the shopper is typing. */
+    if (!editing && numberInputs.length >= 2) {
       numberInputs[0].value =
         current[0] !== "" && current[0] != null
           ? String(current[0])
@@ -9457,15 +9491,30 @@
             : "";
     }
 
-    var slider = node.querySelector(".sf-slider");
+    var slider = host.querySelector(".sf-slider");
     if (!slider || !hasBounds) return;
     var ranges = slider.querySelectorAll('input[type="range"]');
     if (ranges.length < 2) return;
     ranges[0].min = String(boundMin);
     ranges[0].max = String(boundMax);
-    ranges[0].value = String(liveMin);
     ranges[1].min = String(boundMin);
     ranges[1].max = String(boundMax);
+    /* While editing, mirror the live field values so thumbs track typing. */
+    if (editing && numberInputs.length >= 2) {
+      var typedMin = String(numberInputs[0].value || "").trim();
+      var typedMax = String(numberInputs[1].value || "").trim();
+      var a = typedMin === "" ? boundMin : Number(typedMin);
+      var b = typedMax === "" ? boundMax : Number(typedMax);
+      if (Number.isFinite(a) && Number.isFinite(b) && a <= b) {
+        if (a < boundMin) a = boundMin;
+        if (a > boundMax) a = boundMax;
+        if (b < boundMin) b = boundMin;
+        if (b > boundMax) b = boundMax;
+        liveMin = a;
+        liveMax = b;
+      }
+    }
+    ranges[0].value = String(liveMin);
     ranges[1].value = String(liveMax);
     refreshBoundSlider(slider);
   }
@@ -9481,7 +9530,6 @@
     slider.setAttribute("data-sf-range", "1");
     var low = inputs[0];
     var high = inputs[1];
-    var fill = slider.querySelector(".sf-slider-fill");
     var min = Number(low.min);
     var max = Number(low.max);
     var step = low.step || "1";
@@ -9726,35 +9774,46 @@
   }
 
   function enhancePriceSliders(root) {
-    if (!root || !root.querySelectorAll) return;
-    var sliders = root.querySelectorAll(".sf-slider");
     var i;
-    for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
+    if (root && root.querySelectorAll) {
+      var sliders = root.querySelectorAll(".sf-slider");
+      for (i = 0; i < sliders.length; i++) bindPriceSlider(sliders[i]);
+    }
+    /* Findly-only hosts on document.body (top pops / drawer portal). */
+    var ported = document.querySelectorAll(
+      "body > .sf-facet-pop .sf-slider, body > .sf-panel.sf-drawer-portal .sf-slider",
+    );
+    for (i = 0; i < ported.length; i++) bindPriceSlider(ported[i]);
   }
 
-  /* Keep custom thumbs/fill aligned when merchants type into min/max fields. */
-  function wirePriceInputsToSlider(wrap, facet) {
+  /* Keep custom thumbs/fill aligned when shoppers type into min/max fields.
+     Visual-only: does not emit range input events, so filter apply/debounce
+     stays owned by renderPriceFacet (existing behavior unchanged). */
+  function wirePriceInputsToSlider(wrap) {
     if (!wrap || wrap.getAttribute("data-sf-price-sync") === "1") return;
-    var slider = wrap.querySelector(".sf-slider");
+    var host = wrap.classList && wrap.classList.contains("sf-price")
+      ? wrap
+      : wrap.querySelector
+        ? wrap.querySelector(".sf-price") || wrap
+        : wrap;
+    var slider = host.querySelector
+      ? host.querySelector(".sf-slider")
+      : null;
     if (!slider) return;
     var ranges = slider.querySelectorAll('input[type="range"]');
-    var numbers = wrap.querySelectorAll('input[type="number"]');
+    var numbers = host.querySelectorAll('input[type="number"]');
     if (ranges.length < 2 || numbers.length < 2) return;
     wrap.setAttribute("data-sf-price-sync", "1");
     var low = ranges[0];
     var high = ranges[1];
     var minInput = numbers[0];
     var maxInput = numbers[1];
-    var boundMin = Number(
-      facet && Number.isFinite(Number(facet.min)) ? facet.min : low.min,
-    );
-    var boundMax = Number(
-      facet && Number.isFinite(Number(facet.max)) ? facet.max : low.max,
-    );
-    if (!Number.isFinite(boundMin)) boundMin = Number(low.min);
-    if (!Number.isFinite(boundMax)) boundMax = Number(low.max);
 
     function syncFromNumbers() {
+      var boundMin = Number(low.min);
+      var boundMax = Number(low.max);
+      if (!Number.isFinite(boundMin) || !Number.isFinite(boundMax)) return;
+      if (boundMax <= boundMin) return;
       var rawMin = String(minInput.value || "").trim();
       var rawMax = String(maxInput.value || "").trim();
       var a = rawMin === "" ? boundMin : Number(rawMin);
@@ -11734,7 +11793,7 @@
         }
       }
       enhancePriceSliders(wrap);
-      wirePriceInputsToSlider(wrap, facet);
+      wirePriceInputsToSlider(wrap);
       return wrap;
     };
 
