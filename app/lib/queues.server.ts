@@ -242,12 +242,17 @@ export async function enqueueSyncJob(
 
 /** Shopify allows ~5s; keep catalog enqueue well under that with pooler headroom. */
 const DEFAULT_ENQUEUE_TIMEOUT_MS = 2500;
+/** Extra budget after enqueue timeout for late-INSERT detection (must stay under Shopify 5s). */
+const ENQUEUE_TIMEOUT_RECOVERY_MS = 800;
 
 /**
  * Reject if Postgres enqueue hangs (pooler / network blip).
  * Safe recovery: only when a durable pending/processing row for the same
  * jobKey+type already exists (late insert after timeout). Otherwise rethrow
  * so Shopify still retries — never invents success.
+ *
+ * Recovery is hard-capped at ENQUEUE_TIMEOUT_RECOVERY_MS so pool waits cannot
+ * push the webhook past Shopify's ~5s ack window.
  */
 export async function enqueueSyncJobWithTimeout(
   name: SyncJobName,
@@ -281,15 +286,34 @@ export async function enqueueSyncJobWithTimeout(
           (row.status === "pending" || row.status === "processing"),
       );
 
-    // Grace for a late INSERT still holding a pooler connection.
-    let existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+    const recoveryDeadline = Date.now() + ENQUEUE_TIMEOUT_RECOVERY_MS;
+
+    const findLiveJob = async (): Promise<QueueJob | null> => {
+      const remaining = recoveryDeadline - Date.now();
+      if (remaining <= 0) return null;
+      try {
+        return await Promise.race([
+          prisma.queueJob.findUnique({ where: { jobKey } }),
+          new Promise<null>((resolve) => {
+            setTimeout(() => resolve(null), remaining);
+          }),
+        ]);
+      } catch {
+        return null;
+      }
+    };
+
+    // Grace for a late INSERT still holding a pool connection (bounded).
+    let existing = await findLiveJob();
     if (!isLiveMatch(existing)) {
-      await new Promise((r) => setTimeout(r, 150));
-      existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+      const wait = Math.min(150, Math.max(0, recoveryDeadline - Date.now()));
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      existing = await findLiveJob();
     }
     if (!isLiveMatch(existing)) {
-      await new Promise((r) => setTimeout(r, 250));
-      existing = await prisma.queueJob.findUnique({ where: { jobKey } });
+      const wait = Math.min(250, Math.max(0, recoveryDeadline - Date.now()));
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      existing = await findLiveJob();
     }
     if (isLiveMatch(existing) && existing) {
       log.warn(

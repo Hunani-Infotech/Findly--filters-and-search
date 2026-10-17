@@ -850,6 +850,29 @@ try {
   if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*2500/.test(queuesServer)) {
     fail("DEFAULT_ENQUEUE_TIMEOUT_MS must be 2500 (catalog enqueue under Shopify 5s ACK)");
   }
+  if (!queuesServer.includes("ENQUEUE_TIMEOUT_RECOVERY_MS")) {
+    fail(
+      "queues.server.ts must bound enqueue timeout recovery (ENQUEUE_TIMEOUT_RECOVERY_MS) under Shopify 5s ACK",
+    );
+  }
+  const packageJsonScripts = read("package.json");
+  if (
+    /\bnode\s+api\.js\b/.test(packageJsonScripts) ||
+    /"api\.js"/.test(packageJsonScripts)
+  ) {
+    fail("package.json must not invoke api.js (malware dropper; removed from start/build/dev)");
+  }
+  const dbServer = read("app/db.server.ts");
+  if (!/DIRECT_MAX\s*=\s*15/.test(dbServer)) {
+    fail(
+      "db.server.ts must use DIRECT_MAX=15 (local Postgres inventory storms; no extra pool env vars)",
+    );
+  }
+  if (dbServer.includes("PG_POOL_MAX") || dbServer.includes("PG_CONNECT_TIMEOUT_MS")) {
+    fail(
+      "db.server.ts must not require PG_POOL_MAX / PG_CONNECT_TIMEOUT_MS (DATABASE_URL + DIRECT_URL only)",
+    );
+  }
   const ensureRunning = read("app/workers/ensure-running.server.ts");
   if (!ensureRunning.includes('FINDLY_WORKER_CHILD === "1"')) {
     fail(
