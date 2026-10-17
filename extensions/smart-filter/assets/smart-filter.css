@@ -567,7 +567,8 @@
 
 .sf-options-swatches {
   gap: 0.45rem 0.55rem;
-  padding: 0.2rem 0.2rem 0.1rem 0;
+  /* px padding matches badge overhang (theme rem cannot shrink this) */
+  padding: 8px 8px 2px 2px;
 }
 
 .sf-options-pills {
@@ -582,6 +583,7 @@
   flex: 0 0 auto;
   width: auto;
   max-width: 100%;
+  overflow: visible;
 }
 
 .sf-option {
@@ -885,35 +887,59 @@
   background: transparent;
 }
 
+.sf-swatch:not(.sf-swatch-text) {
+  --sf-count-size: 12px;
+  --sf-count-overhang: 6px;
+}
+
 .sf-swatch:not(.sf-swatch-text) .sf-option-count {
   position: absolute;
-  right: -0.2rem;
-  top: -0.2rem;
+  top: calc(-1 * var(--sf-count-overhang));
+  right: calc(-1 * var(--sf-count-overhang));
+  bottom: auto;
+  left: auto;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 0.9rem;
-  height: 0.9rem;
-  padding: 0;
+  box-sizing: border-box;
+  width: auto;
+  min-width: var(--sf-count-size);
+  height: var(--sf-count-size);
+  padding: 0 3px;
   margin: 0;
+  border: 0;
   border-radius: 999px;
   background: #111;
   color: #fff;
-  font-size: 0.625rem;
+  /* System UI font → consistent digit metrics on every theme */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  font-size: 8px;
   font-weight: 700;
-  line-height: 0.9rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0;
   text-align: center;
+  text-indent: 0;
+  text-transform: none;
   white-space: nowrap;
-  overflow: visible;
+  overflow: hidden;
   clip: auto;
   clip-path: none;
   pointer-events: none;
+  transform: none;
 }
 
 .sf-swatch:not(.sf-swatch-text) .sf-option-count::before,
 .sf-swatch:not(.sf-swatch-text) .sf-option-count::after {
-  content: none;
+  content: none !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .sf-pill {
@@ -3722,6 +3748,14 @@ html.sf-pager-unneeded .ajaxinate-pagination {
   scrollbar-width: thin;
   scrollbar-color: #c4c4c4 transparent;
   scrollbar-gutter: auto;
+}
+
+/* Color swatches: px padding so overhanging count badges are not clipped */
+.smart-filter--top .sf-facet-pop > .sf-options-swatches:not(.sf-options-swatch-text),
+.sf-facet-pop.is-ported > .sf-options-swatches:not(.sf-options-swatch-text),
+#smart-filter-root.smart-filter--top .sf-facet-pop > .sf-options-swatches:not(.sf-options-swatch-text),
+#smart-filter-embed.smart-filter--top .sf-facet-pop > .sf-options-swatches:not(.sf-options-swatch-text) {
+  padding: 8px 8px 2px 2px !important;
 }
 
 .smart-filter--top .sf-facet-pop > .sf-options::-webkit-scrollbar,

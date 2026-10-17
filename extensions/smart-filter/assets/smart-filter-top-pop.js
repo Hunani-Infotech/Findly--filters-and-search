@@ -12,7 +12,7 @@
 (function () {
   "use strict";
 
-  var STYLE_ID = "findly-top-pop-v11";
+  var STYLE_ID = "findly-top-pop-v13";
   var PATCHED = "__findlyTopPopPatched";
   var POP_Z = "100060";
   var ignoreDocClick = false;
@@ -95,6 +95,17 @@
       "overflow-x:hidden!important;overflow-y:auto!important;" +
       "overscroll-behavior:contain;-webkit-overflow-scrolling:touch;" +
       "scrollbar-width:thin;scrollbar-color:#c4c4c4 transparent;scrollbar-gutter:auto}" +
+      /* Swatch counts sit outside the chip — px padding matches badge overhang on all themes */
+      "#smart-filter-root.smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)," +
+      "#smart-filter-embed.smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)," +
+      ".smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)," +
+      ".sf-facet-pop.is-ported>.sf-options-swatches:not(.sf-options-swatch-text){" +
+      "padding:8px 8px 2px 2px!important}" +
+      "#smart-filter-root.smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)>li," +
+      "#smart-filter-embed.smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)>li," +
+      ".smart-filter--top .sf-facet-pop>.sf-options-swatches:not(.sf-options-swatch-text)>li," +
+      ".sf-facet-pop.is-ported>.sf-options-swatches:not(.sf-options-swatch-text)>li{" +
+      "overflow:visible!important}" +
       "#smart-filter-root.smart-filter--top .sf-facet-pop>.sf-options::-webkit-scrollbar," +
       "#smart-filter-embed.smart-filter--top .sf-facet-pop>.sf-options::-webkit-scrollbar," +
       ".smart-filter--top .sf-facet-pop>.sf-options::-webkit-scrollbar," +
