@@ -16,12 +16,30 @@ declare global {
  *   handing the URL to node-pg
  * - Transaction pooler (:6543) uses a small pg.Pool instead of Prisma's
  *   connection_limit query param
+ * - Local/direct Postgres (:5432) uses a larger pool — inventory webhook
+ *   storms need headroom. Pool size / connect timeout are fixed from
+ *   DATABASE_URL host+port only (no extra env vars).
  */
 const CONNECT_TIMEOUT_MS = 30_000;
+/** Local loopback: fail before Shopify's ~5s webhook budget instead of hanging. */
+const LOCAL_CONNECT_TIMEOUT_MS = 4_000;
 const POOLER_MAX = 5;
-const DIRECT_MAX = 3;
+/** Hostinger local Postgres / non-pooler — was 3; too small for inventory storms. */
+const DIRECT_MAX = 15;
 const ERROR_MESSAGE_MAX = 180;
 const DB_READY_ATTEMPTS = 4;
+
+function isLocalPgHost(hostname: string | undefined): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function resolvePoolMax(port: string): number {
+  return isTransactionPoolerPort(port) ? POOLER_MAX : DIRECT_MAX;
+}
+
+function resolveConnectTimeoutMs(hostname: string | undefined): number {
+  return isLocalPgHost(hostname) ? LOCAL_CONNECT_TIMEOUT_MS : CONNECT_TIMEOUT_MS;
+}
 
 function parsePgUrl(raw: string | undefined): URL | null {
   if (!raw?.trim()) return null;
@@ -66,8 +84,7 @@ function pgConnectionString(raw: string | undefined): string | undefined {
     url.searchParams.delete("connection_limit");
     url.searchParams.delete("connect_timeout");
     const host = url.hostname;
-    const local = host === "localhost" || host === "127.0.0.1";
-    if (!local) {
+    if (!isLocalPgHost(host)) {
       if (!url.searchParams.get("sslmode")) {
         url.searchParams.set("sslmode", "require");
       }
@@ -101,11 +118,17 @@ function createPrismaClient() {
   if (!connectionString) {
     throw new Error("DATABASE_URL is required");
   }
-  const port = parsePgUrl(connectionString)?.port ?? "";
+  const parsed = parsePgUrl(connectionString);
+  const port = parsed?.port ?? "";
+  const poolMax = resolvePoolMax(port);
+  const connectTimeoutMs = resolveConnectTimeoutMs(parsed?.hostname);
+  log.info(
+    `[db] pool max=${poolMax} connectTimeoutMs=${connectTimeoutMs} port=${port || "5432"}`,
+  );
   const adapter = new PrismaPg({
     connectionString,
-    max: isTransactionPoolerPort(port) ? POOLER_MAX : DIRECT_MAX,
-    connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+    max: poolMax,
+    connectionTimeoutMillis: connectTimeoutMs,
   });
   return new PrismaClient({
     adapter,
