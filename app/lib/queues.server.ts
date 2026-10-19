@@ -240,10 +240,16 @@ export async function enqueueSyncJob(
   );
 }
 
-/** Shopify allows ~5s; keep catalog enqueue well under that with pooler headroom. */
-const DEFAULT_ENQUEUE_TIMEOUT_MS = 2500;
+/**
+ * Shopify allows ~5s for the full webhook HTTP response.
+ * Catalog default leaves headroom for HMAC + WebhookDelivery after enqueue.
+ * Compliance callers pass a shorter timeoutMs (e.g. 800) — unchanged.
+ */
+const DEFAULT_ENQUEUE_TIMEOUT_MS = 3500;
 /** Extra budget after enqueue timeout for late-INSERT detection (must stay under Shopify 5s). */
-const ENQUEUE_TIMEOUT_RECOVERY_MS = 800;
+const ENQUEUE_TIMEOUT_RECOVERY_MS = 900;
+/** Poll interval while waiting for a late INSERT still holding a pool slot. */
+const ENQUEUE_RECOVERY_POLL_MS = 100;
 
 /**
  * Reject if Postgres enqueue hangs (pooler / network blip).
@@ -303,16 +309,17 @@ export async function enqueueSyncJobWithTimeout(
       }
     };
 
-    // Grace for a late INSERT still holding a pool connection (bounded).
+    // Poll for a late INSERT still holding a pool connection (bounded).
+    // Inventory storms often land the row just after the race timeout — ack 200
+    // only when the durable job already exists (same durability rule as before).
     let existing = await findLiveJob();
-    if (!isLiveMatch(existing)) {
-      const wait = Math.min(150, Math.max(0, recoveryDeadline - Date.now()));
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      existing = await findLiveJob();
-    }
-    if (!isLiveMatch(existing)) {
-      const wait = Math.min(250, Math.max(0, recoveryDeadline - Date.now()));
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    while (!isLiveMatch(existing) && Date.now() < recoveryDeadline) {
+      const wait = Math.min(
+        ENQUEUE_RECOVERY_POLL_MS,
+        Math.max(0, recoveryDeadline - Date.now()),
+      );
+      if (wait <= 0) break;
+      await new Promise((r) => setTimeout(r, wait));
       existing = await findLiveJob();
     }
     if (isLiveMatch(existing) && existing) {

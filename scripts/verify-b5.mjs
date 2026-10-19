@@ -847,12 +847,19 @@ try {
   if (!queuesServer.includes('"compliance.customersRedact"')) {
     fail("queues.server.ts must declare SyncJobName compliance.customersRedact");
   }
-  if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*2500/.test(queuesServer)) {
-    fail("DEFAULT_ENQUEUE_TIMEOUT_MS must be 2500 (catalog enqueue under Shopify 5s ACK)");
+  if (!/DEFAULT_ENQUEUE_TIMEOUT_MS\s*=\s*3500/.test(queuesServer)) {
+    fail(
+      "DEFAULT_ENQUEUE_TIMEOUT_MS must be 3500 (catalog enqueue under Shopify 5s ACK; storm headroom)",
+    );
   }
   if (!queuesServer.includes("ENQUEUE_TIMEOUT_RECOVERY_MS")) {
     fail(
       "queues.server.ts must bound enqueue timeout recovery (ENQUEUE_TIMEOUT_RECOVERY_MS) under Shopify 5s ACK",
+    );
+  }
+  if (!queuesServer.includes("ENQUEUE_RECOVERY_POLL_MS")) {
+    fail(
+      "queues.server.ts must poll for late QueueJob INSERT after enqueue timeout (ENQUEUE_RECOVERY_POLL_MS)",
     );
   }
   const packageJsonScripts = read("package.json");
