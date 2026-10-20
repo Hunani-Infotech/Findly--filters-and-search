@@ -581,6 +581,59 @@ export async function fetchActiveSubscriptions(
   return json.data?.currentAppInstallation?.activeSubscriptions ?? [];
 }
 
+const SAVED_APP_SUBSCRIPTION_QUERY = `#graphql
+query SavedAppSubscription($id: ID!) {
+  node(id: $id) {
+    ... on AppSubscription {
+      id
+      status
+    }
+  }
+}`;
+
+/**
+ * Read the saved AppSubscription by id. activeSubscriptions omits charges that
+ * are still pending, so it cannot tell a confirmation URL is still open.
+ * "unknown" means the lookup failed — callers keep the saved URL so a blip
+ * cannot create a second charge. This is Admin API billing, not theme markup.
+ */
+export async function lookupSavedCharge(
+  admin: GraphqlAdmin,
+  shopifySubscriptionId: string | null | undefined,
+): Promise<"pending" | "closed" | "unknown"> {
+  const id = shopifySubscriptionId?.trim();
+  if (!id) return "unknown";
+  try {
+    const response = await admin.graphql(SAVED_APP_SUBSCRIPTION_QUERY, {
+      variables: { id },
+    });
+    const json = (await response.json()) as {
+      errors?: { message?: string }[];
+      data?: {
+        node?: { id?: string | null; status?: string | null } | null;
+      };
+    };
+    if (json.errors?.length) {
+      log.warn(
+        `[billing] saved charge lookup failed id=${id}: ${json.errors
+          .map((e) => e.message || "error")
+          .join("; ")}`,
+      );
+      return "unknown";
+    }
+    const node = json.data?.node;
+    if (!node?.id) return "closed";
+    return isLocalPendingStatus(node.status) ? "pending" : "closed";
+  } catch (error) {
+    log.warn(
+      `[billing] saved charge lookup failed id=${id}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return "unknown";
+  }
+}
+
 const SHOP_PARTNER_DEVELOPMENT_QUERY = `#graphql
 query ShopPartnerDevelopment {
   shop {
@@ -764,13 +817,22 @@ export async function startStandardSubscriptionIfLive(
       where: { shopId: latest.id },
     });
     const testCharge = isBillingTestMode();
-    if (local && pendingChargeMatchesMode(local, testCharge)) {
+    const savedCharge =
+      local && isLocalPendingStatus(local.status)
+        ? await lookupSavedCharge(admin, local.shopifySubscriptionId)
+        : "closed";
+    if (
+      local &&
+      pendingChargeMatchesMode(local, testCharge) &&
+      savedCharge !== "closed"
+    ) {
       return { confirmationUrl: local.confirmationUrl!, reused: true };
     }
     if (
       local &&
       isLocalPendingStatus(local.status) &&
-      Boolean(local.test) === testCharge
+      Boolean(local.test) === testCharge &&
+      savedCharge !== "closed"
     ) {
       // Pending charge exists but URL missing/invalid — never create another.
       return null;
@@ -864,14 +926,29 @@ export async function startOrReusePaidSubscription(
     const local = await prisma.subscription.findUnique({
       where: { shopId },
     });
-    if (!hasActivePaid && local && pendingChargeMatchesMode(local, testCharge)) {
+    const savedCharge =
+      !hasActivePaid && local && isLocalPendingStatus(local.status)
+        ? await lookupSavedCharge(admin, local.shopifySubscriptionId)
+        : "closed";
+    if (
+      !hasActivePaid &&
+      local &&
+      pendingChargeMatchesMode(local, testCharge) &&
+      savedCharge !== "closed"
+    ) {
       return { kind: "pending", confirmationUrl: local.confirmationUrl! };
+    }
+    if (savedCharge === "closed" && local && isLocalPendingStatus(local.status)) {
+      log.info(
+        `[billing] saved charge is not pending for ${shopDomain} id=${local.shopifySubscriptionId ?? "none"}; creating a replacement`,
+      );
     }
     if (
       !hasActivePaid &&
       local &&
       isLocalPendingStatus(local.status) &&
-      Boolean(local.test) === testCharge
+      Boolean(local.test) === testCharge &&
+      savedCharge !== "closed"
     ) {
       return {
         kind: "error",

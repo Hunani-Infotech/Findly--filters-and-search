@@ -45,7 +45,7 @@ import {
   subscriptionChargeIsTest,
   syncActiveSubscriptions,
 } from "../services/billing.server";
-import { planDisplayName } from "../constants/plans";
+import { planDisplayName, planKeyFromName } from "../constants/plans";
 
 export { BillingPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
@@ -167,7 +167,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  // Same top-window handoff as a new charge. Does not call appSubscriptionCreate.
+  // Reuse the saved charge when Shopify still has it pending. A closed charge
+  // falls through and startOrReusePaidSubscription opens a replacement.
+  let requested = String(formData.get("plan") ?? "");
   if (intent === "approve_pending") {
     await refreshPartnerDevelopment(admin, shop.id);
     const { shop: latest } = await ensureShopAccess(session.shop);
@@ -184,10 +186,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           "There is no Shopify charge waiting for approval. Choose a plan to start one.",
       };
     }
-    return shopifyRedirect(url, { target: "_top" });
+    const named = planKeyFromName(latest.subscription?.planName);
+    requested = isPaidPlanKey(named) ? named : "standard";
   }
 
-  const requested = String(formData.get("plan") ?? "");
   if (!isPaidPlanKey(requested)) {
     return { error: "Choose Standard or Pro to start a Shopify charge." };
   }
