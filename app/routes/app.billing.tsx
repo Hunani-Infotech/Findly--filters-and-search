@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -232,6 +232,7 @@ export default function BillingPage() {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const [downgradeOpen, setDowngradeOpen] = useState(false);
+  const downgradeToastShown = useRef(false);
   const [seenFetcherData, setSeenFetcherData] = useState(fetcher.data);
 
   if (fetcher.data !== seenFetcherData) {
@@ -249,13 +250,18 @@ export default function BillingPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("notice") === "downgraded") {
+    if (
+      params.get("notice") === "downgraded" &&
+      !downgradeToastShown.current
+    ) {
+      downgradeToastShown.current = true;
+      setDowngradeOpen(false);
       shopify.toast.show("You are on the Development plan.");
     }
     if (params.get("notice") === "already_on_plan") {
       shopify.toast.show("You are already on this plan.");
     }
-  }, [shopify]);
+  }, [shopify, data.currentPlan]);
 
   const submitting = ["loading", "submitting"].includes(fetcher.state);
   const upgradingPlan =
@@ -268,6 +274,19 @@ export default function BillingPage() {
   const approving =
     submitting &&
     String(fetcher.formData?.get("intent") ?? "") === "approve_pending";
+
+  // Cancel redirects back to this same route, so React keeps the modal open.
+  // Hide it as soon as the loader shows Development, then clear the flag.
+  useEffect(() => {
+    if (!downgradeOpen || cancelling || data.currentPlan !== "free") return;
+    if (fetcher.data && "error" in fetcher.data && fetcher.data.error) return;
+    setDowngradeOpen(false);
+    if (!downgradeToastShown.current) {
+      downgradeToastShown.current = true;
+      shopify.toast.show("You are on the Development plan.");
+    }
+  }, [downgradeOpen, cancelling, data.currentPlan, fetcher.data, shopify]);
+
   const free = data.plans.free;
   const standard = data.plans.standard;
   const pro = data.plans.pro;
@@ -276,11 +295,15 @@ export default function BillingPage() {
   const showFreePlan = data.partnerDevelopment || data.devUnlockLimits;
   const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
   const pendingConfirmationUrl = data.pendingConfirmationUrl;
-  const subStatus = data.subscription?.status
-    ? data.subscription.status
-    : liveUnpaid && !data.devUnlockLimits
+  const rawSubStatus = String(data.subscription?.status || "").toUpperCase();
+  const subStatus =
+    liveUnpaid && !data.devUnlockLimits
       ? "Choose Standard or Pro"
-      : "None (Free)";
+      : data.currentPlan === "free"
+        ? rawSubStatus === "PENDING" || rawSubStatus === "ACCEPTED"
+          ? "Pending approval"
+          : "No active charge"
+        : data.subscription?.status || "Active";
   const freePlanLabel = planDisplayName("free", {
     partnerDevelopment: data.partnerDevelopment,
     unlocked: data.devUnlockLimits,
@@ -566,7 +589,7 @@ export default function BillingPage() {
       </Layout>
 
       <Modal
-        open={showFreePlan && downgradeOpen}
+        open={showFreePlan && downgradeOpen && data.currentPlan !== "free"}
         onClose={() => setDowngradeOpen(false)}
         title="Downgrade to Development?"
         primaryAction={{
