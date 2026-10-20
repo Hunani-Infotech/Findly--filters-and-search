@@ -119,6 +119,14 @@ function assertNoAutoRedirectBanner(appTsx) {
   if (!appTsx.includes("Approve plan")) {
     fail("app.tsx missing Approve plan CTA label");
   }
+  if (!appTsx.includes("approve_pending")) {
+    fail(
+      "app.tsx Approve plan must submit approve_pending so Shopify's redirect leaves the iframe",
+    );
+  }
+  if (/confirmationUrl[\s\S]{0,180}external/.test(appTsx)) {
+    fail("app.tsx must not mark the charge URL as external (Polaris forces target=_blank)");
+  }
   log.info("5. app.tsx uses B-9 Approve banner (no kickoff redirect)");
 }
 
@@ -199,6 +207,23 @@ function assertPricingAlreadyActive(billingPage) {
   if (!billingPage.includes("Current plan") || !billingPage.includes("disabled")) {
     fail(
       "app.billing.tsx must disable Current plan button (already_active pattern)",
+    );
+  }
+  const approveIdx = billingPage.indexOf('intent === "approve_pending"');
+  const createIdx = billingPage.indexOf("await startOrReusePaidSubscription");
+  if (approveIdx === -1 || createIdx === -1 || approveIdx > createIdx) {
+    fail(
+      "approve_pending must redirect the saved charge before startOrReusePaidSubscription",
+    );
+  }
+  if (!billingPage.includes('shopifyRedirect(')) {
+    fail(
+      "app.billing.tsx must use authenticate.admin redirect for the Shopify charge screen",
+    );
+  }
+  if (/pendingConfirmationUrl[\s\S]{0,250}external/.test(billingPage)) {
+    fail(
+      "app.billing.tsx must not mark the charge URL as external (Polaris forces target=_blank)",
     );
   }
   log.info("9. Pricing already_active / Current plan disabled");

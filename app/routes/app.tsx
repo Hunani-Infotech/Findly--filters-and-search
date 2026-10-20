@@ -7,10 +7,11 @@ import { lazy, Suspense, useEffect } from "react";
 import {
   isRouteErrorResponse,
   Outlet,
+  useFetcher,
   useLoaderData,
   useRouteError,
 } from "react-router";
-import { NavMenu } from "@shopify/app-bridge-react";
+import { NavMenu, useAppBridge } from "@shopify/app-bridge-react";
 import {
   AppProvider as PolarisAppProvider,
   Banner,
@@ -206,14 +207,7 @@ export default function App() {
                   <BlockStack gap="200">
                     <p>{billingGate.message}</p>
                     {billingGate.confirmationUrl ? (
-                      <Button
-                        url={billingGate.confirmationUrl}
-                        external
-                        target="_top"
-                        variant="primary"
-                      >
-                        {billingGate.ctaLabel}
-                      </Button>
+                      <ApprovePlanButton label={billingGate.ctaLabel} />
                     ) : (
                       <Button url="/app/billing" variant="primary">
                         {billingGate.ctaLabel}
@@ -228,6 +222,33 @@ export default function App() {
         </div>
       </PolarisAppProvider>
     </ShopifyAppProvider>
+  );
+}
+
+function ApprovePlanButton({ label }: { label: string }) {
+  const fetcher = useFetcher<{ error?: string }>();
+  const shopify = useAppBridge();
+  const approving = ["loading", "submitting"].includes(fetcher.state);
+
+  useEffect(() => {
+    const error =
+      fetcher.data && "error" in fetcher.data ? fetcher.data.error : null;
+    if (error) shopify.toast.show(String(error), { isError: true });
+  }, [fetcher.data, shopify]);
+
+  return (
+    <Button
+      variant="primary"
+      loading={approving}
+      onClick={() =>
+        fetcher.submit(
+          { intent: "approve_pending" },
+          { method: "POST", action: "/app/billing" },
+        )
+      }
+    >
+      {label}
+    </Button>
   );
 }
 

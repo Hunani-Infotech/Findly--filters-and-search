@@ -167,6 +167,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
+  // Same top-window handoff as a new charge. Does not call appSubscriptionCreate.
+  if (intent === "approve_pending") {
+    await refreshPartnerDevelopment(admin, shop.id);
+    const { shop: latest } = await ensureShopAccess(session.shop);
+    const testCharge = subscriptionChargeIsTest(
+      Boolean(latest.partnerDevelopment),
+    );
+    const url = latest.subscription?.confirmationUrl ?? "";
+    if (
+      !pendingChargeMatchesMode(latest.subscription, testCharge) ||
+      !isAllowedShopifyConfirmationUrl(url)
+    ) {
+      return {
+        error:
+          "There is no Shopify charge waiting for approval. Choose a plan to start one.",
+      };
+    }
+    return shopifyRedirect(url, { target: "_top" });
+  }
+
   const requested = String(formData.get("plan") ?? "");
   if (!isPaidPlanKey(requested)) {
     return { error: "Choose Standard or Pro to start a Shopify charge." };
@@ -243,6 +263,9 @@ export default function BillingPage() {
   const cancelling =
     submitting &&
     String(fetcher.formData?.get("intent") ?? "") === "cancel_to_free";
+  const approving =
+    submitting &&
+    String(fetcher.formData?.get("intent") ?? "") === "approve_pending";
   const free = data.plans.free;
   const standard = data.plans.standard;
   const pro = data.plans.pro;
@@ -324,12 +347,17 @@ export default function BillingPage() {
                     confirmation page — a new charge is not created.
                   </p>
                   <Button
-                    url={pendingConfirmationUrl}
-                    external
-                    target="_top"
                     variant="primary"
+                    loading={approving}
+                    disabled={Boolean(upgradingPlan) || cancelling}
+                    onClick={() =>
+                      fetcher.submit(
+                        { intent: "approve_pending" },
+                        { method: "POST" },
+                      )
+                    }
                   >
-                    Approve plan
+                    {approving ? "Redirecting to Shopify…" : "Approve plan"}
                   </Button>
                 </BlockStack>
               </Banner>
@@ -425,7 +453,7 @@ export default function BillingPage() {
                     <Button
                       tone="critical"
                       loading={cancelling}
-                      disabled={Boolean(upgradingPlan) || cancelling}
+                      disabled={Boolean(upgradingPlan) || cancelling || approving}
                       onClick={() => setDowngradeOpen(true)}
                     >
                       Downgrade to Development
@@ -461,7 +489,7 @@ export default function BillingPage() {
                   ) : (
                     <Button
                       loading={upgradingPlan === "standard"}
-                      disabled={Boolean(upgradingPlan) || cancelling}
+                      disabled={Boolean(upgradingPlan) || cancelling || approving}
                       onClick={() =>
                         fetcher.submit({ plan: "standard" }, { method: "POST" })
                       }
@@ -506,7 +534,7 @@ export default function BillingPage() {
                     <Button
                       variant="primary"
                       loading={upgradingPlan === "pro"}
-                      disabled={Boolean(upgradingPlan) || cancelling}
+                      disabled={Boolean(upgradingPlan) || cancelling || approving}
                       onClick={() =>
                         fetcher.submit({ plan: "pro" }, { method: "POST" })
                       }
