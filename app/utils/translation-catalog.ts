@@ -1,3 +1,9 @@
+import {
+  DEFAULT_WIDGET_I18N,
+  canonicalizeWidgetKey,
+  collapseLocaleStrings,
+} from "./widget-i18n";
+
 export const TRANSLATION_TABS = [
   { id: "product", label: "Product" },
   { id: "search", label: "Search" },
@@ -24,7 +30,8 @@ export const TRANSLATION_FIELDS: Record<
     { key: "product.unavailable", reference: "Unavailable", defaultValue: "Unavailable" },
     { key: "product.sold_out", reference: "Sold out", defaultValue: "Sold out" },
     { key: "product.sale", reference: "Sale", defaultValue: "Sale" },
-    { key: "product.load_more", reference: "Load more", defaultValue: "Load more" },
+    { key: "load_more", reference: "Load more", defaultValue: "Load more" },
+    { key: "loading_more", reference: "Loading more", defaultValue: "Loading more…" },
     { key: "product.show", reference: "Show", defaultValue: "Show" },
     {
       key: "product.search_products",
@@ -312,4 +319,115 @@ export function defaultCatalogStrings() {
 
 export function labelKeyFromOption(optionKey: string) {
   return `label.option.${optionKey}`;
+}
+
+export function buildLabelFields(
+  options: Array<{ optionKey: string; label: string }>,
+): TranslationField[] {
+  const seen = new Set(
+    BUILTIN_LABEL_FIELDS.map((field) => field.reference.toLowerCase()),
+  );
+  const labelFields: TranslationField[] = [...BUILTIN_LABEL_FIELDS];
+  for (const option of options) {
+    const label = option.label.trim();
+    if (!label || seen.has(label.toLowerCase())) continue;
+    seen.add(label.toLowerCase());
+    labelFields.push({
+      key: labelKeyFromOption(option.optionKey),
+      reference: label,
+      defaultValue: "",
+    });
+  }
+  return labelFields;
+}
+
+/** English text the editor shows when a language has no saved override. */
+export function englishSourceStrings(): Record<string, string> {
+  return {
+    ...defaultCatalogStrings(),
+    ...DEFAULT_WIDGET_I18N,
+  };
+}
+
+export function normalizeStoredStrings(
+  stored: Record<string, string> | undefined,
+): Record<string, string> {
+  return collapseLocaleStrings(stored);
+}
+
+/**
+ * True when every saved value is still the English source.
+ * Adding a language used to copy those English strings into the new locale.
+ */
+export function isUntouchedEnglishCopy(
+  stored: Record<string, string> | undefined,
+): boolean {
+  const normalized = normalizeStoredStrings(stored);
+  const source = englishSourceStrings();
+  const values = Object.entries(normalized).filter(([, value]) => value.trim());
+  if (values.length === 0) return false;
+  return values.every(([key, value]) => value.trim() === (source[key] || "").trim());
+}
+
+export function visibleLocaleStrings(
+  stored: Record<string, string> | undefined,
+  isDefault: boolean,
+): Record<string, string> {
+  const normalized = normalizeStoredStrings(stored);
+  if (isDefault) {
+    const merged = englishSourceStrings();
+    for (const [key, value] of Object.entries(normalized)) {
+      if (value.trim()) merged[key] = value;
+    }
+    return merged;
+  }
+  if (isUntouchedEnglishCopy(normalized)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(normalized)) {
+    if (value.trim()) out[key] = value;
+  }
+  return out;
+}
+
+/** Strings that ship with English text. Blank label rows do not block completion. */
+export function requiredTranslationKeys(): string[] {
+  const source = englishSourceStrings();
+  const keys: string[] = [];
+  for (const fields of Object.values(TRANSLATION_FIELDS)) {
+    for (const field of fields) {
+      if ((source[field.key] || "").trim()) keys.push(field.key);
+    }
+  }
+  return keys;
+}
+
+export function localeIsComplete(
+  stored: Record<string, string> | undefined,
+  options: { isDefault: boolean; customKeys?: string[] },
+): boolean {
+  const visible = options.isDefault
+    ? visibleLocaleStrings(stored, true)
+    : isUntouchedEnglishCopy(stored)
+      ? {}
+      : visibleLocaleStrings(stored, false);
+  for (const key of requiredTranslationKeys()) {
+    if (!(visible[key] || "").trim()) return false;
+  }
+  for (const key of options.customKeys || []) {
+    if (!(visible[key] || "").trim()) return false;
+  }
+  return true;
+}
+
+export function persistLocaleStrings(
+  raw: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    out[canonicalizeWidgetKey(key)] = trimmed;
+  }
+  return out;
 }

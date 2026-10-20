@@ -110,6 +110,37 @@ export const WIDGET_I18N_LABELS: Record<WidgetI18nKey, string> = {
 
 export type WidgetI18nMap = Record<string, Record<string, string>>;
 
+/** Editor used to store Load more under a different key than the storefront. */
+export function canonicalizeWidgetKey(key: string): string {
+  if (key === "product.load_more") return "load_more";
+  return key;
+}
+
+/** One value per key. A translated legacy key wins over an untouched English copy. */
+export function collapseLocaleStrings(
+  raw: Record<string, string> | undefined,
+): Record<string, string> {
+  const groups = new Map<string, string[]>();
+  for (const [key, value] of Object.entries(raw || {})) {
+    if (typeof value !== "string") continue;
+    const canonical = canonicalizeWidgetKey(key);
+    const list = groups.get(canonical) || [];
+    list.push(value);
+    groups.set(canonical, list);
+  }
+  const out: Record<string, string> = {};
+  for (const [key, values] of groups) {
+    const trimmed = values.map((value) => value.trim()).filter(Boolean);
+    const source = DEFAULT_WIDGET_I18N[key as WidgetI18nKey];
+    const translated = source
+      ? trimmed.find((value) => value !== source)
+      : undefined;
+    const chosen = translated || trimmed[0];
+    if (chosen) out[key] = chosen;
+  }
+  return out;
+}
+
 export function parseWidgetI18nMap(raw: unknown): WidgetI18nMap {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: WidgetI18nMap = {};
@@ -121,7 +152,7 @@ export function parseWidgetI18nMap(raw: unknown): WidgetI18nMap {
     for (const [key, value] of Object.entries(strings as Record<string, unknown>)) {
       if (typeof value === "string") row[key] = value;
     }
-    out[locale] = row;
+    out[locale] = collapseLocaleStrings(row);
   }
   return out;
 }

@@ -23,13 +23,13 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { ADDABLE_LOCALES } from "../utils/admin-locales";
-import { csvCell, downloadCsv, parseCsv } from "../utils/csv";
+import { downloadCsv } from "../utils/csv";
 import { useConfirmDelete } from "../components/confirm-delete-modal";
 import {
   getAdminNavExtras,
   saveAdminNavExtras,
-  type AdminLocaleRow,
 } from "../services/admin-extras.server";
+import { listColorOptionKeys } from "../services/color-swatches.server";
 import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import { slicePage } from "../utils/admin-list-page";
 import { indexTablePagination } from "../components/admin-list-pagination";
@@ -37,97 +37,35 @@ import { authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
 import {
-  DEFAULT_WIDGET_I18N,
-  WIDGET_I18N_KEYS,
-  WIDGET_I18N_LABELS,
-  mergeWidgetChrome,
-  type WidgetI18nKey,
-  type WidgetI18nMap,
-} from "../utils/widget-i18n";
+  buildLabelFields,
+  isUntouchedEnglishCopy,
+  localeIsComplete,
+  persistLocaleStrings,
+  type TranslationField,
+} from "../utils/translation-catalog";
+import {
+  applyTranslationCsv,
+  renderTranslationCsv,
+  sampleTranslationCsv,
+  type TranslationCustomRef,
+} from "../utils/translation-csv";
+import type { WidgetI18nMap } from "../utils/widget-i18n";
 
 export { TranslationListSkeleton as HydrateFallback } from "../components/admin-skeletons";
 
-const WIDGET_KEY_SET = new Set<string>(WIDGET_I18N_KEYS);
+function customByLocale(
+  extras: { translationCustom?: Record<string, TranslationCustomRef[]> },
+): Record<string, TranslationCustomRef[]> {
+  return extras.translationCustom || {};
+}
 
-function widgetCsvRows(
-  locale: string,
-  chrome: Record<WidgetI18nKey, string>,
-  includeLocale: boolean,
+function customKeysFor(
+  extras: { translationCustom?: Record<string, TranslationCustomRef[]> },
+  code: string,
 ) {
-  return WIDGET_I18N_KEYS.map((key, index) => {
-    const cells = [
-      "widget",
-      key,
-      WIDGET_I18N_LABELS[key],
-      chrome[key],
-      index + 1,
-    ];
-    if (includeLocale) cells.push(locale);
-    return cells.map(csvCell).join(",");
-  });
-}
-
-function sampleCsv() {
-  const header = ["Section", "Key", "Label", "Value", "Order", "Locale"].join(
-    ",",
+  return (extras.translationCustom?.[code] || []).map(
+    (field) => `custom.${field.id}`,
   );
-  const rows = widgetCsvRows("en", DEFAULT_WIDGET_I18N, true);
-  return [header, ...rows].join("\n");
-}
-
-function exportCsv(langs: AdminLocaleRow[], i18n: WidgetI18nMap) {
-  const header = ["Section", "Key", "Label", "Value", "Order", "Locale"].join(
-    ",",
-  );
-  const rows: string[] = [];
-  for (const lang of langs) {
-    const chrome = mergeWidgetChrome(i18n[lang.code]);
-    rows.push(...widgetCsvRows(lang.code, chrome, true));
-  }
-  return [header, ...rows].join("\n");
-}
-
-function isWidgetKey(value: string): value is WidgetI18nKey {
-  return WIDGET_KEY_SET.has(value);
-}
-
-function parseStringsPayload(
-  form: FormData,
-): Partial<Record<WidgetI18nKey, string>> | { error: string } {
-  const jsonRaw = form.get("strings");
-  if (typeof jsonRaw === "string" && jsonRaw.trim()) {
-    try {
-      const parsed = JSON.parse(jsonRaw) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return { error: "Invalid strings JSON." };
-      }
-      const out: Partial<Record<WidgetI18nKey, string>> = {};
-      for (const key of WIDGET_I18N_KEYS) {
-        const value = (parsed as Record<string, unknown>)[key];
-        if (typeof value === "string") out[key] = value;
-      }
-      return out;
-    } catch {
-      return { error: "Invalid strings JSON." };
-    }
-  }
-
-  const out: Partial<Record<WidgetI18nKey, string>> = {};
-  for (const key of WIDGET_I18N_KEYS) {
-    const value = form.get(key);
-    if (typeof value === "string") out[key] = value;
-  }
-  return out;
-}
-
-function stringsAreComplete(chrome: Record<WidgetI18nKey, string>) {
-  return WIDGET_I18N_KEYS.every((key) => chrome[key].trim().length > 0);
-}
-
-function normalizeImportLocale(raw: string, fallback: string) {
-  const locale = raw.trim() || fallback;
-  if (!locale || locale.toLowerCase() === "default") return "en";
-  return locale;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -135,13 +73,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (auth.bot) {
     return {
       langs: [{ code: "en", name: "English", complete: true, isDefault: true }],
-      i18n: {},
+      i18n: {} as WidgetI18nMap,
+      labelFields: [] as TranslationField[],
+      customByLocale: {} as Record<string, TranslationCustomRef[]>,
     };
   }
   const { session } = auth;
   const { shop } = await ensureShopAccess(session.shop);
-  const extras = await getAdminNavExtras(shop.id);
-  return { langs: extras.langs, i18n: extras.i18n };
+  const [extras, options] = await Promise.all([
+    getAdminNavExtras(shop.id),
+    listColorOptionKeys(shop.id),
+  ]);
+  return {
+    langs: extras.langs,
+    i18n: extras.i18n,
+    labelFields: buildLabelFields(options),
+    customByLocale: customByLocale(extras),
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -166,7 +114,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
     extras.i18n = {
       ...extras.i18n,
-      [locale.code]: { ...DEFAULT_WIDGET_I18N },
+      [locale.code]: {},
     };
     await saveAdminNavExtras(shop.id, extras);
     return { ok: true as const, toast: `${locale.name} added` };
@@ -205,19 +153,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const name = String(form.get("name") || "").trim();
     const row = extras.langs.find((lang) => lang.code === code);
     if (!row) return { error: "Language not found." };
-    const parsed = parseStringsPayload(form);
-    if ("error" in parsed) return parsed;
-    const merged = mergeWidgetChrome({
-      ...extras.i18n[code],
-      ...parsed,
-    });
-    extras.i18n = { ...extras.i18n, [code]: merged };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(String(form.get("strings") || "{}"));
+    } catch {
+      return { error: "Invalid strings JSON." };
+    }
+    const incoming: Record<string, string> = {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof value === "string") incoming[key] = value;
+      }
+    }
+    const previous = isUntouchedEnglishCopy(extras.i18n[code])
+      ? {}
+      : { ...(extras.i18n[code] || {}) };
+    for (const [key, value] of Object.entries(incoming)) {
+      if (value.trim()) previous[key] = value;
+      else delete previous[key];
+    }
+    const saved = persistLocaleStrings(previous);
+    extras.i18n = { ...extras.i18n, [code]: saved };
     extras.langs = extras.langs.map((lang) =>
       lang.code === code
         ? {
             ...lang,
             name: name || lang.name,
-            complete: stringsAreComplete(merged),
+            complete: localeIsComplete(saved, {
+              isDefault: lang.isDefault,
+              customKeys: customKeysFor(extras, code),
+            }),
           }
         : lang,
     );
@@ -228,50 +193,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "importCsv") {
     const csv = String(form.get("csv") || "");
     if (!csv.trim()) return { error: "CSV is empty." };
-    const table = parseCsv(csv);
-    if (table.length < 2) return { error: "CSV has no data rows." };
-    const header = table[0]!.map((cell) => cell.trim().toLowerCase());
-    const keyIdx = header.indexOf("key");
-    const valueIdx = header.indexOf("value");
-    if (keyIdx < 0 || valueIdx < 0) {
-      return { error: "CSV must include Key and Value columns." };
-    }
-    const localeIdx = header.indexOf("locale");
-    const fallbackLocale = normalizeImportLocale(
-      String(form.get("code") || ""),
+    const applied = applyTranslationCsv(
+      extras.langs,
+      extras.i18n,
+      csv,
+      ADDABLE_LOCALES,
       "en",
+      customByLocale(extras),
     );
-    const nextI18n: WidgetI18nMap = { ...extras.i18n };
-    let count = 0;
-    const touched = new Set<string>();
-    for (const cells of table.slice(1)) {
-      const key = String(cells[keyIdx] || "").trim();
-      if (!isWidgetKey(key)) continue;
-      const value = String(cells[valueIdx] ?? "");
-      const locale = normalizeImportLocale(
-        localeIdx >= 0 ? String(cells[localeIdx] || "") : "",
-        fallbackLocale,
-      );
-      nextI18n[locale] = { ...nextI18n[locale], [key]: value };
-      touched.add(locale);
-      count += 1;
-    }
-    extras.i18n = nextI18n;
-    if (touched.size > 0) {
-      extras.langs = extras.langs.map((lang) =>
-        touched.has(lang.code)
-          ? {
-              ...lang,
-              complete: stringsAreComplete(mergeWidgetChrome(nextI18n[lang.code])),
-            }
-          : lang,
-      );
-    }
+    if ("error" in applied) return applied;
+    extras.langs = applied.langs;
+    extras.i18n = applied.i18n;
     await saveAdminNavExtras(shop.id, extras);
+    const skipped =
+      applied.skipped > 0 ? ` ${applied.skipped} rows skipped.` : "";
     return {
       ok: true as const,
-      toast: `Imported ${count} string${count === 1 ? "" : "s"}`,
-      count,
+      toast: `Imported ${applied.imported} string${applied.imported === 1 ? "" : "s"}.${skipped}`,
+      count: applied.imported,
     };
   }
 
@@ -279,7 +218,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function TranslationPage() {
-  const { langs, i18n } = useLoaderData<typeof loader>();
+  const { langs, i18n, labelFields, customByLocale: customFields } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigate = useEmbeddedNavigate();
   const shopify = useAppBridge();
@@ -435,7 +375,13 @@ export default function TranslationPage() {
         {
           content: "Export",
           onAction: () =>
-            downloadCsv("findly-translations.csv", exportCsv(langs, i18n)),
+            downloadCsv(
+              "findly-translations.csv",
+              renderTranslationCsv(langs, i18n, {
+                labelFields,
+                customByLocale: customFields,
+              }),
+            ),
         },
       ]}
     >
@@ -527,14 +473,15 @@ export default function TranslationPage() {
         <Modal.Section>
           <BlockStack gap="300">
             <Text as="p">
-              Upload a CSV with columns Section, Key, Label, Value, Order,
-              Locale (Locale optional). Matching widget keys are saved per
-              locale. Excel (.xlsx) apply is CSV-only for now.
+              Upload a CSV with columns Section, Key, Label, Value, Order, and
+              Locale. Each language includes Product, Search, Filter, Sort, and
+              Filter option labels. Empty Value cells clear that string. Excel
+              (.xlsx) is not applied.
             </Text>
             <Button
               variant="plain"
               onClick={() =>
-                downloadCsv("findly-translations-sample.csv", sampleCsv())
+                downloadCsv("findly-translations-sample.csv", sampleTranslationCsv())
               }
             >
               Download sample CSV

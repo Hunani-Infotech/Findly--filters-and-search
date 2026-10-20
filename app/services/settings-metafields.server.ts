@@ -145,7 +145,13 @@ export function parseDeclaredMetafieldRows(raw: string): {
   }
 }
 
-/** Drop Filter on newly synced rows until the shop is within plan limits. */
+/**
+ * Cap is inclusive on every plan: 25 Filter metafields on a development store,
+ * 6 on Standard, 15 on Pro. Saved rows keep their Applies to values.
+ * A new definition is added with Filter while the unique count is still under the cap.
+ * A duplicate of a row already in the list does not consume another slot.
+ * Overflow drops Filter only from newly synced rows.
+ */
 export function mergeSyncedMetafields(
   existing: SettingsMetafieldRow[],
   extras: SettingsMetafieldRow[],
@@ -154,13 +160,23 @@ export function mergeSyncedMetafields(
   const extraIds = new Set(
     extras.map((row) => mappingRowId(row.ownerType, row.namespace, row.key)),
   );
-  const merged = [...existing, ...extras];
+  const byId = new Map<string, SettingsMetafieldRow>();
+  for (const row of existing) {
+    byId.set(mappingRowId(row.ownerType, row.namespace, row.key), row);
+  }
+  for (const row of extras) {
+    byId.set(mappingRowId(row.ownerType, row.namespace, row.key), row);
+  }
+  const merged = [...byId.values()];
+
+  const limit = Math.max(0, filterLimit);
   let filterCount = merged.filter((row) => mappingAppliesToFilter(row)).length;
-  if (filterCount <= filterLimit) return merged;
+  if (filterCount <= limit) return merged;
+
   return merged.map((row) => {
     const id = mappingRowId(row.ownerType, row.namespace, row.key);
     if (
-      filterCount <= filterLimit ||
+      filterCount <= limit ||
       !extraIds.has(id) ||
       !mappingAppliesToFilter(row)
     ) {

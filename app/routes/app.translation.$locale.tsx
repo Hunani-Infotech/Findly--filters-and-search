@@ -18,14 +18,15 @@ import {
   type AdminLocaleRow,
 } from "../services/admin-extras.server";
 import { listColorOptionKeys } from "../services/color-swatches.server";
-import { mergeWidgetChrome } from "../utils/widget-i18n";
 import {
-  BUILTIN_LABEL_FIELDS,
   TRANSLATION_FIELDS,
   TRANSLATION_TABS,
-  defaultCatalogStrings,
-  labelKeyFromOption,
+  buildLabelFields,
+  englishSourceStrings,
+  localeIsComplete,
   parseTranslationTab,
+  persistLocaleStrings,
+  visibleLocaleStrings,
   type TranslationField,
 } from "../utils/translation-catalog";
 
@@ -33,16 +34,6 @@ export { TranslationLocaleSkeleton as HydrateFallback } from "../components/admi
 
 /** Set true to restore Custom tab "+ Add field". */
 const ALLOW_CUSTOM_FIELDS = false;
-
-function mergeLocaleStrings(
-  stored: Record<string, string> | undefined,
-): Record<string, string> {
-  return {
-    ...defaultCatalogStrings(),
-    ...mergeWidgetChrome(stored),
-    ...(stored || {}),
-  };
-}
 
 function decodeLocaleParam(raw: string | undefined) {
   const value = String(raw ?? "").trim();
@@ -97,8 +88,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     };
     return {
       lang,
-      strings: mergeLocaleStrings(undefined),
-      labelFields: [...BUILTIN_LABEL_FIELDS],
+      strings: visibleLocaleStrings(undefined, true),
+      labelFields: buildLabelFields([]),
       customFields: [] as Array<{ id: string; reference: string }>,
     };
   }
@@ -110,22 +101,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const code = lang.code;
   const options = await listColorOptionKeys(shop.id);
-  const seen = new Set(BUILTIN_LABEL_FIELDS.map((field) => field.reference.toLowerCase()));
-  const labelFields: TranslationField[] = [...BUILTIN_LABEL_FIELDS];
-  for (const option of options) {
-    const label = option.label.trim();
-    if (!label || seen.has(label.toLowerCase())) continue;
-    seen.add(label.toLowerCase());
-    labelFields.push({
-      key: labelKeyFromOption(option.optionKey),
-      reference: label,
-      defaultValue: "",
-    });
-  }
+  const labelFields = buildLabelFields(options);
 
   return {
     lang,
-    strings: mergeLocaleStrings(mapForLocale(extras.i18n, code)),
+    strings: visibleLocaleStrings(mapForLocale(extras.i18n, code), lang.isDefault),
     labelFields,
     customFields: mapForLocale(extras.translationCustom, code) || [],
   };
@@ -163,13 +143,28 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     } catch {
       return { error: "Invalid strings JSON." };
     }
-    const next: Record<string, string> = { ...(mapForLocale(extras.i18n, code) || {}) };
+    const next: Record<string, string> = {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
         if (typeof value === "string") next[key] = value;
       }
     }
-    extras.i18n = { ...extras.i18n, [code]: next };
+    const saved = persistLocaleStrings(next);
+    extras.i18n = { ...extras.i18n, [code]: saved };
+    const customKeys = (mapForLocale(extras.translationCustom, code) || []).map(
+      (field) => `custom.${field.id}`,
+    );
+    extras.langs = extras.langs.map((row) =>
+      row.code === code
+        ? {
+            ...row,
+            complete: localeIsComplete(saved, {
+              isDefault: row.isDefault,
+              customKeys,
+            }),
+          }
+        : row,
+    );
     await saveAdminNavExtras(shop.id, extras);
     return { ok: true as const };
   }
@@ -194,6 +189,7 @@ export default function TranslationLocalePage() {
 
   const dirty = JSON.stringify(drafts) !== JSON.stringify(strings);
   const busy = fetcher.state !== "idle";
+  const sources = useMemo(() => englishSourceStrings(), []);
 
   const fields = useMemo((): TranslationField[] => {
     if (tab === "labels") return labelFields;
@@ -268,7 +264,11 @@ export default function TranslationLocalePage() {
                   <input
                     className="findly-i18n-input"
                     value={drafts[field.key] ?? ""}
-                    placeholder="Enter translation value"
+                    placeholder={
+                      lang.isDefault
+                        ? "Enter translation value"
+                        : sources[field.key] || "Enter translation value"
+                    }
                     onChange={(event) =>
                       setDrafts((current) => ({
                         ...current,

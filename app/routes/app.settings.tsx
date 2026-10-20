@@ -396,7 +396,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         admin,
         existing,
       );
-      if (!result.extras.length) {
+      const merged = mergeSyncedMetafields(
+        existing,
+        result.extras,
+        loaded.filterLimit,
+      );
+      const filtersBefore = existing.filter((row) =>
+        row.appliesTo.includes("filter"),
+      ).length;
+      const filtersAfter = merged.filter((row) =>
+        row.appliesTo.includes("filter"),
+      ).length;
+      if (
+        !result.extras.length &&
+        filtersAfter === filtersBefore &&
+        merged.length === existing.length
+      ) {
         return {
           ok: true,
           intent: "sync-metafields" as const,
@@ -405,17 +420,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           rows: existing,
         };
       }
-      const merged = mergeSyncedMetafields(
-        existing,
-        result.extras,
-        loaded.filterLimit,
-      );
       const saved = await saveDeclaredMetafields(shop.id, merged);
       if ("error" in saved) return { error: saved.error };
       return {
         ok: true,
         intent: "sync-metafields" as const,
-        added: result.added,
+        added: Math.max(result.added, filtersAfter - filtersBefore),
         extras: [] as typeof result.extras,
         rows: saved.rows,
       };
