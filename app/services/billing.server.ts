@@ -67,6 +67,33 @@ export function isBillingTestMode() {
   return (process.env.BILLING_TEST_MODE ?? "false").toLowerCase() === "true";
 }
 
+/**
+ * Development stores can only approve or decline a test charge.
+ * A live charge makes Shopify's approval page fail Approve and Cancel with
+ * "The shop cannot accept the provided charge."
+ * Live shops follow BILLING_TEST_MODE.
+ */
+export function subscriptionChargeIsTest(partnerDevelopment: boolean): boolean {
+  return isBillingTestMode() || partnerDevelopment;
+}
+
+/** Pending row whose saved approval URL matches the charge mode we would create. */
+export function pendingChargeMatchesMode(
+  subscription: {
+    status?: string | null;
+    test?: boolean | null;
+    confirmationUrl?: string | null;
+  } | null,
+  testCharge: boolean,
+): boolean {
+  if (!subscription || !isLocalPendingStatus(subscription.status)) return false;
+  if (Boolean(subscription.test) !== testCharge) return false;
+  return Boolean(
+    subscription.confirmationUrl &&
+      isAllowedShopifyConfirmationUrl(subscription.confirmationUrl),
+  );
+}
+
 /** Defense in depth: only follow Shopify-hosted billing confirmation URLs. */
 export function isAllowedShopifyConfirmationUrl(url: string): boolean {
   try {
@@ -608,6 +635,7 @@ async function persistPendingSubscription(opts: {
   planKey: PaidPlanKey;
   status: string;
   confirmationUrl: string;
+  test: boolean;
   requestId?: string;
 }) {
   const plan = PLANS[opts.planKey];
@@ -619,7 +647,7 @@ async function persistPendingSubscription(opts: {
       shopifySubscriptionId: opts.shopifySubscriptionId,
       planName: plan.name,
       status,
-      test: isBillingTestMode(),
+      test: opts.test,
       productLimit: plan.productLimit,
       filterLimit: plan.filterLimit,
       confirmationUrl: opts.confirmationUrl,
@@ -629,7 +657,7 @@ async function persistPendingSubscription(opts: {
       shopifySubscriptionId: opts.shopifySubscriptionId,
       planName: plan.name,
       status,
-      test: isBillingTestMode(),
+      test: opts.test,
       productLimit: plan.productLimit,
       filterLimit: plan.filterLimit,
       confirmationUrl: opts.confirmationUrl,
@@ -648,6 +676,58 @@ async function persistPendingSubscription(opts: {
     status,
     requestId: opts.requestId,
   });
+}
+
+/**
+ * Best-effort cancel of a PENDING charge the shop cannot approve or decline in Admin.
+ * Failure is expected for a live charge on a development store; callers still create
+ * a replacement test charge.
+ */
+async function declineShopifySubscriptionBestEffort(
+  admin: GraphqlAdmin,
+  subscriptionGid: string,
+  shopLabel: string,
+) {
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      mutation AppSubscriptionCancel($id: ID!) {
+        appSubscriptionCancel(id: $id) {
+          appSubscription {
+            id
+            status
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      { variables: { id: subscriptionGid } },
+    );
+    const json = await response.json();
+    const errors = [
+      ...(json.data?.appSubscriptionCancel?.userErrors ?? []),
+      ...(json.errors ?? []),
+    ];
+    if (errors.length) {
+      log.warn(
+        `[billing] could not decline unusable charge for ${shopLabel} id=${subscriptionGid}: ${errors
+          .map((e: { message?: string }) => e.message || "error")
+          .join("; ")} — creating a replacement charge`,
+      );
+      return;
+    }
+    log.info(
+      `[billing] declined unusable charge for ${shopLabel} id=${subscriptionGid} status=${json.data?.appSubscriptionCancel?.appSubscription?.status ?? "unknown"}`,
+    );
+  } catch (error) {
+    log.warn(
+      `[billing] decline unusable charge failed for ${shopLabel} id=${subscriptionGid}: ${
+        error instanceof Error ? error.message : String(error)
+      } — creating a replacement charge`,
+    );
+  }
 }
 
 /**
@@ -683,20 +763,37 @@ export async function startStandardSubscriptionIfLive(
     const local = await prisma.subscription.findUnique({
       where: { shopId: latest.id },
     });
+    const testCharge = isBillingTestMode();
+    if (local && pendingChargeMatchesMode(local, testCharge)) {
+      return { confirmationUrl: local.confirmationUrl!, reused: true };
+    }
     if (
       local &&
       isLocalPendingStatus(local.status) &&
-      local.confirmationUrl &&
-      isAllowedShopifyConfirmationUrl(local.confirmationUrl)
+      Boolean(local.test) === testCharge
     ) {
-      return { confirmationUrl: local.confirmationUrl, reused: true };
-    }
-    if (local && isLocalPendingStatus(local.status)) {
       // Pending charge exists but URL missing/invalid — never create another.
       return null;
     }
+    if (
+      local &&
+      isLocalPendingStatus(local.status) &&
+      local.shopifySubscriptionId &&
+      Boolean(local.test) !== testCharge
+    ) {
+      await declineShopifySubscriptionBestEffort(
+        admin,
+        local.shopifySubscriptionId,
+        shopDomain,
+      );
+    }
 
-    const result = await createAppSubscription(admin, returnUrl, "standard");
+    const result = await createAppSubscription(
+      admin,
+      returnUrl,
+      "standard",
+      testCharge,
+    );
     const errors = result?.userErrors ?? [];
     if (errors.length || !result?.confirmationUrl) return null;
     if (!isAllowedShopifyConfirmationUrl(result.confirmationUrl)) return null;
@@ -708,6 +805,7 @@ export async function startStandardSubscriptionIfLive(
         planKey: "standard",
         status: result.appSubscription.status || "PENDING",
         confirmationUrl: result.confirmationUrl,
+        test: testCharge,
         requestId,
       });
       clearBillingCaches({ id: latest.id, domain: shopDomain });
@@ -738,6 +836,14 @@ export async function startOrReusePaidSubscription(
   returnUrl: string,
   planKey: PaidPlanKey,
 ): Promise<StartOrReusePaidResult> {
+  const refreshed = await refreshPartnerDevelopment(admin, shopId);
+  const shopRow = await findShopByIdCached(shopId);
+  const testCharge = subscriptionChargeIsTest(
+    typeof refreshed === "boolean"
+      ? refreshed
+      : Boolean(shopRow?.partnerDevelopment),
+  );
+
   return withBillingLock(shopId, async () => {
     const requestId = newBillingRequestId();
     // B-1: query Shopify before any appSubscriptionCreate.
@@ -758,24 +864,42 @@ export async function startOrReusePaidSubscription(
     const local = await prisma.subscription.findUnique({
       where: { shopId },
     });
+    if (!hasActivePaid && local && pendingChargeMatchesMode(local, testCharge)) {
+      return { kind: "pending", confirmationUrl: local.confirmationUrl! };
+    }
     if (
       !hasActivePaid &&
       local &&
       isLocalPendingStatus(local.status) &&
-      local.confirmationUrl &&
-      isAllowedShopifyConfirmationUrl(local.confirmationUrl)
+      Boolean(local.test) === testCharge
     ) {
-      return { kind: "pending", confirmationUrl: local.confirmationUrl };
-    }
-    if (!hasActivePaid && local && isLocalPendingStatus(local.status)) {
       return {
         kind: "error",
         error:
           "A subscription approval is already pending. Finish or cancel it in Shopify Billing, then try again.",
       };
     }
+    if (
+      !hasActivePaid &&
+      local &&
+      isLocalPendingStatus(local.status) &&
+      local.shopifySubscriptionId &&
+      Boolean(local.test) !== testCharge
+    ) {
+      // Live charge on a development store: Shopify rejects both Approve and Cancel.
+      await declineShopifySubscriptionBestEffort(
+        admin,
+        local.shopifySubscriptionId,
+        shopDomain,
+      );
+    }
 
-    const result = await createAppSubscription(admin, returnUrl, planKey);
+    const result = await createAppSubscription(
+      admin,
+      returnUrl,
+      planKey,
+      testCharge,
+    );
     const errors = result?.userErrors ?? [];
     if (errors.length || !result?.confirmationUrl) {
       return {
@@ -799,6 +923,7 @@ export async function startOrReusePaidSubscription(
         planKey,
         status: result.appSubscription.status || "PENDING",
         confirmationUrl: result.confirmationUrl,
+        test: testCharge,
         requestId,
       });
       clearBillingCaches({ id: shopId, domain: shopDomain });
@@ -816,6 +941,7 @@ export async function createAppSubscription(
   admin: GraphqlAdmin,
   returnUrl: string,
   planKey: PaidPlanKey = "pro",
+  test = isBillingTestMode(),
 ) {
   const plan = PLANS[planKey];
   const response = await admin.graphql(
@@ -853,7 +979,7 @@ export async function createAppSubscription(
         name: plan.name,
         returnUrl,
         trialDays: plan.trialDays,
-        test: isBillingTestMode(),
+        test,
         replacementBehavior: "STANDARD",
         lineItems: [
           {

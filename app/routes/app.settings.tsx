@@ -1029,18 +1029,19 @@ export default function SettingsPage() {
                           }
                         />
                       ) : null}
-                      <Checkbox
-                        label="Collapse filter groups by default"
-                        checked={settings.collapseByDefault}
-                        disabled={saving || settings.widgetPosition === "top"}
-                        helpText="Horizontal layout always starts collapsed; click a filter heading to expand."
-                        onChange={(checked) =>
-                          setSettings((s) => ({
-                            ...s,
-                            collapseByDefault: checked,
-                          }))
-                        }
-                      />
+                      {settings.widgetPosition === "top" ? null : (
+                        <Checkbox
+                          label="Collapse filter groups by default"
+                          checked={settings.collapseByDefault}
+                          disabled={saving}
+                          onChange={(checked) =>
+                            setSettings((s) => ({
+                              ...s,
+                              collapseByDefault: checked,
+                            }))
+                          }
+                        />
+                      )}
                       <Checkbox
                         label="Hide filter options when only one value"
                         checked={settings.hideSingleValueFacets}

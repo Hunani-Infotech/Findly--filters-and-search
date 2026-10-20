@@ -172,6 +172,26 @@ function assertWebhookEnqueueOnly(webhook) {
   log.info("8. subscription webhook enqueues sync (no payload upsert)");
 }
 
+function assertDevStoreTestCharge(billing) {
+  if (!billing.includes("function subscriptionChargeIsTest")) {
+    fail("billing.server.ts missing subscriptionChargeIsTest");
+  }
+  const fn = billing.slice(billing.indexOf("function subscriptionChargeIsTest"));
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  if (!body.includes("partnerDevelopment") || !body.includes("isBillingTestMode")) {
+    fail(
+      "subscriptionChargeIsTest must force test charges on partner development stores",
+    );
+  }
+  const reuse = billing.slice(
+    billing.indexOf("export async function startOrReusePaidSubscription"),
+  );
+  if (!reuse.includes("subscriptionChargeIsTest")) {
+    fail("startOrReusePaidSubscription must use subscriptionChargeIsTest");
+  }
+  log.info("10. development stores create test charges so Cancel can decline them");
+}
+
 function assertPricingAlreadyActive(billingPage) {
   if (!billingPage.includes("already_active")) {
     fail("app.billing.tsx missing already_active handling");
@@ -199,6 +219,7 @@ try {
   assertPendingPreserve(billing);
   assertWebhookEnqueueOnly(webhook);
   assertPricingAlreadyActive(billingPage);
+  assertDevStoreTestCharge(billing);
 
   log.success("VERIFY_BILLING_INSTALL_OK install duplicate-charge fix markers present");
 } catch (error) {

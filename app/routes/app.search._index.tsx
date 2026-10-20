@@ -291,13 +291,6 @@ export default function SearchPage() {
                     Tools
                   </Text>
                   <Checkbox
-                    label="AI-Powered Search"
-                    checked={false}
-                    disabled
-                    helpText="Requires a Professional plan upgrade."
-                    onChange={() => undefined}
-                  />
-                  <Checkbox
                     label="Fuzzy text search"
                     checked={state.searchExtras.fuzzyTextSearch}
                     disabled={saving}

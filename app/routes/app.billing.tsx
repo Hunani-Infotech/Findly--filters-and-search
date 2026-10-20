@@ -39,8 +39,10 @@ import {
   isDevelopmentStoreAccess,
   isDevUnlockLimits,
   isPaidPlanKey,
+  pendingChargeMatchesMode,
   refreshPartnerDevelopment,
   startOrReusePaidSubscription,
+  subscriptionChargeIsTest,
   syncActiveSubscriptions,
 } from "../services/billing.server";
 import { planDisplayName } from "../constants/plans";
@@ -61,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       partnerDevelopment: false,
       subscription: null,
       pendingConfirmationUrl: null as string | null,
+      pendingChargeBlocked: false,
       usage: {
         productCount: 0,
         productLimit: PLANS.free.productLimit,
@@ -98,13 +101,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Validate confirmation URL on the server so the client never imports
   // billing.server (React Router strips .server only from loader/action).
+  const testCharge = subscriptionChargeIsTest(Boolean(shop.partnerDevelopment));
+  const pendingMatches = pendingChargeMatchesMode(
+    shop.subscription,
+    testCharge,
+  );
   const subStatusRaw = String(shop.subscription?.status || "").toUpperCase();
-  const pendingConfirmationUrl =
-    (subStatusRaw === "PENDING" || subStatusRaw === "ACCEPTED") &&
-    shop.subscription?.confirmationUrl &&
-    isAllowedShopifyConfirmationUrl(shop.subscription.confirmationUrl)
-      ? shop.subscription.confirmationUrl
-      : null;
+  const pendingStatus =
+    subStatusRaw === "PENDING" || subStatusRaw === "ACCEPTED";
+  const pendingConfirmationUrl = pendingMatches
+    ? shop.subscription?.confirmationUrl ?? null
+    : null;
+  // Live charge saved for a development store: Shopify rejects Approve and Cancel.
+  const pendingChargeBlocked =
+    Boolean(shop.partnerDevelopment) && pendingStatus && !pendingMatches;
 
   return {
     plans: PLANS,
@@ -114,6 +124,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     partnerDevelopment: shop.partnerDevelopment,
     subscription: shop.subscription,
     pendingConfirmationUrl,
+    pendingChargeBlocked,
     usage: {
       productCount: limits.productCount,
       productLimit: limits.productLimit,
@@ -282,17 +293,29 @@ export default function BillingPage() {
 
             {data.partnerDevelopment &&
               data.currentPlan === "free" &&
-              !data.devUnlockLimits && (
+              !data.devUnlockLimits &&
+              !data.pendingChargeBlocked && (
                 <Banner tone="info">
                   <p>
                     This is a Shopify development store. All Findly features are
                     free here so you can configure filters and search before
-                    going live.
+                    going live. Choosing Standard or Pro opens a Shopify test
+                    charge you can approve or cancel without a payment method.
                   </p>
                 </Banner>
               )}
 
-            {pendingConfirmationUrl ? (
+            {data.pendingChargeBlocked ? (
+              <Banner tone="warning" title="Close the approval page and choose a plan again">
+                <p>
+                  Shopify shows “The shop cannot accept the provided charge” on
+                  Cancel because this development store was sent a live charge.
+                  Close that tab, then choose Standard or Pro below. The next
+                  page is a test charge, so Approve and Cancel both work, and
+                  the store is not billed.
+                </p>
+              </Banner>
+            ) : pendingConfirmationUrl ? (
               <Banner tone="warning" title="Approve your plan">
                 <BlockStack gap="200">
                   <p>
