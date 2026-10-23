@@ -191,7 +191,7 @@ export type ShopPurgeMode = "queued" | "skipped";
  * soft-mark was missed but tokens are gone, purge still queues for GDPR.
  *
  * Failure modes when purge proceeds:
- * 1. Postgres queue accepts the job within 800ms (explicit timeout) → worker runs purgeShopData. 200.
+ * 1. Postgres queue accepts the job within the shared webhook ack budget → worker runs purgeShopData. 200.
  * 2. Enqueue throws or times out → error rethrown so webhook 5xx and Shopify retries.
  *
  * purgeShopData is idempotent, so a late queue add after a timeout is safe.
@@ -215,7 +215,7 @@ export async function ensureShopPurged(
     await enqueueSyncJobWithTimeout(
       "shop.cleanup",
       { shop: shopDomain },
-      { jobId: `${shopDomain}:shop.cleanup`, timeoutMs: 800 },
+      { jobId: `${shopDomain}:shop.cleanup` },
     );
     log.success(
       `[compliance] ${source}: queued shop.cleanup for ${shopDomain}`,

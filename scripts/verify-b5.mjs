@@ -374,6 +374,17 @@ function assertThemeSeoAndUi() {
       "customers/redact must not runSyncJobInline on enqueue failure (5xx for Shopify retry)",
     );
   }
+  if (
+    compliance.includes("timeoutMs: 800") ||
+    customerRedact.includes("timeoutMs: 800") ||
+    read("app/routes/webhooks.app_subscriptions.update.tsx").includes(
+      "timeoutMs: 800",
+    )
+  ) {
+    fail(
+      "shop/redact, customers/redact, and billing webhooks must use the shared enqueue ack budget (no timeoutMs: 800)",
+    );
+  }
   const subscriptionsUpdate = read(
     "app/routes/webhooks.app_subscriptions.update.tsx",
   );
@@ -857,9 +868,9 @@ try {
       "queues.server.ts must bound enqueue timeout recovery (ENQUEUE_TIMEOUT_RECOVERY_MS) under Shopify 5s ACK",
     );
   }
-  if (!queuesServer.includes("ENQUEUE_RECOVERY_POLL_MS")) {
+  if (!queuesServer.includes("in-flight enqueue")) {
     fail(
-      "queues.server.ts must poll for late QueueJob INSERT after enqueue timeout (ENQUEUE_RECOVERY_POLL_MS)",
+      "queues.server.ts must wait on the in-flight enqueue after timeout before returning 5xx",
     );
   }
   const packageJsonScripts = read("package.json");

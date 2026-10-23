@@ -242,20 +242,26 @@ export async function enqueueSyncJob(
 
 /**
  * Shopify allows ~5s for the full webhook HTTP response.
- * Catalog default leaves headroom for HMAC + WebhookDelivery after enqueue.
- * Compliance callers pass a shorter timeoutMs (e.g. 800) — unchanged.
+ * Catalog, compliance, and billing share this budget (3500 + 900 = 4400ms)
+ * so HMAC and the delivery row still fit. Callers may pass a shorter timeoutMs.
  */
 const DEFAULT_ENQUEUE_TIMEOUT_MS = 3500;
-/** Extra budget after enqueue timeout for late-INSERT detection (must stay under Shopify 5s). */
+/** Extra budget after enqueue timeout for the in-flight INSERT (must stay under Shopify 5s). */
 const ENQUEUE_TIMEOUT_RECOVERY_MS = 900;
-/** Poll interval while waiting for a late INSERT still holding a pool slot. */
-const ENQUEUE_RECOVERY_POLL_MS = 100;
+
+type EnqueueAttempt =
+  | { ok: true; job: QueueJob }
+  | { ok: false; error: unknown };
 
 /**
  * Reject if Postgres enqueue hangs (pooler / network blip).
- * Safe recovery: only when a durable pending/processing row for the same
- * jobKey+type already exists (late insert after timeout). Otherwise rethrow
- * so Shopify still retries — never invents success.
+ * Safe recovery: wait for the INSERT already in flight, and accept it only
+ * when that same jobKey is pending/processing. Otherwise rethrow so Shopify
+ * retries — never invents success.
+ *
+ * A fresh lookup during an inventory storm needs another pool slot and often
+ * misses the row the original INSERT is about to commit. Recovery therefore
+ * waits on that in-flight enqueue first.
  *
  * Recovery is hard-capped at ENQUEUE_TIMEOUT_RECOVERY_MS so pool waits cannot
  * push the webhook past Shopify's ~5s ack window.
@@ -267,69 +273,82 @@ export async function enqueueSyncJobWithTimeout(
 ) {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_ENQUEUE_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      enqueueSyncJob(name, data, opts).finally(() => {
-        if (timer) clearTimeout(timer);
-      }),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error(`enqueue ${name} timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }),
-    ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const jobKey = normalizeJobKey(opts?.jobId);
-    if (!jobKey || !message.includes("timed out")) {
-      throw error;
-    }
+  const enqueuePromise: Promise<EnqueueAttempt> = enqueueSyncJob(
+    name,
+    data,
+    opts,
+  ).then(
+    (job) => ({ ok: true as const, job }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const timeoutPromise = new Promise<EnqueueAttempt>((resolve) => {
+    timer = setTimeout(() => {
+      resolve({
+        ok: false,
+        error: new Error(`enqueue ${name} timed out after ${timeoutMs}ms`),
+      });
+    }, timeoutMs);
+  });
 
-    const isLiveMatch = (row: QueueJob | null) =>
-      Boolean(
-        row &&
-          row.type === name &&
-          (row.status === "pending" || row.status === "processing"),
-      );
+  const first = await Promise.race([
+    enqueuePromise.finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    timeoutPromise,
+  ]);
+  if (first.ok) return first.job;
 
-    const recoveryDeadline = Date.now() + ENQUEUE_TIMEOUT_RECOVERY_MS;
-
-    const findLiveJob = async (): Promise<QueueJob | null> => {
-      const remaining = recoveryDeadline - Date.now();
-      if (remaining <= 0) return null;
-      try {
-        return await Promise.race([
-          prisma.queueJob.findUnique({ where: { jobKey } }),
-          new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), remaining);
-          }),
-        ]);
-      } catch {
-        return null;
-      }
-    };
-
-    // Poll for a late INSERT still holding a pool connection (bounded).
-    // Inventory storms often land the row just after the race timeout — ack 200
-    // only when the durable job already exists (same durability rule as before).
-    let existing = await findLiveJob();
-    while (!isLiveMatch(existing) && Date.now() < recoveryDeadline) {
-      const wait = Math.min(
-        ENQUEUE_RECOVERY_POLL_MS,
-        Math.max(0, recoveryDeadline - Date.now()),
-      );
-      if (wait <= 0) break;
-      await new Promise((r) => setTimeout(r, wait));
-      existing = await findLiveJob();
-    }
-    if (isLiveMatch(existing) && existing) {
-      log.warn(
-        `[queue] enqueue ${name} timed out but jobKey=${jobKey} is ${existing.status}; treating as success`,
-      );
-      return existing;
-    }
-    throw error;
+  const failure = first.error;
+  const message = failure instanceof Error ? failure.message : String(failure);
+  const jobKey = normalizeJobKey(opts?.jobId);
+  if (!jobKey || !message.includes("timed out")) {
+    throw failure;
   }
+
+  const isLiveMatch = (row: QueueJob | null | undefined) =>
+    Boolean(
+      row &&
+        row.type === name &&
+        (row.status === "pending" || row.status === "processing"),
+    );
+
+  const recoveryDeadline = Date.now() + ENQUEUE_TIMEOUT_RECOVERY_MS;
+  const remaining = () => Math.max(0, recoveryDeadline - Date.now());
+
+  const late = await Promise.race([
+    enqueuePromise,
+    new Promise<undefined>((resolve) => {
+      setTimeout(() => resolve(undefined), remaining());
+    }),
+  ]);
+  if (late?.ok && isLiveMatch(late.job)) {
+    log.warn(
+      `[queue] enqueue ${name} timed out but in-flight enqueue jobKey=${jobKey} is ${late.job.status}; treating as success`,
+    );
+    return late.job;
+  }
+  if (late && !late.ok) throw late.error;
+
+  const left = remaining();
+  if (left > 0) {
+    try {
+      const existing = await Promise.race([
+        prisma.queueJob.findUnique({ where: { jobKey } }),
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), left);
+        }),
+      ]);
+      if (isLiveMatch(existing) && existing) {
+        log.warn(
+          `[queue] enqueue ${name} timed out but jobKey=${jobKey} is ${existing.status}; treating as success`,
+        );
+        return existing;
+      }
+    } catch {
+      /* fall through — Shopify retries */
+    }
+  }
+  throw failure;
 }
 
 /**

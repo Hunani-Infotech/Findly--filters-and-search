@@ -39,7 +39,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     await enqueueSyncJobWithTimeout("compliance.customersRedact", jobData, {
       jobId,
-      timeoutMs: 800,
     });
     log.success(
       `[compliance] queued compliance.customersRedact for ${shop} webhookId=${webhookId}`,

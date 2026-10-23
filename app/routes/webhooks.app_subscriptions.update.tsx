@@ -32,7 +32,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     await enqueueSyncJobWithTimeout("billing.syncFromShopify", jobData, {
       jobId,
-      timeoutMs: 800,
     });
     log.success(
       `[billing] queued billing.syncFromShopify for ${shop} webhookId=${webhookId}`,
