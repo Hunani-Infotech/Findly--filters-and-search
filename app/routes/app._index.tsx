@@ -543,7 +543,7 @@ export default function Home() {
                     {data.trialDaysLeft
                       ? `${data.trialDaysLeft} day${data.trialDaysLeft === 1 ? "" : "s"} left on ${data.planName}.`
                       : data.plan === "free" && !data.partnerDevelopment
-                        ? "No paid plan yet. Choose Standard or Pro to index your catalog."
+                        ? "No paid plan yet. Choose Standard, Pro, or Plus to index your catalog."
                         : `You are on ${data.planName}.`}
                   </Text>
                 </BlockStack>
@@ -580,7 +580,8 @@ export default function Home() {
                     <p>
                       Live stores without a paid plan do not index products.
                       Standard allows {PLANS.standard.productLimit} products;
-                      Pro allows {PLANS.pro.productLimit}. Collections can
+                      Pro allows {PLANS.pro.productLimit}; Plus allows{" "}
+                      {PLANS.plus.productLimit}. Collections can
                       still sync.{" "}
                       <Link
                         to={hrefFor("/app/billing")}

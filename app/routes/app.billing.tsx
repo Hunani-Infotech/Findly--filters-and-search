@@ -149,7 +149,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!isDevelopmentStoreAccess(latest)) {
       return {
         error:
-          "Live stores cannot switch to the Development plan. Choose Standard or Pro.",
+          "Live stores cannot switch to the Development plan. Choose Standard, Pro, or Plus.",
       };
     }
     const result = await cancelSubscription(
@@ -191,7 +191,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (!isPaidPlanKey(requested)) {
-    return { error: "Choose Standard or Pro to start a Shopify charge." };
+    return { error: "Choose Standard, Pro, or Plus to start a Shopify charge." };
   }
 
   // Top window must stay on admin.shopify.com (not the Hostinger app origin).
@@ -290,15 +290,35 @@ export default function BillingPage() {
   const free = data.plans.free;
   const standard = data.plans.standard;
   const pro = data.plans.pro;
+  const plus = data.plans.plus;
   const currentPlan = data.plans[data.currentPlan];
   const onPaid = data.currentPlan !== "free";
   const showFreePlan = data.partnerDevelopment || data.devUnlockLimits;
   const liveUnpaid = !data.partnerDevelopment && data.currentPlan === "free";
+  const planRank: Record<string, number> = {
+    free: 0,
+    standard: 1,
+    pro: 2,
+    plus: 3,
+  };
+  const paidPlanButtonLabel = (
+    target: "standard" | "pro" | "plus",
+    upgrading: boolean,
+  ) => {
+    if (upgrading) return "Redirecting to Shopify…";
+    const label =
+      target === "standard" ? "Standard" : target === "pro" ? "Pro" : "Plus";
+    const currentRank = planRank[data.currentPlan] ?? 0;
+    const targetRank = planRank[target] ?? 0;
+    if (liveUnpaid) return `Choose ${label}`;
+    if (currentRank > targetRank) return `Switch to ${label}`;
+    return `Upgrade to ${label}`;
+  };
   const pendingConfirmationUrl = data.pendingConfirmationUrl;
   const rawSubStatus = String(data.subscription?.status || "").toUpperCase();
   const subStatus =
     liveUnpaid && !data.devUnlockLimits
-      ? "Choose Standard or Pro"
+      ? "Choose Standard, Pro, or Plus"
       : data.currentPlan === "free"
         ? rawSubStatus === "PENDING" || rawSubStatus === "ACCEPTED"
           ? "Pending approval"
@@ -347,7 +367,7 @@ export default function BillingPage() {
                   <p>
                     This is a Shopify development store. All Findly features are
                     free here so you can configure filters and search before
-                    going live. Choosing Standard or Pro opens a Shopify test
+                    going live. Choosing Standard, Pro, or Plus opens a Shopify test
                     charge you can approve or cancel without a payment method.
                   </p>
                 </Banner>
@@ -358,7 +378,7 @@ export default function BillingPage() {
                 <p>
                   Shopify shows “The shop cannot accept the provided charge” on
                   Cancel because this development store was sent a live charge.
-                  Close that tab, then choose Standard or Pro below. The next
+                  Close that tab, then choose Standard, Pro, or Plus below. The next
                   page is a test charge, so Approve and Cancel both work, and
                   the store is not billed.
                 </p>
@@ -389,10 +409,10 @@ export default function BillingPage() {
             ) : liveUnpaid && !data.devUnlockLimits ? (
               <Banner tone="warning">
                 <p>
-                  Live stores use Standard or Pro. Choose a plan below to index
-                  your catalog. Standard is ${standard.amount.toFixed(2)} every
-                  30 days; Pro is ${pro.amount.toFixed(2)} every 30 days. No
-                  trial.
+                  Live stores use Standard, Pro, or Plus. Choose a plan below to
+                  index your catalog. Standard is ${standard.amount.toFixed(2)}{" "}
+                  every 30 days; Pro is ${pro.amount.toFixed(2)} every 30 days;
+                  Plus is ${plus.amount.toFixed(2)} every 30 days. No trial.
                 </p>
               </Banner>
             ) : null}
@@ -402,8 +422,8 @@ export default function BillingPage() {
                 <p>
                   You are over plan limits ({data.usage.productCount}/
                   {data.usage.productLimit} products, {data.usage.filterCount}/
-                  {data.usage.filterLimit} metafield filters). Upgrade to
-                  Standard or Pro, or reduce usage.
+                  {data.usage.filterLimit} metafield filters). Upgrade to Standard,
+                  Pro, or Plus, or reduce usage.
                 </p>
               </Banner>
             )}
@@ -453,7 +473,10 @@ export default function BillingPage() {
               </Card>
             </InlineGrid>
 
-            <InlineGrid columns={{ xs: 1, md: showFreePlan ? 3 : 2 }} gap="400">
+            <InlineGrid
+              columns={{ xs: 1, md: 2, lg: showFreePlan ? 4 : 3 }}
+              gap="400"
+            >
               {showFreePlan ? (
               <Card>
                 <BlockStack gap="300">
@@ -508,6 +531,7 @@ export default function BillingPage() {
                       {standard.filterLimit} metafield filters
                     </List.Item>
                     <List.Item>Starts on install. No trial.</List.Item>
+                    <List.Item>Analytics kept for 90 days</List.Item>
                   </List>
                   {data.currentPlan === "standard" ? (
                     <Button disabled>Current plan</Button>
@@ -519,13 +543,10 @@ export default function BillingPage() {
                         fetcher.submit({ plan: "standard" }, { method: "POST" })
                       }
                     >
-                      {upgradingPlan === "standard"
-                        ? "Redirecting to Shopify…"
-                        : data.currentPlan === "pro"
-                          ? "Switch to Standard"
-                          : liveUnpaid
-                            ? "Choose Standard"
-                            : "Upgrade to Standard"}
+                      {paidPlanButtonLabel(
+                        "standard",
+                        upgradingPlan === "standard",
+                      )}
                     </Button>
                   )}
                 </BlockStack>
@@ -552,6 +573,7 @@ export default function BillingPage() {
                       metafield filters
                     </List.Item>
                     <List.Item>Billed every 30 days. No trial.</List.Item>
+                    <List.Item>Analytics kept for 180 days</List.Item>
                   </List>
                   {data.currentPlan === "pro" ? (
                     <Button disabled>Current plan</Button>
@@ -564,11 +586,43 @@ export default function BillingPage() {
                         fetcher.submit({ plan: "pro" }, { method: "POST" })
                       }
                     >
-                      {upgradingPlan === "pro"
-                        ? "Redirecting to Shopify…"
-                        : liveUnpaid
-                          ? "Choose Pro"
-                          : "Upgrade to Pro"}
+                      {paidPlanButtonLabel("pro", upgradingPlan === "pro")}
+                    </Button>
+                  )}
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    Plus
+                  </Text>
+                  <Text as="p" variant="headingLg">
+                    ${plus.amount.toFixed(2)} / 30 days
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    Large catalogs
+                  </Text>
+                  <List>
+                    <List.Item>Everything in Pro</List.Item>
+                    <List.Item>
+                      Up to {plus.productLimit} products and {plus.filterLimit}{" "}
+                      metafield filters
+                    </List.Item>
+                    <List.Item>Analytics kept for 365 days</List.Item>
+                    <List.Item>Billed every 30 days. No trial.</List.Item>
+                  </List>
+                  {data.currentPlan === "plus" ? (
+                    <Button disabled>Current plan</Button>
+                  ) : (
+                    <Button
+                      loading={upgradingPlan === "plus"}
+                      disabled={Boolean(upgradingPlan) || cancelling || approving}
+                      onClick={() =>
+                        fetcher.submit({ plan: "plus" }, { method: "POST" })
+                      }
+                    >
+                      {paidPlanButtonLabel("plus", upgradingPlan === "plus")}
                     </Button>
                   )}
                 </BlockStack>
@@ -578,8 +632,8 @@ export default function BillingPage() {
             <Banner tone="info">
               <p>
                 {showFreePlan
-                  ? "Compare plans in the three cards above. "
-                  : "Choose Standard or Pro above. "}
+                  ? "Compare plans in the cards above. "
+                  : "Choose Standard, Pro, or Plus above. "}
                 Paid plans bill immediately through Shopify — there is no trial
                 and no 30-day money-back guarantee in Findly billing.
               </p>

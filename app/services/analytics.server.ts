@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { getShopPlan, isDevUnlockLimits, isPaidPlanKey } from "./billing.server";
+import { getShopPlan, isDevUnlockLimits } from "./billing.server";
 import { log } from "../lib/log.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
@@ -29,7 +29,9 @@ function isKind(value: string): value is AnalyticsKind {
 
 export function retentionDaysForPlan(plan: string): number {
   if (isDevUnlockLimits()) return 180;
-  return isPaidPlanKey(plan) ? 180 : 90;
+  if (plan === "plus") return 365;
+  if (plan === "pro") return 180;
+  return 90;
 }
 
 export function rangeStart(range: AnalyticsRange, now = new Date()): Date {

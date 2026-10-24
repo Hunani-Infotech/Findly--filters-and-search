@@ -10,7 +10,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Merchant terms for Findly: Smart Filters & Search, including Free, Standard, and Pro billing, acceptable use, and liability.",
+      "Merchant terms for Findly: Smart Filters & Search, including Free, Standard, Pro, and Plus billing, acceptable use, and liability.",
   },
 ];
 
@@ -118,11 +118,18 @@ export default function TermsOfService() {
           <li>
             <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
             Billing starts when you approve the charge at install. Up to 200
-            products and 6 metafield filter mappings.
+            products and 6 metafield filter mappings. Analytics kept for 90
+            days.
           </li>
           <li>
             <strong>Pro</strong> — $19.99 USD every 30 days. No trial. Up to
-            1,000 products and 15 metafield filter mappings.
+            1,000 products and 15 metafield filter mappings. Analytics kept for
+            180 days.
+          </li>
+          <li>
+            <strong>Plus</strong> — $34.99 USD every 30 days. No trial. Up to
+            5,000 products and 40 metafield filter mappings. Analytics kept for
+            365 days.
           </li>
         </ul>
         <p>
@@ -133,7 +140,7 @@ export default function TermsOfService() {
           product cap.
         </p>
         <p>
-          You can move between Development, Standard, and Pro in{" "}
+          You can move between Development, Standard, Pro, and Plus in{" "}
           <strong>Findly → Pricing plans</strong> without reinstalling. Paid
           upgrades create or replace a Shopify charge that you must approve
           in Admin. Live shops are asked to start Standard when the app is

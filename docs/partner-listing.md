@@ -15,7 +15,7 @@ Match `app/routes/app.tsx` NavMenu. Paste only the copy in this file.
 | Translation | `/app/translation` | Yes | Widget label locales |
 | Integrations | `/app/integrations` | Yes | Judge.me / wishlist / Weglot re-init after Ajax |
 | Analytics | `/app/analytics` | Yes | Search and filter usage |
-| Pricing plans | `/app/billing` | Yes (pricing fields) | Development / Standard / Pro |
+| Pricing plans | `/app/billing` | Yes (pricing fields) | Development / Standard / Pro / Plus |
 | Contact | `/app/contact` | No | Listing support: `info@srhwebagency.com` |
 
 Catalog sync is on **Home**. `/app/sync` redirects there; it is not a NavMenu item.
@@ -49,7 +49,7 @@ Shoppers filter collections and search products in your theme. Add the widget as
 ### App details (≤500)
 
 ```
-Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword product search, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Development, Standard, and Pro.
+Findly adds collection filters and storefront search via a theme app block. Enable sets under Filters. Map metafields and set left, right, or top placement in Settings. Search includes keyword product search, pins, synonyms, and redirects. Shoppers filter by price, availability, vendor, type, tags, options, and metafields. Translation edits widget labels. Integrations keep review and wishlist widgets in sync. Analytics shows search and filter usage. Plans: Development, Standard, Pro, and Plus.
 ```
 
 ### Feature list (≤80 each)
@@ -129,13 +129,14 @@ Paste the same list into Partner Dashboard → App setup / listing permissions s
 
 ### Pricing (must match Billing API)
 
-Primary method: **Recurring charge**, with one plan marked **Free** (display name **Development**). Monthly billing: Development / Standard / Pro. **No trial.** Live shops start Standard at install.
+Primary method: **Recurring charge**, with one plan marked **Free** (display name **Development**). Monthly billing: Development / Standard / Pro / Plus. **No trial.** Live shops start Standard at install.
 
 | Plan | Price / 30 days | Trial | Products | Metafield filters |
 |---|---|---|---|---|
 | Development | $0.00 — no Shopify charge | None | Live: 0. Development stores: full catalog | Live: 0 |
 | Standard | $11.99 USD | None | 200 | 6 |
 | Pro | $19.99 USD | None | 1,000 | 15 |
+| Plus | $34.99 USD | None | 5,000 | 40 |
 
 **Development** — $0 for Shopify development / partner stores only. All features included. Not a live-store plan.
 
@@ -143,9 +144,11 @@ Primary method: **Recurring charge**, with one plan marked **Free** (display nam
 
 **Pro** — Up to 1,000 products and 15 metafield filters. No trial.
 
+**Plus** — $34.99 USD every 30 days, up to 5,000 products and 40 metafield filters, analytics kept 365 days, no trial.
+
 ### Pricing details (listing form)
 
-Paste on **Manage listing → Edit language → Pricing details**. Display name max **18** characters. Do **not** put product/metafield limits in the display name — Shopify already shows the price on the card. Match each block to the plan key (`free` / `standard` / `pro`), not to the order on the page (Pro and Standard can appear swapped).
+Paste on **Manage listing → Edit language → Pricing details**. Display name max **18** characters. Do **not** put product/metafield limits in the display name — Shopify already shows the price on the card. Match each block to the plan key (`free` / `standard` / `pro` / `plus`), not to the order on the page (Pro and Standard can appear swapped).
 
 **Optional pricing URL**
 
@@ -192,7 +195,7 @@ Pin products, synonyms, and redirects
 Color swatches and grouped values
 Left, right, or top filter panel
 Up to 200 synced products
-6 metafield filters, 180-day analytics
+6 metafield filters, 90-day analytics
 ```
 
 #### Plan: pro ($19.99/month, no trial — 1,000 products / 15 metafields)
@@ -214,6 +217,27 @@ Reviews and wishlists stay after Ajax
 Translate storefront widget labels
 Up to 1,000 synced products
 15 metafield filters, 180-day analytics
+```
+
+#### Plan: plus ($34.99/month, no trial — 5,000 products / 40 metafields)
+
+Display name:
+
+```
+Plus
+```
+
+Top features:
+
+```
+Collection filters via theme app block
+Storefront product search block
+Pin products, synonyms, and redirects
+Per-collection metafield filter maps
+Reviews and wishlists stay after Ajax
+Translate storefront widget labels
+Up to 5,000 synced products
+40 metafield filters, 365-day analytics
 ```
 
 ---

@@ -116,8 +116,12 @@ try {
   if (!combos.includes("tags=sale|vendor=Acme")) {
     fail(`Filter combos missing two-facet combo: ${JSON.stringify(dashboard.filterCombos)}`);
   }
-  if (dashboard.retentionDays !== 90 && dashboard.retentionDays !== 180) {
-    fail(`retention expected 90 or 180, got ${dashboard.retentionDays}`);
+  if (
+    dashboard.retentionDays !== 90 &&
+    dashboard.retentionDays !== 180 &&
+    dashboard.retentionDays !== 365
+  ) {
+    fail(`retention expected 90, 180, or 365, got ${dashboard.retentionDays}`);
   }
   if (dashboard.metrics.uniqueVisitors < 2) {
     fail("expected two unique visitors");

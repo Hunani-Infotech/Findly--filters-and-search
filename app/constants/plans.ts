@@ -37,6 +37,16 @@ export const PLANS = {
     filterLimit: 15,
     trialDays: 0,
   },
+  plus: {
+    key: "plus",
+    name: "Findly Plus",
+    amount: 34.99,
+    currencyCode: "USD",
+    interval: "EVERY_30_DAYS" as const,
+    productLimit: 5000,
+    filterLimit: 40,
+    trialDays: 0,
+  },
 } as const;
 
 /** Merchant-facing label when a live shop has no paid subscription. */
@@ -46,7 +56,7 @@ export type PlanKey = keyof typeof PLANS;
 export type PaidPlanKey = Exclude<PlanKey, "free">;
 
 export function isPaidPlanKey(key: string): key is PaidPlanKey {
-  return key === "standard" || key === "pro";
+  return Object.hasOwn(PLANS, key) && key !== "free";
 }
 
 /**
@@ -82,6 +92,13 @@ export function planKeyFromName(name: string | null | undefined): PlanKey {
   if (normalized.includes("standard")) return "standard";
   if (normalized === "free" || normalized.includes("development")) {
     return "free";
+  }
+  if (
+    normalized === "findly plus" ||
+    normalized === "plus" ||
+    normalized.includes("findly plus")
+  ) {
+    return "plus";
   }
   if (
     normalized === "professional" ||

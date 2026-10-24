@@ -13,7 +13,7 @@ Launch product = collection filters + storefront search + Theme App Extension, p
 - Search extras: pinnings, synonyms, redirects
 - Analytics dashboard (filter + search usage)
 - Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
-- Plans: Development (dev-only) / Standard / Pro
+- Plans: Development (dev-only) / Standard / Pro / Plus
 
 **Do not advertise as finished:** AI/ML semantic ranking, drag-drop theme editor.
 
@@ -44,7 +44,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 | API layer | Admin GraphQL API (not REST) | Shopify is phasing out REST for new apps |
 | Database | Postgres (Supabase) | Hosted pooler + direct URLs; better fit than Mongo for relational filter-config/metafield-mapping data |
 | Queue/sync | Postgres `QueueJob` + poller | Product/metafield sync jobs. Hostinger: web process + separate `npm run worker:prod`. In-process poller when `START_WORKER` is not `0` (local/dev). |
-| Billing | Shopify Billing API (`AppSubscriptionCreate`) | Free + Standard + Pro |
+| Billing | Shopify Billing API (`AppSubscriptionCreate`) | Free + Standard + Pro + Plus |
 | Hosting | Hostinger Node | Current production. Postgres on Supabase (queue + catalog). No `fly.toml`; add one later only if Fly.io is chosen again. |
 | Mandatory webhooks | `APP_UNINSTALLED`, `customers/redact`, `shop/redact`, `customers/data_request` | Required for App Store approval, not optional |
 
@@ -54,7 +54,7 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 2. Metafield mapping, filter admin, Theme App Extension filters — **done in repo**
 3. Storefront search + search extras — **done in repo**
 4. Catalog sync (bulk + webhooks) — **done in repo**; live proof: AS-Q1 / AS-Q2
-5. Billing API — Free / Standard / Pro — **done in repo**; live charges: AS-B5–B7
+5. Billing API — Free / Standard / Pro / Plus — **done in repo**; live charges: AS-B5–B7
 6. Mandatory GDPR webhooks — **done in repo**; live delivery: AS-C6
 7. Fix production `/health` (Postgres on Hostinger) + `shopify app deploy` — **done**
 8. Live QA on a development store (filters, search, billing)
@@ -63,17 +63,18 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 ## 4. Plan structure
 
-| Plan | Price | Caps | Includes |
-|---|---|---|---|
-| **Development** | $0 | Live: 0 products. Development stores: full catalog | All features, development stores only |
-| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | Live plan (previous Free caps), billed from install |
-| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | Previous Standard caps |
+| Plan | Price | Caps | Analytics retention | Includes |
+|---|---|---|---|---|
+| **Development** | $0 | Live: 0 products. Development stores: full catalog | 90 days | All features, development stores only |
+| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | 90 days | Live plan (previous Free caps), billed from install |
+| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | 180 days | Higher product and metafield caps |
+| **Plus** | $34.99 / 30 days · no trial | 5,000 products · 40 metafield filters | 365 days | Highest product and metafield caps |
 
-Search extras and analytics are **not** separate SKUs — they ship on every plan. Caps differentiate plans.
+Search extras and analytics are **not** separate SKUs — they ship on every plan. Product/metafield caps and analytics retention differentiate plans.
 
 ## 5. Summary
 
 - Tech decision locked: React Router 7 official template, not Next.js/Express
 - Product = filters + search (+ extras) + analytics + Theme App Extension
-- Plans = Development (dev stores only) / Standard / Pro
+- Plans = Development (dev stores only) / Standard / Pro / Plus
 - Remaining risk is **live Hostinger + storefront QA**, not re-building search from scratch

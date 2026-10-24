@@ -194,7 +194,8 @@ export default function AnalyticsPage() {
             <Banner tone="info">
               <p>
                 Events are retained for {dashboard.retentionDays} days.
-                Development keeps 90 days; Standard and Pro keep 180 days.
+                Development and Standard keep 90 days. Pro keeps 180 days. Plus
+                keeps 365 days.
               </p>
             </Banner>
 

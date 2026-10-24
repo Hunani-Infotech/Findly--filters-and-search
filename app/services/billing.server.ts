@@ -116,7 +116,7 @@ export function isDevUnlockLimits() {
   return (process.env.DEV_UNLOCK_LIMITS ?? "false").toLowerCase() === "true";
 }
 
-/** Development stores get the full product, not live Standard/Pro caps. */
+/** Development stores get the unlocked catalog, not live Standard, Pro, or Plus caps. */
 const DEVELOPMENT_STORE_CAPS = {
   productLimit: 5000,
   filterLimit: 25,
@@ -429,7 +429,7 @@ export function resolveBillingApproveGate(shop: {
       confirmationUrl: null,
       title: "Plan declined",
       message:
-        "The previous subscription charge was declined. Choose Standard or Pro on the pricing page to continue indexing your catalog.",
+        "The previous subscription charge was declined. Choose Standard, Pro, or Plus on the pricing page to continue indexing your catalog.",
       ctaLabel: "Choose plan",
     };
   }
@@ -441,7 +441,7 @@ export function resolveBillingApproveGate(shop: {
     confirmationUrl: null,
     title: "Choose a plan",
     message:
-      "Live stores use Standard or Pro. Choose a plan to index your catalog — Findly stays open so you can pick when ready.",
+      "Live stores use Standard, Pro, or Plus. Choose a plan to index your catalog — Findly stays open so you can pick when ready.",
     ctaLabel: "Choose plan",
   };
 }
@@ -533,7 +533,7 @@ function isLocalPendingStatus(status: string | null | undefined): boolean {
  *
  * - No ACTIVE paid → may create a new charge.
  * - ACTIVE matching the requested plan → STOP (never re-charge the same plan).
- * - ACTIVE different paid plan → allow create with replacementBehavior (Standard↔Pro).
+ * - ACTIVE different paid plan → allow create with replacementBehavior (any different paid plan: Standard, Pro, or Plus).
  *   Kickoff passes no requestedPlan and treats any ACTIVE as stop.
  */
 export function decideChargeFromActiveSubscriptions(
@@ -888,7 +888,7 @@ export type StartOrReusePaidResult =
  *
  * B-1: Always fetch activeSubscriptions first.
  * - ACTIVE same plan → already_active (never re-charge).
- * - ACTIVE other plan → create with replacementBehavior (Standard↔Pro switch).
+ * - ACTIVE other plan → create with replacementBehavior (switch between Standard, Pro, or Plus).
  * - No ACTIVE → create or reuse pending confirmationUrl.
  */
 export async function startOrReusePaidSubscription(

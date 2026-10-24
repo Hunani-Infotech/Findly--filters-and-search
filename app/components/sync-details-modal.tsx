@@ -46,7 +46,7 @@ export function indexedProductsLabel(data: {
     if (data.productCount > 0) {
       return `Indexed products: ${data.productCount} (live stores without a paid plan do not index new products)`;
     }
-    return "Indexed products: none — choose Standard or Pro to index this catalog";
+    return "Indexed products: none — choose Standard, Pro, or Plus to index this catalog";
   }
   return `Indexed products: ${data.productCount} of ${data.productLimit} allowed`;
 }
@@ -112,7 +112,8 @@ export function SyncDetailsModal({
           {data.indexingBlocked ? (
             <Banner tone="warning" title="Products are not indexed on this plan">
               <p>
-                Live stores need Standard or Pro to index products. Collections
+                Live stores need Standard, Pro, or Plus to index products.
+                Collections
                 can still sync.{" "}
                 <Button variant="plain" onClick={() => go(billingHref)}>
                   Choose a plan

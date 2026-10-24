@@ -544,10 +544,13 @@ function assertThemeSeoAndUi() {
   if (
     !plansConstants.includes("productLimit: 200") ||
     !plansConstants.includes("productLimit: 1000") ||
+    !plansConstants.includes("productLimit: 5000") ||
+    !plansConstants.includes("filterLimit: 40") ||
     !plansConstants.includes("11.99") ||
-    !plansConstants.includes("19.99")
+    !plansConstants.includes("19.99") ||
+    !plansConstants.includes("34.99")
   ) {
-    fail("plans.ts missing Standard 11.99 / Pro 19.99 caps / price");
+    fail("plans.ts missing Standard 11.99 / Pro 19.99 / Plus 34.99 caps / price");
   }
 }
 
@@ -1139,6 +1142,65 @@ try {
   }
   if (PLANS.standard.trialDays !== 0 || PLANS.pro.trialDays !== 0) {
     fail("Paid plans must have no trial");
+  }
+  if (PLANS.plus.amount !== 34.99) {
+    fail("Plus price drifted");
+  }
+  if (PLANS.plus.productLimit !== 5000 || PLANS.plus.filterLimit !== 40) {
+    fail("Plus plan caps drifted");
+  }
+  if (PLANS.plus.trialDays !== 0) {
+    fail("Plus plan must have no trial");
+  }
+  if (PLANS.plus.name !== "Findly Plus") {
+    fail("Plus plan name drifted");
+  }
+
+  const { planKeyFromName, isPaidPlanKey } = await import("../app/constants/plans.ts");
+  if (!isPaidPlanKey("standard") || !isPaidPlanKey("pro") || !isPaidPlanKey("plus")) {
+    fail("standard, pro, and plus must be paid plans");
+  }
+  if (isPaidPlanKey("free") || isPaidPlanKey("toString") || isPaidPlanKey("constructor")) {
+    fail("free and inherited object keys must not be paid plans");
+  }
+  if (planKeyFromName("Findly Plus") !== "plus") {
+    fail("planKeyFromName(Findly Plus) must resolve to plus");
+  }
+  if (planKeyFromName("plus") !== "plus") {
+    fail("planKeyFromName(plus) must resolve to plus");
+  }
+  if (planKeyFromName("Plus") !== "plus") {
+    fail("planKeyFromName(Plus) must resolve to plus");
+  }
+  if (planKeyFromName("Findly Pro") !== "pro") {
+    fail("planKeyFromName(Findly Pro) must resolve to pro");
+  }
+  if (planKeyFromName("Findly Standard") !== "standard") {
+    fail("planKeyFromName(Findly Standard) must resolve to standard");
+  }
+  if (planKeyFromName("professional") !== "pro") {
+    fail("planKeyFromName(professional) must resolve to pro");
+  }
+
+  const prevDevUnlock = process.env.DEV_UNLOCK_LIMITS;
+  process.env.DEV_UNLOCK_LIMITS = "false";
+  const { retentionDaysForPlan } = await import("../app/services/analytics.server.ts");
+  if (retentionDaysForPlan("standard") !== 90) {
+    fail("standard analytics retention must be 90 days");
+  }
+  if (retentionDaysForPlan("free") !== 90) {
+    fail("free analytics retention must be 90 days");
+  }
+  if (retentionDaysForPlan("pro") !== 180) {
+    fail("pro analytics retention must be 180 days");
+  }
+  if (retentionDaysForPlan("plus") !== 365) {
+    fail("plus analytics retention must be 365 days");
+  }
+  if (prevDevUnlock === undefined) {
+    delete process.env.DEV_UNLOCK_LIMITS;
+  } else {
+    process.env.DEV_UNLOCK_LIMITS = prevDevUnlock;
   }
 
   const collectionA = await getCollectionFilterPayload({
