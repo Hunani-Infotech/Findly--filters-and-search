@@ -606,13 +606,12 @@ async function commitAckBatch(waiters: AckWaiter[]) {
     return;
   }
   const budgetMs = Math.min(4_000, remainingMs);
-  const live = active;
 
   const deliveries = new Map<
     string,
     { webhookId: string; shopDomain: string; topic: string }
   >();
-  for (const waiter of live) {
+  for (const waiter of active) {
     const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
     if (!webhookId || !waiter.delivery) continue;
     deliveries.set(webhookId, {
@@ -651,7 +650,7 @@ async function commitAckBatch(waiters: AckWaiter[]) {
       // A repeated webhook id does not enqueue again. Same rule as the old
       // webhookDeliveryExists short-circuit: ack 200, leave the existing job.
       const jobByKey = new Map<string, AckJobRow>();
-      for (const waiter of live) {
+      for (const waiter of active) {
         if (!waiter.job) continue;
         const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
         if (webhookId && !newDeliveryIds.has(webhookId)) continue;
@@ -741,7 +740,7 @@ async function commitAckBatch(waiters: AckWaiter[]) {
     { maxWait: budgetMs, timeout: budgetMs },
   );
 
-  for (const waiter of live) {
+  for (const waiter of active) {
     if (waiter.cancelled) continue;
     const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
     const jobKey = waiter.job ? normalizeJobKey(waiter.job.jobId) : undefined;
