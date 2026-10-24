@@ -42,6 +42,13 @@ const DROP_IF_BUSY_JOBS: ReadonlySet<SyncJobName> = new Set([
   "billing.syncFromShopify",
 ]);
 
+/** Same suffixes as the single-job enqueue path. Shared so the ack batch cannot drift. */
+const FOLLOWUP_SUFFIXES = ["followup", "followup2"] as const;
+
+function queuesFollowupWhileProcessing(name: SyncJobName) {
+  return FOLLOWUP_JOBS.has(name) && !DROP_IF_BUSY_JOBS.has(name);
+}
+
 /** Stable worker id for lockedBy — helps debug which process held a stale lock. */
 export function workerLockId() {
   return `${hostname()}:${process.pid}`;
@@ -173,7 +180,7 @@ async function enqueueFollowupWhileProcessing(
   existing: QueueJob,
   delay?: number,
 ) {
-  if (DROP_IF_BUSY_JOBS.has(name) || !FOLLOWUP_JOBS.has(name)) {
+  if (!queuesFollowupWhileProcessing(name)) {
     const staleAfterMs = name === "shop.fullSync" ? 120_000 : 0;
     const startedAt = existing.lockedAt?.getTime() ?? existing.updatedAt.getTime();
     if (staleAfterMs && startedAt && Date.now() - startedAt > staleAfterMs) {
@@ -188,7 +195,7 @@ async function enqueueFollowupWhileProcessing(
     return existing;
   }
 
-  for (const suffix of ["followup", "followup2"] as const) {
+  for (const suffix of FOLLOWUP_SUFFIXES) {
     const followupKey = `${jobKey}_${suffix}`;
     const followup = await insertJob(name, data, {
       jobKey: followupKey,
@@ -205,6 +212,9 @@ async function enqueueFollowupWhileProcessing(
   });
 }
 
+/** Same jobKey arriving together (locations, Shopify retries) shares one INSERT. */
+const inflightEnqueues = new Map<string, Promise<QueueJob>>();
+
 /**
  * Enqueue with the same idempotency / follow-up semantics as the former BullMQ path.
  * Storage is Postgres QueueJob rows instead of Redis.
@@ -216,6 +226,31 @@ export async function enqueueSyncJob(
   data: Record<string, unknown>,
   opts?: { jobId?: string; delay?: number },
 ) {
+  const jobKey = normalizeJobKey(opts?.jobId);
+  const flightKey = jobKey ? `${name}:${jobKey}` : "";
+  if (flightKey) {
+    const inflight = inflightEnqueues.get(flightKey);
+    if (inflight) return inflight;
+  }
+
+  const run = enqueueSyncJobUncoalesced(name, data, opts, jobKey);
+  if (!flightKey) return run;
+
+  inflightEnqueues.set(flightKey, run);
+  void run.finally(() => {
+    if (inflightEnqueues.get(flightKey) === run) {
+      inflightEnqueues.delete(flightKey);
+    }
+  });
+  return run;
+}
+
+async function enqueueSyncJobUncoalesced(
+  name: SyncJobName,
+  data: Record<string, unknown>,
+  opts: { jobId?: string; delay?: number } | undefined,
+  jobKey: string | undefined,
+) {
   // Production web sets START_WORKER=0 — skip dynamic import on the hot path.
   if (process.env.START_WORKER !== "0") {
     const { ensureWorkerRunning } = await import(
@@ -224,7 +259,6 @@ export async function enqueueSyncJob(
     await ensureWorkerRunning();
   }
 
-  const jobKey = normalizeJobKey(opts?.jobId);
   const job = await insertJob(name, data, { jobKey, delay: opts?.delay });
 
   if (!jobKey || job.status !== "processing") {
@@ -349,6 +383,387 @@ export async function enqueueSyncJobWithTimeout(
     }
   }
   throw failure;
+}
+
+/** Coalesce a webhook storm onto one transaction. A lone delivery waits at most this long. */
+const ACK_BATCH_WINDOW_MS = 8;
+const ACK_BATCH_MAX = 100;
+const ACK_BATCH_DEADLINE_MS =
+  DEFAULT_ENQUEUE_TIMEOUT_MS + ENQUEUE_TIMEOUT_RECOVERY_MS;
+
+export type WebhookAckJob = {
+  name: SyncJobName;
+  data: Record<string, unknown>;
+  jobId: string;
+  delay?: number;
+};
+
+export type WebhookAckInput = {
+  delivery?: { webhookId: string; shopDomain: string; topic: string };
+  job?: WebhookAckJob;
+};
+
+type AckWaiter = WebhookAckInput & {
+  deadlineAt: number;
+  cancelled: boolean;
+  resolve: (value: {
+    delivery: "new" | "duplicate";
+    job: QueueJob | null;
+  }) => void;
+  reject: (error: unknown) => void;
+};
+
+let ackBuffer: AckWaiter[] = [];
+let ackTimer: ReturnType<typeof setTimeout> | undefined;
+let ackFlushing = false;
+
+/**
+ * Durable webhook ack. Many deliveries that arrive together share one
+ * QueueJob + WebhookDelivery commit. Resolves only after COMMIT.
+ * Rejects if that commit fails, so the HTTP handler still returns 5xx
+ * and Shopify retries. Never treats a missing row as success.
+ */
+export function ackWebhookBatch(input: WebhookAckInput) {
+  return new Promise<{
+    delivery: "new" | "duplicate";
+    job: QueueJob | null;
+  }>((resolve, reject) => {
+    let settled = false;
+    const waiter: AckWaiter = {
+      ...input,
+      deadlineAt: Date.now() + ACK_BATCH_DEADLINE_MS,
+      cancelled: false,
+      resolve: (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject: (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    };
+    const timer = setTimeout(() => {
+      waiter.cancelled = true;
+      waiter.reject(
+        new Error(
+          `enqueue ${input.job?.name ?? "webhook"} timed out after ${ACK_BATCH_DEADLINE_MS}ms`,
+        ),
+      );
+    }, ACK_BATCH_DEADLINE_MS);
+    ackBuffer.push(waiter);
+    scheduleAckFlush();
+  });
+}
+
+function scheduleAckFlush() {
+  if (ackFlushing || ackTimer) return;
+  ackTimer = setTimeout(() => {
+    ackTimer = undefined;
+    void runAckFlush();
+  }, ACK_BATCH_WINDOW_MS);
+}
+
+async function runAckFlush() {
+  if (ackFlushing) return;
+  const batch = ackBuffer.splice(0, ACK_BATCH_MAX);
+  if (batch.length === 0) return;
+  ackFlushing = true;
+  try {
+    await commitAckBatch(batch);
+  } catch (error) {
+    for (const waiter of batch) waiter.reject(error);
+  } finally {
+    ackFlushing = false;
+    if (ackBuffer.length > 0) void runAckFlush();
+  }
+}
+
+type AckJobRow = {
+  name: SyncJobName;
+  data: Record<string, unknown>;
+  jobKey: string;
+  delayMs: number;
+};
+
+async function insertAckJobRows(
+  tx: Prisma.TransactionClient,
+  rows: AckJobRow[],
+): Promise<QueueJob[]> {
+  if (rows.length === 0) return [];
+  const values = Prisma.join(
+    rows.map((row) => {
+      const payloadJson = JSON.stringify(row.data);
+      return Prisma.sql`(
+        ${randomUUID()},
+        ${row.name},
+        ${payloadJson}::jsonb,
+        'pending'::"QueueJobStatus",
+        0,
+        3,
+        NOW() + (${row.delayMs}::bigint * INTERVAL '1 millisecond'),
+        ${row.jobKey},
+        NOW(),
+        NOW()
+      )`;
+    }),
+  );
+  return tx.$queryRaw<QueueJob[]>`
+    INSERT INTO "QueueJob" (
+      id, type, payload, status, attempts, "maxAttempts",
+      "runAt", "jobKey", "createdAt", "updatedAt"
+    )
+    VALUES ${values}
+    ON CONFLICT ("jobKey") DO UPDATE SET
+      payload = EXCLUDED.payload,
+      "runAt" = CASE
+        WHEN "QueueJob"."runAt" > NOW() THEN EXCLUDED."runAt"
+        ELSE "QueueJob"."runAt"
+      END,
+      "updatedAt" = NOW()
+    WHERE "QueueJob".status = 'pending'::"QueueJobStatus"
+    RETURNING *
+  `;
+}
+
+/** Insert or refresh one job key. Processing is returned so the caller can follow up. */
+async function placeAckJob(
+  tx: Prisma.TransactionClient,
+  spec: AckJobRow,
+): Promise<QueueJob | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const inserted = await insertAckJobRows(tx, [spec]);
+    if (inserted[0]) return inserted[0];
+    const existing = await tx.queueJob.findUnique({
+      where: { jobKey: spec.jobKey },
+    });
+    if (!existing) continue;
+    if (existing.status === "completed" || existing.status === "failed") {
+      await tx.queueJob.deleteMany({ where: { id: existing.id } });
+      continue;
+    }
+    return existing;
+  }
+  return tx.queueJob.findUnique({ where: { jobKey: spec.jobKey } });
+}
+
+/**
+ * Same follow-up ladder as enqueueFollowupWhileProcessing:
+ * `_followup`, then `_followup2`, then a timestamped key.
+ */
+async function placeAckFollowup(
+  tx: Prisma.TransactionClient,
+  spec: AckJobRow,
+): Promise<QueueJob> {
+  for (const suffix of FOLLOWUP_SUFFIXES) {
+    const placed = await placeAckJob(tx, {
+      ...spec,
+      jobKey: `${spec.jobKey}_${suffix}`,
+    });
+    if (placed && placed.status !== "processing") return placed;
+  }
+  const stamped = await placeAckJob(tx, {
+    ...spec,
+    jobKey: `${spec.jobKey}_followup_${Date.now()}`,
+  });
+  if (!stamped || stamped.status === "processing") {
+    throw new Error(
+      `ack batch rolled back — delivery not recorded; failed to enqueue ${spec.name} (jobKey=${spec.jobKey})`,
+    );
+  }
+  return stamped;
+}
+
+async function commitAckBatch(waiters: AckWaiter[]) {
+  if (waiters.every((waiter) => waiter.cancelled)) return;
+
+  if (process.env.START_WORKER !== "0") {
+    const { ensureWorkerRunning } = await import(
+      "../workers/ensure-running.server"
+    );
+    await ensureWorkerRunning();
+  }
+
+  const active = waiters.filter((waiter) => !waiter.cancelled);
+  if (active.length === 0) return;
+
+  // Cap this commit to the oldest waiter still inside Shopify's ack budget.
+  // A burst queued behind an earlier flush fails fast and retries, instead of
+  // hanging past 5s or committing after the handler already returned 5xx.
+  const remainingMs =
+    Math.min(...active.map((waiter) => waiter.deadlineAt)) - Date.now() - 50;
+  if (remainingMs < 200) {
+    for (const waiter of active) {
+      waiter.reject(
+        new Error(
+          `enqueue ${waiter.job?.name ?? "webhook"} timed out after ${ACK_BATCH_DEADLINE_MS}ms`,
+        ),
+      );
+    }
+    return;
+  }
+  const budgetMs = Math.min(4_000, remainingMs);
+  const live = active;
+
+  const deliveries = new Map<
+    string,
+    { webhookId: string; shopDomain: string; topic: string }
+  >();
+  for (const waiter of live) {
+    const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
+    if (!webhookId || !waiter.delivery) continue;
+    deliveries.set(webhookId, {
+      webhookId,
+      shopDomain: waiter.delivery.shopDomain,
+      topic: waiter.delivery.topic,
+    });
+  }
+
+  const committed = await prisma.$transaction(
+    async (tx) => {
+      const newDeliveryIds = new Set<string>();
+      if (deliveries.size > 0) {
+        const values = Prisma.join(
+          [...deliveries.values()].map(
+            (delivery) => Prisma.sql`(
+              ${randomUUID()},
+              ${delivery.webhookId},
+              ${delivery.shopDomain},
+              ${delivery.topic},
+              NOW()
+            )`,
+          ),
+        );
+        const inserted = await tx.$queryRaw<Array<{ webhookId: string }>>`
+          INSERT INTO "WebhookDelivery" (
+            id, "webhookId", "shopDomain", topic, "createdAt"
+          )
+          VALUES ${values}
+          ON CONFLICT ("webhookId") DO NOTHING
+          RETURNING "webhookId"
+        `;
+        for (const row of inserted) newDeliveryIds.add(row.webhookId);
+      }
+
+      // A repeated webhook id does not enqueue again. Same rule as the old
+      // webhookDeliveryExists short-circuit: ack 200, leave the existing job.
+      const jobByKey = new Map<string, AckJobRow>();
+      for (const waiter of live) {
+        if (!waiter.job) continue;
+        const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
+        if (webhookId && !newDeliveryIds.has(webhookId)) continue;
+        const jobKey = normalizeJobKey(waiter.job.jobId);
+        if (!jobKey) continue;
+        jobByKey.set(jobKey, {
+          name: waiter.job.name,
+          data: waiter.job.data,
+          jobKey,
+          delayMs: Math.max(0, Math.floor(waiter.job.delay ?? 0)),
+        });
+      }
+
+      const byKey = new Map<string, QueueJob>();
+      for (const row of await insertAckJobRows(tx, [...jobByKey.values()])) {
+        if (row.jobKey) byKey.set(row.jobKey, row);
+      }
+
+      const missing = [...jobByKey.keys()].filter((key) => !byKey.has(key));
+      if (missing.length > 0) {
+        const keys = Prisma.join(missing.map((key) => Prisma.sql`${key}`));
+        const existing = await tx.$queryRaw<QueueJob[]>`
+          SELECT * FROM "QueueJob" WHERE "jobKey" IN (${keys})
+        `;
+        const reinsert: AckJobRow[] = [];
+        const followupSpecs: AckJobRow[] = [];
+        const deleteIds: string[] = [];
+        const seen = new Set<string>();
+        for (const row of existing) {
+          if (!row.jobKey) continue;
+          seen.add(row.jobKey);
+          const spec = jobByKey.get(row.jobKey);
+          if (!spec) continue;
+          if (row.status === "completed" || row.status === "failed") {
+            deleteIds.push(row.id);
+            reinsert.push(spec);
+          } else if (
+            row.status === "processing" &&
+            queuesFollowupWhileProcessing(spec.name)
+          ) {
+            followupSpecs.push(spec);
+          } else {
+            byKey.set(row.jobKey, row);
+          }
+        }
+        for (const key of missing) {
+          if (!seen.has(key)) {
+            const spec = jobByKey.get(key);
+            if (spec) reinsert.push(spec);
+          }
+        }
+        if (deleteIds.length > 0) {
+          const ids = Prisma.join(deleteIds.map((id) => Prisma.sql`${id}`));
+          await tx.$executeRaw`DELETE FROM "QueueJob" WHERE id IN (${ids})`;
+        }
+        for (const row of await insertAckJobRows(tx, reinsert)) {
+          if (row.jobKey) byKey.set(row.jobKey, row);
+        }
+        for (const spec of reinsert) {
+          if (byKey.has(spec.jobKey)) continue;
+          const placed = await placeAckJob(tx, spec);
+          if (!placed) continue;
+          if (
+            placed.status === "processing" &&
+            queuesFollowupWhileProcessing(spec.name)
+          ) {
+            followupSpecs.push(spec);
+          } else {
+            byKey.set(spec.jobKey, placed);
+          }
+        }
+        for (const spec of followupSpecs) {
+          byKey.set(spec.jobKey, await placeAckFollowup(tx, spec));
+        }
+      }
+
+      for (const [key, spec] of jobByKey) {
+        if (!byKey.has(key)) {
+          throw new Error(
+            `ack batch rolled back — delivery not recorded; failed to enqueue ${spec.name} (jobKey=${key})`,
+          );
+        }
+      }
+
+      return { byKey, newDeliveryIds };
+    },
+    { maxWait: budgetMs, timeout: budgetMs },
+  );
+
+  for (const waiter of live) {
+    if (waiter.cancelled) continue;
+    const webhookId = waiter.delivery?.webhookId.trim().slice(0, 128) ?? "";
+    const jobKey = waiter.job ? normalizeJobKey(waiter.job.jobId) : undefined;
+    const job = jobKey ? (committed.byKey.get(jobKey) ?? null) : null;
+    const duplicateDelivery =
+      Boolean(webhookId) && !committed.newDeliveryIds.has(webhookId);
+    if (waiter.job && jobKey && !job && !duplicateDelivery) {
+      waiter.reject(
+        new Error(
+          `Failed to enqueue ${waiter.job.name} (jobKey=${jobKey})`,
+        ),
+      );
+      continue;
+    }
+    waiter.resolve({
+      delivery:
+        webhookId && !committed.newDeliveryIds.has(webhookId)
+          ? "duplicate"
+          : "new",
+      job,
+    });
+  }
 }
 
 /**

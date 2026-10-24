@@ -431,8 +431,10 @@ function assertThemeSeoAndUi() {
   ) {
     fail("customers/data_request must dedupe via WebhookDelivery");
   }
-  if (!customerRedact.includes("tryRecordWebhookDelivery")) {
-    fail("customers/redact must dedupe via tryRecordWebhookDelivery");
+  if (!customerRedact.includes("ackWebhookBatch")) {
+    fail(
+      "customers/redact must ack via ackWebhookBatch (job + delivery in one commit)",
+    );
   }
   if (
     !shopRedact.includes("tryRecordWebhookDelivery") ||
@@ -449,12 +451,12 @@ function assertThemeSeoAndUi() {
   }
   const catalogAction = read("app/services/webhook-action.server.ts");
   if (
-    !catalogAction.includes("tryRecordWebhookDelivery") ||
-    !catalogAction.includes("webhookDeliveryExists") ||
-    !catalogAction.includes("resolveCatalogWebhookDeliveryId")
+    !catalogAction.includes("ackWebhookBatch") ||
+    !catalogAction.includes("resolveCatalogWebhookDeliveryId") ||
+    catalogAction.includes("webhookDeliveryExists")
   ) {
     fail(
-      "catalogWebhookAction must dedupe catalog webhooks via WebhookDelivery",
+      "catalogWebhookAction must ack via ackWebhookBatch (one commit per burst, no pre-SELECT)",
     );
   }
   const deliveryHelpers = read("app/services/webhook-delivery.server.ts");
@@ -871,6 +873,41 @@ try {
   if (!queuesServer.includes("in-flight enqueue")) {
     fail(
       "queues.server.ts must wait on the in-flight enqueue after timeout before returning 5xx",
+    );
+  }
+  if (!queuesServer.includes("inflightEnqueues")) {
+    fail(
+      "enqueueSyncJob must coalesce concurrent enqueues that share a jobKey",
+    );
+  }
+  if (!queuesServer.includes("ackWebhookBatch")) {
+    fail(
+      "queues.server.ts must batch webhook acks into one QueueJob + WebhookDelivery commit",
+    );
+  }
+  if (!queuesServer.includes("FOLLOWUP_SUFFIXES") || !queuesServer.includes("followup2")) {
+    fail(
+      "webhook ack batch must use the same followup / followup2 ladder as enqueueSyncJob",
+    );
+  }
+  if (!queuesServer.includes("ack batch rolled back — delivery not recorded")) {
+    fail(
+      "webhook ack batch must roll back the delivery row when the QueueJob insert does not land",
+    );
+  }
+  if (!queuesServer.includes("deadlineAt")) {
+    fail(
+      "webhook ack batch must cap the database transaction to the Shopify ack deadline",
+    );
+  }
+  if (
+    !queuesServer.includes("FOLLOWUP_SUFFIXES") ||
+    !queuesServer.includes("placeAckFollowup") ||
+    !queuesServer.includes("deadlineAt") ||
+    !queuesServer.includes("ack batch rolled back — delivery not recorded")
+  ) {
+    fail(
+      "webhook ack batch must share followup/followup2, cap the commit to the ack deadline, and roll back when a QueueJob row is missing",
     );
   }
   const packageJsonScripts = read("package.json");

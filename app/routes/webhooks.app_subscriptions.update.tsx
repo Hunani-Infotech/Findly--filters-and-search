@@ -1,10 +1,9 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
+import { ackWebhookBatch } from "../lib/queues.server";
 import { log } from "../lib/log.server";
 import {
   resolveWebhookDeliveryId,
-  tryRecordWebhookDelivery,
   webhookDeliveryExists,
 } from "../services/webhook-delivery.server";
 
@@ -30,8 +29,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const jobId = `${shop}:billing.syncFromShopify`;
 
   try {
-    await enqueueSyncJobWithTimeout("billing.syncFromShopify", jobData, {
-      jobId,
+    await ackWebhookBatch({
+      delivery: { webhookId, shopDomain: shop, topic },
+      job: {
+        name: "billing.syncFromShopify",
+        data: jobData,
+        jobId,
+      },
     });
     log.success(
       `[billing] queued billing.syncFromShopify for ${shop} webhookId=${webhookId}`,
@@ -47,13 +51,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
     throw enqueueError;
   }
-
-  // Record only after durable enqueue so a 5xx retry is not swallowed as duplicate.
-  await tryRecordWebhookDelivery({
-    webhookId,
-    shopDomain: shop,
-    topic,
-  });
 
   return new Response(null, { status: 200 });
 };

@@ -7,7 +7,7 @@ import {
 } from "../lib/catalog-cache.server";
 import { forgetShop } from "../lib/shop-cache.server";
 import { log } from "../lib/log.server";
-import { enqueueSyncJobWithTimeout } from "../lib/queues.server";
+import { ackWebhookBatch } from "../lib/queues.server";
 import { applyLocalFreePlan, clearBillingCaches } from "./billing.server";
 
 export type ComplianceLogStatus = "received" | "acknowledged";
@@ -212,11 +212,13 @@ export async function ensureShopPurged(
   }
 
   try {
-    await enqueueSyncJobWithTimeout(
-      "shop.cleanup",
-      { shop: shopDomain },
-      { jobId: `${shopDomain}:shop.cleanup` },
-    );
+    await ackWebhookBatch({
+      job: {
+        name: "shop.cleanup",
+        data: { shop: shopDomain },
+        jobId: `${shopDomain}:shop.cleanup`,
+      },
+    });
     log.success(
       `[compliance] ${source}: queued shop.cleanup for ${shopDomain}`,
     );

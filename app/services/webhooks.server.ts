@@ -105,71 +105,72 @@ async function enqueueCatalogJob(
   }
 }
 
-export async function handleWebhookTopic(
+export type CatalogWebhookPlan = {
+  name: SyncJobName;
+  data: Record<string, unknown>;
+  jobId: string;
+  delay?: number;
+};
+
+/** Pure plan — same job id, delay, and payload as the enqueue path. Null means ack with no job. */
+export function planCatalogWebhookJob(
   shop: string,
   topic: string,
   payload: Record<string, unknown>,
-) {
+): CatalogWebhookPlan | null {
   const normalized = topic.toUpperCase().replace(/\//g, "_");
 
   switch (normalized) {
     case "PRODUCTS_CREATE":
     case "PRODUCTS_UPDATE": {
       const productGid = webhookGraphqlId(payload, "Product");
-      await enqueueCatalogJob(
-        "product.upsert",
-        { shop, productGid },
-        { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
-      );
-      break;
+      return {
+        name: "product.upsert",
+        data: { shop, productGid },
+        jobId: `${shop}:product.upsert:${productGid}`,
+        delay: 600,
+      };
     }
     case "PRODUCTS_DELETE": {
       const productGid = webhookGraphqlId(payload, "Product");
-      await enqueueCatalogJob(
-        "product.delete",
-        { shop, productGid },
-        { jobId: `${shop}:product.delete:${productGid}` },
-      );
-      break;
+      return {
+        name: "product.delete",
+        data: { shop, productGid },
+        jobId: `${shop}:product.delete:${productGid}`,
+      };
     }
     case "COLLECTIONS_CREATE":
     case "COLLECTIONS_UPDATE":
     case "COLLECTIONS_DELETE": {
       const collectionGid = webhookGraphqlId(payload, "Collection");
-      await enqueueCatalogJob(
-        "collection.rebuild",
-        { shop, collectionGid },
-        { jobId: `${shop}:collection.rebuild:${collectionGid}`, delay: COLLECTION_REBUILD_DELAY_MS },
-      );
-      break;
+      return {
+        name: "collection.rebuild",
+        data: { shop, collectionGid },
+        jobId: `${shop}:collection.rebuild:${collectionGid}`,
+        delay: COLLECTION_REBUILD_DELAY_MS,
+      };
     }
     case "BULK_OPERATIONS_FINISH": {
       const bulkOperationId =
         (payload.admin_graphql_api_id as string) || undefined;
-      await enqueueCatalogJob(
-        "shop.ingestBulk",
-        { shop, bulkOperationId },
-        {
-          jobId: `${shop}:shop.ingestBulk:${bulkOperationId || "current"}`,
-        },
-      );
-      break;
+      return {
+        name: "shop.ingestBulk",
+        data: { shop, bulkOperationId },
+        jobId: `${shop}:shop.ingestBulk:${bulkOperationId || "current"}`,
+      };
     }
     case "INVENTORY_LEVELS_UPDATE": {
       const inventoryItemGid = webhookInventoryItemGid(payload);
       if (!inventoryItemGid) {
         log.warn("inventory_levels/update missing inventory item id");
-        break;
+        return null;
       }
-      await enqueueCatalogJob(
-        "inventory.sync",
-        { shop, inventoryItemGid },
-        {
-          jobId: `${shop}:inventory.sync:${inventoryItemGid}`,
-          delay: 500,
-        },
-      );
-      break;
+      return {
+        name: "inventory.sync",
+        data: { shop, inventoryItemGid },
+        jobId: `${shop}:inventory.sync:${inventoryItemGid}`,
+        delay: 500,
+      };
     }
     case "METAFIELDS_CREATE":
     case "METAFIELDS_UPDATE":
@@ -179,13 +180,13 @@ export async function handleWebhookTopic(
 
       if (ownerResource === "product") {
         const productGid = ownerToGid(ownerId, "Product");
-        if (!productGid) break;
-        await enqueueCatalogJob(
-          "product.upsert",
-          { shop, productGid },
-          { jobId: `${shop}:product.upsert:${productGid}`, delay: 600 },
-        );
-        break;
+        if (!productGid) return null;
+        return {
+          name: "product.upsert",
+          data: { shop, productGid },
+          jobId: `${shop}:product.upsert:${productGid}`,
+          delay: 600,
+        };
       }
 
       if (
@@ -194,32 +195,43 @@ export async function handleWebhookTopic(
         ownerResource === "productvariant"
       ) {
         const variantGid = ownerToGid(ownerId, "ProductVariant");
-        if (!variantGid) break;
-        await enqueueCatalogJob(
-          "variant.sync",
-          { shop, variantGid },
-          { jobId: `${shop}:variant.sync:${variantGid}`, delay: 500 },
-        );
-        break;
+        if (!variantGid) return null;
+        return {
+          name: "variant.sync",
+          data: { shop, variantGid },
+          jobId: `${shop}:variant.sync:${variantGid}`,
+          delay: 500,
+        };
       }
 
       if (ownerResource === "collection") {
         const collectionGid = ownerToGid(ownerId, "Collection");
-        if (!collectionGid) break;
-        await enqueueCatalogJob(
-          "collection.rebuild",
-          { shop, collectionGid },
-          {
-            jobId: `${shop}:collection.rebuild:${collectionGid}`,
-            delay: COLLECTION_REBUILD_DELAY_MS,
-          },
-        );
-        break;
+        if (!collectionGid) return null;
+        return {
+          name: "collection.rebuild",
+          data: { shop, collectionGid },
+          jobId: `${shop}:collection.rebuild:${collectionGid}`,
+          delay: COLLECTION_REBUILD_DELAY_MS,
+        };
       }
 
-      break;
+      return null;
     }
     default:
       log.warn(`Unhandled webhook topic: ${topic}`);
+      return null;
   }
+}
+
+export async function handleWebhookTopic(
+  shop: string,
+  topic: string,
+  payload: Record<string, unknown>,
+) {
+  const plan = planCatalogWebhookJob(shop, topic, payload);
+  if (!plan) return;
+  await enqueueCatalogJob(plan.name, plan.data, {
+    jobId: plan.jobId,
+    delay: plan.delay,
+  });
 }
