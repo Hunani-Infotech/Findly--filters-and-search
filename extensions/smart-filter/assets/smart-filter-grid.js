@@ -2124,6 +2124,144 @@
     }
   }
 
+  /**
+   * Same bands dawnFlexColumnCount / the column CSS already use.
+   * Phone <750, tablet 750–989, narrow desktop 990–1040, desktop ≥1041.
+   */
+  function productGridViewportBand() {
+    try {
+      if (typeof window.matchMedia !== "function") return "phone";
+      if (
+        window.matchMedia(
+          "(min-width: " + PRODUCT_GRID_DESKTOP_LOCK_MIN + "px)",
+        ).matches
+      ) {
+        return "desktop";
+      }
+      if (window.matchMedia("(min-width: 990px)").matches) return "narrow";
+      if (window.matchMedia("(min-width: 750px)").matches) return "tablet";
+    } catch (err) {
+      /* ignore */
+    }
+    return "phone";
+  }
+
+  /**
+   * ensureDawnFlexColumnWidths writes column-gap as a raw px length, then the
+   * next run reads that length back. Drop only that inline value so a band
+   * change measures the theme gap the way a fresh load at this width would.
+   * Leave the gap alone unless this host also has the flex lock that function sets.
+   */
+  function clearFindlyInlinePxGap(host) {
+    if (!host || !host.style || typeof host.style.getPropertyValue !== "function") {
+      return;
+    }
+    var display = "";
+    var priority = "";
+    try {
+      display = String(host.style.getPropertyValue("display") || "").trim();
+      priority = String(host.style.getPropertyPriority("display") || "");
+    } catch (err) {
+      return;
+    }
+    if (display !== "flex" || priority !== "important") return;
+    var props = ["column-gap", "row-gap", "gap"];
+    var i;
+    for (i = 0; i < props.length; i++) {
+      var value = "";
+      try {
+        value = String(host.style.getPropertyValue(props[i]) || "").trim();
+      } catch (readErr) {
+        value = "";
+      }
+      if (!/^\d+(\.\d+)?px$/.test(value)) continue;
+      try {
+        host.style.removeProperty(props[i]);
+      } catch (removeErr) {
+        /* ignore */
+      }
+    }
+  }
+
+  function listingCardGridHost(widget) {
+    return (
+      (widget && resolveListingCardGrid(widget._gridParent)) ||
+      (widget && resolveListingCardGrid(collectionSearchGridEl(widget))) ||
+      resolveListingCardGrid(
+        liveProductGridIn(document.querySelector(".sf-collection-layout")),
+      ) ||
+      null
+    );
+  }
+
+  /**
+   * Re-run the existing column lock after a breakpoint cross.
+   * Does not move the toolbar — scheduleRelockProductGridTracks also calls
+   * ensureToolbarInColumnMain, which this path leaves alone.
+   */
+  function relockProductGridForViewport(widget) {
+    widget = widget || window.__FINDLY_FILTER_WIDGET;
+    /* Read the grid the widget already uses. Do not assign _gridParent —
+       that would retarget later filter renders. */
+    var host = listingCardGridHost(widget);
+    if (!host) return;
+    clearThemeGridSnap(host);
+    clearFindlyInlinePxGap(host);
+    clearDawnFlexColumnWidths(host);
+    lockThemeGridTracks(host);
+    if (host.closest && host.closest(".sf-collection-layout .sf-layout-main")) {
+      var relockFlex = false;
+      try {
+        if (typeof window.getComputedStyle === "function") {
+          relockFlex =
+            String(window.getComputedStyle(host).display || "").indexOf("flex") !==
+            -1;
+        }
+      } catch (relockErr) {
+        relockFlex = false;
+      }
+      if (relockFlex) ensureDawnFlexColumnWidths(host, true);
+    }
+  }
+
+  function bindProductGridViewportRelock() {
+    if (window.__findlyGridViewportRelock) return;
+    window.__findlyGridViewportRelock = true;
+    var lastBand = productGridViewportBand();
+    var scheduled = false;
+    var thresholds = [750, 990, PRODUCT_GRID_DESKTOP_LOCK_MIN];
+    function onBandChange() {
+      var band = productGridViewportBand();
+      if (band === lastBand) return;
+      lastBand = band;
+      if (scheduled) return;
+      scheduled = true;
+      var run = function () {
+        scheduled = false;
+        lastBand = productGridViewportBand();
+        relockProductGridForViewport(window.__FINDLY_FILTER_WIDGET);
+      };
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(run);
+        });
+      } else {
+        setTimeout(run, 48);
+      }
+    }
+    var i;
+    for (i = 0; i < thresholds.length; i++) {
+      try {
+        var mq = window.matchMedia("(min-width: " + thresholds[i] + "px)");
+        if (mq.addEventListener) mq.addEventListener("change", onBandChange);
+        else if (mq.addListener) mq.addListener(onBandChange);
+      } catch (err) {
+        /* ignore */
+      }
+    }
+    window.addEventListener("orientationchange", onBandChange);
+  }
+
   function isThemeWidthContainer(el) {
     if (!el || el.nodeType !== 1 || isFullBleedHost(el)) return false;
     if (!el.classList) return false;
@@ -12048,6 +12186,7 @@
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", bootEarlyGridBusy);
     }
+    bindProductGridViewportRelock();
     if (!window.__findlyDrawerResize) {
       window.__findlyDrawerResize = true;
       window.addEventListener("resize", function () {
