@@ -2098,8 +2098,10 @@ results-list > .sf-toolbar {
     gap: 0.55rem;
   }
 
-  .sf-toolbar .sf-sort-label {
-    display: none;
+  .sf-toolbar .sf-sort-label,
+  .sf-toolbar .sf-sort-toolbar .sf-sort-label,
+  .sf-toolbar .sf-sort-row .sf-sort-label {
+    display: none !important;
   }
 
   .sf-toolbar .sf-sort-host,

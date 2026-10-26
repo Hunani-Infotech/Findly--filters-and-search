@@ -1043,7 +1043,9 @@ html.sf-filter-ready .product-grid {
     gap: 0.55rem !important;
   }
 
-  .sf-toolbar .sf-sort-label {
+  .sf-toolbar .sf-sort-label,
+  .sf-toolbar .sf-sort-toolbar .sf-sort-label,
+  .sf-toolbar .sf-sort-row .sf-sort-label {
     display: none !important;
   }
 
