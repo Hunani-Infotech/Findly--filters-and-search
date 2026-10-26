@@ -143,9 +143,13 @@
   width: auto !important;
 }
 
+/* 18px each side: the 16px thumb is centered with translate(-50%), so a
+   start-only inset leaves the max thumb on the filter's right edge.
+   px, not rem — Dawn sets html { font-size: 10px }. */
 #smart-filter-root .sf-price,
 #smart-filter-embed .sf-price {
   padding-inline-start: 18px !important;
+  padding-inline-end: 18px !important;
 }
 
 /* Horizontal body-ported price pop only — room for both thumbs. */
