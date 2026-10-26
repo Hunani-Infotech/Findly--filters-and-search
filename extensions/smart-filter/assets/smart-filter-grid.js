@@ -7274,6 +7274,7 @@
           widget._loadingPage = false;
           if (widget.renderPager) widget.renderPager();
           mountFindlyPager(widget);
+          if (widget._sfFlushListingScroll) widget._sfFlushListingScroll();
         }
       }
     }
@@ -7291,6 +7292,7 @@
       widget._reapplyingGrid = false;
       widget._loadingPage = false;
       if (widget.setGridBusy) widget.setGridBusy(false);
+      if (widget._sfFlushListingScroll) widget._sfFlushListingScroll();
       if (widget.renderPager) widget.renderPager();
     }, 12000);
     var done = function () {
@@ -11537,6 +11539,13 @@
               self.hideNativeGridCards(self._gridParent);
             }
             if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
+            if (
+              !opts.append &&
+              !self._importingCards &&
+              self._sfFlushListingScroll
+            ) {
+              self._sfFlushListingScroll();
+            }
             mountFindlyPager(self);
             if (!opts.append) {
               /* Suggestions are observational — defer off the filter paint path. */
@@ -11555,6 +11564,7 @@
               self._importingCards = false;
               self._loadingPage = false;
               if (self.setGridBusy) self.setGridBusy(false);
+              if (self._sfFlushListingScroll) self._sfFlushListingScroll();
               publishListingSuggestions(self);
             }
             return Promise.reject(err);

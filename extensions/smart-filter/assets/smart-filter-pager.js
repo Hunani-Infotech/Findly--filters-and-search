@@ -670,23 +670,14 @@
   }
 
   /**
-   * Pagination scroll (standard PLP):
-   * Smooth window.scrollTo is cancelled when AJAX rebuild collapses grid height.
-   * Instant-jump on click, then re-assert after paint once layout is stable.
+   * Page changes keep the existing listing scroll (instant jump, then smooth
+   * correction after paint). Filter, sort, and clear use a separate hold:
+   * while product cards are hidden the listing height is pinned and scroll
+   * anchoring is paused, then the same listing target is applied once.
+   * The hold is removed when the new grid is painted.
    */
   var _listingScrollTimer = 0;
   var _listingScrollRaf = 0;
-
-  function prefersReducedMotion() {
-    try {
-      return (
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      );
-    } catch (err) {
-      return false;
-    }
-  }
 
   function stickyHeaderOffset() {
     var sel =
@@ -710,6 +701,17 @@
       }
     }
     return Math.min(160, Math.max(0, Math.round(max)));
+  }
+
+  function prefersReducedMotion() {
+    try {
+      return (
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    } catch (err) {
+      return false;
+    }
   }
 
   function listingScrollTarget(widget) {
@@ -737,6 +739,60 @@
       return el;
     }
     return null;
+  }
+
+  function listingLockHost(widget) {
+    return (
+      document.querySelector(".sf-collection-layout") ||
+      document.querySelector(".sf-layout-main") ||
+      (widget && (widget._themeGridShell || widget._gridParent)) ||
+      document.querySelector(
+        "#ProductGridContainer, #product-grid, .product-grid-container, .main-collection-grid",
+      )
+    );
+  }
+
+  function lockListingHeight(widget) {
+    if (!widget || widget._sfScrollLockHost) return;
+    var host = listingLockHost(widget);
+    if (!host || !host.style) return;
+    var h = 0;
+    try {
+      h = host.offsetHeight || 0;
+    } catch (err) {
+      h = 0;
+    }
+    if (h < 120) return;
+    widget._sfScrollLockHost = host;
+    widget._sfScrollLockMin = host.style.minHeight || "";
+    host.style.minHeight = h + "px";
+  }
+
+  function unlockListingHeight(widget) {
+    if (!widget || !widget._sfScrollLockHost) return;
+    var host = widget._sfScrollLockHost;
+    var prev = widget._sfScrollLockMin || "";
+    widget._sfScrollLockHost = null;
+    widget._sfScrollLockMin = "";
+    try {
+      host.style.minHeight = prev;
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function setAnchorSuppressed(on) {
+    var root = document.documentElement;
+    if (!root || !root.style) return;
+    if (on) {
+      if (root.hasAttribute("data-sf-anchor-off")) return;
+      root.setAttribute("data-sf-anchor-off", root.style.overflowAnchor || "");
+      root.style.overflowAnchor = "none";
+      return;
+    }
+    if (!root.hasAttribute("data-sf-anchor-off")) return;
+    root.style.overflowAnchor = root.getAttribute("data-sf-anchor-off") || "";
+    root.removeAttribute("data-sf-anchor-off");
   }
 
   function scrollRootFor(el) {
@@ -942,6 +998,69 @@
     });
   }
 
+  function listingNeedsScroll(widget) {
+    var dest = listingScrollTop(widget);
+    var current = readScrollTop(dest.root);
+    return current > dest.top + 48;
+  }
+
+  function releaseFilterScrollHold(widget) {
+    if (!widget || !widget._sfFilterScrollHold) return;
+    widget._sfFilterScrollHold = false;
+    try {
+      if (widget._sfFilterScrollTimer) {
+        clearTimeout(widget._sfFilterScrollTimer);
+        widget._sfFilterScrollTimer = 0;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    try {
+      scrollListingIntoView(widget, { mode: "auto" });
+    } catch (err2) {
+      /* ignore */
+    }
+    unlockListingHeight(widget);
+    setAnchorSuppressed(false);
+  }
+
+  function scheduleFilterScrollRelease(widget) {
+    if (!widget) return;
+    try {
+      if (widget._sfFilterScrollTimer) clearTimeout(widget._sfFilterScrollTimer);
+    } catch (err) {
+      /* ignore */
+    }
+    widget._sfFilterScrollTries = 0;
+    var tick = function () {
+      widget._sfFilterScrollTimer = 0;
+      if (!widget._sfFilterScrollHold) return;
+      if (widget._loadingPage || widget._inflight || widget._importingCards) {
+        widget._sfFilterScrollTries = (widget._sfFilterScrollTries || 0) + 1;
+        if (widget._sfFilterScrollTries < 20) {
+          widget._sfFilterScrollTimer = setTimeout(tick, 400);
+          return;
+        }
+      }
+      releaseFilterScrollHold(widget);
+    };
+    widget._sfFilterScrollTimer = setTimeout(tick, 400);
+  }
+
+  /* Filter applies only. Page changes keep markListingScroll / flushListingScroll. */
+  function armFilterScroll(widget) {
+    if (!widget || !listingNeedsScroll(widget)) return;
+    widget._sfFilterScrollHold = true;
+    setAnchorSuppressed(true);
+    lockListingHeight(widget);
+    try {
+      scrollListingIntoView(widget, { mode: "auto" });
+    } catch (err) {
+      /* ignore */
+    }
+    scheduleFilterScrollRelease(widget);
+  }
+
   function bindThemePagerClicks() {
     if (window.__findlyThemePagerBound) return;
     window.__findlyThemePagerBound = true;
@@ -1056,8 +1175,15 @@
       proto.fetchFilters = function (opts) {
         opts = opts || {};
         seedPageFromUrl(this);
+        var userFilter = !opts.append && opts.page == null;
         if (!opts.append && opts.page == null && Math.max(1, Number(this.page) || 1) > 1) {
           opts = Object.assign({}, opts, { page: this.page });
+        }
+        /* Filter/sort/clear only. Page clicks use goToPage and stay on that path.
+           Skip the boot fetch so a restored scroll position is left alone. */
+        if (userFilter) {
+          if (this._sfScrollReady) armFilterScroll(this);
+          this._sfScrollReady = true;
         }
         return origFetchFilters.call(this, opts);
       };
@@ -1144,6 +1270,10 @@
         }
         flushListingScroll(this);
       }
+    };
+
+    proto._sfFlushListingScroll = function () {
+      releaseFilterScrollHold(this);
     };
 
     proto.syncThemePager = function () {
