@@ -931,6 +931,11 @@ try {
       "db.server.ts must not require PG_POOL_MAX / PG_CONNECT_TIMEOUT_MS (DATABASE_URL + DIRECT_URL only)",
     );
   }
+  if (!dbServer.includes("if (isLocalPgHost(url.hostname)) return raw.trim();")) {
+    fail(
+      "withHostedSsl must leave localhost URLs unchanged (local Postgres has no SSL)",
+    );
+  }
   const ensureRunning = read("app/workers/ensure-running.server.ts");
   if (!ensureRunning.includes('FINDLY_WORKER_CHILD === "1"')) {
     fail(

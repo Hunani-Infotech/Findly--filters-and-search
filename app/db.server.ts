@@ -12,6 +12,7 @@ declare global {
 /**
  * Normalize Supabase / Hostinger Postgres URLs.
  * - sslmode=require for hosted Postgres
+ * - localhost / 127.0.0.1 are left unchanged (no SSL on the local server)
  * - Strip Prisma-engine-only params (`pgbouncer`, `connection_limit`) before
  *   handing the URL to node-pg
  * - Transaction pooler (:6543) uses a small pg.Pool instead of Prisma's
@@ -64,6 +65,8 @@ function withHostedSsl(raw: string | undefined): string | undefined {
   if (!raw?.trim()) return raw;
   const url = parsePgUrl(raw);
   if (!url) return raw;
+  // Local Postgres has no SSL. Adding sslmode=require breaks loopback.
+  if (isLocalPgHost(url.hostname)) return raw.trim();
   try {
     if (!url.searchParams.get("sslmode")) {
       url.searchParams.set("sslmode", "require");
@@ -84,7 +87,10 @@ function pgConnectionString(raw: string | undefined): string | undefined {
     url.searchParams.delete("connection_limit");
     url.searchParams.delete("connect_timeout");
     const host = url.hostname;
-    if (!isLocalPgHost(host)) {
+    if (isLocalPgHost(host)) {
+      url.searchParams.delete("sslmode");
+      url.searchParams.delete("uselibpqcompat");
+    } else {
       if (!url.searchParams.get("sslmode")) {
         url.searchParams.set("sslmode", "require");
       }
