@@ -259,16 +259,39 @@ async function syncFilterTreeMetafieldKeys(
   await syncMappedMetafieldKeysOnTrees(shopId, keepKeys);
 }
 
-const DEFINITIONS_QUERY = `#graphql
-  query FindlyMetafieldDefinitions($ownerType: MetafieldOwnerType!, $cursor: String) {
+const DEFINITION_FIELDS = `
+  pageInfo { hasNextPage endCursor }
+  nodes {
+    namespace
+    key
+    name
+    type { name }
+  }
+`;
+
+/** Variant definitions are not category-constrained. Keep this query unchanged. */
+const VARIANT_DEFINITIONS_QUERY = `#graphql
+  query FindlyVariantMetafieldDefinitions($ownerType: MetafieldOwnerType!, $cursor: String) {
     metafieldDefinitions(first: 100, ownerType: $ownerType, after: $cursor) {
-      pageInfo { hasNextPage endCursor }
-      nodes {
-        namespace
-        key
-        name
-        type { name }
-      }
+      ${DEFINITION_FIELDS}
+    }
+  }
+`;
+
+/**
+ * Product definitions include category metafields ("Assigned to categories").
+ * Without CONSTRAINED_AND_UNCONSTRAINED, Shopify returns only definitions that
+ * apply to every product. Unconstrained product definitions are still included.
+ */
+const PRODUCT_DEFINITIONS_QUERY = `#graphql
+  query FindlyProductMetafieldDefinitions($ownerType: MetafieldOwnerType!, $cursor: String) {
+    metafieldDefinitions(
+      first: 100
+      ownerType: $ownerType
+      after: $cursor
+      constraintStatus: CONSTRAINED_AND_UNCONSTRAINED
+    ) {
+      ${DEFINITION_FIELDS}
     }
   }
 `;
@@ -283,10 +306,12 @@ async function fetchDefinitionOwner(
     name?: string;
     type?: { name?: string };
   }> = [];
+  const query =
+    ownerType === "PRODUCT" ? PRODUCT_DEFINITIONS_QUERY : VARIANT_DEFINITIONS_QUERY;
   let cursor: string | null = null;
   let hasNext = true;
   while (hasNext) {
-    const response = await admin.graphql(DEFINITIONS_QUERY, {
+    const response = await admin.graphql(query, {
       variables: { ownerType, cursor },
     });
     const json = (await response.json()) as {
