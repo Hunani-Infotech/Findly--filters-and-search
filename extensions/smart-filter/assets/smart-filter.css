@@ -1930,6 +1930,7 @@ html.sf-filter-loading .sf-total-count::after {
   max-width: 100%;
   margin: 0 0 1.15rem;
   box-sizing: border-box;
+  justify-self: stretch;
 }
 
 .sf-toolbar-search {
@@ -1946,6 +1947,8 @@ html.sf-filter-loading .sf-total-count::after {
   align-items: flex-end;
   flex: 0 0 auto;
   gap: 0;
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .sf-toolbar-actions {
@@ -3026,10 +3029,13 @@ body.template-search .sf-collection-layout .sf-layout-main .card__inner.ratio,
   overflow: visible;
 }
 
-.sf-layout-main > .sf-toolbar {
+.sf-layout-main > .sf-toolbar,
+.sf-collection-layout > .sf-toolbar {
   order: -1;
   flex: 0 0 auto;
-  width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-self: stretch !important;
 }
 
 .sf-layout-main > .sf-pager {
