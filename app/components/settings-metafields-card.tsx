@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   IndexTable,
   InlineStack,
   Text,
@@ -13,7 +14,10 @@ import {
 import { RefreshIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { indexTablePagination } from "./admin-list-pagination";
-import { type MetafieldApplyKey } from "../utils/metafield-applies";
+import {
+  appliesToWithFilter,
+  type MetafieldApplyKey,
+} from "../utils/metafield-applies";
 import type { SettingsMetafieldRow } from "../services/settings-metafields.server";
 import type { MetafieldOwnerTypeValue } from "../utils/metafield-owner";
 import type { MetafieldFilterType } from "@prisma/client";
@@ -92,6 +96,10 @@ function AppliesToBadges({ value }: { value: MetafieldApplyKey[] }) {
   );
 }
 
+function rowIdentity(rows: SettingsMetafieldRow[]) {
+  return rows.map((row) => row.clientId).join("\n");
+}
+
 export function SettingsMetafieldsCard({
   initialRows,
   plan,
@@ -109,11 +117,13 @@ export function SettingsMetafieldsCard({
   const [savedRows, setSavedRows] = useState(initialRows);
   const [seenInitial, setSeenInitial] = useState(initialRows);
   const [page, setPage] = useState(0);
+  const saveLocked = useRef(false);
   if (initialRows !== seenInitial) {
+    const sameRows = rowIdentity(initialRows) === rowIdentity(seenInitial);
     setSeenInitial(initialRows);
     setSavedRows(initialRows);
     setRows(initialRows);
-    setPage(0);
+    if (!sameRows) setPage(0);
   }
 
   const [appliedFetcher, setAppliedFetcher] = useState<FetcherData | undefined>(
@@ -152,6 +162,10 @@ export function SettingsMetafieldsCard({
   const toastSeen = useRef<FetcherData | undefined>(undefined);
 
   useEffect(() => {
+    if (fetcher.state === "idle") saveLocked.current = false;
+  }, [fetcher.state]);
+
+  useEffect(() => {
     const data = fetcher.data;
     if (!data || toastSeen.current === data) return;
     toastSeen.current = data;
@@ -186,6 +200,36 @@ export function SettingsMetafieldsCard({
     fetcher.submit(formData, { method: "POST" });
   };
 
+  const atFilterCap = filterCount >= filterLimit;
+  const saveRows = (nextRows: SettingsMetafieldRow[]) => {
+    setRows(nextRows);
+    const formData = new FormData();
+    formData.set("intent", "save-metafields");
+    formData.set("mappings", JSON.stringify(nextRows));
+    fetcher.submit(formData, { method: "POST" });
+  };
+
+  const setRowFilter = (clientId: string, enabled: boolean) => {
+    if (busy || saveLocked.current) return;
+    const current = rows.find((row) => row.clientId === clientId);
+    if (!current || current.appliesTo.includes("filter") === enabled) return;
+    if (enabled && atFilterCap) {
+      shopify.toast.show(
+        `Your ${planDisplayName(plan, { partnerDevelopment })} plan allows up to ${filterLimit} filter metafields. Turn Filter off on another row first.`,
+        { isError: true },
+      );
+      return;
+    }
+    saveLocked.current = true;
+    saveRows(
+      rows.map((row) =>
+        row.clientId === clientId
+          ? { ...row, appliesTo: appliesToWithFilter(row.appliesTo, enabled) }
+          : row,
+      ),
+    );
+  };
+
   const rowMarkup = slice.paged.map((row, index) => (
     <IndexTable.Row
       id={row.clientId}
@@ -205,6 +249,16 @@ export function SettingsMetafieldsCard({
       </IndexTable.Cell>
       <IndexTable.Cell>{typeLabel(row.filterType)}</IndexTable.Cell>
       <IndexTable.Cell>
+        <Checkbox
+          id={`metafield-filter-${row.clientId.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+          label={`Use ${row.displayLabel || row.key} as a filter`}
+          labelHidden
+          checked={row.appliesTo.includes("filter")}
+          disabled={busy || (!row.appliesTo.includes("filter") && atFilterCap)}
+          onChange={(enabled) => setRowFilter(row.clientId, enabled)}
+        />
+      </IndexTable.Cell>
+      <IndexTable.Cell>
         <AppliesToBadges value={row.appliesTo} />
       </IndexTable.Cell>
     </IndexTable.Row>
@@ -221,6 +275,8 @@ export function SettingsMetafieldsCard({
             <Text as="p" variant="bodySm" tone="subdued">
               Definitions come from Shopify. Sync to refresh the list. Keep
               Metafield enabled on Search → Search fields to query those values.
+              Turn on Filter to use a metafield in Add filter. Display, Search,
+              and Sort stay as they are.
             </Text>
           </BlockStack>
           <Button
@@ -269,6 +325,7 @@ export function SettingsMetafieldsCard({
               { title: "Namespace" },
               { title: "Key" },
               { title: "Type" },
+              { title: "Filter" },
               { title: "Applies to" },
             ]}
           >
@@ -278,6 +335,9 @@ export function SettingsMetafieldsCard({
             <Text as="p" variant="bodySm" tone="subdued">
               {`Showing ${slice.showingFrom}–${slice.showingTo} of ${rows.length}`}
               {` · Filter metafields: ${filterCount}/${filterLimit} on ${planDisplayName(plan, { partnerDevelopment })}`}
+              {atFilterCap
+                ? " · Filter limit reached. Turn Filter off on a row to enable another."
+                : ""}
             </Text>
           </Box>
         </>

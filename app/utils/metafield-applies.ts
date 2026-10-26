@@ -70,6 +70,19 @@ export function mappingAppliesToSearch(mapping: {
   return Boolean(mapping.enabled);
 }
 
+/** Add or remove Filter. Other Applies to values stay in their current order. */
+export function appliesToWithFilter(
+  appliesTo: readonly MetafieldApplyKey[],
+  enabled: boolean,
+): MetafieldApplyKey[] {
+  const hasFilter = appliesTo.includes("filter");
+  if (enabled) {
+    return hasFilter ? [...appliesTo] : [...appliesTo, "filter"];
+  }
+  if (!hasFilter) return [...appliesTo];
+  return appliesTo.filter((key) => key !== "filter");
+}
+
 /** Sort is opt-in only — legacy enabled mappings do not get a Sort By key. */
 export function mappingAppliesToSort(mapping: {
   enabled?: boolean;
