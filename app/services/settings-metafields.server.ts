@@ -1,4 +1,4 @@
-import type { MetafieldFilterType } from "@prisma/client";
+import { Prisma, type MetafieldFilterType } from "@prisma/client";
 import prisma from "../db.server";
 import { resolvePlanCaps } from "./billing.server";
 import { findShopByIdCached } from "../lib/shop-cache.server";
@@ -221,32 +221,136 @@ export async function saveDeclaredMetafields(
     })),
   );
 
-  await Promise.all(
-    declared.map((row) =>
-      prisma.discoveredMetafield.upsert({
-        where: {
-          shopId_namespace_key_ownerType: {
-            shopId,
-            namespace: row.namespace,
-            key: row.key,
-            ownerType: row.ownerType,
-          },
-        },
-        create: {
-          shopId,
-          namespace: row.namespace,
-          key: row.key,
-          ownerType: row.ownerType,
-          sampleValue: null,
-        },
-        update: {},
-      }),
-    ),
-  );
+  for (let index = 0; index < declared.length; index += DISCOVERED_WRITE_CHUNK) {
+    const chunk = declared.slice(index, index + DISCOVERED_WRITE_CHUNK);
+    await prisma.discoveredMetafield.createMany({
+      data: chunk.map((row) => ({
+        shopId,
+        namespace: row.namespace,
+        key: row.key,
+        ownerType: row.ownerType,
+        sampleValue: null,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   await syncFilterTreeMetafieldKeys(shopId, filterRows);
 
   return { ok: true as const, rows: (await loadSettingsMetafields(shopId)).rows };
+}
+
+const DISCOVERED_WRITE_CHUNK = 100;
+
+async function upsertDiscoveredMetafieldSamples(
+  shopId: string,
+  rows: Array<{
+    namespace: string;
+    key: string;
+    ownerType: MetafieldOwnerTypeValue;
+    sampleValue: string;
+  }>,
+) {
+  const wanted = new Map<
+    string,
+    {
+      namespace: string;
+      key: string;
+      ownerType: MetafieldOwnerTypeValue;
+      sampleValue: string;
+    }
+  >();
+  for (const row of rows) {
+    const namespace = row.namespace.trim();
+    const key = row.key.trim();
+    if (!namespace || !key) continue;
+    const ownerType = normalizeMetafieldOwnerType(row.ownerType);
+    wanted.set(`${ownerType}:${namespace}.${key}`, {
+      namespace,
+      key,
+      ownerType,
+      sampleValue: row.sampleValue.slice(0, SAMPLE_TEXT_MAX),
+    });
+  }
+  if (!wanted.size) return;
+
+  const wantedRows = [...wanted.values()];
+  const stored = new Map<string, { id: string; sampleValue: string | null }>();
+  for (let index = 0; index < wantedRows.length; index += DISCOVERED_WRITE_CHUNK) {
+    const chunk = wantedRows.slice(index, index + DISCOVERED_WRITE_CHUNK);
+    const current = await prisma.discoveredMetafield.findMany({
+      where: {
+        shopId,
+        OR: chunk.map((row) => ({
+          namespace: row.namespace,
+          key: row.key,
+          ownerType: row.ownerType,
+        })),
+      },
+      select: {
+        id: true,
+        namespace: true,
+        key: true,
+        ownerType: true,
+        sampleValue: true,
+      },
+    });
+    for (const row of current) {
+      stored.set(`${row.ownerType}:${row.namespace}.${row.key}`, {
+        id: row.id,
+        sampleValue: row.sampleValue ?? null,
+      });
+    }
+  }
+
+  const toCreate: typeof wantedRows = [];
+  const toUpdate: Array<{ id: string; sampleValue: string }> = [];
+  for (const [id, row] of wanted) {
+    const existing = stored.get(id);
+    if (!existing) {
+      toCreate.push(row);
+      continue;
+    }
+    if (existing.sampleValue !== row.sampleValue) {
+      toUpdate.push({ id: existing.id, sampleValue: row.sampleValue });
+    }
+  }
+  if (!toCreate.length && !toUpdate.length) return;
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (let index = 0; index < toCreate.length; index += DISCOVERED_WRITE_CHUNK) {
+        const chunk = toCreate.slice(index, index + DISCOVERED_WRITE_CHUNK);
+        await tx.discoveredMetafield.createMany({
+          data: chunk.map((row) => ({
+            shopId,
+            namespace: row.namespace,
+            key: row.key,
+            ownerType: row.ownerType,
+            sampleValue: row.sampleValue,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      for (let index = 0; index < toUpdate.length; index += DISCOVERED_WRITE_CHUNK) {
+        const chunk = toUpdate.slice(index, index + DISCOVERED_WRITE_CHUNK);
+        const values = Prisma.join(
+          chunk.map(
+            (row) => Prisma.sql`(${row.id}::text, ${row.sampleValue}::text)`,
+          ),
+        );
+        await tx.$executeRaw`
+          UPDATE "DiscoveredMetafield" AS d
+          SET "sampleValue" = v."sampleValue",
+              "updatedAt" = NOW()
+          FROM (VALUES ${values}) AS v("id", "sampleValue")
+          WHERE d."id" = v."id"
+            AND d."shopId" = ${shopId}
+        `;
+      }
+    },
+    { timeout: 20_000 },
+  );
 }
 
 async function syncFilterTreeMetafieldKeys(
@@ -269,10 +373,10 @@ const DEFINITION_FIELDS = `
   }
 `;
 
-/** Variant definitions are not category-constrained. Keep this query unchanged. */
+/** Variant definitions are not category-constrained, so this query has no constraintStatus. */
 const VARIANT_DEFINITIONS_QUERY = `#graphql
   query FindlyVariantMetafieldDefinitions($ownerType: MetafieldOwnerType!, $cursor: String) {
-    metafieldDefinitions(first: 100, ownerType: $ownerType, after: $cursor) {
+    metafieldDefinitions(first: 250, ownerType: $ownerType, after: $cursor) {
       ${DEFINITION_FIELDS}
     }
   }
@@ -286,7 +390,7 @@ const VARIANT_DEFINITIONS_QUERY = `#graphql
 const PRODUCT_DEFINITIONS_QUERY = `#graphql
   query FindlyProductMetafieldDefinitions($ownerType: MetafieldOwnerType!, $cursor: String) {
     metafieldDefinitions(
-      first: 100
+      first: 250
       ownerType: $ownerType
       after: $cursor
       constraintStatus: CONSTRAINED_AND_UNCONSTRAINED
@@ -408,23 +512,27 @@ export async function syncShopifyMetafieldDefinitions(
     });
   }
 
+  const samples: Array<{
+    namespace: string;
+    key: string;
+    ownerType: MetafieldOwnerTypeValue;
+    sampleValue: string;
+  }> = [];
   for (const [ownerType, bag] of Object.entries(discovered) as Array<
     ["PRODUCT" | "VARIANT", Record<string, string>]
   >) {
     for (const [path, sampleValue] of Object.entries(bag)) {
       const dot = path.indexOf(".");
       if (dot <= 0) continue;
-      const namespace = path.slice(0, dot);
-      const key = path.slice(dot + 1);
-      await prisma.discoveredMetafield.upsert({
-        where: {
-          shopId_namespace_key_ownerType: { shopId, namespace, key, ownerType },
-        },
-        create: { shopId, namespace, key, ownerType, sampleValue: sampleValue.slice(0, SAMPLE_TEXT_MAX) },
-        update: { sampleValue: sampleValue.slice(0, SAMPLE_TEXT_MAX) },
+      samples.push({
+        namespace: path.slice(0, dot),
+        key: path.slice(dot + 1),
+        ownerType,
+        sampleValue,
       });
     }
   }
+  await upsertDiscoveredMetafieldSamples(shopId, samples);
 
   return { added: extras.length, extras };
 }
