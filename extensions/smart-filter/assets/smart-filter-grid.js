@@ -7966,6 +7966,37 @@
     menu.style.zIndex = "100060";
   }
 
+  /* Menu rows keep is-selected from the first build. The native select value
+     is what sorts. Move only that existing marker before focus. If the value
+     cannot be matched, leave the rows alone so open/focus stay as they were. */
+  function syncSortMenuSelection(menu, select) {
+    if (!menu || !select || !menu.querySelectorAll) return;
+    var options = menu.querySelectorAll(".sf-sort-option");
+    if (!options.length) return;
+    var current = String(select.value || "");
+    var matched = -1;
+    var stamped = false;
+    var i;
+    for (i = 0; i < options.length; i++) {
+      if (!options[i].hasAttribute("data-sf-sort-value")) continue;
+      stamped = true;
+      if (options[i].getAttribute("data-sf-sort-value") === current) {
+        matched = i;
+        break;
+      }
+    }
+    if (!stamped && select.selectedIndex >= 0 && select.selectedIndex < options.length) {
+      matched = select.selectedIndex;
+    }
+    if (matched < 0) return;
+    for (i = 0; i < options.length; i++) {
+      var on = i === matched;
+      if (on) options[i].classList.add("is-selected");
+      else options[i].classList.remove("is-selected");
+      options[i].setAttribute("aria-selected", on ? "true" : "false");
+    }
+  }
+
   function openSortMenu(wrap, menu) {
     if (!wrap || !menu) return;
     wrap._sfSortMenu = menu;
@@ -7985,6 +8016,7 @@
     window.setTimeout(function () {
       sortMenuIgnoreClick = false;
     }, 0);
+    syncSortMenuSelection(menu, sortMenuSelect(wrap));
     var selected = menu.querySelector(".sf-sort-option.is-selected");
     try {
       if (selected) selected.focus();
@@ -8097,6 +8129,7 @@
       var optionBtn = document.createElement("button");
       optionBtn.type = "button";
       optionBtn.className = "sf-sort-option";
+      optionBtn.setAttribute("data-sf-sort-value", opt.value);
       if (opt.selected) optionBtn.className += " is-selected";
       optionBtn.setAttribute("role", "option");
       optionBtn.setAttribute("aria-selected", opt.selected ? "true" : "false");
