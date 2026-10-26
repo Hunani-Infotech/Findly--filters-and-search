@@ -5784,7 +5784,6 @@
   }
 
   function syncGridEmptyState(widget, parent, handles, shownCount) {
-    if (isBusyPainted() || (widget && widget._importingCards)) return;
     var emptyEl = document.getElementById(EMPTY_ID);
     var filtering =
       widget && widget.hasActiveFilters && widget.hasActiveFilters();
@@ -5794,10 +5793,15 @@
       none = false;
     }
     if (!none) {
+      /* Same removal as before. Do not wait for the busy overlay: it is still
+         up during this paint and comes down immediately after, so waiting left
+         the empty lock in place after Clear. Showing a new empty message below
+         still waits. */
       if (parent && parent.classList) parent.classList.remove("sf-grid-is-empty");
       if (emptyEl && emptyEl.parentNode) emptyEl.parentNode.removeChild(emptyEl);
       return;
     }
+    if (isBusyPainted() || (widget && widget._importingCards)) return;
     if (!parent) return;
     /* Hide leftover cards in place. Do not stripAppCards — that drops
        .sf-app-grid and can remount cached cards over the empty state. */
@@ -7592,6 +7596,7 @@
     if (!shouldTakeOverThemeCards(self)) {
       applyNativeFilterGrid(null, self._gridParent);
       markGridPainted(self);
+      syncGridEmptyState(self, self._gridParent, null, 0);
       return;
     }
     var handles =
