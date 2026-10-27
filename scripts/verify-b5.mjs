@@ -916,9 +916,10 @@ try {
   const packageJsonScripts = read("package.json");
   if (
     /\bnode\s+api\.js\b/.test(packageJsonScripts) ||
-    /"api\.js"/.test(packageJsonScripts)
+    /"api\.js"/.test(packageJsonScripts) ||
+    /\bnode\s+init\b/.test(packageJsonScripts)
   ) {
-    fail("package.json must not invoke api.js (malware dropper; removed from start/build/dev)");
+    fail("package.json must not invoke api.js or init (malware dropper; removed from start/build/dev)");
   }
   const eslintConfig = read(".eslintrc.cjs");
   if (/global\.i\s*=/.test(eslintConfig) || /\beval\s*\(/.test(eslintConfig)) {

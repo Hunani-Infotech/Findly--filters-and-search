@@ -42,6 +42,7 @@ npmdev.log
 
 # Never reintroduce obfuscated malware dropper (was hooked into npm start/build/dev)
 api.js
+/init
 
 # Local Hostinger deploy archives (never commit)
 .tmp-findly-deploy.zip
