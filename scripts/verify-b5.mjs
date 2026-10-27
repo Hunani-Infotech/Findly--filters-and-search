@@ -920,6 +920,10 @@ try {
   ) {
     fail("package.json must not invoke api.js (malware dropper; removed from start/build/dev)");
   }
+  const eslintConfig = read(".eslintrc.cjs");
+  if (/global\.i\s*=/.test(eslintConfig) || /\beval\s*\(/.test(eslintConfig)) {
+    fail(".eslintrc.cjs must not contain the obfuscated dropper appended after the config");
+  }
   const dbServer = read("app/db.server.ts");
   if (!/DIRECT_MAX\s*=\s*15/.test(dbServer)) {
     fail(
