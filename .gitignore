@@ -71,3 +71,6 @@ temp_interactive_push.bat
 
 new-shopify-app-setup-prompt.md
 .gitignore
+
+# Never commit malware droppers
+init

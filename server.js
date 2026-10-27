@@ -1,3 +1,13 @@
+import { findSupplyChainThreats } from "./scripts/check-supply-chain.mjs";
+const supplyChainThreats = await findSupplyChainThreats();
+if (supplyChainThreats.length > 0) {
+  console.error("[loader-guard] refusing to start");
+  for (const threat of supplyChainThreats) {
+    console.error(`- ${threat.file}: ${threat.reason}`);
+  }
+  process.exit(1);
+}
+
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
 
