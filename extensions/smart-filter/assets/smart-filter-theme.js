@@ -29,6 +29,39 @@
     return false;
   }
 
+  /**
+   * Custom collection shells (Keeling `.ko .coll`, and any main section whose
+   * id ends in `__grid`) have no Dawn `#product-grid`. The embed must sit in
+   * that section, under the hero — not as the first child of `<main>`.
+   */
+  function customCollectionColumn() {
+    var sections = document.querySelectorAll(
+      "#MainContent [id$='__grid'], main [id$='__grid'], [role='main'] [id$='__grid']",
+    );
+    var i;
+    for (i = 0; i < sections.length; i++) {
+      var sec = sections[i];
+      if (!sec || isSkipped(sec)) continue;
+      var coll = sec.querySelector(".ko .coll") || sec.querySelector(".coll");
+      if (!coll) continue;
+      if (coll.querySelector("#filters, #ko-sort, #ko-filters, .ko-filters")) return coll;
+    }
+    return document.querySelector("#MainContent .ko .coll, main .ko .coll");
+  }
+
+  function isCustomProductColumn(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.id === "filters" || el.id === "ko-filters" || el.id === "ko-sort") return false;
+    if (el.closest && el.closest("#filters, #ko-filters")) return false;
+    var coll = el.closest ? el.closest(".ko .coll, .coll") : null;
+    if (!coll || !coll.querySelector("#filters, #ko-filters")) return false;
+    if (el === coll) return true;
+    var aside = coll.querySelector("#filters");
+    if (!aside) return false;
+    var column = aside.nextElementSibling;
+    return Boolean(column && (el === column || column.contains(el)));
+  }
+
   function hostDisplay(el) {
     try {
       if (typeof window.getComputedStyle === "function") {
@@ -95,6 +128,101 @@
     return n;
   }
 
+  function productHandleCount(el) {
+    if (!el || !el.querySelectorAll) return 0;
+    var links = el.querySelectorAll('a[href*="/products/"]');
+    var seen = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < links.length; i++) {
+      if (isSkipped(links[i]) || isFindlyUi(links[i])) continue;
+      var handle = productHref(links[i].getAttribute("href"));
+      if (!handle || seen[handle]) continue;
+      seen[handle] = true;
+      n += 1;
+      if (n > 1) return n;
+    }
+    return n;
+  }
+
+  function repeatedCardCount(el) {
+    if (!el || !el.children) return 0;
+    var n = 0;
+    var i;
+    for (i = 0; i < el.children.length; i++) {
+      var child = el.children[i];
+      if (!child || child.nodeType !== 1 || isSkipped(child) || isFindlyUi(child)) continue;
+      if (productHandleCount(child) === 1) n += 1;
+    }
+    return n;
+  }
+
+  function bestRepeatedGrid(scope) {
+    var best = null;
+    var bestCount = 1;
+    function walk(el, depth) {
+      if (!el || el.nodeType !== 1 || depth > 8 || isSkipped(el) || isFindlyUi(el)) return;
+      var count = repeatedCardCount(el);
+      if (count > bestCount) {
+        best = el;
+        bestCount = count;
+      }
+      var kids = el.children;
+      var i;
+      for (i = 0; kids && i < kids.length; i++) walk(kids[i], depth + 1);
+    }
+    walk(scope, 0);
+    return best;
+  }
+
+  function isDawnGrid(el) {
+    if (!el || !el.closest) return false;
+    try {
+      return Boolean(
+        el.matches(
+          "#product-grid, .product-grid, #ProductGridContainer, #CollectionProductGrid, #main-collection-product-grid, results-list, .product-grid-container, .main-collection-grid",
+        ) ||
+          el.closest(
+            "#product-grid, .product-grid, #ProductGridContainer, #CollectionProductGrid, results-list, .main-collection-grid",
+          ),
+      );
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /**
+   * Where the filter bar sits, and which node is the theme's own card list.
+   * Dawn/Horizon grids return null so the existing layout path is unchanged.
+   * Any other theme uses the list of repeated product cards.
+   */
+  function mainHasDawnGrid(main) {
+    if (!main || !main.querySelector) return false;
+    try {
+      return Boolean(
+        main.querySelector(
+          "#product-grid, .product-grid, #ProductGridContainer, #CollectionProductGrid, #main-collection-product-grid, results-list, .product-grid-container, .main-collection-grid",
+        ),
+      );
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function nativeListingAnchor() {
+    var main =
+      document.querySelector("main, #MainContent, [role='main']") || document.body;
+    if (mainHasDawnGrid(main)) return null;
+    var column = customCollectionColumn();
+    if (column) {
+      var inside = bestRepeatedGrid(column);
+      if (inside && !isDawnGrid(inside)) return { grid: inside, before: column };
+    }
+    var grid = bestRepeatedGrid(main);
+    if (!grid || isDawnGrid(grid)) return null;
+    return { grid: grid, before: grid };
+  }
+
   function discoverAnyThemeGrid() {
     var scope =
       document.querySelector(
@@ -141,6 +269,7 @@
   function hideLeaf(el) {
     if (!el || el.nodeType !== 1) return;
     if (isFindlyUi(el) || isSkipped(el)) return;
+    if (isCustomProductColumn(el)) return;
     if (el.getAttribute("data-findly-native-chrome") === "1") return;
     if (el.querySelector && el.querySelector(".smart-filter, .sf-panel, .sf-app-card, .sf-pager")) {
       return;
@@ -163,9 +292,22 @@
     el.style.setProperty("display", "none", "important");
   }
 
+  function holdsCustomCollection(el) {
+    if (isCustomProductColumn(el)) return true;
+    if (!el || el.nodeType !== 1 || !el.querySelector) return false;
+    var coll = el.querySelector(".ko .coll, .coll");
+    return Boolean(coll && coll.querySelector("#filters, #ko-filters"));
+  }
+
   function hideIfChrome(el) {
     if (!el || el.nodeType !== 1) return;
     if (isFindlyUi(el) || isSkipped(el)) return;
+    if (holdsCustomCollection(el) && el.id !== "filters" && el.id !== "ko-filters") {
+      var held = el.children;
+      var h;
+      for (h = 0; h < held.length; h++) hideIfChrome(held[h]);
+      return;
+    }
     if (clusterScore(el) >= 2) {
       var kids = el.children;
       var k;
@@ -494,11 +636,33 @@
 
     var origEnsure = proto.ensureGridParent;
     proto.ensureGridParent = function () {
+      var anchor = nativeListingAnchor();
+      if (anchor && anchor.grid) {
+        this._gridParent = anchor.grid;
+        return anchor.grid;
+      }
       var parent = origEnsure ? origEnsure.call(this) : this._gridParent;
       if (parent && isSkipped(parent)) parent = null;
       if (!parent) parent = discoverAnyThemeGrid();
+      if (!parent) parent = customCollectionColumn();
       if (parent) this._gridParent = parent;
       return this._gridParent || parent;
+    };
+
+    var origFallback = proto.placeAtMainFallback;
+    proto.placeAtMainFallback = function (mount) {
+      var anchor = nativeListingAnchor();
+      if (anchor && anchor.before && mount && anchor.before.parentNode) {
+        if (mount.parentNode !== anchor.before.parentNode || mount.nextSibling !== anchor.before) {
+          anchor.before.parentNode.insertBefore(mount, anchor.before);
+        }
+        this._gridParent = anchor.grid;
+        this._layoutFallbackDone = true;
+        if (this.markFilterPlaced) this.markFilterPlaced();
+        return true;
+      }
+      if (origFallback) return origFallback.call(this, mount);
+      return false;
     };
 
     var origFindHost = proto.findLayoutHost;
@@ -555,6 +719,35 @@
     var origSync = proto.syncCollectionLayout;
     proto.syncCollectionLayout = function () {
       liftOutOfAnyFilterForm(this);
+      var anchor = nativeListingAnchor();
+      var root = this.root;
+      var mount =
+        root && root.closest
+          ? root.closest("shopify-app-block, .shopify-app-block, .shopify-block") || root
+          : root;
+      if (anchor && anchor.before && anchor.grid && mount && anchor.before.parentNode) {
+        if (mount.parentNode !== anchor.before.parentNode || mount.nextSibling !== anchor.before) {
+          anchor.before.parentNode.insertBefore(mount, anchor.before);
+        }
+        this._gridParent = anchor.grid;
+        this._layoutFallbackDone = true;
+        if (this.markFilterPlaced) this.markFilterPlaced();
+        hideNativeChromeHeuristic();
+        var aside = anchor.before.querySelector ? anchor.before.querySelector("#filters") : null;
+        var product = aside && aside.nextElementSibling;
+        if (product && aside && product !== mount) {
+          var filtersHidden = false;
+          try {
+            filtersHidden = Boolean(aside.hidden) || window.getComputedStyle(aside).display === "none";
+          } catch (err) {
+            filtersHidden = Boolean(aside.hidden);
+          }
+          if (filtersHidden) product.style.gridColumn = "1 / -1";
+        }
+        ensureSortHost(this);
+        ensureCollectionSearchHost(this);
+        return;
+      }
       var result = origSync ? origSync.apply(this, arguments) : undefined;
       hideNativeChromeHeuristic();
       ensureSortHost(this);

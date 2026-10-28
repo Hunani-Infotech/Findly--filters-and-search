@@ -288,6 +288,7 @@
     ".product-block",
     ".productitem",
     "article.card",
+    "article.pcard",
   ].join(", ");
   var THEME_CARD_HOST_SELECTOR = [
     "product-card",
@@ -4303,6 +4304,102 @@
     }
   }
 
+  /* One product link = a card. Two or more sibling cards = that theme's grid,
+     whatever class names it uses. Dawn/Horizon still match the selectors above. */
+  function uniqueProductHandleCount(el) {
+    if (!el || !el.querySelectorAll) return 0;
+    var links = el.querySelectorAll('a[href*="/products/"]');
+    var seen = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < links.length; i++) {
+      if (isSkippedCardRegion(links[i])) continue;
+      var handle = handleFromHref(links[i].getAttribute("href"));
+      if (!handle || seen[handle]) continue;
+      seen[handle] = true;
+      n += 1;
+      if (n > 1) return n;
+    }
+    return n;
+  }
+
+  function firstProductHandle(el) {
+    if (!el || !el.querySelectorAll) return "";
+    var links = el.querySelectorAll('a[href*="/products/"]');
+    var i;
+    for (i = 0; i < links.length; i++) {
+      if (isSkippedCardRegion(links[i])) continue;
+      var handle = handleFromHref(links[i].getAttribute("href"));
+      if (handle) return handle;
+    }
+    return "";
+  }
+
+  function repeatedDistinctProductCards(el) {
+    if (!el || !el.children) return 0;
+    var seen = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < el.children.length; i++) {
+      var child = el.children[i];
+      if (!child || child.nodeType !== 1 || isSkippedCardRegion(child)) continue;
+      if (isGridChrome(child)) continue;
+      if (uniqueProductHandleCount(child) !== 1) continue;
+      var handle = firstProductHandle(child);
+      if (!handle || seen[handle]) continue;
+      seen[handle] = true;
+      n += 1;
+    }
+    return n;
+  }
+
+  function insideDawnListing(el) {
+    if (!el || !el.closest) return false;
+    try {
+      return Boolean(
+        el.closest(
+          "#product-grid, .product-grid, #ProductGridContainer, #CollectionProductGrid, results-list, .main-collection-grid, .product-grid-container",
+        ),
+      );
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function isDawnLikeGrid(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isResultsListEl(el) || isGridHostEl(el)) return true;
+    if (
+      el.id === "product-grid" ||
+      el.id === "ProductGrid" ||
+      el.id === "ProductGridContainer" ||
+      el.id === "CollectionProductGrid"
+    ) {
+      return true;
+    }
+    var cls = el.classList;
+    return Boolean(
+      cls &&
+        (cls.contains("product-grid") ||
+          cls.contains("main-collection-grid") ||
+          cls.contains("product-grid-container")),
+    );
+  }
+
+  function findRepeatedCardGrid(el, depth) {
+    if (!el || el.nodeType !== 1 || depth > 8 || isSkippedCardRegion(el)) return null;
+    if (isDawnLikeGrid(el) || insideDawnListing(el)) return null;
+    if (repeatedDistinctProductCards(el) >= 2) return el;
+    var kids = el.children;
+    if (!kids) return null;
+    var i;
+    for (i = 0; i < kids.length; i++) {
+      var found = findRepeatedCardGrid(kids[i], depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
   function isLayoutShell(el) {
     if (!el || el.nodeType !== 1) return false;
     var tag = String(el.tagName || "").toLowerCase();
@@ -4320,8 +4417,18 @@
       if (cls.contains("main-collection-grid")) return true;
       if (cls.contains("product-grid-container")) return true;
       if (cls.contains("collection-grid")) return true;
+      if (cls.contains("ko-grid")) return true;
     }
     if (isResultsListEl(el) || isGridHostEl(el)) return true;
+    if (
+      tag !== "article" &&
+      tag !== "li" &&
+      tag !== "a" &&
+      !insideDawnListing(el) &&
+      repeatedDistinctProductCards(el) >= 2
+    ) {
+      return true;
+    }
     if (
       tag !== "product-card" &&
       tag !== "product-item" &&
@@ -4358,14 +4465,18 @@
       if (el.classList.contains("grid-view-item")) return true;
       if (el.classList.contains("product-block")) return true;
       if (el.classList.contains("productitem")) return true;
+      if (el.classList.contains("pcard")) return true;
     }
-    return false;
+    if (isSkippedCardRegion(el) || insideDawnListing(el) || uniqueProductHandleCount(el) !== 1) return false;
+    var parent = el.parentElement;
+    if (!parent || isSkippedCardRegion(parent) || isDawnLikeGrid(parent) || insideDawnListing(parent)) return false;
+    return repeatedDistinctProductCards(parent) >= 2;
   }
 
   var OUTER_CARD_SEL =
     "product-card, product-item, grid-item, li.grid__item, li.product-grid__item, " +
     ".grid__item, .product-grid__item, .product-card, .product-item, .grid-product, " +
-    ".grid-view-item, .product-block, .productitem, .sf-app-card";
+    ".grid-view-item, .product-block, .productitem, article.pcard, .pcard, .sf-app-card";
 
   function resolveOuterThemeCard(el) {
     if (!el || el.nodeType !== 1) return null;
@@ -11054,6 +11165,37 @@
         ) || this._gridParent,
       );
       if (parent && !isPageShellHost(parent)) this._gridParent = parent;
+      var listingRoot = document.querySelector("main, #MainContent") || document.body;
+      var dawnListing = false;
+      try {
+        dawnListing = Boolean(
+          listingRoot.querySelector(
+            "#product-grid, .product-grid, #ProductGridContainer, #CollectionProductGrid, results-list, .main-collection-grid",
+          ),
+        );
+      } catch (dawnErr) {
+        dawnListing = false;
+      }
+      var themePcardGrid = dawnListing
+        ? null
+        : findRepeatedCardGrid(parent || listingRoot, 0);
+      if (themePcardGrid) {
+        this._gridParent = themePcardGrid;
+        var themeFiltered =
+          (this.hasActiveFilters && this.hasActiveFilters()) ||
+          Boolean(this.collectionQuery) ||
+          Boolean(this.searchQuery) ||
+          Math.max(1, Number(this.page) || 1) > 1 ||
+          Boolean(
+            this.sortKey &&
+              this.defaultSort &&
+              this.sortKey !== this.defaultSort,
+          );
+        applyNativeFilterGrid(themeFiltered ? sliced.handles : null, themePcardGrid);
+        if (this.setGridBusy) this.setGridBusy(false);
+        this._loadingPage = false;
+        return true;
+      }
       if (!(this.isAppGridMode && this.isAppGridMode())) {
         mountCachedCards(this, sliced.handles, parent);
         if (shouldTakeOverThemeCards(this) || Math.max(1, Number(this.page) || 1) > 1) {
