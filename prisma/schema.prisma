@@ -445,7 +445,7 @@ model AnalyticsEvent {
   id          String   @id @default(cuid())
   shopId      String
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  /// search | filter | click | visit
+  /// search | filter | click | visit | rollback | undo | slack
   kind        String
   query       String   @default("")
   combo       String   @default("")

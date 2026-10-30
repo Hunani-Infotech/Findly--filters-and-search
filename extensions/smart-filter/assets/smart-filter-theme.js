@@ -16,6 +16,332 @@
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
     "nav.pagination, .pagination, .pagination-wrapper, [data-pagination], .paginate, #pagination, load-more-button, .load-more-button, [data-load-more], .ajaxinate-pagination, #AjaxinatePagination, .Pagination, .infinite-scroll, .js-load-more, .btn--load-more, .pagination__load-more";
+  var PRODUCT_LIST =
+    "#ResultsList, #product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .product-grid, [data-product-grid]";
+  var hidePassDisabled = false;
+  var hideTimer = 0;
+  var guardTimer = 0;
+  var hideObserver = null;
+  window.__FINDLY_FACET_HIDE_SELECTOR = [
+    ".facets__wrapper",
+    "#FacetsWrapperDesktop",
+    ".facets-vertical-form",
+    "#main-collection-filters",
+    ".facets-wrapper",
+    ".mobile-facets__wrapper",
+    ".active-facets-desktop",
+    ".active-facets-mobile",
+    "facet-filters-form details",
+    ".facets details.facets__disclosure",
+    "details.facets__panel",
+    ".facets__panel",
+    "dropdown-facet",
+    "facet-dropdown",
+    "facet-status-component",
+    "facets-form-component",
+    "facets-form",
+    "filter-form",
+    "facet-form",
+    ".facets__form-wrapper",
+    "facets-form .facets",
+    ".facet-filters",
+    ".facets-container .facets",
+    ".facets-header",
+    ".facets-toolbar",
+    ".facets--bar",
+    ".facets-horizontal",
+    ".collection-filters",
+    ".product-filters",
+    ".filters-toolbar",
+    "price-range",
+    ".price-range",
+    "[class*='active-facets']",
+    ".facets-block-wrapper",
+    ".facets-toggle",
+    ".facets--horizontal",
+    ".facets--vertical",
+    ".facets-mobile-wrapper",
+    ".facets:not(.smart-filter)",
+  ].join(", ");
+  window.__FINDLY_SORT_HIDE_SELECTOR = [
+    "select[name='sort_by']",
+    "select[name='sortBy']",
+    ".facet-filters__sort",
+    ".facet-filters.sorting",
+    "#SortBy",
+    "#sort-by",
+    "[data-sort-by]",
+    ".collection-sort",
+    "sort-by-select",
+    "sorting-filter-component",
+    ".sorting-filter",
+    ".sorting-filter__container",
+    ".sorting-filter-component",
+  ].join(", ");
+  window.__FINDLY_PAGER_SELECTOR = [
+    "nav.pagination",
+    ".pagination",
+    ".pagination-wrapper",
+    "[data-pagination]",
+    ".paginate",
+    "#pagination",
+    ".Pagination",
+    "#AjaxinatePagination",
+    ".ajaxinate-pagination",
+    "load-more-button",
+    ".load-more-button",
+    ".pagination__load-more",
+    "[data-load-more]",
+    "button[name='load-more']",
+  ].join(", ");
+  window.__FINDLY_COUNT_SELECTOR = [
+    "#ProductCount",
+    "#ProductCountDesktop",
+    ".product-count__text",
+    ".product-count",
+    "[data-product-count]",
+    ".products-count-wrapper",
+    "[data-testid='products-count']",
+    ".collection-product-count",
+    ".product-count-vertical",
+    ".facets__product-count",
+    ".filter-count-bubble__text",
+  ].join(", ");
+  window.__FINDLY_GRID_HINT = [
+    "ul#product-grid",
+    "ol#product-grid",
+    "ul.product-grid",
+    "ol.product-grid",
+    "ul[id*='product-grid']",
+    "ul[class*='product-grid']",
+    "[data-id='product-grid']",
+    "[data-product-grid]",
+    "[product-grid-view]",
+    ".grid.product-grid",
+    "#product-grid",
+    ".product-grid",
+    "#ProductGridContainer",
+    "#CollectionProductGrid",
+    "#CollectionAjaxContent",
+    "#collection-products",
+    "#CollectionLoop",
+    "#product-loop",
+    "#product-list",
+    "product-list",
+    ".ProductList",
+    ".ProductList--grid",
+    ".product-list",
+    ".product-list__inner",
+    ".product-listing",
+    ".collection-grid",
+    ".collection-products",
+    ".grid-uniform",
+    ".grid--uniform",
+    ".grid--view-items",
+    ".grid-products",
+    ".products-grid",
+    ".products-list",
+    "[data-collection-products]",
+    "[data-products-grid]",
+    "[data-product-list]",
+    ".collection__products",
+    ".collection-product-list",
+    "#main-collection-product-grid",
+    ".productgrid--items",
+    ".boost-sd-grid",
+    ".sf-grid",
+    "results-list",
+    ".results-list",
+  ].join(", ");
+
+  function themeAdapter() {
+    var theme = window.Shopify && window.Shopify.theme;
+    var name = theme ? String(theme.schema_name || theme.name || "") : "";
+    if (name === "Dawn") {
+      return {
+        grid: "ul#product-grid, ol#product-grid",
+        card: "li.grid__item",
+        filter: "#FacetsWrapperDesktop, facet-filters-form, #main-collection-filters",
+        header: "#header-group, .shopify-section-group-header-group",
+        searchTitle: ".template-search__header, .search-page__header",
+      };
+    }
+    if (name === "Horizon") {
+      return {
+        grid: "#ResultsList ul.product-grid, ul.product-grid",
+        card: "li.product-grid__item",
+        filter: "facets-form-component, #filters-drawer, .facets-block-wrapper",
+        header: "#header-group, .shopify-section-group-header-group",
+        searchTitle: ".search-page__header",
+      };
+    }
+    return null;
+  }
+
+  function findlyDebug() {
+    try {
+      return /(?:^|[?&])findly_debug=1(?:&|$)/.test(window.location.search);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function findlyLog(pass, why, extra) {
+    if (!findlyDebug()) return;
+    console.info("[findly]", pass, why, extra || "");
+  }
+
+  function nativeHideKilled() {
+    var root =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    return Boolean(
+      root && root.getAttribute("data-findly-disable-native-hide") === "true",
+    );
+  }
+
+  /* Default off. Liquid sets the class from the app metafield; the filters
+     payload can set widget.storefrontV2 after the first response. */
+  function storefrontV2() {
+    var root = document.documentElement;
+    if (root && root.classList && root.classList.contains("sf-storefront-v2")) {
+      return true;
+    }
+    var block =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    if (block && block.getAttribute("data-findly-storefront-v2") === "true") {
+      return true;
+    }
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    return Boolean(widget && widget.storefrontV2);
+  }
+
+  function pageKind() {
+    var path = "";
+    try {
+      path = window.location.pathname || "";
+    } catch (err) {
+      path = "";
+    }
+    return /\/search\/?$/.test(path) || path.indexOf("/search") !== -1
+      ? "search"
+      : "collection";
+  }
+
+  function themeName() {
+    var theme = window.Shopify && window.Shopify.theme;
+    return theme ? String(theme.schema_name || theme.name || "") : "";
+  }
+
+  function findlyMetric(name, detail) {
+    var bag = window.__FINDLY_COUNTS || (window.__FINDLY_COUNTS = {});
+    bag[name] = (bag[name] || 0) + 1;
+    console.info("[findly-metric]", name, bag[name], detail || "");
+    var sent = window.__FINDLY_METRIC_SENT || (window.__FINDLY_METRIC_SENT = {});
+    var key = String(name) + "|" + String(detail || "");
+    var now = Date.now();
+    if (sent[key] && now - sent[key] < 60000) return;
+    sent[key] = now;
+    var block =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    var base =
+      (block && block.getAttribute && block.getAttribute("data-proxy-base")) ||
+      "/apps/smart-filter";
+    var shop = (window.Shopify && window.Shopify.shop) || "";
+    var url =
+      String(base).replace(/\/$/, "") +
+      "/analytics?kind=" +
+      encodeURIComponent(name) +
+      "&shop=" +
+      encodeURIComponent(shop) +
+      "&q=" +
+      encodeURIComponent(pageKind()) +
+      "&handle=" +
+      encodeURIComponent(themeName()) +
+      "&combo=" +
+      encodeURIComponent(
+        "flag=" + (storefrontV2() ? "1" : "0") + "|" + String(detail || name),
+      );
+    try {
+      if (typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon(url);
+        return;
+      }
+    } catch (err) {
+      /* fall through */
+    }
+    try {
+      fetch(url, { method: "GET", keepalive: true, credentials: "same-origin", mode: "no-cors" }).catch(
+        function () {},
+      );
+    } catch (err2) {
+      /* ignore */
+    }
+  }
+
+  function clearStorefrontV2Timer() {
+    if (window.__FINDLY_V2_TIMER) {
+      window.clearTimeout(window.__FINDLY_V2_TIMER);
+      window.__FINDLY_V2_TIMER = 0;
+    }
+    if (window.__findlyLoadingRelease) {
+      window.clearTimeout(window.__findlyLoadingRelease);
+      window.__findlyLoadingRelease = 0;
+    }
+  }
+
+  function armStorefrontV2Failsafe() {
+    if (!storefrontV2()) return;
+    if (window.__FINDLY_V2_FAILSAFE) return;
+    window.__FINDLY_V2_FAILSAFE = true;
+    window.__FINDLY_V2_TIMER = window.setTimeout(function () {
+      window.__FINDLY_V2_TIMER = 0;
+      if (!storefrontV2()) return;
+      window.__FINDLY_LOADING_SETTLED = true;
+      var root = document.documentElement;
+      if (!root || !root.classList) return;
+      root.classList.remove("sf-filter-loading");
+      if (!root.classList.contains("sf-filter-ready")) {
+        root.classList.add("sf-filter-ready");
+      }
+    }, 3000);
+  }
+
+  /* adminExtras on the filters payload is the source of truth once it arrives.
+     The metafield only paints the class before that response. */
+  function applyStorefrontV2Flag(widget, settings) {
+    if (!widget || !settings) return;
+    var on = settings.storefrontV2 === true;
+    var root = document.documentElement;
+    var block =
+      widget.root ||
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    var had =
+      Boolean(widget.storefrontV2) ||
+      Boolean(root && root.classList && root.classList.contains("sf-storefront-v2")) ||
+      Boolean(block && block.getAttribute && block.getAttribute("data-findly-storefront-v2") === "true");
+    widget.storefrontV2 = on;
+    if (root && root.classList) {
+      if (on) root.classList.add("sf-storefront-v2");
+      else root.classList.remove("sf-storefront-v2");
+    }
+    if (block && block.setAttribute) {
+      block.setAttribute("data-findly-storefront-v2", on ? "true" : "false");
+    }
+    if (on) {
+      armStorefrontV2Failsafe();
+    } else {
+      clearStorefrontV2Timer();
+      window.__FINDLY_V2_FAILSAFE = false;
+    }
+    if (had === on) return;
+    restoreAllHideTags();
+    if (on) scheduleHidePass("flag-on");
+    else hideNativeChromeHeuristic();
+  }
 
   function isFindlyUi(el) {
     if (!el || el.nodeType !== 1) return false;
@@ -266,8 +592,55 @@
     return null;
   }
 
+  function tagOf(el) {
+    return String((el && el.tagName) || "").toLowerCase();
+  }
+
+  function containsProductList(el) {
+    if (!el || el.nodeType !== 1) return false;
+    try {
+      if (el.matches && el.matches(PRODUCT_LIST)) return true;
+      if (el.querySelector) return Boolean(el.querySelector(PRODUCT_LIST));
+    } catch (err) {
+      return false;
+    }
+    return false;
+  }
+
+  /* True when the node matched [class*=filter] only because of an app class. */
+  function appFilterClassOnly(el) {
+    var raw = el && el.className;
+    var cls = typeof raw === "string" ? raw : (raw && raw.baseVal) || "";
+    var tokens = String(cls).split(/\s+/);
+    var app = false;
+    var theme = false;
+    var i;
+    for (i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      if (!token) continue;
+      if (/^(sf-|findly-)/i.test(token)) {
+        if (/filter|facet/i.test(token)) app = true;
+      } else if (/filter|facet/i.test(token)) {
+        theme = true;
+      }
+    }
+    var id = String((el && el.id) || "");
+    if (id && /filter|facet/i.test(id) && !/^(sf-|findly-)/i.test(id)) theme = true;
+    var tag = tagOf(el);
+    if (tag === "form" || tag === "aside") return false;
+    return app && !theme;
+  }
+
   function hideLeaf(el) {
     if (!el || el.nodeType !== 1) return;
+    if (hidePassDisabled || nativeHideKilled()) return;
+    var tag = tagOf(el);
+    if (storefrontV2()) {
+      if (tag === "html" || tag === "body" || tag === "head" || tag === "main" || tag === "header" || tag === "footer") {
+        return;
+      }
+      if (containsProductList(el)) return;
+    }
     if (isFindlyUi(el) || isSkipped(el)) return;
     if (isCustomProductColumn(el)) return;
     if (el.getAttribute("data-findly-native-chrome") === "1") return;
@@ -299,22 +672,141 @@
     return Boolean(coll && coll.querySelector("#filters, #ko-filters"));
   }
 
+  /* Flag on: hide the matched facet container only. Flag off: the released
+     child walk, so a page that hides theme facets today still does. */
   function hideIfChrome(el) {
     if (!el || el.nodeType !== 1) return;
+    if (hidePassDisabled || nativeHideKilled()) return;
     if (isFindlyUi(el) || isSkipped(el)) return;
-    if (holdsCustomCollection(el) && el.id !== "filters" && el.id !== "ko-filters") {
-      var held = el.children;
-      var h;
-      for (h = 0; h < held.length; h++) hideIfChrome(held[h]);
+    if (!storefrontV2()) {
+      if (holdsCustomCollection(el) && el.id !== "filters" && el.id !== "ko-filters") {
+        var kids = el.children;
+        var i;
+        for (i = 0; i < kids.length; i++) hideIfChrome(kids[i]);
+        return;
+      }
+      if (clusterScore(el) >= 2) {
+        var children = el.children;
+        var j;
+        for (j = 0; j < children.length; j++) hideIfChrome(children[j]);
+        return;
+      }
+      hideLeaf(el);
       return;
     }
-    if (clusterScore(el) >= 2) {
-      var kids = el.children;
-      var k;
-      for (k = 0; k < kids.length; k++) hideIfChrome(kids[k]);
-      return;
-    }
+    if (containsProductList(el)) return;
+    if (holdsCustomCollection(el) && el.id !== "filters" && el.id !== "ko-filters") return;
     hideLeaf(el);
+  }
+
+  function restoreHideTag(el) {
+    if (!el || el.nodeType !== 1) return;
+    el.removeAttribute("data-findly-theme-hidden");
+    el.removeAttribute("data-findly-native-chrome");
+    el.removeAttribute("hidden");
+    el.hidden = false;
+    if (el.classList) el.classList.remove("hidden");
+    if (el.style) el.style.removeProperty("display");
+  }
+
+  function restoreAllHideTags() {
+    var nodes = document.querySelectorAll(
+      "[data-findly-theme-hidden='1'], [data-findly-native-chrome='1']",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) restoreHideTag(nodes[i]);
+  }
+
+  function visibleArea(el) {
+    if (!el || !el.isConnected) return 0;
+    var cs;
+    try {
+      cs = window.getComputedStyle(el);
+    } catch (err) {
+      return 0;
+    }
+    if (cs.display === "contents") {
+      var sum = 0;
+      var i;
+      for (i = 0; i < el.children.length; i++) sum += visibleArea(el.children[i]);
+      return sum;
+    }
+    if (cs.display === "none" || cs.visibility === "hidden" || el.hidden) return 0;
+    var rect = el.getBoundingClientRect();
+    return Math.max(0, rect.width) * Math.max(0, rect.height);
+  }
+
+  function pageIsLoading() {
+    return (
+      document.documentElement.classList.contains("sf-filter-loading") ||
+      Boolean(document.querySelector(".findly-grid-is-busy"))
+    );
+  }
+
+  /* Only a node this hide pass tagged, or an ancestor it tagged. A missing
+     search title, a lazy card with no box, and a filter-hidden card do not count. */
+  function hiddenByUs(el) {
+    var node = el;
+    while (node && node.nodeType === 1) {
+      if (
+        node.getAttribute("data-findly-theme-hidden") === "1" ||
+        node.getAttribute("data-findly-native-chrome") === "1"
+      ) {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function guardStoreVisible(why) {
+    if (pageIsLoading()) {
+      if ((window.__FINDLY_GUARD_WAITS || 0) < 40) {
+        window.__FINDLY_GUARD_WAITS = (window.__FINDLY_GUARD_WAITS || 0) + 1;
+        scheduleGuard(why || "after-loading");
+      }
+      return;
+    }
+    window.__FINDLY_GUARD_WAITS = 0;
+    var header = storeHeader();
+    var main = document.querySelector("#MainContent, main, [role='main']");
+    var list = storeProductList();
+    var bad = [];
+    if (header && visibleArea(header) <= 0 && hiddenByUs(header)) bad.push("header");
+    if (main && visibleArea(main) <= 0 && hiddenByUs(main)) bad.push("main");
+    if (list) {
+      var cards = listCards(list);
+      if (visibleArea(list) <= 0 && cards.length && hiddenByUs(list)) {
+        bad.push("product-list");
+      } else if (cards.length && cardsAllHidden(cards) && hiddenByUs(cards[0])) {
+        var tagged = true;
+        var i;
+        for (i = 0; i < cards.length; i++) {
+          if (!hiddenByUs(cards[i])) tagged = false;
+        }
+        if (tagged) bad.push("product-cards");
+      }
+    }
+    var searchTitle = storeSearchTitle();
+    if (searchTitle && visibleArea(searchTitle) <= 0 && hiddenByUs(searchTitle)) {
+      bad.push("search-title");
+    }
+    if (!bad.length) return;
+    restoreAllHideTags();
+    hidePassDisabled = true;
+    if (hideObserver) {
+      try {
+        hideObserver.disconnect();
+      } catch (err) {
+        /* ignore */
+      }
+      hideObserver = null;
+    }
+    findlyMetric("rollback", bad.join(","));
+    console.warn(
+      "[findly] hide pass disabled: " + bad.join(", ") + " has no visible area",
+      why || "",
+    );
   }
 
   function restoreFindlyNode(el) {
@@ -337,8 +829,21 @@
 
   function looksLikeFilterChrome(el) {
     if (!el || el.nodeType !== 1) return false;
+    var tag = tagOf(el);
+    if (storefrontV2()) {
+      if (
+        tag === "html" ||
+        tag === "body" ||
+        tag === "head" ||
+        tag === "main" ||
+        tag === "header" ||
+        tag === "footer"
+      ) {
+        return false;
+      }
+      if (containsProductList(el) || appFilterClassOnly(el)) return false;
+    }
     if (isFindlyUi(el) || isSkipped(el)) return false;
-    var tag = String(el.tagName || "").toLowerCase();
     if (
       tag === "facet-filters-form" ||
       tag === "facets-form" ||
@@ -369,8 +874,14 @@
   }
 
   function hideNativeChromeHeuristic() {
-    var inputs = document.querySelectorAll(NATIVE_INPUT);
+    if (hidePassDisabled || nativeHideKilled()) return;
     var i;
+    var adapter = themeAdapter();
+    if (storefrontV2() && adapter && adapter.filter) {
+      var mapped = document.querySelectorAll(adapter.filter);
+      for (i = 0; i < mapped.length; i++) hideIfChrome(mapped[i]);
+    }
+    var inputs = document.querySelectorAll(NATIVE_INPUT);
     for (i = 0; i < inputs.length; i++) {
       var input = inputs[i];
       if (!input || isFindlyUi(input)) continue;
@@ -392,9 +903,22 @@
       "form, aside, [class*='facet'], [class*='filter'], [id*='facet'], [id*='Filter']",
     );
     for (i = 0; i < Math.min(candidates.length, 80); i++) {
-      if (looksLikeFilterChrome(candidates[i])) hideIfChrome(candidates[i]);
+      var candidate = candidates[i];
+      var candidateTag = tagOf(candidate);
+      if (storefrontV2()) {
+        if (
+          candidateTag === "html" ||
+          candidateTag === "body" ||
+          candidateTag === "head"
+        ) {
+          continue;
+        }
+        if (appFilterClassOnly(candidate)) continue;
+      }
+      if (looksLikeFilterChrome(candidate)) hideIfChrome(candidate);
     }
     unhideFindlyDrawer();
+    guardStoreVisible("hide");
   }
 
   function injectCompatCss() {
@@ -689,8 +1213,17 @@
 
     var origHide = proto.hideThemeDuplicateChrome;
     proto.hideThemeDuplicateChrome = function () {
+      if (nativeHideKilled()) return;
       if (origHide) origHide.call(this);
-      hideNativeChromeHeuristic();
+      if (!storefrontV2()) hideNativeChromeHeuristic();
+      else scheduleHidePass("schema-hide");
+      scheduleGuard("schema-hide");
+    };
+
+    var origApply = proto.applySettings;
+    proto.applySettings = function (settings) {
+      if (origApply) origApply.apply(this, arguments);
+      applyStorefrontV2Flag(this, settings);
     };
 
     var origPlaceSort = proto.placeSortOnGrid;
@@ -732,7 +1265,8 @@
         this._gridParent = anchor.grid;
         this._layoutFallbackDone = true;
         if (this.markFilterPlaced) this.markFilterPlaced();
-        hideNativeChromeHeuristic();
+        if (!storefrontV2()) hideNativeChromeHeuristic();
+        else scheduleHidePass("layout");
         var aside = anchor.before.querySelector ? anchor.before.querySelector("#filters") : null;
         var product = aside && aside.nextElementSibling;
         if (product && aside && product !== mount) {
@@ -749,7 +1283,8 @@
         return;
       }
       var result = origSync ? origSync.apply(this, arguments) : undefined;
-      hideNativeChromeHeuristic();
+      if (!storefrontV2()) hideNativeChromeHeuristic();
+      else scheduleHidePass("layout");
       ensureSortHost(this);
       ensureCollectionSearchHost(this);
       return result;
@@ -760,10 +1295,36 @@
       injectCompatCss();
       liftOutOfAnyFilterForm(this);
       if (origInit) origInit.apply(this, arguments);
+      if (!storefrontV2()) {
+        if (!this._gridParent && this.ensureGridParent) this.ensureGridParent();
+        if (this.syncCollectionLayout) this.syncCollectionLayout();
+        hideNativeChromeHeuristic();
+        return;
+      }
+      if (!this.collectionId && !this.searchQuery && !this.collectionHandle) {
+        clearFilterLoading();
+        restoreAllHideTags();
+        return;
+      }
       if (!this._gridParent && this.ensureGridParent) this.ensureGridParent();
       if (this.syncCollectionLayout) this.syncCollectionLayout();
-      hideNativeChromeHeuristic();
+      scheduleHidePass("widget-ready");
     };
+
+    if (!proto.__findlyHideScheduled) {
+      proto.__findlyHideScheduled = true;
+      window.__FINDLY_BOOTED = true;
+      if (storefrontV2()) scheduleHidePass("widget-ready");
+    }
+  }
+
+  function clearFilterLoading() {
+    var root = document.documentElement;
+    if (!root || !root.classList) return;
+    root.classList.remove("sf-filter-loading");
+    if (!root.classList.contains("sf-filter-ready")) {
+      root.classList.add("sf-filter-ready");
+    }
   }
 
   function liveFilterRoot() {
@@ -828,28 +1389,189 @@
     }
   }
 
-  function rebindWidget() {
+  function storeHeader() {
+    var adapter = themeAdapter();
+    if (adapter && adapter.header) {
+      var mappedHeader = document.querySelector(adapter.header);
+      if (mappedHeader) return mappedHeader;
+    }
+    var grouped = document.querySelector(
+      "#header-group, .shopify-section-group-header-group",
+    );
+    if (grouped) return grouped;
+    var headers = document.querySelectorAll("header");
+    var i;
+    for (i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      if (
+        header.closest &&
+        header.closest(".predictive-search, dialog, [role='dialog']")
+      ) {
+        continue;
+      }
+      return header;
+    }
+    return null;
+  }
+
+  function storeProductList() {
+    var scope =
+      document.querySelector("#MainContent, main, [role='main']") || document.body;
+    if (!scope || !scope.querySelector) return null;
+    var adapter = themeAdapter();
+    if (adapter && adapter.grid) {
+      var mappedGrid = scope.querySelector(adapter.grid);
+      if (mappedGrid) return mappedGrid;
+    }
+    return scope.querySelector(
+      "#ResultsList, #product-grid, #ProductGrid, ul.product-grid, ol.product-grid",
+    );
+  }
+
+  function storeSearchTitle() {
+    var adapter = themeAdapter();
+    var sel =
+      (adapter && adapter.searchTitle) ||
+      ".search-page__header, .template-search__header, .search-header";
+    return document.querySelector(sel);
+  }
+
+  function listCards(list) {
+    if (!list || !list.querySelectorAll) return [];
+    var adapter = themeAdapter();
+    var generic = "li, product-card, article, .product-card, .card";
+    if (!adapter || !adapter.card) return list.querySelectorAll(generic);
+    var mapped = list.querySelectorAll(adapter.card);
+    if (mapped.length) return mapped;
+    return list.querySelectorAll(generic);
+  }
+
+  function cardsAllHidden(cards) {
+    var i;
+    for (i = 0; i < cards.length; i++) {
+      if (visibleArea(cards[i]) > 0) return false;
+    }
+    return true;
+  }
+
+  function scheduleGuard(why) {
+    if (hidePassDisabled) return;
+    if (guardTimer) window.clearTimeout(guardTimer);
+    guardTimer = window.setTimeout(function () {
+      guardTimer = 0;
+      if (hidePassDisabled) return;
+      guardStoreVisible(why);
+    }, 200);
+  }
+
+  function scheduleHidePass(why) {
+    if (hidePassDisabled || nativeHideKilled()) return;
+    if (hideTimer) window.clearTimeout(hideTimer);
+    hideTimer = window.setTimeout(function () {
+      hideTimer = 0;
+      if (hidePassDisabled || nativeHideKilled()) return;
+      findlyLog("hide", why || "run");
+      hideNativeChromeHeuristic();
+    }, 200);
+  }
+
+  function bindHideObserver() {
+    if (hideObserver || hidePassDisabled || typeof MutationObserver !== "function") return;
+    var root = document.body || document.documentElement;
+    if (!root) return;
+    hideObserver = new MutationObserver(function () {
+      if (!storefrontV2() || hidePassDisabled || nativeHideKilled()) return;
+      scheduleHidePass("mutation");
+    });
+    hideObserver.observe(root, { childList: true, subtree: true });
+  }
+
+  function rememberAssetBase() {
+    var node = document.querySelector(
+      "script[src*='smart-filter'],link[href*='smart-filter']",
+    );
+    var url = (node && (node.src || node.href)) || window.__FINDLY_ASSET_BASE || "";
+    var base = url ? String(url).replace(/[^/?#]+(?:\?.*)?$/, "") : "";
+    if (base) window.__FINDLY_ASSET_BASE = base;
+  }
+
+  function ensureEditorAsset(file, kind) {
+    var urls = window.__FINDLY_ASSET_URLS || {};
+    var href = urls[file] || "";
+    if (!href) {
+      var base = window.__FINDLY_ASSET_BASE || "";
+      if (base) href = base + file;
+    }
+    if (!href || !file) return;
+    if (
+      kind === "js" &&
+      file === "smart-filter.min.js" &&
+      (window.__FINDLY_BOOTED || window.__FINDLY_FILTER_BOOTED)
+    ) {
+      return;
+    }
+    var sel =
+      kind === "css"
+        ? "link[href*='" + file + "']"
+        : "script[src*='" + file + "']";
+    if (document.querySelector(sel)) return;
+    if (kind === "css") {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      link.setAttribute("data-findly-reinjected", "1");
+      (document.head || document.documentElement).appendChild(link);
+      findlyLog("assets", "css", file);
+      return;
+    }
+    var script = document.createElement("script");
+    script.src = href;
+    script.defer = true;
+    script.async = false;
+    script.setAttribute("data-findly-reinjected", "1");
+    (document.body || document.documentElement).appendChild(script);
+    findlyLog("assets", "js", file);
+  }
+
+  function ensureEditorAssets() {
+    rememberAssetBase();
+    var files = [
+      ["smart-filter-check.min.css", "css"],
+      ["smart-filter-ui.min.css", "css"],
+      ["smart-filter.min.css", "css"],
+      ["smart-filter-grid.min.js", "js"],
+      ["smart-filter-theme.min.js", "js"],
+      ["smart-filter.min.js", "js"],
+    ];
+    var i;
+    for (i = 0; i < files.length; i++) ensureEditorAsset(files[i][0], files[i][1]);
+  }
+
+  function rebindLayout() {
     var widget = window.__FINDLY_FILTER_WIDGET;
     cleanupOrphanPortals(false);
+    if (window.Shopify && window.Shopify.designMode) ensureEditorAssets();
     if (!widget || !widget.root || widget.root.isConnected === false) return;
     widget._gridParent = null;
     if (widget.ensureGridParent) widget.ensureGridParent();
     if (widget.syncCollectionLayout) widget.syncCollectionLayout();
     if (widget.placeCollectionSearchOnGrid) widget.placeCollectionSearchOnGrid();
-    if (widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
     if (widget.watchThemeGrid) widget.watchThemeGrid();
-    if (Array.isArray(widget._visibleHandles) && window.applyProductVisibility) {
-      /* visibility lives in the schema IIFE; MutationObserver in grid companion covers it */
-    }
   }
 
   function bindThemeLifecycle() {
     if (window.__findlyThemeLifecycle) return;
     window.__findlyThemeLifecycle = true;
+    /* Section reload replaces the DOM, so the new theme filters are not hidden
+       yet and the editor may have dropped the embed asset tags. */
     document.addEventListener("shopify:section:load", function () {
       window.setTimeout(function () {
-        cleanupOrphanPortals(false);
-        rebindWidget();
+        rebindLayout();
+        if (storefrontV2()) scheduleHidePass("section-load");
+        else {
+          var widget = window.__FINDLY_FILTER_WIDGET;
+          if (widget && widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
+        }
       }, 0);
     });
     document.addEventListener("shopify:section:unload", function (event) {
@@ -858,22 +1580,27 @@
         cleanupOrphanPortals(true);
         return;
       }
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(rebindLayout, 0);
     });
+    /* Reorder moves sections. Layout only — the observer schedules the hide. */
     document.addEventListener("shopify:section:reorder", function () {
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(rebindLayout, 0);
     });
     document.addEventListener("shopify:block:select", function () {
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(rebindLayout, 0);
     });
     document.addEventListener("shopify:block:deselect", function () {
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(rebindLayout, 0);
     });
+    /* Flag off keeps the released hide triggers. Flag on only restores URL state. */
     window.addEventListener("popstate", function () {
       window.setTimeout(function () {
         var widget = window.__FINDLY_FILTER_WIDGET;
         if (widget && liveFilterRoot()) restoreFiltersFromLocation(widget);
-        rebindWidget();
+        if (!storefrontV2()) {
+          rebindLayout();
+          if (widget && widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
+        }
       }, 0);
     });
     window.addEventListener("pageshow", function (event) {
@@ -881,17 +1608,41 @@
       window.setTimeout(function () {
         var widget = window.__FINDLY_FILTER_WIDGET;
         if (widget && liveFilterRoot()) restoreFiltersFromLocation(widget);
-        rebindWidget();
+        if (!storefrontV2()) {
+          rebindLayout();
+          if (widget && widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
+        }
       }, 0);
     });
     window.addEventListener("load", function () {
-      window.setTimeout(rebindWidget, 50);
+      if (storefrontV2()) return;
+      window.setTimeout(function () {
+        rebindLayout();
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (widget && widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
+      }, 50);
     });
     document.addEventListener("page:load", function () {
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(rebindLayout, 0);
     });
     document.addEventListener("turbo:load", function () {
-      window.setTimeout(rebindWidget, 0);
+      window.setTimeout(function () {
+        if (hideObserver) {
+          try {
+            hideObserver.disconnect();
+          } catch (err) {
+            /* ignore */
+          }
+          hideObserver = null;
+        }
+        bindHideObserver();
+        rebindLayout();
+        if (storefrontV2()) scheduleHidePass("turbo");
+        else {
+          var widget = window.__FINDLY_FILTER_WIDGET;
+          if (widget && widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
+        }
+      }, 0);
     });
   }
 
@@ -926,10 +1677,283 @@
     if (held) patchWidget(held);
   }
 
+  function shownArea(el) {
+    return visibleArea(el) > 0;
+  }
+
+  function installDiag() {
+    window.__FINDLY_DIAG = function () {
+      var html = document.documentElement;
+      var widget = window.__FINDLY_FILTER_WIDGET;
+      var proto = widget ? Object.getPrototypeOf(widget) : null;
+      var cards = document.querySelectorAll(
+        "#ResultsList li.product-grid__item, ul.product-grid > li, ol.product-grid > li, article.pcard",
+      );
+      var visible = 0;
+      var themeHidden = 0;
+      var smartHidden = 0;
+      var i;
+      for (i = 0; i < cards.length; i++) {
+        if (shownArea(cards[i])) visible += 1;
+        if (cards[i].getAttribute("data-findly-theme-hidden") === "1") themeHidden += 1;
+        if (cards[i].getAttribute("data-smart-filter-hidden") === "true") smartHidden += 1;
+      }
+      var scripts = {};
+      var list = document.scripts;
+      for (i = 0; i < list.length; i++) {
+        var src = list[i].src || "";
+        if (!/smart-filter/.test(src)) continue;
+        var name = src.split("/").pop().split("?")[0];
+        scripts[name] = (scripts[name] || 0) + 1;
+      }
+      var header = document.querySelector(
+        "#header-group, .shopify-section-group-header-group, header",
+      );
+      var main = document.querySelector("#MainContent, main, [role='main']");
+      var results = document.getElementById("ResultsList");
+      return {
+        path: window.location.pathname + window.location.search,
+        htmlClass: html.className,
+        loading: html.classList.contains("sf-filter-loading"),
+        ready: html.classList.contains("sf-filter-ready"),
+        hideDisabled: hidePassDisabled,
+        nativeHideKilled: nativeHideKilled(),
+        htmlMatchesFilterSelector: html.matches
+          ? html.matches("[class*='filter']")
+          : false,
+        widget: widget
+          ? {
+              searchQuery: widget.searchQuery || "",
+              page: widget.page,
+              sortKey: widget.sortKey,
+              defaultSort: widget.defaultSort,
+              active: Boolean(widget.hasActiveFilters && widget.hasActiveFilters()),
+              indexCovers: widget._indexCovers,
+              filterFailed: Boolean(widget._findlyFilterFailed),
+              total: widget._lastFilterData && widget._lastFilterData.total,
+              themePatched: Boolean(proto && proto.__findlyThemePatched),
+              gridPatched: Boolean(proto && proto.__findlyGridPatched),
+            }
+          : null,
+        scripts: scripts,
+        booted: Boolean(window.__FINDLY_BOOTED || window.__FINDLY_FILTER_BOOTED),
+        headerShown: shownArea(header),
+        mainShown: shownArea(main),
+        resultsListConnected: Boolean(results && results.isConnected),
+        taggedTotal: document.querySelectorAll("[data-findly-theme-hidden='1']").length,
+        cards: {
+          n: cards.length,
+          visible: visible,
+          themeHidden: themeHidden,
+          smartHidden: smartHidden,
+        },
+      };
+    };
+  }
+
+  function installMovedHooks() {
+    var lastAnalyticsStamp = "";
+    var lastAnalyticsAt = 0;
+    var partnerUpdateTimer = null;
+    var partnerUpdateHandles = [];
+
+    function shopDomain() {
+      var api = window.__FINDLY_DOM;
+      if (api && api.shopDomain) return api.shopDomain();
+      return (window.Shopify && window.Shopify.shop) || "";
+    }
+    function deviceKind() {
+      return window.innerWidth < 750 ? "mobile" : "desktop";
+    }
+    function visitorId() {
+      var privacy = window.__FINDLY_PRIVACY;
+      if (privacy && typeof privacy.visitorId === "function") {
+        return privacy.visitorId() || "";
+      }
+      return "";
+    }
+    function sendAnalytics(proxyBase, fields) {
+      var vid = visitorId();
+      if (!vid) return;
+      var stamp =
+        String(fields.kind || "") +
+        "|" +
+        String(fields.combo || "") +
+        "|" +
+        String(fields.q || "");
+      var now = Date.now();
+      if (stamp === lastAnalyticsStamp && now - lastAnalyticsAt < 2000) return;
+      lastAnalyticsStamp = stamp;
+      lastAnalyticsAt = now;
+      var url =
+        String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
+        "/analytics?kind=" +
+        encodeURIComponent(fields.kind || "") +
+        "&shop=" +
+        encodeURIComponent(shopDomain());
+      if (fields.q != null && fields.q !== "") {
+        url += "&q=" + encodeURIComponent(fields.q);
+      }
+      if (fields.n != null) url += "&n=" + encodeURIComponent(String(fields.n));
+      if (fields.combo) url += "&combo=" + encodeURIComponent(fields.combo);
+      if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
+      url +=
+        "&v=" +
+        encodeURIComponent(vid) +
+        "&d=" +
+        encodeURIComponent(deviceKind());
+      try {
+        if (typeof navigator.sendBeacon === "function") {
+          navigator.sendBeacon(url);
+          return;
+        }
+      } catch (err) {
+        /* fall through */
+      }
+      fetch(url, {
+        method: "GET",
+        keepalive: true,
+        credentials: "same-origin",
+        mode: "no-cors",
+      }).catch(function () {});
+    }
+    function reinitPartnerWidgetsFallback() {
+      try {
+        if (window.jdgm && typeof window.jdgm.customizeBadges === "function") {
+          window.jdgm.customizeBadges();
+        } else if (window.jdgm && typeof window.jdgm.preLoader === "function") {
+          window.jdgm.preLoader();
+        }
+      } catch (err) {
+        /* optional partner widget */
+      }
+      try {
+        var heroButtons = document.querySelectorAll(".wishlist-hero-custom-button");
+        var hi;
+        for (hi = 0; hi < heroButtons.length; hi++) {
+          document.dispatchEvent(
+            new CustomEvent("wishlist-hero-add-to-custom-element", {
+              bubbles: true,
+              detail: heroButtons[hi],
+            }),
+          );
+        }
+      } catch (err2) {
+        /* optional partner widget */
+      }
+      try {
+        if (
+          window.frcp &&
+          window.frcp.wishlist &&
+          typeof window.frcp.wishlist.attachOnCollection === "function"
+        ) {
+          window.frcp.wishlist.attachOnCollection();
+        }
+      } catch (err3) {
+        /* optional partner widget */
+      }
+      try {
+        if (window._swat && typeof window._swat.initializeActionButtons === "function") {
+          window._swat.initializeActionButtons();
+        }
+      } catch (err4) {
+        /* optional partner widget */
+      }
+      try {
+        if (window.Weglot && typeof window.Weglot.refresh === "function") {
+          window.Weglot.refresh();
+        }
+      } catch (err5) {
+        /* optional partner widget */
+      }
+      try {
+        if (window.Currency && typeof window.Currency.convertAll === "function") {
+          window.Currency.convertAll(
+            window.Currency.currentCurrency ||
+              (window.Shopify &&
+                window.Shopify.currency &&
+                window.Shopify.currency.active) ||
+              "USD",
+          );
+        }
+      } catch (err6) {
+        /* optional currency converter */
+      }
+    }
+    function reinitPartnerWidgets() {
+      var api = window.__FINDLY_DOM;
+      if (api && api.reinitPartnerWidgets) {
+        api.reinitPartnerWidgets();
+        return;
+      }
+      reinitPartnerWidgetsFallback();
+    }
+    function dispatchPartnerRenderEvents(handles) {
+      var detail = { handles: handles || [] };
+      window.dispatchEvent(
+        new CustomEvent("findlyFilterRenderCompleted", {
+          bubbles: true,
+          detail: detail,
+        }),
+      );
+      document.dispatchEvent(
+        new CustomEvent("findlyFilterRenderCompleted", {
+          bubbles: true,
+          detail: detail,
+        }),
+      );
+      reinitPartnerWidgets();
+    }
+    window.__FINDLY_FIRE_ANALYTICS = function (proxyBase, fields) {
+      var privacy = window.__FINDLY_PRIVACY;
+      if (!privacy || typeof privacy.run !== "function") return;
+      privacy.run(function () {
+        sendAnalytics(proxyBase, fields);
+      });
+    };
+    window.__FINDLY_ACTIVE_FILTER_COMBO = function (selected, price) {
+      var parts = [];
+      var facetCount = 0;
+      Object.keys(selected || {})
+        .sort()
+        .forEach(function (key) {
+          var values = selected[key];
+          if (!values || !values.length) return;
+          facetCount += 1;
+          parts.push(key + "=" + values.join(","));
+        });
+      if (price && (price.min !== "" || price.max !== "")) {
+        facetCount += 1;
+        parts.push("price=" + String(price.min) + "," + String(price.max));
+        parts.sort();
+      }
+      return { facetCount: facetCount, combo: parts.join("|") };
+    };
+    window.__FINDLY_DISPATCH_UPDATE = function (handles) {
+      document.dispatchEvent(
+        new CustomEvent("smart-filter:update", {
+          bubbles: true,
+          detail: { handles: handles || [] },
+        }),
+      );
+      partnerUpdateHandles = handles || [];
+      if (partnerUpdateTimer) clearTimeout(partnerUpdateTimer);
+      partnerUpdateTimer = setTimeout(function () {
+        partnerUpdateTimer = null;
+        dispatchPartnerRenderEvents(partnerUpdateHandles);
+      }, 0);
+    };
+  }
+
   function install() {
+    window.__FINDLY_EMIT_METRIC = findlyMetric;
     injectCompatCss();
+    rememberAssetBase();
+    installMovedHooks();
     bindThemeLifecycle();
+    bindHideObserver();
     installSetter();
+    installDiag();
   }
 
   install();

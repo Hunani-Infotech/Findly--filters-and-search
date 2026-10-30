@@ -27,6 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "private, no-store",
         },
       });
     }
@@ -94,7 +95,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       timer.finish({ status: result.status, bytes: body.length });
       return new Response(body, {
         status: result.status,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "private, no-store",
+        },
       });
     }
 

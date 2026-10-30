@@ -1326,48 +1326,38 @@
 
 /* Theme pagers excluded: Dawn search nests nav.pagination inside div#product-grid. */
 .findly-grid-is-busy
-  > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading .main-collection-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading #product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading #ProductGrid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading ul.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading ol.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading .product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
-html.sf-filter-loading .sf-app-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination) {
+  > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination) {
   display: none !important;
 }
 
+@keyframes findly-loading-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+html.sf-filter-loading:not(.sf-storefront-v2) .main-collection-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) #product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) #ProductGrid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) ul.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) ol.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) .product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-filter-loading:not(.sf-storefront-v2) .sf-app-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination) {
+  display: none !important;
+}
+
+html.sf-storefront-v2.sf-filter-loading .main-collection-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading #product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading #ProductGrid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading ul.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading ol.product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading .product-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination),
+html.sf-storefront-v2.sf-filter-loading .sf-app-grid > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed):not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination]):not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination) {
+  opacity: 0;
+  animation: findly-loading-reveal 0s linear 3s forwards;
+}
+
 .findly-grid-is-busy :is(
-  product-card,
-  product-item,
-  grid-item,
-  li.grid__item,
-  .grid__item,
-  .product-card,
-  .product-grid__item,
-  .product-item,
-  .grid-product,
-  .grid-view-item,
-  .product-block,
-  .productitem,
-  article.card,
-  .sf-app-card,
-  .card-wrapper,
-  .card--product,
-  .card-product,
-  [data-product-card],
-  .collection-product-card,
-  .product-card-wrapper
-):not([data-findly-skel="1"]),
-html.sf-filter-loading :is(
-  .main-collection-grid,
-  #product-grid,
-  #ProductGrid,
-  ul.product-grid,
-  ol.product-grid,
-  .product-grid,
-  .sf-app-grid
-) :is(
   product-card,
   product-item,
   grid-item,

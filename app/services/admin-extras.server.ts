@@ -30,6 +30,8 @@ export type AdminNavExtras = {
   i18n: WidgetI18nMap;
   translationCustom?: Record<string, TranslationCustomField[]>;
   contactDraft?: ContactDraft;
+  /** Opt-in storefront behavior. Absent or false keeps the released behavior. */
+  storefrontV2?: boolean;
 };
 
 const DEFAULT_ADMIN_EXTRAS: AdminNavExtras = {
@@ -82,9 +84,14 @@ export function parseAdminNavExtras(raw: unknown): AdminNavExtras {
         };
   const i18n = parseWidgetI18nMap(o.i18n);
   const translationCustom = parseTranslationCustom(o.translationCustom);
-  return contactDraft
-    ? { langs, i18n, translationCustom, contactDraft }
-    : { langs, i18n, translationCustom };
+  const storefrontV2 = o.storefrontV2 === true;
+  return {
+    langs,
+    i18n,
+    translationCustom,
+    ...(contactDraft ? { contactDraft } : {}),
+    ...(storefrontV2 ? { storefrontV2: true } : {}),
+  };
 }
 
 const extrasCache = createTtlCache<AdminNavExtras>(30_000);
@@ -107,10 +114,18 @@ export async function saveAdminNavExtras(
     where: { shopId },
     select: { adminExtras: true },
   });
-  const existingSetup = asRecord(asRecord(current?.adminExtras).setup);
-  const { contactDraft, ...rest } = extras;
+  const currentRaw = asRecord(current?.adminExtras);
+  const existingSetup = asRecord(currentRaw.setup);
+  const { contactDraft, storefrontV2: incomingV2, ...rest } = extras;
+  const storefrontV2 =
+    incomingV2 === true
+      ? true
+      : incomingV2 === false
+        ? false
+        : currentRaw.storefrontV2 === true;
   const payload = {
     ...rest,
+    ...(storefrontV2 ? { storefrontV2: true } : {}),
     ...(contactDraft
       ? {
           contactDraft: {
@@ -121,12 +136,33 @@ export async function saveAdminNavExtras(
         }
       : {}),
     ...(Object.keys(existingSetup).length > 0 ? { setup: existingSetup } : {}),
-  } as Prisma.InputJsonValue;
-  const row = await prisma.appSettings.upsert({
-    where: { shopId },
-    create: { shopId, adminExtras: payload },
-    update: { adminExtras: payload },
-  });
+  };
+  const body = JSON.stringify(payload);
+  const mergeCounts = async () =>
+    prisma.$executeRaw`
+      UPDATE "AppSettings"
+      SET "adminExtras" =
+        ${body}::jsonb
+        || jsonb_build_object(
+          'signalCounts',
+          COALESCE("adminExtras"->'signalCounts', '{}'::jsonb)
+        )
+      WHERE "shopId" = ${shopId}
+    `;
+  const updated = await mergeCounts();
+  if (Number(updated) === 0) {
+    try {
+      await prisma.appSettings.create({
+        data: { shopId, adminExtras: payload as Prisma.InputJsonValue },
+      });
+    } catch {
+      await mergeCounts();
+    }
+  }
   extrasCache.del(shopId);
-  return parseAdminNavExtras(row.adminExtras);
+  const row = await prisma.appSettings.findUnique({
+    where: { shopId },
+    select: { adminExtras: true },
+  });
+  return parseAdminNavExtras(row?.adminExtras);
 }

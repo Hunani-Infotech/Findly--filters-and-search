@@ -96,92 +96,15 @@
     }
   }
 
-  function deviceKind() {
-    return window.innerWidth < 750 ? "mobile" : "desktop";
-  }
-
-  function visitorId() {
-    var privacy = window.__FINDLY_PRIVACY;
-    if (privacy && typeof privacy.visitorId === "function") {
-      return privacy.visitorId() || "";
-    }
-    return "";
-  }
-
-  var lastAnalyticsStamp = "";
-  var lastAnalyticsAt = 0;
-
   function fireAnalytics(proxyBase, fields) {
-    var privacy = window.__FINDLY_PRIVACY;
-    if (!privacy || typeof privacy.run !== "function") return;
-    privacy.run(function () {
-      sendAnalytics(proxyBase, fields);
-    });
-  }
-
-  function sendAnalytics(proxyBase, fields) {
-    var vid = visitorId();
-    if (!vid) return;
-    var stamp =
-      String(fields.kind || "") +
-      "|" +
-      String(fields.combo || "") +
-      "|" +
-      String(fields.q || "");
-    var now = Date.now();
-    if (stamp === lastAnalyticsStamp && now - lastAnalyticsAt < 2000) return;
-    lastAnalyticsStamp = stamp;
-    lastAnalyticsAt = now;
-    var url =
-      String(proxyBase || "/apps/smart-filter").replace(/\/$/, "") +
-      "/analytics?kind=" +
-      encodeURIComponent(fields.kind || "") +
-      "&shop=" +
-      encodeURIComponent(shopDomain());
-    if (fields.q != null && fields.q !== "") {
-      url += "&q=" + encodeURIComponent(fields.q);
-    }
-    if (fields.n != null) url += "&n=" + encodeURIComponent(String(fields.n));
-    if (fields.combo) url += "&combo=" + encodeURIComponent(fields.combo);
-    if (fields.handle) url += "&handle=" + encodeURIComponent(fields.handle);
-    url +=
-      "&v=" +
-      encodeURIComponent(vid) +
-      "&d=" +
-      encodeURIComponent(deviceKind());
-    try {
-      if (typeof navigator.sendBeacon === "function") {
-        navigator.sendBeacon(url);
-        return;
-      }
-    } catch (err) {
-      /* fall through */
-    }
-    fetch(url, {
-      method: "GET",
-      keepalive: true,
-      credentials: "same-origin",
-      mode: "no-cors",
-    }).catch(function () {});
+    var fn = window.__FINDLY_FIRE_ANALYTICS;
+    if (fn) fn(proxyBase, fields);
   }
 
   function activeFilterCombo(selected, price) {
-    var parts = [];
-    var facetCount = 0;
-    Object.keys(selected || {})
-      .sort()
-      .forEach(function (key) {
-        var values = selected[key];
-        if (!values || !values.length) return;
-        facetCount += 1;
-        parts.push(key + "=" + values.join(","));
-      });
-    if (price && (price.min !== "" || price.max !== "")) {
-      facetCount += 1;
-      parts.push("price=" + String(price.min) + "," + String(price.max));
-      parts.sort();
-    }
-    return { facetCount: facetCount, combo: parts.join("|") };
+    var fn = window.__FINDLY_ACTIVE_FILTER_COMBO;
+    if (fn) return fn(selected, price);
+    return { facetCount: 0, combo: "" };
   }
 
   function setStatus(el, text, isError) {
@@ -762,193 +685,20 @@
     });
   }
 
-  var partnerUpdateTimer = null;
-  var partnerUpdateHandles = [];
-
-  function reinitPartnerWidgetsFallback() {
-    try {
-      if (window.jdgm && typeof window.jdgm.customizeBadges === "function") {
-        window.jdgm.customizeBadges();
-      } else if (window.jdgm && typeof window.jdgm.preLoader === "function") {
-        window.jdgm.preLoader();
-      }
-    } catch (err) {
-      /* optional partner widget */
-    }
-
-    try {
-      var heroButtons = document.querySelectorAll(".wishlist-hero-custom-button");
-      var hi;
-      for (hi = 0; hi < heroButtons.length; hi++) {
-        document.dispatchEvent(
-          new CustomEvent("wishlist-hero-add-to-custom-element", {
-            bubbles: true,
-            detail: heroButtons[hi],
-          }),
-        );
-      }
-    } catch (err) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (
-        window.frcp &&
-        window.frcp.wishlist &&
-        typeof window.frcp.wishlist.attachOnCollection === "function"
-      ) {
-        window.frcp.wishlist.attachOnCollection();
-      }
-    } catch (err) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (window._swat && typeof window._swat.initializeActionButtons === "function") {
-        window._swat.initializeActionButtons();
-      }
-    } catch (err) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (window.Weglot && typeof window.Weglot.refresh === "function") {
-        window.Weglot.refresh();
-      }
-    } catch (err) {
-      /* optional partner widget */
-    }
-
-    try {
-      if (window.Currency && typeof window.Currency.convertAll === "function") {
-        window.Currency.convertAll(
-          window.Currency.currentCurrency ||
-            (window.Shopify &&
-              window.Shopify.currency &&
-              window.Shopify.currency.active) ||
-            "USD",
-        );
-      }
-    } catch (err) {
-      /* optional currency converter */
-    }
-  }
-
-  function reinitPartnerWidgets() {
-    var api = window.__FINDLY_DOM;
-    if (api && api.reinitPartnerWidgets) {
-      api.reinitPartnerWidgets();
-      return;
-    }
-    reinitPartnerWidgetsFallback();
-  }
-
-  function dispatchPartnerRenderEvents(handles) {
-    var detail = { handles: handles || [] };
-    window.dispatchEvent(
-      new CustomEvent("findlyFilterRenderCompleted", {
-        bubbles: true,
-        detail: detail,
-      }),
-    );
-    document.dispatchEvent(
-      new CustomEvent("findlyFilterRenderCompleted", {
-        bubbles: true,
-        detail: detail,
-      }),
-    );
-    reinitPartnerWidgets();
-  }
-
   function dispatchUpdate(handles) {
-    document.dispatchEvent(
-      new CustomEvent("smart-filter:update", {
-        bubbles: true,
-        detail: { handles: handles || [] },
-      }),
-    );
-    partnerUpdateHandles = handles || [];
-    if (partnerUpdateTimer) {
-      clearTimeout(partnerUpdateTimer);
-    }
-    partnerUpdateTimer = setTimeout(function () {
-      partnerUpdateTimer = null;
-      dispatchPartnerRenderEvents(partnerUpdateHandles);
-    }, 0);
+    var fn = window.__FINDLY_DISPATCH_UPDATE;
+    if (fn) fn(handles);
   }
 
-  var THEME_PAGER_SELECTOR = [
-    "nav.pagination",
-    ".pagination",
-    ".pagination-wrapper",
-    "[data-pagination]",
-    ".paginate",
-    "#pagination",
-    ".Pagination",
-    "#AjaxinatePagination",
-    ".ajaxinate-pagination",
-    "load-more-button",
-    ".load-more-button",
-    ".pagination__load-more",
-    "[data-load-more]",
-    "button[name='load-more']",
-  ].join(", ");
-  var THEME_FACET_HIDE_SELECTOR = [
-    ".facets__wrapper",
-    "#FacetsWrapperDesktop",
-    ".facets-vertical-form",
-    "#main-collection-filters",
-    ".facets-wrapper",
-    ".mobile-facets__wrapper",
-    ".active-facets-desktop",
-    ".active-facets-mobile",
-    "facet-filters-form details",
-    ".facets details.facets__disclosure",
-    "details.facets__panel",
-    ".facets__panel",
-    "dropdown-facet",
-    "facet-dropdown",
-    "facet-status-component",
-    "facets-form-component",
-    "facets-form",
-    "filter-form",
-    "facet-form",
-    ".facets__form-wrapper",
-    "facets-form .facets",
-    ".facet-filters",
-    ".facets-container .facets",
-    ".facets-header",
-    ".facets-toolbar",
-    ".facets--bar",
-    ".facets-horizontal",
-    ".collection-filters",
-    ".product-filters",
-    ".filters-toolbar",
-    "price-range",
-    ".price-range",
-    "[class*='active-facets']",
-    ".facets-block-wrapper",
-    ".facets-toggle",
-    ".facets--horizontal",
-    ".facets--vertical",
-    ".facets-mobile-wrapper",
-    ".facets:not(.smart-filter)",
-  ].join(", ");
-  var THEME_SORT_HIDE_SELECTOR = [
-    "select[name='sort_by']",
-    "select[name='sortBy']",
-    ".facet-filters__sort",
-    ".facet-filters.sorting",
-    "#SortBy",
-    "#sort-by",
-    "[data-sort-by]",
-    ".collection-sort",
-    "sort-by-select",
-    "sorting-filter-component",
-    ".sorting-filter",
-    ".sorting-filter__container",
-    ".sorting-filter-component",
-  ].join(", ");
+  function themePagerSelector() {
+    return window.__FINDLY_PAGER_SELECTOR || "nav.pagination, .pagination";
+  }
+  function themeFacetHideSelector() {
+    return window.__FINDLY_FACET_HIDE_SELECTOR || "";
+  }
+  function themeSortHideSelector() {
+    return window.__FINDLY_SORT_HIDE_SELECTOR || "";
+  }
   var NATIVE_FACET_HOST_SELECTOR = [
     "facet-filters-form",
     "facets-form",
@@ -971,66 +721,13 @@
     ".main-collection-grid",
     ".product-grid-container",
   ].join(", ");
-  var THEME_COUNT_SELECTOR = [
-    "#ProductCount",
-    "#ProductCountDesktop",
-    ".product-count__text",
-    ".product-count",
-    "[data-product-count]",
-    ".products-count-wrapper",
-    "[data-testid='products-count']",
-    ".collection-product-count",
-    ".product-count-vertical",
-    ".facets__product-count",
-    ".filter-count-bubble__text",
-  ].join(", ");
+  function themeCountSelector() {
+    return window.__FINDLY_COUNT_SELECTOR || "#ProductCount, .product-count";
+  }
   var THEME_BRIDGE_STYLE_ID = "findly-theme-bridge";
-  var GRID_HINT_SELECTOR = [
-    "ul#product-grid",
-    "ol#product-grid",
-    "ul.product-grid",
-    "ol.product-grid",
-    "ul[id*='product-grid']",
-    "ul[class*='product-grid']",
-    "[data-id='product-grid']",
-    "[data-product-grid]",
-    "[product-grid-view]",
-    ".grid.product-grid",
-    "#product-grid",
-    ".product-grid",
-    "#ProductGridContainer",
-    "#CollectionProductGrid",
-    "#CollectionAjaxContent",
-    "#collection-products",
-    "#CollectionLoop",
-    "#product-loop",
-    "#product-list",
-    "product-list",
-    ".ProductList",
-    ".ProductList--grid",
-    ".product-list",
-    ".product-list__inner",
-    ".product-listing",
-    ".collection-grid",
-    ".collection-products",
-    ".grid-uniform",
-    ".grid--uniform",
-    ".grid--view-items",
-    ".grid-products",
-    ".products-grid",
-    ".products-list",
-    "[data-collection-products]",
-    "[data-products-grid]",
-    "[data-product-list]",
-    ".collection__products",
-    ".collection-product-list",
-    "#main-collection-product-grid",
-    ".productgrid--items",
-    ".boost-sd-grid",
-    ".sf-grid",
-    "results-list",
-    ".results-list",
-  ].join(", ");
+  function gridHintSelector() {
+    return window.__FINDLY_GRID_HINT || "#product-grid, ul.product-grid, .product-grid";
+  }
   var SKIP_REGION_SELECTOR = [
     "header",
     "footer",
@@ -1228,7 +925,7 @@
   function hasPaginationOrSort(el) {
     if (!el || !el.querySelector) return false;
     return Boolean(
-      el.querySelector(THEME_PAGER_SELECTOR) ||
+      el.querySelector(themePagerSelector()) ||
         el.querySelector(
           "[name='sort_by'], .facet-filters__sort, .collection-filters, select[name='sortBy']",
         ),
@@ -1386,7 +1083,7 @@
   function discoverGridParent() {
     var selected = gridFromSelector(readEmbedConfig().productGridSelector);
     if (selected) return selected;
-    var hints = document.querySelectorAll(GRID_HINT_SELECTOR);
+    var hints = document.querySelectorAll(gridHintSelector());
     var best = null;
     var bestCount = 0;
     var bestMain = false;
@@ -1642,7 +1339,7 @@
   function hideEmptyShopifySection(section, mount) {
     if (!section || (mount && section.contains(mount))) return;
     if (section.querySelector(".shopify-block")) return;
-    if (section.querySelector(GRID_HINT_SELECTOR)) return;
+    if (section.querySelector(gridHintSelector())) return;
     section.style.display = "none";
     section.setAttribute("data-sf-empty-hidden", "true");
   }
@@ -1959,7 +1656,7 @@
 
   function gridLooksLikeGrid(el) {
     if (!el || el.nodeType !== 1) return false;
-    if (matchesSel(el, GRID_HINT_SELECTOR)) return true;
+    if (matchesSel(el, gridHintSelector())) return true;
     if (isProductCardGrid(el)) return true;
     if (countProductCards(el) > 0) return true;
     var hint = String(el.id || "") + " " + String(el.className || "");
@@ -2597,7 +2294,7 @@
       ) {
         return true;
       }
-      if (matchesSel(el, THEME_FACET_HIDE_SELECTOR) || matchesSel(el, THEME_SORT_HIDE_SELECTOR)) {
+      if (matchesSel(el, themeFacetHideSelector()) || matchesSel(el, themeSortHideSelector())) {
         return false;
       }
       return isProductCardGrid(el);
@@ -2623,7 +2320,7 @@
       }
       if (el.getAttribute("data-findly-theme-hidden") === "1") return;
       if (isProtected(el) || isGridHost(el) || containsGrid(el)) return;
-      if (matchesSel(el, THEME_COUNT_SELECTOR)) return;
+      if (matchesSel(el, themeCountSelector())) return;
       el.classList.add("hidden");
       el.setAttribute("hidden", "");
       el.setAttribute("data-findly-theme-hidden", "1");
@@ -2636,8 +2333,8 @@
       if (
         containsGrid(el) ||
         (el.querySelector &&
-          el.querySelector(THEME_COUNT_SELECTOR) &&
-          !matchesSel(el, THEME_COUNT_SELECTOR))
+          el.querySelector(themeCountSelector()) &&
+          !matchesSel(el, themeCountSelector()))
       ) {
         var children = el.children;
         var n;
@@ -2646,8 +2343,10 @@
       }
       hideLeaf(el);
     }
-    document.querySelectorAll(THEME_FACET_HIDE_SELECTOR).forEach(hideNode);
-    document.querySelectorAll(THEME_SORT_HIDE_SELECTOR).forEach(hideNode);
+    var facetSel = themeFacetHideSelector();
+    var sortSel = themeSortHideSelector();
+    if (facetSel) document.querySelectorAll(facetSel).forEach(hideNode);
+    if (sortSel) document.querySelectorAll(sortSel).forEach(hideNode);
     document.querySelectorAll(
       "dropdown-facet, facet-dropdown, facet-status, facet-status-component, .facets__disclosure, .facets__panel, details.facets__panel, .facets__item, .facets-toolbar, .facets-header, sorting-filter-component, .sorting-filter, .sorting-filter__container, .active-facets, details.facets__disclosure",
     ).forEach(hideLeaf);
@@ -2690,16 +2389,30 @@
     this.syncCollectionLayout();
   };
 
+  function releaseStorefrontLoading() {
+    var root = document.documentElement;
+    if (root && root.classList) {
+      root.classList.remove("sf-filter-loading");
+      if (!root.classList.contains("sf-filter-ready")) {
+        root.classList.add("sf-filter-ready");
+      }
+    }
+    var nodes = document.querySelectorAll(".findly-grid-is-busy, .sf-grid-busy");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].classList.remove("findly-grid-is-busy");
+      nodes[i].classList.remove("sf-grid-busy");
+      if (nodes[i].removeAttribute) nodes[i].removeAttribute("aria-busy");
+    }
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
   Widget.prototype.setGridBusy = function (busy) {
     var parent = this.ensureGridParent();
     if (!parent) return;
-    if (busy) {
-      parent.classList.add("sf-grid-busy");
-      parent.setAttribute("aria-busy", "true");
-    } else {
-      parent.classList.remove("sf-grid-busy");
-      parent.setAttribute("aria-busy", "false");
-    }
+    parent.classList[busy ? "add" : "remove"]("sf-grid-busy");
+    parent.setAttribute("aria-busy", busy ? "true" : "false");
   };
 
   Widget.prototype.watchThemeGrid = function () {
@@ -2762,7 +2475,7 @@
         ? this.t("item", "1 item")
         : this.t("items", "{n} items").replace("{n}", String(n));
     var countRe = /\d+\s*(items?|products?|results?)\b/i;
-    var nodes = document.querySelectorAll(THEME_COUNT_SELECTOR);
+    var nodes = document.querySelectorAll(themeCountSelector());
     var i;
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -3279,7 +2992,7 @@
   };
 
   Widget.prototype.applyThemeProductCountVisibility = function (show) {
-    var nodes = document.querySelectorAll(THEME_COUNT_SELECTOR);
+    var nodes = document.querySelectorAll(themeCountSelector());
     for (var j = 0; j < nodes.length; j++) {
       var el = nodes[j];
       if (!el || (el.closest && el.closest(".smart-filter"))) continue;
@@ -3865,7 +3578,7 @@
   };
 
   Widget.prototype.setThemePagerHidden = function (hide) {
-    var nodes = document.querySelectorAll(THEME_PAGER_SELECTOR);
+    var nodes = document.querySelectorAll(themePagerSelector());
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (!el || isPagingChrome(el)) continue;
@@ -5442,6 +5155,22 @@
     this.inheritThemeType();
   };
 
+  Widget.prototype.destroy = function () {
+    releaseStorefrontLoading();
+    try {
+      if (this._gridObserver) this._gridObserver.disconnect();
+      if (this._lateGridObserver) this._lateGridObserver.disconnect();
+      if (this._infiniteObserver) this._infiniteObserver.disconnect();
+      if (this._findlyGridObserver) this._findlyGridObserver.disconnect();
+    } catch (err) {
+      /* ignore */
+    }
+    this._gridObserver = null;
+    this._lateGridObserver = null;
+    this._infiniteObserver = null;
+    this._findlyGridObserver = null;
+  };
+
   function boot() {
     if (window.__FINDLY_FILTER_BOOTED) return;
     ensureThemeBridgeStyles();
@@ -5489,7 +5218,7 @@
       return;
     }
     var widget = window.__FINDLY_FILTER_WIDGET;
-    if (widget && scope.querySelector(GRID_HINT_SELECTOR)) {
+    if (widget && scope.querySelector(gridHintSelector())) {
       widget._gridParent = null;
       if (Array.isArray(widget._visibleHandles)) {
         widget.syncProductGrid(widget._visibleHandles);

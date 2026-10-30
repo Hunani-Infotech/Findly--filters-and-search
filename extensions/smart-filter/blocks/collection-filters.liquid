@@ -1,9 +1,40 @@
 <link rel="stylesheet" href="{{ 'smart-filter-check.min.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'smart-filter-ui.min.css' | asset_url }}" media="all">
+{% assign sf_storefront_v2 = false %}
+{% if app.metafields.findly.storefront_v2.value == true or app.metafields.findly.storefront_v2.value == 'true' %}
+  {% assign sf_storefront_v2 = true %}
+{% endif %}
 {% # Theme-agnostic first-paint gate: hide Liquid products once until filters settle. %}
 <script>
-  document.documentElement.classList.add("sf-filter-loading");
-  document.documentElement.classList.remove("sf-filter-ready");
+  (function () {
+    if (window.__FINDLY_LOADING_OWNER) return;
+    window.__FINDLY_LOADING_OWNER = true;
+    var root = document.documentElement;
+    if (!root || !root.classList) return;
+    root.classList.add("sf-filter-loading");
+    root.classList.remove("sf-filter-ready");
+    if ({{ sf_storefront_v2 | json }}) {
+      root.classList.add("sf-storefront-v2");
+      window.__FINDLY_V2_FAILSAFE = true;
+      window.__FINDLY_V2_TIMER = window.setTimeout(function () {
+        window.__FINDLY_LOADING_SETTLED = true;
+        root.classList.remove("sf-filter-loading");
+        if (!root.classList.contains("sf-filter-ready")) {
+          root.classList.add("sf-filter-ready");
+        }
+      }, 3000);
+    }
+    window.setTimeout(function () {
+      if (window.__FINDLY_GRID_JS) return;
+      window.__FINDLY_LOADING_SETTLED = true;
+      root.classList.remove("sf-filter-loading");
+      var busy = document.querySelectorAll(".findly-grid-is-busy");
+      var i;
+      for (i = 0; i < busy.length; i++) {
+        busy[i].classList.remove("findly-grid-is-busy");
+      }
+    }, 8000);
+  })();
 </script>
 <script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
@@ -14,6 +45,25 @@
 <script src="{{ 'smart-filter-top-pop.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-perf.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-theme.min.js' | asset_url }}" defer></script>
+<script>
+  window.__FINDLY_ASSET_URLS = {
+    "smart-filter-check.min.css": {{ 'smart-filter-check.min.css' | asset_url | json }},
+    "smart-filter-ui.min.css": {{ 'smart-filter-ui.min.css' | asset_url | json }},
+    "smart-filter.min.css": {{ 'smart-filter.min.css' | asset_url | json }},
+    "smart-filter-grid.min.js": {{ 'smart-filter-grid.min.js' | asset_url | json }},
+    "smart-filter-theme.min.js": {{ 'smart-filter-theme.min.js' | asset_url | json }},
+    "smart-filter.min.js": {{ 'smart-filter.min.js' | asset_url | json }}
+  };
+</script>
+{% if request.page_type == 'search' %}
+  {% if search.types.size == 1 and search.types contains 'product' %}
+    {% assign sf_catalog_count = search.results_count | default: 0 %}
+  {% else %}
+    {% assign sf_catalog_count = '' %}
+  {% endif %}
+{% else %}
+  {% assign sf_catalog_count = collection.all_products_count | default: collection.products_count | default: 0 %}
+{% endif %}
 {% comment %}
   Page size must be theme page size (products per page), never search.results.size
   (that is often the hit total and falsely hides pagination when total <= pageSize).
@@ -44,6 +94,9 @@
   data-proxy-base="/apps/smart-filter"
   data-position="{{ sf_position }}"
   data-show-counts="{% if sf_show_counts %}true{% else %}false{% endif %}"
+  data-findly-disable-native-hide="{% if block.settings.disable_native_filter_hiding %}true{% else %}false{% endif %}"
+  data-findly-storefront-v2="{% if sf_storefront_v2 %}true{% else %}false{% endif %}"
+  data-findly-catalog-count="{{ sf_catalog_count }}"
   data-locale="{{ request.locale.iso_code }}"
   data-country="{{ localization.country.iso_code }}"
   data-currency="{{ cart.currency.iso_code }}"
@@ -171,6 +224,14 @@
   },
   "stylesheet": "smart-filter.min.css",
   "javascript": "smart-filter.min.js",
-  "settings": []
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "disable_native_filter_hiding",
+      "label": "Disable native filter hiding",
+      "default": false,
+      "info": "Leave the theme filters and product grid untouched."
+    }
+  ]
 }
 {% endschema %}

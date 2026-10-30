@@ -1,5 +1,6 @@
 import { Prisma, type FilterConfig, type MetafieldMapping } from "@prisma/client";
 import prisma from "../db.server";
+import { indexCoverageFields } from "./index-coverage";
 import {
   applyHideOutOfStock,
   buildFacetAggregations,
@@ -103,6 +104,8 @@ export const FILTER_PAGE_SIZE_MAX = 48;
 
 const FILTER_PAYLOAD_CACHE_TTL_MS = 45_000;
 const FILTER_PAYLOAD_CACHE_MAX = 80;
+/** Bumps the in-memory filter payload key so a pre-deploy entry without indexed_count cannot be served after this release. */
+const FILTER_PAYLOAD_VERSION = "cov1";
 const shopCollectionsCache = createTtlCache<ShopCollection[]>(45_000);
 const collectionProductCountsCache = createTtlCache<Map<string, number>>(45_000);
 /** productGid → collectionGids — avoids per-request CollectionMembership round-trips. */
@@ -361,7 +364,7 @@ export async function getCollectionFilterPayload(input: {
   const gens = await measureStorefrontStep("cacheGenMs", () =>
     getStorefrontCacheGens(input.shopDomain),
   );
-  const cacheKey = `${gens.catalog}:${gens.config}:${collectionFilterCacheKey(input)}`;
+  const cacheKey = `${FILTER_PAYLOAD_VERSION}:${gens.catalog}:${gens.config}:${collectionFilterCacheKey(input)}`;
   const cached = filterPayloadCache.get(cacheKey);
   if (cached) {
     if (cached.freshUntil <= Date.now() && !filterPayloadInflight.has(cacheKey)) {
@@ -626,12 +629,15 @@ async function buildFacetPayload(input: {
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .slice(0, filterLimit);
   const metafieldSortOptions = listMetafieldSortOptions(mappings);
-  const settings = buildStorefrontWidgetSettings(
-    appSettings,
-    input.config,
-    metafieldSortOptions,
-    input.currency,
-  );
+  const settings = {
+    ...buildStorefrontWidgetSettings(
+      appSettings,
+      input.config,
+      metafieldSortOptions,
+      input.currency,
+    ),
+    storefrontV2: extras.storefrontV2 === true,
+  };
 
   const visibleBase = excludeHiddenTaggedProducts(
     input.rows,
@@ -847,6 +853,12 @@ async function buildFacetPayload(input: {
   };
 
   const paged = sliceFilterProducts(filtered, input.page, input.pageSize);
+  /* input.rows is already the collection or the search query, not the shop.
+     Counting it is O(rows) on data this request already loaded. The payload
+     cache stores the result. index_complete stays false: equal counts can
+     still be a different product set, and this server has no Shopify id set
+     to compare. */
+  const coverage = indexCoverageFields(input.rows);
 
   const data = {
     enabled: true as const,
@@ -854,6 +866,8 @@ async function buildFacetPayload(input: {
     i18n: chrome,
     settings,
     facets: aggregations,
+    indexed_count: coverage.indexed_count,
+    index_complete: coverage.index_complete,
     /* Page-sliced handles only — full catalog list bloated JSON parse on the client.
        Pager/total use `total` + `hasNext`; next page refetches the next handle slice. */
     handles: paged.products.map(productHandle),
@@ -924,6 +938,7 @@ async function loadSearchFilterPayload(input: {
             listMetafieldSortOptions(mappings),
           ),
           enableFiltersOnSearch: false,
+          storefrontV2: navExtras.storefrontV2 === true,
         },
       },
       status: 200 as const,
@@ -942,11 +957,14 @@ async function loadSearchFilterPayload(input: {
         total: 0,
         locale: resolved.locale,
         i18n: resolved.chrome,
-        settings: buildStorefrontWidgetSettings(
-          appSettings,
-          config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
-          listMetafieldSortOptions(mappings),
-        ),
+        settings: {
+          ...buildStorefrontWidgetSettings(
+            appSettings,
+            config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
+            listMetafieldSortOptions(mappings),
+          ),
+          storefrontV2: navExtras.storefrontV2 === true,
+        },
       },
       status: 200 as const,
     };
@@ -962,11 +980,14 @@ async function loadSearchFilterPayload(input: {
         total: 0,
         locale: resolved.locale,
         i18n: resolved.chrome,
-        settings: buildStorefrontWidgetSettings(
-          appSettings,
-          config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
-          listMetafieldSortOptions(mappings),
-        ),
+        settings: {
+          ...buildStorefrontWidgetSettings(
+            appSettings,
+            config ?? ({ enableVariantsAsProducts: false } as FilterConfig),
+            listMetafieldSortOptions(mappings),
+          ),
+          storefrontV2: navExtras.storefrontV2 === true,
+        },
       },
       status: 200 as const,
     };
@@ -1019,7 +1040,7 @@ export async function getSearchFilterPayload(
   const gens = await measureStorefrontStep("cacheGenMs", () =>
     getStorefrontCacheGens(input.shopDomain),
   );
-  const cacheKey = `${gens.catalog}:${gens.config}:search:${collectionFilterCacheKey({
+  const cacheKey = `${FILTER_PAYLOAD_VERSION}:${gens.catalog}:${gens.config}:search:${collectionFilterCacheKey({
     shopDomain: input.shopDomain,
     selected: input.selected,
     sort: input.sort,

@@ -7,6 +7,7 @@
  */
 (function () {
   "use strict";
+  window.__FINDLY_GRID_JS = true;
 
   var STYLE_ID = "findly-grid-takeover-v49";
   /* Marks product cards whose widths Findly set — only those get cleared. */
@@ -181,9 +182,18 @@
     var i;
     var parts = [];
     for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
-      parts.push(prefix + " " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
+      parts.push(prefix + ":not(.sf-storefront-v2) " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
     }
-    return parts.join(",") + "{display:none!important}";
+    var v2 = [];
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      v2.push(prefix + ".sf-storefront-v2 " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
+    }
+    return (
+      parts.join(",") +
+      "{display:none!important}" +
+      v2.join(",") +
+      "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
+    );
   }
   function gridLoadingMinCss(prefix) {
     var i;
@@ -198,18 +208,39 @@
     SKEL_ATTR +
     "='1'])";
   function gridBusyNestedHideCss() {
+    return ".findly-grid-is-busy " + BUSY_NESTED_CARD + "{display:none!important}";
+  }
+  function gridLoadingNestedCss() {
     var i;
-    var parts = [".findly-grid-is-busy " + BUSY_NESTED_CARD];
+    var parts = [];
     for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
       parts.push(
-        "html.sf-filter-loading " + GRID_BUSY_HOSTS[i] + " " + BUSY_NESTED_CARD,
+        "html.sf-filter-loading:not(.sf-storefront-v2) " +
+          GRID_BUSY_HOSTS[i] +
+          " " +
+          BUSY_NESTED_CARD,
       );
     }
-    return parts.join(",") + "{display:none!important}";
+    var v2 = [];
+    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
+      v2.push(
+        "html.sf-filter-loading.sf-storefront-v2 " +
+          GRID_BUSY_HOSTS[i] +
+          " " +
+          BUSY_NESTED_CARD,
+      );
+    }
+    return (
+      parts.join(",") +
+      "{display:none!important}" +
+      v2.join(",") +
+      "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
+    );
   }
   var GRID_BUSY_CSS =
     "@keyframes sf-grid-spin{to{transform:rotate(360deg)}}" +
     "@keyframes sf-skeleton-pulse{50%{opacity:.55}}" +
+    "@keyframes findly-loading-reveal{to{opacity:1}}" +
     "#findly-grid-busy-overlay{position:fixed;z-index:80;box-sizing:border-box;pointer-events:auto;" +
     "background:#fff}" +
     "#findly-grid-busy-overlay::after{content:\"\";position:absolute;top:50%;left:50%;width:2rem;height:2rem;" +
@@ -227,13 +258,15 @@
     ".findly-grid-is-busy .sf-sort{pointer-events:auto}" +
     ".findly-grid-is-busy>" +
     GRID_RESULT_HIDE +
-    ",html.sf-filter-loading [data-findly-skel-host='1']>" +
-    GRID_RESULT_HIDE +
     "{display:none!important}" +
+    "html.sf-filter-loading [data-findly-skel-host='1']>" +
+    GRID_RESULT_HIDE +
+    "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}" +
     gridBusyNestedHideCss() +
+    gridLoadingNestedCss() +
     "html.sf-filter-loading [data-findly-skel-host='1'] " +
     BUSY_NESTED_CARD +
-    "{display:none!important}" +
+    "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}" +
     ".findly-grid-is-busy[" +
     SKEL_ATTR +
     "='1'],.findly-grid-is-busy [" +
@@ -5579,6 +5612,26 @@
     }
   }
 
+  function armLoadingRelease() {
+    if (window.__findlyLoadingRelease) {
+      window.clearTimeout(window.__findlyLoadingRelease);
+    }
+    window.__findlyLoadingRelease = window.setTimeout(function () {
+      window.__findlyLoadingRelease = 0;
+      window.__FINDLY_LOADING_SETTLED = true;
+      var busy = document.querySelectorAll(".findly-grid-is-busy");
+      var i;
+      for (i = 0; i < busy.length; i++) {
+        busy[i].classList.remove("findly-grid-is-busy");
+        busy[i].removeAttribute("aria-busy");
+        busy[i].removeAttribute("data-findly-skel-host");
+      }
+      var overlay = document.getElementById("findly-grid-busy-overlay");
+      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      setFilterLoading(false);
+    }, 3000);
+  }
+
   function setFilterLoading(on) {
     var root = document.documentElement;
     if (!root || !root.classList) return;
@@ -5586,6 +5639,7 @@
     var isReady = root.classList.contains("sf-filter-ready");
     /* No-op when state already matches — avoids class thrash that blinks the grid. */
     if (on) {
+      if (storefrontV2()) armLoadingRelease();
       if (isOn && !isReady) {
         syncToolbarLoading(true);
         return;
@@ -5593,6 +5647,10 @@
       root.classList.add("sf-filter-loading");
       root.classList.remove("sf-filter-ready");
     } else {
+      if (window.__findlyLoadingRelease) {
+        window.clearTimeout(window.__findlyLoadingRelease);
+        window.__findlyLoadingRelease = 0;
+      }
       if (!isOn && isReady) {
         syncToolbarLoading(false);
         return;
@@ -6870,6 +6928,132 @@
     scheduleSwatchRestore(parent, widget);
   }
 
+  function nativeHideKilled() {
+    var root =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    return Boolean(
+      root && root.getAttribute("data-findly-disable-native-hide") === "true",
+    );
+  }
+
+  function storefrontV2() {
+    var root = document.documentElement;
+    if (root && root.classList && root.classList.contains("sf-storefront-v2")) {
+      return true;
+    }
+    var block =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    if (block && block.getAttribute("data-findly-storefront-v2") === "true") {
+      return true;
+    }
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    return Boolean(widget && widget.storefrontV2);
+  }
+
+  function findlyMetric(name, detail) {
+    if (typeof window.__FINDLY_EMIT_METRIC === "function") {
+      window.__FINDLY_EMIT_METRIC(name, detail);
+      return;
+    }
+    var bag = window.__FINDLY_COUNTS || (window.__FINDLY_COUNTS = {});
+    bag[name] = (bag[name] || 0) + 1;
+    console.info("[findly-metric]", name, bag[name], detail || "");
+  }
+
+  function findlyLog(pass, why, extra) {
+    try {
+      if (!/(?:^|[?&])findly_debug=1(?:&|$)/.test(window.location.search)) return;
+    } catch (err) {
+      return;
+    }
+    console.info("[findly]", pass, why, extra || "");
+  }
+
+  function listingRefined(widget) {
+    if (!widget) return false;
+    if (Math.max(1, Number(widget.page) || 1) > 1) return true;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
+    if (widget.collectionQuery) return true;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function catalogCount(widget) {
+    var root = widget && widget.root;
+    if (!root || !root.getAttribute) return null;
+    var raw = root.getAttribute("data-findly-catalog-count");
+    if (raw == null || raw === "") return null;
+    var n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }
+
+  /* Confirmed when indexed_count covers Liquid's unfiltered count, within
+     min(25, 2% of the catalog), or an explicit index_complete flag.
+     Unknown coverage does not take over. Used only when storefrontV2 is on. */
+  function coverageConfirmed(widget) {
+    var data = widget && widget._lastFilterData;
+    if (!widget) return false;
+    if (!data) {
+      widget._indexCovers = null;
+      return false;
+    }
+    if (data.index_complete === true) {
+      widget._indexCovers = true;
+      findlyLog("index", "complete-flag");
+      return true;
+    }
+    var indexed = Number(data.indexed_count);
+    var catalog = catalogCount(widget);
+    if (!Number.isFinite(indexed) || catalog == null) {
+      widget._indexCovers = null;
+      findlyLog("index", "unknown", { indexed: data.indexed_count, catalog: catalog });
+      return false;
+    }
+    var exact = indexed >= catalog;
+    var covers = exact;
+    if (!covers && indexed > 0 && catalog > 0) {
+      var slack = Math.min(25, Math.floor(catalog * 0.02));
+      if (indexed + slack >= catalog) {
+        covers = true;
+        findlyMetric("slack", "indexed=" + indexed + ",catalog=" + catalog);
+      }
+    }
+    widget._indexCovers = covers;
+    findlyLog("index", covers ? "covers" : "partial-or-empty", {
+      indexed: indexed,
+      catalog: catalog,
+    });
+    return covers;
+  }
+
+  function indexAllowsTakeover(widget) {
+    if (!widget || widget._findlyFilterFailed || nativeHideKilled()) return false;
+    var data = widget._lastFilterData;
+    if (!data) return false;
+    var products = data.products;
+    if (!Array.isArray(products) || products.length === 0) return false;
+    var total = Number(data.total);
+    if (!Number.isFinite(total) || total <= 0) return false;
+    return coverageConfirmed(widget);
+  }
+
+  function restoreHiddenCards(widget) {
+    if (widget) delete widget._keepThemeCards;
+    var nodes = document.querySelectorAll("[data-smart-filter-hidden='true']");
+    var i;
+    for (i = 0; i < nodes.length; i++) showEl(nodes[i]);
+    findlyLog("takeover", "release", { n: nodes.length });
+  }
+
   function markGridTakeover(widget) {
     if (widget) widget._keepThemeCards = false;
   }
@@ -6880,7 +7064,7 @@
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return false;
     if (widget.collectionQuery) return false;
-    if (widget.searchQuery) return false;
+    if (!storefrontV2() && widget.searchQuery) return false;
     if (
       widget.sortKey &&
       widget.defaultSort &&
@@ -6983,38 +7167,61 @@
 
   function shouldTakeOverThemeCards(widget) {
     if (!widget) return false;
+    if (nativeHideKilled()) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
-    if (isNativeThemeGridState(widget)) {
+    if (!storefrontV2()) {
+      if (isNativeThemeGridState(widget)) {
+        delete widget._keepThemeCards;
+        return false;
+      }
+      if (Math.max(1, Number(widget.page) || 1) > 1) {
+        markGridTakeover(widget);
+        return true;
+      }
+      if (widget.hasActiveFilters && widget.hasActiveFilters()) {
+        markGridTakeover(widget);
+        return true;
+      }
+      if (widget.collectionQuery) {
+        markGridTakeover(widget);
+        return true;
+      }
+      if (widget.searchQuery) {
+        markGridTakeover(widget);
+        return true;
+      }
+      if (
+        widget.sortKey &&
+        widget.defaultSort &&
+        widget.sortKey !== widget.defaultSort
+      ) {
+        markGridTakeover(widget);
+        return true;
+      }
+      return widget._keepThemeCards === false;
+    }
+    if (!listingRefined(widget)) {
       delete widget._keepThemeCards;
+      findlyLog("takeover", "plain-listing");
       return false;
     }
-    /* Only page 2+ forces takeover. Page 1 default browse restores Liquid
-       cards so Product A matches the first paint after reload. */
-    if (Math.max(1, Number(widget.page) || 1) > 1) {
-      markGridTakeover(widget);
-      return true;
+    if (!indexAllowsTakeover(widget)) {
+      findlyLog("takeover", "skip", {
+        page: widget.page,
+        failed: Boolean(widget._findlyFilterFailed),
+        covers: widget._indexCovers,
+        indexed: widget._lastFilterData && widget._lastFilterData.indexed_count,
+        catalog: catalogCount(widget),
+        total: widget._lastFilterData && widget._lastFilterData.total,
+      });
+      return false;
     }
-    if (widget.hasActiveFilters && widget.hasActiveFilters()) {
-      markGridTakeover(widget);
-      return true;
-    }
-    if (widget.collectionQuery) {
-      markGridTakeover(widget);
-      return true;
-    }
-    if (widget.searchQuery) {
-      markGridTakeover(widget);
-      return true;
-    }
-    if (
-      widget.sortKey &&
-      widget.defaultSort &&
-      widget.sortKey !== widget.defaultSort
-    ) {
-      markGridTakeover(widget);
-      return true;
-    }
-    return widget._keepThemeCards === false;
+    markGridTakeover(widget);
+    findlyLog("takeover", "apply", {
+      page: widget.page,
+      total: widget._lastFilterData && widget._lastFilterData.total,
+    });
+    return true;
   }
 
   /**
@@ -7694,6 +7901,51 @@
     return true;
   }
 
+  function paintIndexBlockedNotice(widget) {
+    if (!widget || !widget.root) return;
+    var note = widget.root.querySelector("[data-findly-index-block]");
+    if (!widget._findlyIndexBlocked) {
+      if (note && note.parentNode) note.parentNode.removeChild(note);
+      return;
+    }
+    if (!note) {
+      note = document.createElement("p");
+      note.setAttribute("data-findly-index-block", "1");
+      note.setAttribute("role", "status");
+      note.className = "sf-status";
+      var facets = widget.facetsEl;
+      if (facets && facets.parentNode) facets.parentNode.insertBefore(note, facets);
+      else widget.root.appendChild(note);
+    }
+    note.textContent =
+      "Filters aren't changing the product grid. The catalog index doesn't cover this page yet.";
+  }
+
+  function undoRefusedRefinement(widget) {
+    if (!widget || widget._findlyUndoBusy || nativeHideKilled()) return;
+    findlyMetric("undo", "refused");
+    widget._findlyUndoBusy = true;
+    widget._findlyIndexBlocked = true;
+    resetWidgetFilterState(widget);
+    widget.page = 1;
+    delete widget._keepThemeCards;
+    delete widget._sfPaged;
+    if (widget.markFiltersApplied) widget.markFiltersApplied();
+    if (widget.renderFacets) widget.renderFacets();
+    if (widget.syncDrawerBadge) widget.syncDrawerBadge();
+    if (widget.syncClearAll) widget.syncClearAll();
+    paintIndexBlockedNotice(widget);
+    var pending = widget.fetchFilters ? widget.fetchFilters() : null;
+    var done = function () {
+      widget._findlyUndoBusy = false;
+    };
+    if (pending && typeof pending.then === "function") {
+      pending.then(done, done);
+    } else {
+      done();
+    }
+  }
+
   function applyNativeAfterGrid(self) {
     if (!self) return;
     if (self._importingCards) return;
@@ -7707,11 +7959,39 @@
       return;
     }
     if (!shouldTakeOverThemeCards(self)) {
+      if (!storefrontV2()) {
+        applyNativeFilterGrid(null, self._gridParent);
+        markGridPainted(self);
+        syncGridEmptyState(self, self._gridParent, null, 0);
+        return;
+      }
+      var covered = coverageConfirmed(self);
+      var payload = self._lastFilterData;
+      var payloadProducts = payload && payload.products;
+      var noProducts = !Array.isArray(payloadProducts) || payloadProducts.length === 0;
+      if (!nativeHideKilled() && listingRefined(self) && covered && noProducts) {
+        applyNativeFilterGrid([], self._gridParent);
+        markGridPainted(self);
+        syncGridEmptyState(self, self._gridParent, [], 0);
+        return;
+      }
       applyNativeFilterGrid(null, self._gridParent);
+      if (
+        !nativeHideKilled() &&
+        listingRefined(self) &&
+        payload &&
+        !covered
+      ) {
+        undoRefusedRefinement(self);
+      } else if (self._findlyIndexBlocked) {
+        paintIndexBlockedNotice(self);
+      }
       markGridPainted(self);
       syncGridEmptyState(self, self._gridParent, null, 0);
       return;
     }
+    self._findlyIndexBlocked = false;
+    paintIndexBlockedNotice(self);
     var handles =
       self._visibleHandles && self._visibleHandles.length
         ? self._visibleHandles
@@ -11919,7 +12199,7 @@
       if (parent && parent.classList) parent.classList.remove("sf-grid-busy");
       if (host && host.classList) host.classList.remove("sf-grid-busy");
       paintGridBusy(host, busy);
-      if (origBusy && origBusy !== proto.setGridBusy && !host) {
+      if (origBusy && origBusy !== proto.setGridBusy && (!host || !busy)) {
         origBusy.call(this, busy);
       }
     };
@@ -12124,9 +12404,36 @@
 
     var origHideChrome = proto.hideThemeDuplicateChrome;
     proto.hideThemeDuplicateChrome = function () {
+      if (nativeHideKilled()) return;
       if (this._sfChromeHiddenReq === this._reqId && this._reqId) return;
       this._sfChromeHiddenReq = this._reqId;
       if (origHideChrome) return origHideChrome.apply(this, arguments);
+    };
+
+    var origFetchFilters = proto.fetchFilters;
+    proto.fetchFilters = function () {
+      this._findlyFilterFailed = false;
+      var result = origFetchFilters
+        ? origFetchFilters.apply(this, arguments)
+        : null;
+      var self = this;
+      var started = self._reqId;
+      if (result && typeof result.then === "function") {
+        result.then(
+          function (value) {
+            self._findlyFilterFailed = false;
+            return value;
+          },
+          function (err) {
+            if (self._reqId !== started) throw err;
+            self._findlyFilterFailed = true;
+            restoreHiddenCards(self);
+            findlyLog("takeover", "request-failed");
+            throw err;
+          },
+        );
+      }
+      return result;
     };
 
     var origQuickview = proto.ensureQuickviewButtons;

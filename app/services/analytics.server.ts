@@ -4,7 +4,7 @@ import { log } from "../lib/log.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 
-export const ANALYTICS_KINDS = ["search", "filter", "click", "visit"] as const;
+export const ANALYTICS_KINDS = ["search", "filter", "click", "visit", "rollback", "undo", "slack"] as const;
 export type AnalyticsKind = (typeof ANALYTICS_KINDS)[number];
 export type AnalyticsRange = "this_month" | "last_7" | "last_30";
 
@@ -53,6 +53,120 @@ function normalizeHandle(raw: string): string {
   return value.replace(/\/+$/, "").slice(0, 100);
 }
 
+const signalHits = new Map<string, number[]>();
+const signalBumps = new Map<string, number[]>();
+
+/** Caps counter writes. Detail rows have their own cap in signalAllowed. */
+function signalBumpAllowed(shopId: string): boolean {
+  const now = Date.now();
+  const recent = (signalBumps.get(shopId) || []).filter((at) => now - at < 60 * 60 * 1000);
+  if (recent.length >= 60) {
+    signalBumps.set(shopId, recent);
+    return false;
+  }
+  recent.push(now);
+  signalBumps.set(shopId, recent);
+  return true;
+}
+
+function signalAllowed(shopId: string, kind: string): boolean {
+  const key = `${shopId}:${kind}`;
+  const now = Date.now();
+  const recent = (signalHits.get(key) || []).filter((at) => now - at < 60 * 60 * 1000);
+  if (recent.length >= 10) {
+    signalHits.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  signalHits.set(key, recent);
+  return true;
+}
+
+type SignalKind = "rollback" | "undo" | "slack";
+
+function signalKind(kind: string): SignalKind | null {
+  if (kind === "rollback" || kind === "undo" || kind === "slack") return kind;
+  return null;
+}
+
+function signalCount(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
+/** Atomic increment. Runs even when the detail row is dropped by the hourly cap. */
+async function bumpSignalCount(shopId: string, kind: SignalKind) {
+  const updated = await prisma.$executeRaw`
+    UPDATE "AppSettings"
+    SET "adminExtras" = jsonb_set(
+      jsonb_set(
+        COALESCE("adminExtras", '{}'::jsonb),
+        '{signalCounts}',
+        COALESCE("adminExtras"->'signalCounts', '{}'::jsonb),
+        true
+      ),
+      ARRAY['signalCounts', ${kind}]::text[],
+      to_jsonb(
+        COALESCE(
+          ("adminExtras" #>> ARRAY['signalCounts', ${kind}]::text[])::int,
+          0
+        ) + 1
+      ),
+      true
+    )
+    WHERE "shopId" = ${shopId}
+  `;
+  if (Number(updated) > 0) return;
+  try {
+    await prisma.appSettings.create({
+      data: { shopId, adminExtras: { signalCounts: { [kind]: 1 } } },
+    });
+  } catch {
+    await prisma.$executeRaw`
+      UPDATE "AppSettings"
+      SET "adminExtras" = jsonb_set(
+        jsonb_set(
+          COALESCE("adminExtras", '{}'::jsonb),
+          '{signalCounts}',
+          COALESCE("adminExtras"->'signalCounts', '{}'::jsonb),
+          true
+        ),
+        ARRAY['signalCounts', ${kind}]::text[],
+        to_jsonb(
+          COALESCE(
+            ("adminExtras" #>> ARRAY['signalCounts', ${kind}]::text[])::int,
+            0
+          ) + 1
+        ),
+        true
+      )
+      WHERE "shopId" = ${shopId}
+    `;
+  }
+}
+
+export async function countStorefrontSignals(shopId: string) {
+  const row = await prisma.appSettings.findUnique({
+    where: { shopId },
+    select: { adminExtras: true },
+  });
+  const extras =
+    row?.adminExtras && typeof row.adminExtras === "object" && !Array.isArray(row.adminExtras)
+      ? (row.adminExtras as Record<string, unknown>)
+      : {};
+  const counts =
+    extras.signalCounts &&
+    typeof extras.signalCounts === "object" &&
+    !Array.isArray(extras.signalCounts)
+      ? (extras.signalCounts as Record<string, unknown>)
+      : {};
+  return {
+    rollback: signalCount(counts.rollback),
+    undo: signalCount(counts.undo),
+    slack: signalCount(counts.slack),
+  };
+}
 const ANALYTICS_PRUNE_TTL_MS = 10 * 60 * 1000;
 const lastAnalyticsPrune = new Map<string, number>();
 
@@ -72,6 +186,17 @@ export async function ingestAnalyticsEvent(input: IngestInput) {
 
   const shop = await findShopCached(input.shopDomain);
   if (!shop) return { ok: false as const, error: "Shop not synced" };
+
+  const signal = signalKind(kind);
+  if (signal) {
+    if (!signalBumpAllowed(shop.id)) {
+      return { ok: true as const, skipped: true };
+    }
+    await bumpSignalCount(shop.id, signal);
+    if (!signalAllowed(shop.id, kind)) {
+      return { ok: true as const, skipped: true };
+    }
+  }
 
   const visitor = clip(String(input.visitor || ""), 80);
   const device = String(input.device || "").toLowerCase() === "mobile" ? "mobile" : "desktop";
@@ -138,7 +263,7 @@ async function loadAnalyticsDashboardUncached(
   );
 
   const events = await prisma.analyticsEvent.findMany({
-    where: { shopId, createdAt: { gte: start } },
+    where: { shopId, createdAt: { gte: start }, kind: { in: ["search", "filter", "click", "visit"] } },
     take: 4000,
     orderBy: { createdAt: "desc" },
     select: {
