@@ -1257,7 +1257,7 @@
       var parent = this._gridParent || this.ensureGridParent && this.ensureGridParent();
       var wasBusy =
         parent && parent.classList && parent.classList.contains("sf-grid-busy");
-      if (origSetGridBusy) origSetGridBusy.call(this, busy);
+      if (origSetGridBusy) origSetGridBusy.apply(this, arguments);
       /* After new page paints, smooth-scroll onto a stable layout. */
       if (wasBusy && !busy && this._sfNeedsListingScroll) {
         try {

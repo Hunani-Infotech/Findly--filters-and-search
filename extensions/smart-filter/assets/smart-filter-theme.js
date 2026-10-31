@@ -633,6 +633,8 @@
 
   function hideLeaf(el) {
     if (!el || el.nodeType !== 1) return;
+    var leaveWidget = window.__FINDLY_FILTER_WIDGET;
+    if (leaveWidget && leaveWidget._sfLeaveNative) return;
     if (hidePassDisabled || nativeHideKilled()) return;
     var tag = tagOf(el);
     if (storefrontV2()) {

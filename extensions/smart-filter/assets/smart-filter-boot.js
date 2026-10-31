@@ -343,7 +343,58 @@
     document.getElementById("smart-filter-root") ||
     document.getElementById("smart-filter-embed")
   ) {
-    root.classList.add("sf-filter-loading");
-    root.classList.remove("sf-filter-ready");
+    var bootRoot =
+      document.getElementById("smart-filter-root") ||
+      document.getElementById("smart-filter-embed");
+    var bootHideOff =
+      bootRoot &&
+      bootRoot.getAttribute("data-findly-disable-native-hide") === "true";
+    var bootRefine = false;
+    try {
+      var bootPath = String(window.location.pathname || "");
+      var bootSearch = /\/search(\/|$)/i.test(bootPath);
+      var bootParts = (
+        String(window.location.search || "").replace(/^\?/, "") +
+        "&" +
+        String(window.location.hash || "").replace(/^#/, "")
+      ).split("&");
+      var bootI;
+      for (bootI = 0; bootI < bootParts.length; bootI++) {
+        var bootRawKey = String(bootParts[bootI].split("=")[0] || "").replace(/\+/g, " ");
+        var bootKey = bootRawKey;
+        try {
+          bootKey = decodeURIComponent(bootRawKey);
+        } catch (bootKeyErr) {
+          bootKey = bootRawKey;
+        }
+        if (!bootKey) continue;
+        if (
+          bootKey.indexOf("f.") === 0 ||
+          bootKey.indexOf("filter.") === 0 ||
+          bootKey === "sort_by"
+        ) {
+          bootRefine = true;
+        }
+        var bootRawVal = String(bootParts[bootI].split("=").slice(1).join("=") || "");
+        var bootVal = bootRawVal;
+        try {
+          bootVal = decodeURIComponent(bootRawVal.replace(/\+/g, " "));
+        } catch (bootValErr) {
+          bootVal = bootRawVal;
+        }
+        if (bootKey === "sf" && String(bootVal || "").trim()) {
+          bootRefine = true;
+        }
+        if (bootSearch && bootKey === "q" && String(bootVal || "").trim()) {
+          bootRefine = true;
+        }
+      }
+    } catch (bootErr) {
+      bootRefine = false;
+    }
+    if (!bootHideOff && bootRefine) {
+      root.classList.add("sf-filter-loading");
+      root.classList.remove("sf-filter-ready");
+    }
   }
 })();

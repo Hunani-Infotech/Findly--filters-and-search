@@ -45,8 +45,12 @@
     return false;
   }
 
-  function failFilterUi(widget, err) {
-    if (widget && widget.failFilterLoad) widget.failFilterLoad(err);
+  function failFilterUi(widget, err, reqId) {
+    if (!widget) return;
+    if (window.__FINDLY_IS_STALE && window.__FINDLY_IS_STALE(widget, reqId)) return;
+    if (widget.failFilterLoad) widget.failFilterLoad(err, reqId);
+    if (window.__FINDLY_IS_STALE && window.__FINDLY_IS_STALE(widget, reqId)) return;
+    if (widget._sfLeaveNative) return;
     if (widget.autoApplyFilters === false && widget.renderApplyBar) {
       widget.renderApplyBar();
     }
@@ -54,7 +58,7 @@
       if (widget.syncProductGrid) widget.syncProductGrid(widget._visibleHandles);
       if (widget.hideThemeDuplicateChrome) widget.hideThemeDuplicateChrome();
     } else if (widget.enterPagingFallback) {
-      widget.enterPagingFallback(null);
+      widget.enterPagingFallback(null, null, reqId);
     }
   }
 
@@ -104,7 +108,7 @@
           !shouldSkipFailUi(err) &&
           !self._inflight
         ) {
-          failFilterUi(self, err);
+          failFilterUi(self, err, reqId);
         }
         throw err;
       });

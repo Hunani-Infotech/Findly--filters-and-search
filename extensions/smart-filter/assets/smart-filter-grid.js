@@ -190,7 +190,7 @@
     }
     return (
       parts.join(",") +
-      "{display:none!important}" +
+      "{opacity:0;pointer-events:none}" +
       v2.join(",") +
       "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
     );
@@ -208,7 +208,7 @@
     SKEL_ATTR +
     "='1'])";
   function gridBusyNestedHideCss() {
-    return ".findly-grid-is-busy " + BUSY_NESTED_CARD + "{display:none!important}";
+    return ".findly-grid-is-busy " + BUSY_NESTED_CARD + "{opacity:0;pointer-events:none}";
   }
   function gridLoadingNestedCss() {
     var i;
@@ -232,7 +232,7 @@
     }
     return (
       parts.join(",") +
-      "{display:none!important}" +
+      "{opacity:0;pointer-events:none}" +
       v2.join(",") +
       "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
     );
@@ -258,7 +258,7 @@
     ".findly-grid-is-busy .sf-sort{pointer-events:auto}" +
     ".findly-grid-is-busy>" +
     GRID_RESULT_HIDE +
-    "{display:none!important}" +
+    "{opacity:0;pointer-events:none}" +
     "html.sf-filter-loading [data-findly-skel-host='1']>" +
     GRID_RESULT_HIDE +
     "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}" +
@@ -965,6 +965,14 @@
   }
 
   function fallbackHost() {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    var appMode = Boolean(
+      widget && widget.isAppGridMode && widget.isAppGridMode(),
+    );
+    if (!appMode) return null;
+    if (document.querySelector(PRODUCT_GRID_SELECTOR) || findResultsList()) {
+      return null;
+    }
     var existing = document.getElementById(HOST_ID);
     if (existing) return existing;
     var main =
@@ -978,7 +986,86 @@
     return host;
   }
 
+  var hideRecord = typeof WeakMap === "function" ? new WeakMap() : null;
+
+  function isStale(widget, reqId) {
+    if (reqId == null) return false;
+    return Boolean(widget) && reqId !== widget._reqId;
+  }
+  window.__FINDLY_IS_STALE = isStale;
+
+  function hideBlocked() {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    return Boolean(widget && widget._sfLeaveNative);
+  }
+  window.__FINDLY_HIDE_BLOCKED = hideBlocked;
+
+  function rememberHide(el) {
+    if (!el || el.nodeType !== 1) return;
+    if (el.getAttribute("data-findly-app-hid") === "1") return;
+    var display = "";
+    var priority = "";
+    if (el.style) {
+      display = el.style.getPropertyValue("display") || "";
+      priority = el.style.getPropertyPriority("display") || "";
+    }
+    var rec = {
+      display: display,
+      priority: priority,
+      hadHidden: el.hasAttribute("hidden"),
+      hadClass: Boolean(el.classList && el.classList.contains("hidden")),
+    };
+    if (hideRecord) hideRecord.set(el, rec);
+    el.setAttribute("data-findly-app-hid", "1");
+    el.setAttribute("data-findly-prev-display", display);
+    el.setAttribute("data-findly-prev-priority", priority);
+    el.setAttribute("data-findly-prev-hidden", rec.hadHidden ? "1" : "0");
+    el.setAttribute("data-findly-prev-class", rec.hadClass ? "1" : "0");
+  }
+  window.__FINDLY_REMEMBER_HIDE = rememberHide;
+
+  function restoreRecordedHide(el) {
+    if (!el || el.nodeType !== 1) return;
+    if (el.getAttribute("data-findly-app-hid") !== "1") return;
+    var rec = hideRecord && hideRecord.get(el);
+    var display = rec
+      ? rec.display
+      : el.getAttribute("data-findly-prev-display") || "";
+    var priority = rec
+      ? rec.priority
+      : el.getAttribute("data-findly-prev-priority") || "";
+    var hadHidden = rec
+      ? rec.hadHidden
+      : el.getAttribute("data-findly-prev-hidden") === "1";
+    var hadClass = rec
+      ? rec.hadClass
+      : el.getAttribute("data-findly-prev-class") === "1";
+    el.removeAttribute("data-smart-filter-hidden");
+    el.removeAttribute("data-findly-theme-hidden");
+    el.removeAttribute("data-findly-native-chrome");
+    el.removeAttribute("data-findly-app-hid");
+    el.removeAttribute("data-findly-prev-display");
+    el.removeAttribute("data-findly-prev-priority");
+    el.removeAttribute("data-findly-prev-hidden");
+    el.removeAttribute("data-findly-prev-class");
+    if (hideRecord) hideRecord.delete(el);
+    if (hadHidden) el.setAttribute("hidden", "");
+    else {
+      el.removeAttribute("hidden");
+      el.hidden = false;
+    }
+    if (el.classList) {
+      if (hadClass) el.classList.add("hidden");
+      else el.classList.remove("hidden");
+    }
+    if (el.style) {
+      if (display) el.style.setProperty("display", display, priority);
+      else el.style.removeProperty("display");
+    }
+  }
+
   function hideEl(node) {
+    if (hideBlocked()) return;
     if (!node || node.nodeType !== 1) return;
     if (
       node.hidden &&
@@ -986,6 +1073,7 @@
     ) {
       return;
     }
+    rememberHide(node);
     node.hidden = true;
     node.setAttribute("data-smart-filter-hidden", "true");
     node.style.setProperty("display", "none", "important");
@@ -1018,6 +1106,254 @@
     if (node.classList) node.classList.remove("hidden");
     node.style.removeProperty("display");
     forceCardVisible(node);
+  }
+
+  function clearAppAriaBusy(el) {
+    if (!el || el.getAttribute("data-findly-app-busy") !== "1") return;
+    el.removeAttribute("aria-busy");
+    el.removeAttribute("data-findly-app-busy");
+  }
+
+  function clearBusyVisuals() {
+    var root = document.documentElement;
+    if (root && root.classList) {
+      root.classList.remove("sf-filter-loading");
+      if (!root.classList.contains("sf-filter-ready")) {
+        root.classList.add("sf-filter-ready");
+      }
+    }
+    var busy = document.querySelectorAll(".findly-grid-is-busy, .sf-grid-busy");
+    var i;
+    for (i = 0; i < busy.length; i++) {
+      busy[i].classList.remove("findly-grid-is-busy");
+      busy[i].classList.remove("sf-grid-busy");
+      busy[i].removeAttribute("data-findly-skel-host");
+      clearAppAriaBusy(busy[i]);
+    }
+    var markedBusy = document.querySelectorAll("[data-findly-app-busy='1']");
+    for (i = 0; i < markedBusy.length; i++) clearAppAriaBusy(markedBusy[i]);
+    var skel = document.querySelectorAll("[" + SKEL_ATTR + "='1']");
+    for (i = 0; i < skel.length; i++) {
+      if (skel[i].parentNode) skel[i].parentNode.removeChild(skel[i]);
+    }
+    var overlay = document.getElementById("findly-grid-busy-overlay");
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+  window.__FINDLY_CLEAR_BUSY_VISUALS = clearBusyVisuals;
+
+  function isThemeProductCardEl(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.classList && el.classList.contains("sf-app-card")) return true;
+    try {
+      return Boolean(el.matches && el.matches(THEME_CARD_HOST_SELECTOR));
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function isListingGridContainer(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (widget && (el === widget._gridParent || el === widget._nativeGridParent)) return true;
+    return isActualCardGrid(el);
+  }
+
+  function stripUnrecordedHide(el) {
+    if (!el || el.nodeType !== 1) return;
+    if (el.getAttribute("data-findly-native-chrome") === "1" && !isThemeProductCardEl(el)) return;
+    if (!isThemeProductCardEl(el) && !isListingGridContainer(el)) return;
+    if (el.getAttribute("data-findly-app-hid") === "1") return;
+    if (
+      el.hasAttribute("data-findly-prev-display") ||
+      el.hasAttribute("data-findly-prev-hidden") ||
+      el.hasAttribute("data-findly-theme-display")
+    ) {
+      return;
+    }
+    var hadFilter = el.getAttribute("data-smart-filter-hidden") === "true";
+    var hadTheme = el.getAttribute("data-findly-theme-hidden") === "1";
+    if (!hadFilter && !hadTheme) return;
+    el.removeAttribute("data-smart-filter-hidden");
+    el.removeAttribute("data-findly-theme-hidden");
+    el.removeAttribute("hidden");
+    el.hidden = false;
+    if (el.style && el.style.getPropertyValue("display") === "none") {
+      el.style.removeProperty("display");
+    }
+  }
+
+  function dropAppGridHideClasses(widget) {
+    var hosts = [];
+    if (widget && widget._gridParent) hosts.push(widget._gridParent);
+    if (widget && widget._nativeGridParent) hosts.push(widget._nativeGridParent);
+    var scopes = hosts.slice();
+    var main = document.querySelector("main, #MainContent");
+    if (main) scopes.push(main);
+    var seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    var s;
+    var i;
+    for (s = 0; s < scopes.length; s++) {
+      var scope = scopes[s];
+      if (!scope || scope.nodeType !== 1) continue;
+      if (
+        scope.classList &&
+        (scope.classList.contains("sf-app-grid") ||
+          scope.classList.contains("sf-grid-is-empty"))
+      ) {
+        hosts.push(scope);
+      }
+      if (!scope.querySelectorAll) continue;
+      var found = scope.querySelectorAll(".sf-app-grid, .sf-grid-is-empty");
+      for (i = 0; i < found.length; i++) hosts.push(found[i]);
+    }
+    for (i = 0; i < hosts.length; i++) {
+      var el = hosts[i];
+      if (!el || !el.classList) continue;
+      if (seen) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+      }
+      if (el.getAttribute("data-findly-native-chrome") === "1") continue;
+      if (!isListingGridContainer(el)) continue;
+      el.classList.remove("sf-app-grid");
+      el.classList.remove("sf-grid-is-empty");
+    }
+  }
+
+  function releaseCardTray(widget) {
+    var tray = document.getElementById(CARD_TRAY_ID);
+    if (!tray || !tray.children) return;
+    var parent = null;
+    if (widget && widget._nativeGridParent && widget._nativeGridParent.isConnected !== false) {
+      parent = widget._nativeGridParent;
+    }
+    if (!parent && widget) {
+      parent =
+        preferProductCardGrid(resolveCardHost(widget._gridParent) || widget._gridParent) ||
+        widget._gridParent;
+    }
+    if (widget && widget._nativeGridOrder) restoreNativeGridOrder(widget);
+    var kids = [];
+    var i;
+    for (i = 0; i < tray.children.length; i++) kids.push(tray.children[i]);
+    if (!parent) return;
+    for (i = 0; i < kids.length; i++) {
+      var kid = kids[i];
+      if (!kid || kid.nodeType !== 1 || kid.parentNode !== tray) continue;
+      if (kid.getAttribute && kid.getAttribute(SKEL_ATTR) === "1") continue;
+      parent.appendChild(kid);
+    }
+  }
+
+  function showLeaveNativeStatus(widget) {
+    if (!widget || !widget.statusEl) return;
+    var fallback = "Filters couldn't be applied to this page.";
+    widget.statusEl.textContent = widget.t ? widget.t("applyError", fallback) : fallback;
+    widget.statusEl.setAttribute("data-error", "true");
+  }
+  window.__FINDLY_LEAVE_NATIVE_STATUS = showLeaveNativeStatus;
+
+  function clearAllGridHiding() {
+    clearBusyVisuals();
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    var marked = document.querySelectorAll("[data-findly-app-hid='1']");
+    var i;
+    for (i = 0; i < marked.length; i++) restoreRecordedHide(marked[i]);
+    var looseRoots = [];
+    if (widget && widget._gridParent) looseRoots.push(widget._gridParent);
+    if (widget && widget._nativeGridParent) looseRoots.push(widget._nativeGridParent);
+    var looseTray = document.getElementById(CARD_TRAY_ID);
+    if (looseTray) looseRoots.push(looseTray);
+    var r;
+    for (r = 0; r < looseRoots.length; r++) {
+      var looseRoot = looseRoots[r];
+      if (!looseRoot || looseRoot.nodeType !== 1) continue;
+      stripUnrecordedHide(looseRoot);
+      if (!looseRoot.querySelectorAll) continue;
+      var loose = looseRoot.querySelectorAll(
+        "[data-smart-filter-hidden='true'], [data-findly-theme-hidden='1']",
+      );
+      for (i = 0; i < loose.length; i++) stripUnrecordedHide(loose[i]);
+    }
+    dropAppGridHideClasses(widget);
+    releaseCardTray(widget);
+  }
+  window.__FINDLY_CLEAR_GRID_HIDING = clearAllGridHiding;
+
+  var gridBusyWatch = null;
+  function clearGridBusyWatch(reqId) {
+    if (!gridBusyWatch) return;
+    if (reqId != null && gridBusyWatch.reqId !== reqId) return;
+    window.clearTimeout(gridBusyWatch.timer);
+    gridBusyWatch = null;
+  }
+  function armGridBusyWatch(widget) {
+    clearGridBusyWatch();
+    var reqAtArm = widget ? widget._reqId : 0;
+    var timer = window.setTimeout(function () {
+      if (gridBusyWatch && gridBusyWatch.timer === timer) gridBusyWatch = null;
+      var live = widget || window.__FINDLY_FILTER_WIDGET;
+      if (!live || isStale(live, reqAtArm)) return;
+      if (
+        live._sfPaintedReq === reqAtArm &&
+        !live._importingCards &&
+        !live._loadingPage
+      ) {
+        return;
+      }
+      clearBusyVisuals();
+    }, 3000);
+    gridBusyWatch = { timer: timer, reqId: reqAtArm };
+  }
+
+  function urlHasGridRefine() {
+    var search = "";
+    var hash = "";
+    var path = "";
+    try {
+      search = String(window.location.search || "");
+      hash = String(window.location.hash || "");
+      path = String(window.location.pathname || "");
+    } catch (err) {
+      return false;
+    }
+    var onSearch = /\/search(\/|$)/i.test(path);
+    var parts = (search.replace(/^\?/, "") + "&" + hash.replace(/^#/, "")).split("&");
+    var i;
+    for (i = 0; i < parts.length; i++) {
+      var key = "";
+      try {
+        key = decodeURIComponent(String(parts[i].split("=")[0] || "").replace(/\+/g, " "));
+      } catch (err2) {
+        key = String(parts[i].split("=")[0] || "");
+      }
+      if (!key) continue;
+      if (key.indexOf("f.") === 0 || key.indexOf("filter.") === 0 || key === "sort_by") {
+        return true;
+      }
+      if (key === "sf" && String(parts[i].split("=").slice(1).join("=") || "").trim()) {
+        return true;
+      }
+      if (onSearch && key === "q" && String(parts[i].split("=").slice(1).join("=") || "").trim()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function widgetHasRefine(widget) {
+    if (!widget) return false;
+    if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
+    if (widget.collectionQuery) return true;
+    if (Math.max(1, Number(widget.page) || 1) > 1) return true;
+    if (
+      widget.sortKey &&
+      widget.defaultSort &&
+      widget.sortKey !== widget.defaultSort
+    ) {
+      return true;
+    }
+    return false;
   }
 
   function restoreThemeHidden(node) {
@@ -1131,16 +1467,59 @@
     return Boolean(el.matches && el.matches(RESULTS_LIST_SELECTOR));
   }
 
+  var SKIP_REGION_SELECTOR = [
+    "header",
+    "footer",
+    ".header",
+    ".footer",
+    ".announcement-bar",
+    "[id*='announcement']",
+    ".related-products",
+    "product-recommendations",
+    ".product-recommendations",
+    "#product-recommendations",
+    "[data-related-products]",
+    "[class*='related-product']",
+    ".recently-viewed",
+    "[data-recently-viewed]",
+    ".complementary-products",
+    "#shopify-section-footer",
+    "[id*='footer']",
+    ".collection-banner",
+    ".collection-hero",
+    ".collection-header",
+    ".slideshow",
+    ".shopify-section-group-header-group",
+  ].join(", ");
+
+  function isSkippedGridRegion(el) {
+    if (!el || el.nodeType !== 1 || !el.closest) return false;
+    try {
+      return Boolean(el.closest(SKIP_REGION_SELECTOR));
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function gridHostAllowed(el, main) {
+    if (!el || el.nodeType !== 1) return false;
+    if (isSkippedGridRegion(el)) return false;
+    if (main && el !== main && !(main.contains && main.contains(el))) return false;
+    return true;
+  }
+
   function pickBetterGridHost(parent) {
-    var parentVis = hostVisibility(parent);
-    var best = parent;
-    var bestCount = countThemeCards(parent);
-    var bestVis = parentVis.visible;
+    var main = document.querySelector("main, #MainContent, #main, [role='main']");
+    var parentOk = gridHostAllowed(parent, main);
+    var parentVis = parentOk ? hostVisibility(parent) : { visible: false };
+    var best = parentOk ? parent : null;
+    var bestCount = parentOk ? countThemeCards(parent) : -1;
+    var bestVis = parentOk ? parentVis.visible : false;
     var candidates = document.querySelectorAll(PRODUCT_GRID_SELECTOR);
     var i;
     for (i = 0; i < candidates.length; i++) {
       var candidate = candidates[i];
-      if (!candidate || candidate.nodeType !== 1) continue;
+      if (!gridHostAllowed(candidate, main)) continue;
       if (isResultsListEl(candidate) || isThemeManagedGrid(candidate) && isResultsListEl(candidate)) {
         continue;
       }
@@ -2391,14 +2770,25 @@
       ) {
         return true;
       }
-      /* Liquid stamps data-search-query only on search templates. */
-      if (document.querySelector(".smart-filter[data-search-query]")) return true;
+      var searchRoots = document.querySelectorAll(".smart-filter");
+      var sri;
+      for (sri = 0; sri < searchRoots.length; sri++) {
+        if (
+          String(searchRoots[sri].getAttribute("data-search-query") || "").trim()
+        ) {
+          return true;
+        }
+      }
       var body = document.body;
       if (body && body.classList && body.classList.contains("template-search")) {
         return true;
       }
-      if (widget && widget.root && widget.root.getAttribute) {
-        if (widget.root.getAttribute("data-search-query") != null) return true;
+      if (
+        widget &&
+        widget.root &&
+        String(widget.root.getAttribute("data-search-query") || "").trim()
+      ) {
+        return true;
       }
     } catch (err) {
       /* ignore */
@@ -4015,25 +4405,7 @@
     if (window.__findlyReadyFailsafe) return;
     window.__findlyReadyFailsafe = window.setTimeout(function () {
       window.__findlyReadyFailsafe = 0;
-      try {
-        removeBusyOverlay();
-      } catch (overlayErr) {
-        /* overlay may already be gone */
-      }
-      try {
-        paintGridBusy(null, false);
-      } catch (err) {
-        try {
-          removeBusyOverlay();
-        } catch (overlayErr2) {
-          /* overlay may already be gone */
-        }
-        try {
-          setFilterLoading(false);
-        } catch (loadErr) {
-          /* loading flag is best-effort */
-        }
-      }
+      clearBusyVisuals();
     }, 2500);
   }
 
@@ -5423,6 +5795,7 @@
       container.classList.add("is-loading");
     }
     container.setAttribute("aria-busy", "true");
+    container.setAttribute("data-findly-app-busy", "1");
     container.setAttribute("data-findly-theme-loading", "1");
     return true;
   }
@@ -5603,8 +5976,10 @@
     var count = document.querySelector(".sf-total-count");
     var toolbar = document.querySelector(".sf-toolbar");
     if (count) {
-      if (on) count.setAttribute("aria-busy", "true");
-      else count.removeAttribute("aria-busy");
+      if (on) {
+        count.setAttribute("aria-busy", "true");
+        count.setAttribute("data-findly-app-busy", "1");
+      } else clearAppAriaBusy(count);
     }
     if (toolbar) {
       if (on) toolbar.setAttribute("data-sf-toolbar-loading", "1");
@@ -5633,6 +6008,7 @@
   }
 
   function setFilterLoading(on) {
+    if (on && nativeHideKilled()) return;
     var root = document.documentElement;
     if (!root || !root.classList) return;
     var isOn = root.classList.contains("sf-filter-loading");
@@ -5767,6 +6143,7 @@
     }
     if (host.classList) host.classList.add("findly-grid-is-busy");
     host.setAttribute("aria-busy", "true");
+    host.setAttribute("data-findly-app-busy", "1");
     host.setAttribute("data-findly-skel-host", "1");
     if (!hostHasSkeletons(host)) mountGridSkeletons(host, SKEL_COUNT);
     setFilterLoading(true);
@@ -5786,6 +6163,9 @@
       !document.getElementById("smart-filter-root") &&
       !document.getElementById("smart-filter-embed")
     ) {
+      return;
+    }
+    if (nativeHideKilled() || !urlHasGridRefine()) {
       return;
     }
     armFilterReadyFailsafe();
@@ -7547,7 +7927,7 @@
     var needFetch =
       widget.missingHandles && widget.missingHandles(handles).length > 0;
     /* Avoid a second long busy crawl when cache already has cards (DOM gaps only). */
-    if (needFetch && widget.setGridBusy) widget.setGridBusy(true);
+    if (needFetch && widget.setGridBusy) widget.setGridBusy(true, reqId);
     function stale() {
       return widget._reqId !== reqId;
     }
@@ -7556,6 +7936,11 @@
       try {
         mountCachedCards(widget, handles, parent);
         applyNativeFilterGrid(handles, parent);
+        if (widget._sfMapMiss || widget._sfLeaveNative) {
+          widget._sfMapMiss = false;
+          markGridPainted(widget);
+          return;
+        }
         fillGapsWithThemeClones(widget, handles, parent);
         var shown = countAllowedInHost(parent, handles);
         var needed = uniqueAllowedCount(handles);
@@ -7587,7 +7972,7 @@
         syncGridEmptyState(widget, parent, handles, shown);
         markGridPainted(widget);
       } finally {
-        if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false);
+        if (widget.setGridBusy && widget._reqId === reqId) widget.setGridBusy(false, reqId);
         if (widget._reqId === reqId) {
           widget._loadingPage = false;
           if (widget.renderPager) widget.renderPager();
@@ -7609,7 +7994,7 @@
       widget._importingCards = false;
       widget._reapplyingGrid = false;
       widget._loadingPage = false;
-      if (widget.setGridBusy) widget.setGridBusy(false);
+      if (widget.setGridBusy) widget.setGridBusy(false, reqId);
       if (widget._sfFlushListingScroll) widget._sfFlushListingScroll();
       if (widget.renderPager) widget.renderPager();
     }, 12000);
@@ -7681,10 +8066,36 @@
   }
 
   function applyNativeFilterGrid(handles, hint) {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (widget && widget._sfLeaveNative) return false;
     var parent = preferProductCardGrid(resolveCardHost(hint) || hint);
     if (!parent) return false;
-    var widget = window.__FINDLY_FILTER_WIDGET;
     var allowed = Array.isArray(handles) ? allowedHandleSet(handles) : null;
+    var listed = Array.isArray(handles) ? handles : null;
+    var preview = collectTrayAndGridCards(parent);
+    var matchedN = 0;
+    if (allowed && preview) {
+      var pi;
+      for (pi = 0; pi < preview.length; pi++) {
+        if (preview[pi].handle && allowed[preview[pi].handle]) matchedN += 1;
+      }
+    }
+    if (listed && listed.length > 0 && matchedN === 0) {
+      findlyMetric("map_miss", "handles=" + listed.length);
+      if (widget) {
+        widget._sfMapMiss = true;
+        widget._sfLeaveNative = true;
+        widget._visibleHandles = null;
+        showLeaveNativeStatus(widget);
+      }
+      clearBusyVisuals();
+      return false;
+    }
+    var reportedTotal =
+      widget && widget._lastFilterData ? Number(widget._lastFilterData.total) : NaN;
+    if (listed && listed.length === 0 && reportedTotal !== 0) {
+      return false;
+    }
     /* Filtering (incl. empty results): keep .sf-app-card nodes and hide/show
        in place. stripAppCards is only for full native Liquid restore. */
     if (!allowed) {
@@ -7771,8 +8182,299 @@
     return cards.length > 0;
   }
 
+  function countVisibleListingCards(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var nodes;
+    try {
+      nodes = scope.querySelectorAll(THEME_CARD_HOST_SELECTOR + ",.sf-app-card");
+    } catch (err) {
+      return 0;
+    }
+    var n = 0;
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el.nodeType !== 1 || el.hidden) continue;
+      if (el.getAttribute("data-smart-filter-hidden") === "true") continue;
+      if (el.getAttribute("data-findly-theme-hidden") === "1") continue;
+      if (
+        el.closest &&
+        el.closest("header, footer, product-recommendations, .related-products")
+      ) {
+        continue;
+      }
+      var cs;
+      try {
+        cs = window.getComputedStyle(el);
+      } catch (err2) {
+        continue;
+      }
+      if (!cs || cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) {
+        continue;
+      }
+      var rect;
+      try {
+        rect = el.getBoundingClientRect();
+      } catch (err3) {
+        continue;
+      }
+      if (!rect || rect.width < 8 || rect.height < 8) continue;
+      n += 1;
+    }
+    return n;
+  }
+
+  function opacityHiddenByAppBusy(el) {
+    if (!el) return false;
+    if (el.classList && el.classList.contains("findly-grid-is-busy")) return true;
+    if (el.closest && el.closest(".findly-grid-is-busy")) return true;
+    return Boolean(
+      document.documentElement &&
+        document.documentElement.classList &&
+        document.documentElement.classList.contains("sf-filter-loading"),
+    );
+  }
+
+  function themeCardHiddenForStuck(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.hidden || el.hasAttribute("hidden")) return true;
+    if (el.getAttribute("data-smart-filter-hidden") === "true") return true;
+    if (el.getAttribute("data-findly-theme-hidden") === "1") return true;
+    if (el.getAttribute("data-findly-app-hid") === "1") return true;
+    var cs;
+    try {
+      cs = window.getComputedStyle(el);
+    } catch (err) {
+      return true;
+    }
+    if (cs && cs.display === "none") return true;
+    if (cs && Number(cs.opacity) === 0 && opacityHiddenByAppBusy(el)) return true;
+    return false;
+  }
+
+  function listingGridIsStuck(host) {
+    var scope = host && host.querySelectorAll ? host : document;
+    var nodes;
+    try {
+      nodes = scope.querySelectorAll(THEME_CARD_HOST_SELECTOR);
+    } catch (err) {
+      return false;
+    }
+    var found = 0;
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el.nodeType !== 1) continue;
+      if (el.classList && el.classList.contains("sf-app-card")) continue;
+      if (
+        el.closest &&
+        el.closest("#" + CARD_TRAY_ID + ", header, footer, product-recommendations, .related-products")
+      ) {
+        continue;
+      }
+      found += 1;
+      if (!themeCardHiddenForStuck(el)) return false;
+    }
+    return found > 0;
+  }
+
+  function gridHostNotRendered(host) {
+    try {
+      if (document.hidden) return true;
+    } catch (err) {
+      return true;
+    }
+    if (!host || host.nodeType !== 1) return true;
+    var node = host;
+    while (node && node.nodeType === 1) {
+      if (node.hidden) return true;
+      if (String(node.tagName || "").toLowerCase() === "details" && !node.open) return true;
+      var cs;
+      try {
+        cs = window.getComputedStyle(node);
+      } catch (err2) {
+        return true;
+      }
+      if (!cs || cs.display === "none" || cs.visibility === "hidden") return true;
+      node = node.parentElement;
+    }
+    var rect;
+    try {
+      rect = host.getBoundingClientRect();
+    } catch (err3) {
+      return true;
+    }
+    if (!rect || rect.width < 1 || rect.height < 1) return true;
+    return false;
+  }
+
+  function scheduleGridStuckCheck(widget) {
+    if (!widget) return;
+    if (widget._sfStuckTimer) window.clearTimeout(widget._sfStuckTimer);
+    var reqId = widget._reqId;
+    widget._sfStuckTimer = window.setTimeout(function () {
+      widget._sfStuckTimer = 0;
+      if (widget._reqId !== reqId) return;
+      var data = widget._lastFilterData;
+      var products =
+        data && Array.isArray(data.products) ? data.products : widget._lastProducts;
+      if (!Array.isArray(products) || !products.length) return;
+      var host = widget._gridParent || document.querySelector("main, #MainContent");
+      if (gridHostNotRendered(host)) return;
+      if (!listingGridIsStuck(host)) return;
+      var theme = "";
+      try {
+        var themeObj = window.Shopify && window.Shopify.theme;
+        theme = themeObj ? String(themeObj.schema_name || themeObj.name || "") : "";
+      } catch (err) {
+        theme = "";
+      }
+      var path = "";
+      try {
+        path = String(window.location.pathname || "");
+      } catch (err2) {
+        path = "";
+      }
+      var kind = /\/search(\/|$)/i.test(path) ? "search" : "collection";
+      var template = kind;
+      try {
+        var match = String(document.body && document.body.className || "").match(/template-[\w-]+/);
+        if (match) template = match[0];
+      } catch (err3) {
+        template = kind;
+      }
+      var shop = "";
+      try {
+        shop = (window.Shopify && window.Shopify.shop) || "";
+      } catch (err4) {
+        shop = "";
+      }
+      var gridSel = "";
+      try {
+        gridSel =
+          (widget.root &&
+            widget.root.getAttribute &&
+            widget.root.getAttribute("data-product-grid-selector")) ||
+          "";
+        if (!gridSel && widget._gridParent) {
+          gridSel = widget._gridParent.id
+            ? "#" + widget._gridParent.id
+            : widget._gridParent.classList && widget._gridParent.classList.length
+              ? "." + widget._gridParent.classList[0]
+              : String(widget._gridParent.tagName || "");
+        }
+      } catch (err5) {
+        gridSel = "";
+      }
+      findlyMetric(
+        "grid_stuck",
+        "shop=" +
+          shop +
+          "|theme=" +
+          theme +
+          "|template=" +
+          template +
+          "|page=" +
+          kind +
+          "|grid=" +
+          gridSel,
+      );
+      widget._sfLeaveNative = true;
+      widget._visibleHandles = null;
+      showLeaveNativeStatus(widget);
+      clearAllGridHiding();
+    }, 4000);
+  }
+
+  function gridHasAppCard(el) {
+    if (!el || !el.querySelector) return false;
+    if (el.classList && el.classList.contains("sf-app-card")) return true;
+    return Boolean(el.querySelector(".sf-app-card"));
+  }
+
+  function dropEmptyAppGridClass(widget) {
+    var roots = [];
+    if (widget && widget._gridParent) roots.push(widget._gridParent);
+    if (widget && widget._nativeGridParent) roots.push(widget._nativeGridParent);
+    var main = document.querySelector("main, #MainContent");
+    if (main) roots.push(main);
+    var list = [];
+    var seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    var r;
+    var i;
+    for (r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      if (!root || root.nodeType !== 1) continue;
+      if (root.classList && root.classList.contains("sf-app-grid")) list.push(root);
+      if (!root.querySelectorAll) continue;
+      var found = root.querySelectorAll(".sf-app-grid");
+      for (i = 0; i < found.length; i++) list.push(found[i]);
+    }
+    for (i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (!el || !el.classList) continue;
+      if (seen) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+      }
+      if (gridHasAppCard(el)) continue;
+      el.classList.remove("sf-app-grid");
+    }
+  }
+
+  function clearEmptyGridLock(widget) {
+    var roots = [];
+    if (widget && widget._gridParent) roots.push(widget._gridParent);
+    if (widget && widget._nativeGridParent) roots.push(widget._nativeGridParent);
+    var main = document.querySelector("main, #MainContent");
+    if (main && main.querySelectorAll) {
+      var found = main.querySelectorAll(".sf-grid-is-empty");
+      var n;
+      for (n = 0; n < found.length; n++) roots.push(found[n]);
+    }
+    var i;
+    for (i = 0; i < roots.length; i++) {
+      if (roots[i] && roots[i].classList) roots[i].classList.remove("sf-grid-is-empty");
+    }
+    var emptyEl = document.getElementById(EMPTY_ID);
+    if (emptyEl && emptyEl.parentNode) emptyEl.parentNode.removeChild(emptyEl);
+  }
+
+  function releaseNormalGridChrome(widget) {
+    var roots = [];
+    if (widget && widget._gridParent) roots.push(widget._gridParent);
+    if (widget && widget._nativeGridParent) roots.push(widget._nativeGridParent);
+    var tray = document.getElementById(CARD_TRAY_ID);
+    if (tray) roots.push(tray);
+    var marked = [];
+    var seen = typeof WeakSet === "function" ? new WeakSet() : null;
+    var r;
+    var i;
+    for (r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      if (!root || root.nodeType !== 1 || !root.querySelectorAll) continue;
+      if (root.getAttribute("data-findly-app-hid") === "1") marked.push(root);
+      var found = root.querySelectorAll("[data-findly-app-hid='1']");
+      for (i = 0; i < found.length; i++) marked.push(found[i]);
+    }
+    for (i = 0; i < marked.length; i++) {
+      var el = marked[i];
+      if (!el) continue;
+      if (seen) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+      }
+      restoreRecordedHide(el);
+    }
+    dropAppGridHideClasses(widget);
+    releaseCardTray(widget);
+    clearEmptyGridLock(widget);
+  }
+
   function markGridPainted(widget) {
     if (widget) widget._sfPaintedReq = widget._reqId;
+    dropEmptyAppGridClass(widget);
+    scheduleGridStuckCheck(widget);
   }
 
   function alreadyPaintedGrid(widget) {
@@ -7948,6 +8650,7 @@
 
   function applyNativeAfterGrid(self) {
     if (!self) return;
+    if (self._sfLeaveNative) return;
     if (self._importingCards) return;
     if (self._loadingPage || self._inflight) return;
     /* Same filter cycle already painted — skip another full hide/show/reorder
@@ -9421,6 +10124,8 @@
    * listing inside main only (not cart / header / recommendations).
    */
   function hideCompetingThemeGrid(host) {
+    var liveWidget = window.__FINDLY_FILTER_WIDGET;
+    if (liveWidget && liveWidget._sfLeaveNative) return { grids: 0, cards: 0 };
     if (!host || host.nodeType !== 1 || host.id !== HOST_ID) {
       gridLog("scoped rival hide skipped (not synthetic host)", {
         hostId: host && host.id,
@@ -9462,6 +10167,7 @@
   }
 
   function scheduleCompetingThemeHide(widget, host) {
+    if (!widget || widget._sfLeaveNative) return;
     if (!widget || !shouldHideCompetingThemeGrid(widget, host)) return;
     var target = host || widget._gridParent;
     if (!target) return;
@@ -9698,6 +10404,7 @@
     var debounceTimer = null;
     self._findlyObserverCount = 0;
     self._findlyGridObserver = new MutationObserver(function (records) {
+      if (self._sfLeaveNative) return;
       if (repairingLayout || self._reapplyingGrid) return;
       if (mutationIsIgnored(records)) return;
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -11472,7 +12179,7 @@
               this.sortKey !== this.defaultSort,
           );
         applyNativeFilterGrid(themeFiltered ? sliced.handles : null, themePcardGrid);
-        if (this.setGridBusy) this.setGridBusy(false);
+        if (this.setGridBusy) this.setGridBusy(false, this._reqId);
         this._loadingPage = false;
         return true;
       }
@@ -11886,6 +12593,12 @@
       if ((!next || !next.length) && source.length) next = source;
       mountCachedCards(this, next, host);
       applyNativeFilterGrid(next, host);
+      if (this._sfMapMiss || this._sfLeaveNative) {
+        this._sfMapMiss = false;
+        markGridPainted(this);
+        if (this.setGridBusy && !this._importingCards) this.setGridBusy(false, this._reqId);
+        return true;
+      }
       var shown = countAllowedInHost(host, next);
       var needed = uniqueAllowedCount(next);
       if (needed > shown) {
@@ -11921,7 +12634,7 @@
             }
             markGridPainted(this);
             if (this.setGridBusy && !this._importingCards) {
-              this.setGridBusy(false);
+              this.setGridBusy(false, this._reqId);
             }
             return true;
           }
@@ -11937,7 +12650,7 @@
         this.setGridBusy &&
         !this._importingCards
       ) {
-        this.setGridBusy(false);
+        this.setGridBusy(false, this._reqId);
       }
       return shown > 0 || needed === 0;
     };
@@ -11945,7 +12658,15 @@
     var origFetch = proto.fetchFilters;
     proto.fetchFilters = function () {
       var opts = arguments[0] || {};
+      if (!opts.append && this._sfClearRelease && !opts._sfClearRelease) {
+        opts = Object.assign({}, opts, { _sfClearRelease: 1 });
+        arguments[0] = opts;
+      }
       if (!opts.append) {
+        if (!(Number(opts._attempt) > 0)) {
+          this._sfLeaveNative = false;
+          this._sfMapMiss = false;
+        }
         this._importingCards = false;
         this._sfPaintedReq = -1;
         this._sfChromeHiddenReq = -1;
@@ -11973,10 +12694,19 @@
       var result = origFetch ? origFetch.apply(this, arguments) : undefined;
       var self = this;
       var reqId = this._reqId;
+      if (!opts.append && opts._sfClearRelease) {
+        this._sfClearRelease = false;
+        this._sfClearReleaseReq = reqId;
+      } else if (this._sfClearReleaseReq != null && this._sfClearReleaseReq !== reqId) {
+        this._sfClearReleaseReq = null;
+      }
       if (result && typeof result.then === "function") {
         return result.then(
           function (value) {
-            if (self._reqId !== reqId) return value;
+            if (self._reqId !== reqId) {
+              if (self._sfClearReleaseReq === reqId) self._sfClearReleaseReq = null;
+              return value;
+            }
             var host = preferProductCardGrid(resolveCardHost(self._gridParent));
             var handles = self._visibleHandles || self._shownHandles;
             if (
@@ -11993,7 +12723,12 @@
             } else if (self._gridParent && self.hideNativeGridCards) {
               self.hideNativeGridCards(self._gridParent);
             }
-            if (!self._importingCards && self.setGridBusy) self.setGridBusy(false);
+            if (self._sfClearReleaseReq === reqId && self._reqId === reqId) {
+              self._sfClearReleaseReq = null;
+              if (self.isAppGridMode && self.isAppGridMode()) clearEmptyGridLock(self);
+              else releaseNormalGridChrome(self);
+            }
+            if (!self._importingCards && self.setGridBusy) self.setGridBusy(false, reqId);
             if (
               !opts.append &&
               !self._importingCards &&
@@ -12013,12 +12748,13 @@
             return value;
           },
           function (err) {
+            if (self._sfClearReleaseReq === reqId) self._sfClearReleaseReq = null;
             if (self._reqId !== reqId) return Promise.reject(err);
             if (!opts.append) {
               self._sfNativeListing = false;
               self._importingCards = false;
               self._loadingPage = false;
-              if (self.setGridBusy) self.setGridBusy(false);
+              if (self.setGridBusy) self.setGridBusy(false, reqId);
               if (self._sfFlushListingScroll) self._sfFlushListingScroll();
               publishListingSuggestions(self);
             }
@@ -12029,8 +12765,15 @@
       return result;
     };
 
+    var origRestoreNative = proto.restoreNativeGrid;
+    proto.restoreNativeGrid = function () {
+      if (origRestoreNative) origRestoreNative.apply(this, arguments);
+      releaseNormalGridChrome(this);
+    };
+
     var origClear = proto.clearFilters;
     proto.clearFilters = function () {
+      this._sfClearRelease = true;
       this._importingCards = false;
       this._sfPaged = false;
       this.page = 1;
@@ -12190,8 +12933,24 @@
       document.documentElement.classList.remove("is-sf-drawer-open");
     };
 
+    var origHideNative = proto.hideNativeGridCards;
+    proto.hideNativeGridCards = function () {
+      if (this._sfLeaveNative) return;
+      if (origHideNative) return origHideNative.apply(this, arguments);
+    };
+
     var origBusy = proto.setGridBusy;
-    proto.setGridBusy = function (busy) {
+    proto.setGridBusy = function (busy, reqId) {
+      if (reqId != null && isStale(this, reqId)) return;
+      if (busy) {
+        if (nativeHideKilled() || !(urlHasGridRefine() || widgetHasRefine(this))) {
+          return;
+        }
+        armGridBusyWatch(this);
+      } else {
+        clearGridBusyWatch(reqId);
+        scheduleGridStuckCheck(this);
+      }
       var parent =
         this._gridParent ||
         (this.ensureGridParent && this.ensureGridParent());
@@ -12200,11 +12959,12 @@
       if (host && host.classList) host.classList.remove("sf-grid-busy");
       paintGridBusy(host, busy);
       if (origBusy && origBusy !== proto.setGridBusy && (!host || !busy)) {
-        origBusy.call(this, busy);
+        origBusy.apply(this, arguments);
       }
     };
 
     proto.syncProductGrid = function (handles) {
+      if (this._sfLeaveNative) return;
       ensureProductGridMounted(this);
       var parent = resolveCardHost(
         this._gridParent ||
@@ -12271,9 +13031,15 @@
         handles.length &&
         shownBefore < uniqueAllowedCount(handles)
       ) {
-        this.setGridBusy(true);
+        this.setGridBusy(true, this._reqId);
       }
       applyNativeFilterGrid(handles, parent);
+      if (this._sfMapMiss || this._sfLeaveNative) {
+        this._sfMapMiss = false;
+        markGridPainted(this);
+        placeCollectionSearchOnGrid(this);
+        return;
+      }
       var shown = countAllowedInHost(parent, handles);
       if (
         Array.isArray(handles) &&
@@ -12288,6 +13054,7 @@
       placeCollectionSearchOnGrid(this);
     };
     proto.watchThemeGrid = function () {
+      if (this._sfLeaveNative) return;
       /* Keep the observer alive across filter cycles — do not disconnect then bail. */
       if (!(this._appGridActive || (this.isAppGridMode && this.isAppGridMode()))) {
         applyNativeAfterGrid(this);
@@ -12404,6 +13171,7 @@
 
     var origHideChrome = proto.hideThemeDuplicateChrome;
     proto.hideThemeDuplicateChrome = function () {
+      if (this._sfLeaveNative) return;
       if (nativeHideKilled()) return;
       if (this._sfChromeHiddenReq === this._reqId && this._reqId) return;
       this._sfChromeHiddenReq = this._reqId;
@@ -12614,7 +13382,8 @@
     };
 
     var origFail = proto.failFilterLoad;
-    proto.failFilterLoad = function () {
+    proto.failFilterLoad = function (err, reqId) {
+      if (isStale(this, reqId)) return;
       var panel = liveDrawerPanel(this);
       if (panel) syncDrawerPanelRefs(this, panel);
       if (origFail) origFail.apply(this, arguments);

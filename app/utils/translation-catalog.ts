@@ -174,6 +174,11 @@ export const TRANSLATION_FIELDS: Record<
       defaultValue: "Filters could not be loaded. Please try again.",
     },
     {
+      key: "applyError",
+      reference: "Filters could not be applied",
+      defaultValue: "Filters couldn't be applied to this page.",
+    },
+    {
       key: "no_match",
       reference: "No matching products",
       defaultValue: "No matching products.",

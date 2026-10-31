@@ -3,6 +3,11 @@
   inject on home/product/cart too — load all assets from Liquid on collection
   and search only.
 {% endcomment %}
+{% assign sf_findly_disabled = false %}
+{% if app.metafields.findly.disabled.value == true or app.metafields.findly.disabled.value == 'true' %}
+  {% assign sf_findly_disabled = true %}
+{% endif %}
+{% if sf_findly_disabled == false %}
 {% if request.page_type == 'collection' or request.page_type == 'search' %}
 <link rel="stylesheet" href="{{ 'smart-filter-check.min.css' | asset_url }}" media="all">
 <link rel="stylesheet" href="{{ 'smart-filter-ui.min.css' | asset_url }}" media="all">
@@ -18,8 +23,40 @@
     window.__FINDLY_LOADING_OWNER = true;
     var root = document.documentElement;
     if (!root || !root.classList) return;
-    root.classList.add("sf-filter-loading");
-    root.classList.remove("sf-filter-ready");
+    var nativeHideOff = {{ block.settings.disable_native_filter_hiding | json }};
+    var refine = false;
+    try {
+      var path = String(window.location.pathname || "");
+      var onSearch = /\/search(\/|$)/i.test(path);
+      var parts = (String(window.location.search || "").replace(/^\?/, "") + "&" + String(window.location.hash || "").replace(/^#/, "")).split("&");
+      var pi;
+      for (pi = 0; pi < parts.length; pi++) {
+        var rawKey = String(parts[pi].split("=")[0] || "").replace(/\+/g, " ");
+        var key = rawKey;
+        try {
+          key = decodeURIComponent(rawKey);
+        } catch (keyErr) {
+          key = rawKey;
+        }
+        if (!key) continue;
+        if (key.indexOf("f.") === 0 || key.indexOf("filter.") === 0 || key === "sort_by") refine = true;
+        var rawVal = String(parts[pi].split("=").slice(1).join("=") || "");
+        var val = rawVal;
+        try {
+          val = decodeURIComponent(rawVal.replace(/\+/g, " "));
+        } catch (valErr) {
+          val = rawVal;
+        }
+        if (key === "sf" && String(val || "").trim()) refine = true;
+        if (onSearch && key === "q" && String(val || "").trim()) refine = true;
+      }
+    } catch (err) {
+      refine = false;
+    }
+    if (!nativeHideOff && refine) {
+      root.classList.add("sf-filter-loading");
+      root.classList.remove("sf-filter-ready");
+    }
     if ({{ sf_storefront_v2 | json }}) {
       root.classList.add("sf-storefront-v2");
       window.__FINDLY_V2_FAILSAFE = true;
@@ -146,7 +183,7 @@
   data-collection-id="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.id }}{% endif %}"
   data-collection-handle="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-page-size="{{ sf_page_size }}"
-  data-search-query="{% if template contains 'search' %}{{ search.terms | default: request.params.q | escape }}{% endif %}"
+  {% if template contains 'search' %}data-search-query="{{ search.terms | default: request.params.q | escape }}"{% endif %}
   data-proxy-base="/apps/smart-filter"
   data-position="{{ sf_position }}"
   data-show-counts="{% if sf_show_counts %}true{% else %}false{% endif %}"
@@ -269,6 +306,7 @@
     <div class="sf-status" data-status aria-live="polite"></div>
   </div>
 </div>
+{% endif %}
 {% endif %}
 
 {% schema %}
