@@ -7,6 +7,178 @@
 (function () {
   "use strict";
 
+  /* Default-off. One check; prototypes stay untouched unless the flag is on.
+     Runs at theme-script eval, before smart-filter.min.js boots the widget. */
+  var sfTraceWanted = false;
+  try {
+    sfTraceWanted =
+      /(?:^|[?&])sf_trace=1(?:&|$)/.test(String(window.location.search || "")) ||
+      window.sessionStorage.getItem("sf_trace") === "1";
+  } catch (sfTraceErr) {
+    sfTraceWanted = false;
+  }
+  if (sfTraceWanted) {
+    var SF_TRACE_SEL =
+      "results-list, #ResultsList, .collection-wrapper, #smart-filter-embed, #smart-filter-root, link[href*='smart-filter']";
+    window.__FINDLY_TRACE_LOG = [];
+    function sfTraceWatched(node) {
+      if (!node || node.nodeType !== 1) return false;
+      var id = node.id || "";
+      if (
+        id === "ResultsList" ||
+        id === "smart-filter-embed" ||
+        id === "smart-filter-root"
+      ) {
+        return true;
+      }
+      var tag = String(node.tagName || "").toLowerCase();
+      if (tag === "results-list") return true;
+      if (node.classList && node.classList.contains("collection-wrapper")) return true;
+      if (tag === "link" && String(node.getAttribute("href") || "").indexOf("smart-filter") !== -1) {
+        return true;
+      }
+      return false;
+    }
+    function sfTraceHit(node) {
+      if (!node || node.nodeType !== 1) return null;
+      if (sfTraceWatched(node)) return node;
+      if (!node.querySelector) return null;
+      try {
+        return node.querySelector(SF_TRACE_SEL);
+      } catch (err) {
+        return null;
+      }
+    }
+    function sfTraceDescribe(node) {
+      if (!node || node.nodeType !== 1) return String(node);
+      var tag = String(node.tagName || "").toLowerCase();
+      var desc = tag;
+      if (node.id) desc += "#" + node.id;
+      if (node.classList && node.classList.length) {
+        desc += "." + String(node.className || "").trim().split(/\s+/).slice(0, 3).join(".");
+      }
+      if (tag === "link") desc += " " + String(node.getAttribute("href") || "");
+      return desc;
+    }
+    function sfTracePush(op, node) {
+      var stack = "";
+      try {
+        throw new Error("sf-trace");
+      } catch (err) {
+        stack = String((err && err.stack) || "")
+          .split("\n")
+          .slice(2, 6)
+          .join(" | ");
+      }
+      var entry = { op: op, node: sfTraceDescribe(node), stack: stack };
+      var log = window.__FINDLY_TRACE_LOG;
+      log.push(entry);
+      if (log.length > 50) log.shift();
+      console.warn("[SF-TRACE] " + op + " " + entry.node);
+      console.trace();
+    }
+    function sfTraceNote(op, node, removing, parent) {
+      var hit = sfTraceHit(node);
+      if (!hit || hit.isConnected === false) return;
+      if (removing) {
+        sfTracePush(op, hit);
+        return;
+      }
+      if (parent && parent.isConnected === false) sfTracePush(op, hit);
+    }
+    function sfTraceArgs(op, parent, args, removing) {
+      var i;
+      for (i = 0; i < args.length; i++) {
+        var arg = args[i];
+        if (!arg || arg.nodeType !== 1) continue;
+        sfTraceNote(op, arg, removing, parent);
+      }
+    }
+    function sfTraceWrap(proto, name, before) {
+      if (!proto) return;
+      var orig = proto[name];
+      if (typeof orig !== "function" || orig.__sfTrace) return;
+      var wrapped = function () {
+        try {
+          before(this, arguments);
+        } catch (err) {
+          /* tracer must not break the DOM call */
+        }
+        return orig.apply(this, arguments);
+      };
+      wrapped.__sfTrace = true;
+      try {
+        proto[name] = wrapped;
+      } catch (err) {
+        /* method is not writable */
+      }
+    }
+    function sfTracePatchSetter(proto, prop) {
+      var desc;
+      try {
+        desc = Object.getOwnPropertyDescriptor(proto, prop);
+      } catch (err) {
+        desc = null;
+      }
+      if (!desc || typeof desc.set !== "function" || desc.set.__sfTrace) return;
+      var origSet = desc.set;
+      var setter = function (value) {
+        try {
+          if (this && this.isConnected !== false) sfTraceNote(prop, this, true, null);
+        } catch (err) {
+          /* tracer must not break the DOM call */
+        }
+        return origSet.call(this, value);
+      };
+      setter.__sfTrace = true;
+      try {
+        Object.defineProperty(proto, prop, {
+          configurable: true,
+          enumerable: desc.enumerable,
+          get: desc.get,
+          set: setter,
+        });
+      } catch (err) {
+        /* setter is not configurable */
+      }
+    }
+    var sfTraceParentProtos = [Node.prototype, Element.prototype, Document.prototype, DocumentFragment.prototype];
+    var sfTracePi;
+    for (sfTracePi = 0; sfTracePi < sfTraceParentProtos.length; sfTracePi++) {
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "appendChild", function (parent, args) {
+        if (args[0]) sfTraceNote("appendChild", args[0], false, parent);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "insertBefore", function (parent, args) {
+        if (args[0]) sfTraceNote("insertBefore", args[0], false, parent);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "append", function (parent, args) {
+        sfTraceArgs("append", parent, args, false);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "prepend", function (parent, args) {
+        sfTraceArgs("prepend", parent, args, false);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "removeChild", function (parent, args) {
+        if (args[0]) sfTraceNote("removeChild", args[0], true, null);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "replaceChild", function (parent, args) {
+        if (args[1]) sfTraceNote("replaceChild", args[1], true, null);
+        sfTraceNote("replaceChild", args[0], false, parent);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "remove", function (node) {
+        sfTraceNote("remove", node, true, null);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "replaceWith", function (node) {
+        sfTraceNote("replaceWith", node, true, null);
+      });
+      sfTraceWrap(sfTraceParentProtos[sfTracePi], "replaceChildren", function (node) {
+        sfTraceNote("replaceChildren", node, true, null);
+      });
+    }
+    sfTracePatchSetter(Element.prototype, "innerHTML");
+    sfTracePatchSetter(Element.prototype, "outerHTML");
+    sfTracePatchSetter(Node.prototype, "textContent");
+  }
+
   var STYLE_ID = "findly-theme-compat-v13";
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
@@ -1380,6 +1552,7 @@
       }
     }
   }
+  window.__FINDLY_CLEANUP_PORTALS = cleanupOrphanPortals;
 
   function restoreFiltersFromLocation(widget) {
     if (!widget || !widget.fetchFilters) return;
@@ -1553,7 +1726,10 @@
     var widget = window.__FINDLY_FILTER_WIDGET;
     cleanupOrphanPortals(false);
     if (window.Shopify && window.Shopify.designMode) ensureEditorAssets();
-    if (!widget || !widget.root || widget.root.isConnected === false) return;
+    if (!widget || !widget.root || widget.root.isConnected === false) {
+      cleanupOrphanPortals(true);
+      return;
+    }
     widget._gridParent = null;
     if (widget.ensureGridParent) widget.ensureGridParent();
     if (widget.syncCollectionLayout) widget.syncCollectionLayout();
@@ -1712,7 +1888,20 @@
         "#header-group, .shopify-section-group-header-group, header",
       );
       var main = document.querySelector("#MainContent, main, [role='main']");
+      var resultsTag = document.querySelector("results-list");
       var results = document.getElementById("ResultsList");
+      var rootEl =
+        document.getElementById("smart-filter-root") ||
+        document.getElementById("smart-filter-embed");
+      var cssCount = 0;
+      var cssNodes = document.querySelectorAll('link[rel="stylesheet"]');
+      for (i = 0; i < cssNodes.length; i++) {
+        var cssHref = cssNodes[i].href || "";
+        if (/smart-filter/i.test(cssHref) && cssNodes[i].isConnected !== false) {
+          cssCount += 1;
+        }
+      }
+      var gridEl = document.querySelector("ul.product-grid, ol.product-grid");
       return {
         path: window.location.pathname + window.location.search,
         htmlClass: html.className,
@@ -1741,7 +1930,21 @@
         booted: Boolean(window.__FINDLY_BOOTED || window.__FINDLY_FILTER_BOOTED),
         headerShown: shownArea(header),
         mainShown: shownArea(main),
-        resultsListConnected: Boolean(results && results.isConnected),
+        resultsListConnected: Boolean(
+          (resultsTag && resultsTag.isConnected) || (results && results.isConnected),
+        ),
+        listingConnected: Boolean(
+          resultsTag &&
+            resultsTag.isConnected &&
+            results &&
+            results.isConnected &&
+            gridEl &&
+            gridEl.isConnected,
+        ),
+        rootConnected: Boolean(rootEl && rootEl.isConnected),
+        cssLinksConnected: cssCount > 0,
+        layoutRolledBack: Boolean(window.__FINDLY_LAYOUT_ROLLED_BACK),
+        lastLayoutError: window.__FINDLY_LAST_LAYOUT_ERROR || "",
         taggedTotal: document.querySelectorAll("[data-findly-theme-hidden='1']").length,
         cards: {
           n: cards.length,

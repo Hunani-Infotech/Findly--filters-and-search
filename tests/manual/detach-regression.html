@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Findly detach regression</title>
+</head>
+<body>
+  <pre id="out">loading smart-filter-grid.js…</pre>
+  <script src="../../extensions/smart-filter/assets/smart-filter-grid.js"></script>
+  <script>
+    (function () {
+      var out = document.getElementById("out");
+      var lines = [];
+      function say(status, text) {
+        lines.push(status + ": " + text);
+        out.textContent = lines.join("\n");
+      }
+      function pass(text) { say("PASS", text); }
+      function fail(text) { say("FAIL", text); }
+      function cannot(text) { say("CANNOT RUN", text); }
+
+      var g = window.__FINDLY_LAYOUT_GUARD;
+      if (!g || typeof g.wrapInsidePageWidth !== "function") {
+        fail("window.__FINDLY_LAYOUT_GUARD.wrapInsidePageWidth is a function");
+        return;
+      }
+
+      function wipe() {
+        var sandbox = document.getElementById("sandbox");
+        if (sandbox && sandbox.parentNode) sandbox.parentNode.removeChild(sandbox);
+        document.body.classList.remove("template-search");
+        window.__FINDLY_FILTER_WIDGET = null;
+        window.__FINDLY_LAYOUT_ROLLED_BACK = false;
+        window.__FINDLY_LAST_LAYOUT_ERROR = "";
+      }
+
+      function sandbox() {
+        wipe();
+        var box = document.createElement("div");
+        box.id = "sandbox";
+        document.body.appendChild(box);
+        return box;
+      }
+
+      function horizon(box, count) {
+        var main = document.createElement("main");
+        main.id = "MainContent";
+        var header = document.createElement("section");
+        header.className = "search-header";
+        var section = document.createElement("section");
+        var list = document.createElement("results-list");
+        list.className = "product-grid-container";
+        var wrap = document.createElement("div");
+        wrap.className = "collection-wrapper";
+        var results = document.createElement("div");
+        results.id = "ResultsList";
+        results.className = "main-collection-grid";
+        var inner = document.createElement("div");
+        inner.setAttribute("style", "container-type: inline-size");
+        var ul = document.createElement("ul");
+        ul.className = "product-grid";
+        var i;
+        for (i = 0; i < count; i++) {
+          var li = document.createElement("li");
+          li.className = "product-grid__item";
+          ul.appendChild(li);
+        }
+        inner.appendChild(ul);
+        results.appendChild(inner);
+        wrap.appendChild(results);
+        list.appendChild(wrap);
+        section.appendChild(list);
+        main.appendChild(header);
+        main.appendChild(section);
+        box.appendChild(main);
+        return { main: main, list: list, results: results, ul: ul, wrap: wrap, section: section };
+      }
+
+      function embed(box) {
+        var block = document.createElement("div");
+        block.className = "shopify-app-block";
+        var links = [];
+        var i;
+        for (i = 0; i < 3; i++) {
+          var link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "smart-filter-" + i + ".min.css";
+          block.appendChild(link);
+          links.push(link);
+        }
+        var script = document.createElement("script");
+        script.src = "smart-filter.min.js";
+        block.appendChild(script);
+        var root = document.createElement("div");
+        root.id = "smart-filter-embed";
+        root.className = "smart-filter";
+        block.appendChild(root);
+        box.appendChild(block);
+        return { block: block, links: links, root: root };
+      }
+
+      function connectedListing(h, e) {
+        return (
+          h.list.isConnected &&
+          h.results.isConnected &&
+          h.ul.isConnected &&
+          e.root.isConnected &&
+          e.links[0].isConnected &&
+          e.links[1].isConnected &&
+          e.links[2].isConnected
+        );
+      }
+
+      function caseNormal(count) {
+        var box = sandbox();
+        document.body.classList.add("template-search");
+        var h = horizon(box, count);
+        var e = embed(box);
+        var widget = { root: e.root, _sfLeaveNative: false };
+        window.__FINDLY_FILTER_WIDGET = widget;
+        g.wrapInsidePageWidth(h.wrap);
+        g.liftFragileLayout(h.list, "left");
+        var mounted = g.mountFor(widget, e.block, h.list);
+        var text =
+          "normal run (" + count + " items): results-list, #ResultsList, ul.product-grid, #smart-filter-embed and 3 links stay connected, and the links stay outside results-list";
+        if (mounted !== e.root) {
+          fail(text + " (mountFor did not return the root)");
+          return;
+        }
+        var layout = h.list.closest(".sf-collection-layout") || h.section;
+        layout.insertBefore(e.root, layout.firstChild);
+        if (
+          connectedListing(h, e) &&
+          e.links[0].parentNode === e.block &&
+          !h.list.contains(e.links[0]) &&
+          h.ul.querySelectorAll("li.product-grid__item").length === count
+        ) {
+          pass(text);
+        } else {
+          fail(text);
+        }
+      }
+
+      function withThrow(n, fn) {
+        var orig = Node.prototype.appendChild;
+        var calls = 0;
+        Node.prototype.appendChild = function (child) {
+          calls += 1;
+          if (calls === n) throw new Error("forced appendChild " + n);
+          return orig.call(this, child);
+        };
+        try {
+          fn();
+        } catch (err) {
+          /* the routine may rethrow; connectivity is the assertion */
+        } finally {
+          Node.prototype.appendChild = orig;
+        }
+      }
+
+      function caseThrows() {
+        var names = [
+          "peelListingThemeWidth",
+          "safeInsertBefore",
+          "wrapInsidePageWidth",
+          "wrapSearchResultsOnly",
+          "ensureSearchThemeWidthShell",
+          "liftFragileLayout",
+          "fitLayoutIntoThemeContainer",
+          "normalizeLayoutShell",
+          "liftLayoutOutOfProductGrid",
+        ];
+        var n;
+        var ni;
+        for (ni = 0; ni < names.length; ni++) {
+          for (n = 1; n <= 6; n++) {
+            (function (name, nth) {
+              var box = sandbox();
+              document.body.classList.add("template-search");
+              var h = horizon(box, 1);
+              var e = embed(box);
+              window.__FINDLY_FILTER_WIDGET = { root: e.root, _sfLeaveNative: false };
+              var peelHost = document.createElement("div");
+              peelHost.id = "product-grid";
+              peelHost.className = "page-width";
+              box.appendChild(peelHost);
+              var page = document.createElement("div");
+              page.className = "page-width";
+              page.appendChild(h.list);
+              box.appendChild(page);
+              var text =
+                name + " appendChild throw N=" + nth + ": results-list, #ResultsList, ul.product-grid, embed root and 3 links stay connected";
+              withThrow(nth, function () {
+                if (name === "peelListingThemeWidth") g.peelListingThemeWidth(peelHost);
+                else if (name === "safeInsertBefore") g.safeInsertBefore(page, h.list, page.firstChild);
+                else if (name === "wrapInsidePageWidth") g.wrapInsidePageWidth(page);
+                else if (name === "wrapSearchResultsOnly") g.wrapSearchResultsOnly(page, h.ul);
+                else if (name === "ensureSearchThemeWidthShell") g.ensureSearchThemeWidthShell(h.ul);
+                else if (name === "liftFragileLayout") g.liftFragileLayout(h.list, "left");
+                else if (name === "fitLayoutIntoThemeContainer") g.fitLayoutIntoThemeContainer(window.__FINDLY_FILTER_WIDGET);
+                else if (name === "normalizeLayoutShell") {
+                  var layout = document.createElement("div");
+                  layout.className = "sf-collection-layout";
+                  layout.appendChild(h.list);
+                  box.appendChild(layout);
+                  g.normalizeLayoutShell(layout);
+                } else if (name === "liftLayoutOutOfProductGrid") {
+                  var grid = document.createElement("ul");
+                  grid.className = "product-grid";
+                  var layout2 = document.createElement("div");
+                  layout2.className = "sf-collection-layout";
+                  grid.appendChild(layout2);
+                  box.appendChild(grid);
+                  g.liftLayoutOutOfProductGrid(layout2);
+                }
+              });
+              if (connectedListing(h, e)) pass(text);
+              else fail(text);
+            })(names[ni], n);
+          }
+        }
+      }
+
+      function caseDisconnected() {
+        var box = sandbox();
+        var sentinel = document.createElement("div");
+        sentinel.id = "connected-sentinel";
+        box.appendChild(sentinel);
+        var parentBefore = sentinel.parentNode;
+
+        var loose = document.createElement("div");
+        var node = document.createElement("div");
+        node.id = "connected-move";
+        box.appendChild(node);
+        var nodeParent = node.parentNode;
+        var inserted = g.safeInsertBefore(loose, node, null);
+        if (inserted === false && node.parentNode === nodeParent && node.isConnected && sentinel.parentNode === parentBefore) {
+          pass("safeInsertBefore(disconnected parent, connected node) is a no-op");
+        } else {
+          fail("safeInsertBefore(disconnected parent, connected node) is a no-op");
+        }
+
+        var page = document.createElement("div");
+        page.className = "page-width";
+        var child = document.createElement("div");
+        child.id = "loose-child";
+        page.appendChild(child);
+        var returned = g.wrapInsidePageWidth(page);
+        if (returned === null && child.parentNode === page && sentinel.parentNode === parentBefore) {
+          pass("wrapInsidePageWidth(disconnected parent) is a no-op");
+        } else {
+          fail("wrapInsidePageWidth(disconnected parent) is a no-op");
+        }
+
+        cannot(
+          "peelListingThemeWidth(disconnected parent, connected listing) is a no-op — a connected node cannot have a disconnected parentNode, so that call cannot be built"
+        );
+      }
+
+      function caseLeaveNative() {
+        var box = sandbox();
+        var h = horizon(box, 1);
+        var e = embed(box);
+        window.__FINDLY_FILTER_WIDGET = { root: e.root, _sfLeaveNative: true };
+        var before = box.innerHTML;
+        g.wrapInsidePageWidth(h.wrap);
+        g.wrapSearchResultsOnly(h.wrap, h.ul);
+        g.liftFragileLayout(h.list, "left");
+        g.ensureBlockMain(h.list);
+        g.normalizeLayoutShell(h.list);
+        g.peelListingThemeWidth(h.wrap);
+        var text = "_sfLeaveNative true: sandbox innerHTML is unchanged";
+        if (box.innerHTML === before && h.list.parentNode === h.section) pass(text);
+        else fail(text);
+      }
+
+      function caseReplacement() {
+        var box = sandbox();
+        var parent = document.createElement("div");
+        box.appendChild(parent);
+        var old = document.createElement("div");
+        old.id = "ResultsList";
+        parent.appendChild(old);
+        var next = old.nextSibling;
+        parent.removeChild(old);
+        var live = document.createElement("div");
+        live.id = "ResultsList";
+        live.setAttribute("data-live", "1");
+        parent.appendChild(live);
+        window.__FINDLY_LAYOUT_ROLLED_BACK = false;
+        g.finish([{ node: old, parent: parent, next: next }]);
+        var text =
+          "live replacement #ResultsList is kept and the disconnected node is not inserted beside it";
+        if (
+          document.querySelectorAll("#ResultsList").length === 1 &&
+          document.getElementById("ResultsList") === live &&
+          old.isConnected === false &&
+          window.__FINDLY_LAYOUT_ROLLED_BACK !== true
+        ) {
+          pass(text);
+        } else {
+          fail(text);
+        }
+      }
+
+      function caseCollectionMount() {
+        var box = sandbox();
+        var h = horizon(box, 1);
+        var e = embed(box);
+        var widget = { root: e.root, _sfLeaveNative: false };
+        window.__FINDLY_FILTER_WIDGET = widget;
+        var text =
+          "Horizon collection DOM (isSearchPageContext false): mountFor returns the whole shopify-app-block and moving it keeps the 3 links inside that block";
+        if (g.isSearchPageContext(widget) !== false) {
+          fail(text + " (isSearchPageContext was true on this file URL)");
+          return;
+        }
+        var mounted = g.mountFor(widget, e.block, h.list);
+        var layout = document.createElement("div");
+        layout.className = "sf-collection-layout";
+        h.section.appendChild(layout);
+        layout.appendChild(mounted);
+        if (
+          mounted === e.block &&
+          e.block.parentNode === layout &&
+          e.block.isConnected &&
+          e.root.parentNode === e.block &&
+          e.links[0].parentNode === e.block &&
+          e.links[1].parentNode === e.block &&
+          e.links[2].parentNode === e.block &&
+          h.list.isConnected
+        ) {
+          pass(text);
+        } else {
+          fail(text);
+        }
+      }
+
+      function caseKeeling() {
+        var xhr = new XMLHttpRequest();
+        try {
+          xhr.open("GET", "smart-filter-grid.pre-patch.js", false);
+          xhr.send(null);
+        } catch (err) {
+          cannot(
+            "Keeling outerHTML equals the pre-patch wrap — could not read tests/manual/smart-filter-grid.pre-patch.js (" + err + ")"
+          );
+          return;
+        }
+        var body = String(xhr.responseText || "");
+        if (xhr.status && xhr.status !== 200 && xhr.status !== 0) {
+          cannot(
+            "Keeling outerHTML equals the pre-patch wrap — pre-patch file HTTP " + xhr.status
+          );
+          return;
+        }
+        if (body.indexOf("__FINDLY_LAYOUT_GUARD") === -1) {
+          cannot(
+            "Keeling outerHTML equals the pre-patch wrapInsidePageWidth output — HEAD smart-filter-grid.js does not export wrapInsidePageWidth ( __FINDLY_LAYOUT_GUARD NOT FOUND ). The closed-over functions cannot be called from this page."
+          );
+          return;
+        }
+        fail(
+          "Keeling outerHTML equals the pre-patch wrap — export was found but this page has no second realm in which to run HEAD without replacing the current guard"
+        );
+      }
+
+      try {
+        caseNormal(1);
+        caseNormal(24);
+        caseThrows();
+        caseDisconnected();
+        caseLeaveNative();
+        caseReplacement();
+        caseCollectionMount();
+        caseKeeling();
+      } catch (err) {
+        fail("harness threw " + (err && err.message ? err.message : err));
+      }
+      wipe();
+    })();
+  </script>
+</body>
+</html>

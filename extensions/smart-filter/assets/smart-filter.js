@@ -1302,6 +1302,21 @@
     return root;
   }
 
+  function mountForDestination(widget, mount, dest) {
+    var guard = window.__FINDLY_LAYOUT_GUARD;
+    return guard && guard.mountFor ? guard.mountFor(widget, mount, dest) : mount;
+  }
+
+  function captureLayoutWatch() {
+    var guard = window.__FINDLY_LAYOUT_GUARD;
+    return guard && guard.capture ? guard.capture() : [];
+  }
+
+  function finishLayoutWatch(nodes) {
+    var guard = window.__FINDLY_LAYOUT_GUARD;
+    if (guard && guard.finish) guard.finish(nodes);
+  }
+
   function closestLayoutEl(el) {
     if (!el) return null;
     if (el.classList && el.classList.contains("sf-collection-layout")) return el;
@@ -1330,6 +1345,8 @@
 
   function placeMountInLayout(layout, mount, position) {
     if (!layout || !mount) return;
+    if (layout.isConnected === false && mount.isConnected !== false) return;
+    if (mount.nodeType === 1 && mount.contains && mount.contains(layout)) return;
     if (mount.classList) mount.classList.add("sf-layout-aside");
     var atStart = position !== "right";
     if (atStart) {
@@ -3277,9 +3294,13 @@
   };
 
   Widget.prototype.wrapHostWithLayout = function (host, mount, position) {
+    if (this._sfLeaveNative) {
+      return closestLayoutEl(mount) || closestLayoutEl(host) || null;
+    }
     if (isFragileLayoutHost(host) && host.parentElement && !isDocumentRoot(host.parentElement)) {
       host = host.parentElement;
     }
+    mount = mountForDestination(this, mount, host);
     var layout =
       closestLayoutEl(mount) ||
       closestLayoutEl(host) ||
@@ -3294,12 +3315,25 @@
     if (!layout) {
       var parent = host.parentNode;
       if (!parent) return null;
+      if (parent.isConnected === false && host.isConnected !== false) return null;
+      if (host.contains && host.contains(parent)) return null;
       layout = document.createElement("div");
-      parent.insertBefore(layout, host);
+      try {
+        parent.insertBefore(layout, host);
+      } catch (err) {
+        return null;
+      }
+      if (parent.isConnected !== false && layout.isConnected === false) return null;
     }
     applyLayoutPositionClass(layout, position);
     if (host.parentNode !== layout) {
-      layout.appendChild(host);
+      if (layout.isConnected === false && host.isConnected !== false) return layout;
+      if (host.contains && host.contains(layout)) return layout;
+      try {
+        layout.appendChild(host);
+      } catch (err) {
+        return layout;
+      }
     }
     if (host.classList) host.classList.add("sf-layout-main");
     placeMountInLayout(layout, mount, position);
@@ -3307,6 +3341,9 @@
   };
 
   Widget.prototype.syncCollectionLayout = function () {
+    if (this._sfLeaveNative) return;
+    var layoutWatch = captureLayoutWatch();
+    try {
     var mount = widgetMountNode(this.root);
     if (!mount) return;
 
@@ -3356,6 +3393,7 @@
     if (isFragileLayoutHost(host) && host.parentElement && !isDocumentRoot(host.parentElement)) {
       host = host.parentElement;
     }
+    mount = mountForDestination(this, mount, host);
 
     var originSection = mount.closest ? mount.closest(".shopify-section") : null;
 
@@ -3393,6 +3431,9 @@
     this.placeSortOnGrid();
     this.hideThemeDuplicateChrome();
     this.replayAppGridIfNeeded();
+    } finally {
+      finishLayoutWatch(layoutWatch);
+    }
   };
 
   Widget.prototype.replayAppGridIfNeeded = function () {
@@ -4210,10 +4251,20 @@
   };
 
   Widget.prototype.openDrawer = function () {
+    if (!this.root || this.root.isConnected === false) {
+      if (typeof window.__FINDLY_CLEANUP_PORTALS === "function") {
+        window.__FINDLY_CLEANUP_PORTALS(true);
+      }
+      return;
+    }
     if (this.root.classList.contains("is-drawer-open")) return;
     this.root.classList.add("is-drawer-open");
     if (this.toggleEl) this.toggleEl.setAttribute("aria-expanded", "true");
     if (this.backdropEl) this.backdropEl.hidden = false;
+    if (this.panelEl && this.panelEl.classList.contains("sf-drawer-portal")) {
+      this.panelEl.hidden = false;
+      this.panelEl.removeAttribute("hidden");
+    }
     document.addEventListener("keydown", this._onDrawerKey);
     this._drawerPrevOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
@@ -4221,10 +4272,20 @@
   };
 
   Widget.prototype.closeDrawer = function () {
+    if (!this.root || this.root.isConnected === false) {
+      if (typeof window.__FINDLY_CLEANUP_PORTALS === "function") {
+        window.__FINDLY_CLEANUP_PORTALS(true);
+      }
+      return;
+    }
     if (!this.root.classList.contains("is-drawer-open")) return;
     this.root.classList.remove("is-drawer-open");
     if (this.toggleEl) this.toggleEl.setAttribute("aria-expanded", "false");
     if (this.backdropEl) this.backdropEl.hidden = true;
+    if (this.panelEl && this.panelEl.classList.contains("sf-drawer-portal")) {
+      this.panelEl.hidden = true;
+      this.panelEl.setAttribute("hidden", "");
+    }
     document.removeEventListener("keydown", this._onDrawerKey);
     document.documentElement.style.overflow = this._drawerPrevOverflow || "";
     if (this.toggleEl) this.toggleEl.focus();

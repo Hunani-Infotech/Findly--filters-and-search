@@ -513,14 +513,14 @@
       ".smart-filter .sf-slider input[type=range],.sf-panel.sf-drawer-portal .sf-slider input[type=range],.sf-facet-pop .sf-slider input[type=range]{position:absolute!important;left:0!important;width:100%!important;max-width:none!important;height:23px!important;margin:0!important;padding:0!important;border:0!important;opacity:0!important;background:transparent!important;appearance:none!important;-webkit-appearance:none!important;pointer-events:none!important}" +
       ".smart-filter .sf-slider-thumb,.sf-panel.sf-drawer-portal .sf-slider-thumb,.sf-facet-pop .sf-slider-thumb{position:absolute!important;top:50%!important;width:16px!important;height:16px!important;margin:0!important;padding:0!important;border:1.5px solid var(--sf-accent,#111)!important;border-radius:999px!important;background:#fff!important;transform:translate(-50%,-50%)!important;z-index:4!important;pointer-events:auto!important;cursor:grab!important;display:block!important;touch-action:none}" +
       "@media(max-width:989px){" +
-      ".sf-panel,.sf-panel.sf-drawer-portal{" +
+      ".sf-panel:not(.sf-drawer-portal){" +
       "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
       "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
       ".sf-header{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
       ".sf-facets{flex:1 1 auto;min-height:0;overflow:auto}" +
       "}" +
       ".sf-panel.sf-drawer-portal{" +
-      "display:flex!important;flex-direction:column!important;width:min(420px,92vw)!important;" +
+      "flex-direction:column!important;width:min(420px,92vw)!important;" +
       "max-width:92vw!important;box-sizing:border-box!important;padding:0!important;overflow:hidden!important}" +
       ".sf-panel.sf-drawer-portal .sf-header{position:sticky;top:0;z-index:3;flex:0 0 auto;background:#fff}" +
       ".sf-panel.sf-drawer-portal .sf-facets{flex:1 1 auto;min-height:50vh;overflow:auto;color:#111;visibility:visible;display:flex;flex-direction:column}" +
@@ -852,7 +852,7 @@
         ".sf-toolbar:has(>.sf-toggle) .sf-toolbar-search,.sf-toolbar:has(>.sf-toggle) .sf-search-host.sf-toolbar-search{grid-area:search;flex:none;width:100%;max-width:none}" +
         ".sf-search-toolbar{max-width:none;width:100%}" +
         ".smart-filter:not(.sf-panel):not(:has([data-drawer-toggle])):not(.is-drawer-open){display:none}" +
-        ".sf-panel.sf-drawer-portal,html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important}" +
+        "html.is-sf-drawer-open .sf-panel.sf-drawer-portal,.sf-panel.sf-drawer-portal.is-open{display:flex!important;visibility:visible!important}" +
         ".sf-toolbar>.sf-toggle,.sf-toolbar>.sf-toggle-toolbar{grid-area:filter;width:100%;max-width:none;margin:0}" +
         ".sf-toolbar-end{order:2;flex:1 1 100%;margin:0!important;align-items:stretch;min-width:0;width:100%}" +
         ".sf-toolbar:has(>.sf-toggle) .sf-toolbar-end{grid-area:end;flex:none;width:100%;min-width:0;align-items:stretch}" +
@@ -1543,6 +1543,7 @@
     if (!parent || !child || parent === child) return false;
     if (typeof parent.appendChild !== "function") return false;
     if (child.contains && child.contains(parent)) return false;
+    if (parent.isConnected === false && child.isConnected !== false) return false;
     return true;
   }
 
@@ -2941,11 +2942,226 @@
    *   .page-width.sf-theme-width > .sf-collection-layout > aside + listing
    * Leaves title/banner siblings outside this shell untouched.
    */
+  /* Undo log for layout moves. Successful runs never restore: a node that
+     stays connected is left where the move put it. */
+  var layoutUndo = null;
+
+  function horizonListingPresent() {
+    return Boolean(
+      document.querySelector("results-list, #ResultsList, .collection-wrapper"),
+    );
+  }
+
+  function destinationInsideFragile(dest) {
+    if (!horizonListingPresent() || !dest || dest.nodeType !== 1) return false;
+    var sel =
+      "results-list, #ResultsList, .collection-wrapper, .main-collection-grid, .product-grid-container";
+    try {
+      if (dest.matches && dest.matches(sel)) return true;
+      if (dest.closest && dest.closest(sel)) return true;
+    } catch (err) {
+      return false;
+    }
+    return false;
+  }
+
+  window.__FINDLY_LAYOUT_GUARD = {
+    mountFor: function (widget, mount, dest) {
+      if (!widget || !widget.root || !mount || mount === widget.root) return mount;
+      if (!isSearchPageContext(widget)) return mount;
+      if (!destinationInsideFragile(dest)) return mount;
+      return widget.root;
+    },
+    capture: function () {
+      var out = [];
+      function add(el) {
+        if (!el || el.nodeType !== 1 || el.isConnected === false) return;
+        out.push({ node: el, parent: el.parentNode, next: el.nextSibling });
+      }
+      add(document.querySelector("results-list"));
+      add(document.getElementById("ResultsList"));
+      add(document.getElementById("smart-filter-root"));
+      add(document.getElementById("smart-filter-embed"));
+      return out;
+    },
+    finish: function (nodes) {
+      if (!nodes) return;
+      var rolled = false;
+      var i;
+      for (i = 0; i < nodes.length; i++) {
+        var rec = nodes[i];
+        if (!rec.node || rec.node.isConnected !== false) continue;
+        var parent = rec.parent;
+        if (!parent || parent.isConnected === false) continue;
+        if (rec.node.contains && rec.node.contains(parent)) continue;
+        if (liveIdReplacement(rec.node)) continue;
+        if (rec.next && rec.next.parentNode && rec.next.parentNode !== parent) {
+          rec.next = null;
+        }
+        try {
+          if (rec.next && rec.next.parentNode === parent) parent.insertBefore(rec.node, rec.next);
+          else parent.appendChild(rec.node);
+          rolled = true;
+        } catch (err) {
+          /* parent rejected the node */
+        }
+      }
+      if (!rolled) return;
+      window.__FINDLY_LAYOUT_ROLLED_BACK = true;
+      if (!window.__FINDLY_LAST_LAYOUT_ERROR) {
+        window.__FINDLY_LAST_LAYOUT_ERROR = "post-condition";
+      }
+      console.warn("[findly] layout rolled back", window.__FINDLY_LAST_LAYOUT_ERROR);
+    },
+    peelListingThemeWidth: function (listing) {
+      return peelListingThemeWidth(listing);
+    },
+    safeInsertBefore: function (parent, node, ref) {
+      return safeInsertBefore(parent, node, ref);
+    },
+    wrapInsidePageWidth: function (pageWidth) {
+      return wrapInsidePageWidth(pageWidth);
+    },
+    wrapSearchResultsOnly: function (pageWidth, grid) {
+      return wrapSearchResultsOnly(pageWidth, grid);
+    },
+    ensureSearchThemeWidthShell: function (grid) {
+      return ensureSearchThemeWidthShell(grid);
+    },
+    ensureBlockMain: function (host) {
+      return ensureBlockMain(host);
+    },
+    liftLayoutOutOfProductGrid: function (layout) {
+      return liftLayoutOutOfProductGrid(layout);
+    },
+    normalizeLayoutShell: function (layout) {
+      return normalizeLayoutShell(layout);
+    },
+    fitLayoutIntoThemeContainer: function (widget) {
+      return fitLayoutIntoThemeContainer(widget);
+    },
+    liftFragileLayout: function (el, position) {
+      return liftFragileLayout(el, position);
+    },
+    isSearchPageContext: function (widget) {
+      return isSearchPageContext(widget);
+    },
+  };
+
+  function leaveNativeLayout() {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    return Boolean(widget && widget._sfLeaveNative);
+  }
+
+  function rememberLayoutNode(node) {
+    if (!layoutUndo || !node || node.nodeType !== 1) return;
+    var i;
+    for (i = 0; i < layoutUndo.length; i++) {
+      if (layoutUndo[i].node === node) return;
+    }
+    layoutUndo.push({
+      node: node,
+      parent: node.parentNode,
+      next: node.nextSibling,
+      wasConnected: node.isConnected !== false,
+    });
+  }
+
+  function liveIdReplacement(node) {
+    if (!node || !node.id) return false;
+    var live;
+    try {
+      live = document.getElementById(node.id);
+    } catch (err) {
+      return false;
+    }
+    return Boolean(live && live !== node && live.isConnected !== false);
+  }
+
+  function rollbackLayoutUndo(err) {
+    var log = layoutUndo;
+    var restored = false;
+    var i;
+    if (log) {
+      for (i = log.length - 1; i >= 0; i--) {
+        var rec = log[i];
+        var node = rec.node;
+        if (!rec.wasConnected || !node || node.isConnected !== false) continue;
+        var parent = rec.parent;
+        if (!parent || parent.isConnected === false) continue;
+        if (node.contains && node.contains(parent)) continue;
+        if (liveIdReplacement(node)) continue;
+        try {
+          if (rec.next && rec.next.parentNode === parent) {
+            parent.insertBefore(node, rec.next);
+          } else {
+            parent.appendChild(node);
+          }
+          restored = true;
+        } catch (ignore) {
+          /* marker parent is gone */
+        }
+      }
+    }
+    if (restored) window.__FINDLY_LAYOUT_ROLLED_BACK = true;
+    window.__FINDLY_LAST_LAYOUT_ERROR = err ? String((err && err.message) || err) : "";
+  }
+
+  function parentCanAdopt(parent, node) {
+    if (!parent || !node || parent === node) return false;
+    if (typeof parent.appendChild !== "function") return false;
+    if (node.nodeType === 1 && node.contains && node.contains(parent)) return false;
+    if (parent.isConnected === false && node.isConnected !== false) return false;
+    return true;
+  }
+
+  /* Insert an empty wrapper into a connected parent, then the caller moves
+     children into it. Same tree as append-after-move when nothing throws. */
+  function attachWrapper(parent, wrapper, before) {
+    if (leaveNativeLayout()) return null;
+    if (!parentCanAdopt(parent, wrapper)) return null;
+    if (before && before.parentNode !== parent) return null;
+    if (before && before.nodeType === 1 && before.contains && before.contains(wrapper)) {
+      return null;
+    }
+    try {
+      if (before) parent.insertBefore(wrapper, before);
+      else parent.appendChild(wrapper);
+    } catch (err) {
+      return null;
+    }
+    if (parent.isConnected !== false && wrapper.isConnected === false) return null;
+    return wrapper;
+  }
+
+  function takeInto(wrapper, node) {
+    if (leaveNativeLayout()) return false;
+    if (!parentCanAdopt(wrapper, node)) return false;
+    rememberLayoutNode(node);
+    try {
+      wrapper.appendChild(node);
+      return node.parentNode === wrapper;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function adoptFollowing(wrapper) {
+    if (!wrapper) return wrapper;
+    while (wrapper.nextSibling) {
+      if (!takeInto(wrapper, wrapper.nextSibling)) break;
+    }
+    return wrapper;
+  }
+
   function peelListingThemeWidth(listing) {
+    if (leaveNativeLayout()) return null;
     if (!listing || !listing.parentNode || !listingCarriesThemeWidth(listing)) {
       return null;
     }
     var parent = listing.parentNode;
+    if (parent.isConnected === false && listing.isConnected !== false) return null;
+    if (listing.contains && listing.contains(parent)) return null;
     if (
       parent &&
       parent.nodeType === 1 &&
@@ -2975,8 +3191,8 @@
     outer.className = copyThemeWidthClassName(listing, isSearchPageContext());
     if (outer.setAttribute) outer.setAttribute("data-sf-theme-width", "1");
     stripThemeWidthClasses(listing);
-    if (!safeInsertBefore(parent, outer, listing)) parent.appendChild(outer);
-    outer.appendChild(listing);
+    if (!attachWrapper(parent, outer, listing)) return null;
+    if (!takeInto(outer, listing)) return null;
     return outer;
   }
 
@@ -2986,6 +3202,8 @@
   function safeInsertBefore(parent, node, ref) {
     if (!parent || !node || typeof parent.insertBefore !== "function") return false;
     if (node === parent) return false;
+    if (node.nodeType === 1 && node.contains && node.contains(parent)) return false;
+    if (parent.isConnected === false && node.isConnected !== false) return false;
     /* Same node as reference — already in the only meaningful position. */
     if (ref && node === ref) return true;
     try {
@@ -3002,16 +3220,25 @@
       if (before === node) return true;
       if (before && before.parentNode === parent) {
         if (node.parentNode === parent && node.nextSibling === before) return true;
+        rememberLayoutNode(node);
         parent.insertBefore(node, before);
         return true;
       }
+      if (before && before.parentNode !== parent) return false;
       if (node.parentNode === parent && !node.nextSibling) return true;
+      rememberLayoutNode(node);
       parent.appendChild(node);
       return true;
     } catch (err) {
+      if (before && before.parentNode !== parent) return false;
+      if (node.nodeType === 1 && node.contains && node.contains(parent)) return false;
+      if (parent.isConnected === false && node.isConnected !== false) return false;
       try {
-        if (node.parentNode !== parent) parent.appendChild(node);
-        return true;
+        if (node.parentNode !== parent) {
+          rememberLayoutNode(node);
+          parent.appendChild(node);
+        }
+        return node.parentNode === parent;
       } catch (err2) {
         return false;
       }
@@ -3019,6 +3246,7 @@
   }
 
   function ensureSearchThemeWidthShell(grid) {
+    if (leaveNativeLayout()) return null;
     if (!grid || !isSearchPageContext()) return null;
     /* Dawn search: #product-grid.page-width must not stay the width *and* listing
        host — peel max-width to an outer .sf-theme-width so filter+grid stay
@@ -3058,10 +3286,11 @@
     if (already && already.contains(grid)) return already;
     /* Only wrap when the shell actually contains the results grid. */
     if (!shell.contains(grid)) return null;
+    if (shell.isConnected === false) return null;
     var width = document.createElement("div");
     width.className = pickSearchWidthClassName(shell);
-    while (shell.firstChild) width.appendChild(shell.firstChild);
-    shell.appendChild(width);
+    if (!attachWrapper(shell, width, shell.firstChild)) return null;
+    adoptFollowing(width);
     return width;
   }
 
@@ -3556,6 +3785,7 @@
   }
 
   function wrapSearchResultsOnly(pageWidth, grid) {
+    if (leaveNativeLayout()) return null;
     if (!pageWidth || isProductGridLike(pageWidth)) return null;
     /* Listing that still owns page-width: peel first, then wrap results only. */
     if (listingCarriesThemeWidth(pageWidth)) {
@@ -3594,10 +3824,9 @@
     for (i = 0; i < pageWidth.children.length; i++) {
       kids.push(pageWidth.children[i]);
     }
-    var main = document.createElement("div");
-    main.className = "sf-layout-main";
     var sawResults = false;
     var liveGrid = grid && grid.isConnected !== false ? grid : liveProductGridIn(pageWidth);
+    var firstMove = null;
     for (i = 0; i < kids.length; i++) {
       var child = kids[i];
       if (child.classList && child.classList.contains("sf-layout-main")) {
@@ -3611,21 +3840,24 @@
         nodeContainsProductResults(child) ||
         (liveGrid && child.contains && child.contains(liveGrid))
       ) {
-        sawResults = true;
-        main.appendChild(child);
-        continue;
+        firstMove = child;
+        break;
       }
       if (!sawResults && isSearchPageHeaderEl(child, liveGrid)) {
         if (child.setAttribute) child.setAttribute("data-sf-search-header", "1");
         continue;
       }
-      sawResults = true;
-      main.appendChild(child);
+      firstMove = child;
+      break;
     }
-    if (!main.firstChild) {
+    if (!firstMove || firstMove.parentNode !== pageWidth) {
       return wrapInsidePageWidth(pageWidth);
     }
-    pageWidth.appendChild(main);
+    var main = document.createElement("div");
+    main.className = "sf-layout-main";
+    if (!attachWrapper(pageWidth, main, firstMove)) return null;
+    if (!takeInto(main, firstMove)) return main;
+    adoptFollowing(main);
     return main;
   }
 
@@ -3653,6 +3885,7 @@
   }
 
   function ensureBlockMain(host) {
+    if (leaveNativeLayout()) return host;
     if (!host || !host.parentNode) return host;
     var parent = host.parentNode;
     if (
@@ -3666,8 +3899,8 @@
       if (host.classList) host.classList.remove("sf-layout-main");
       var gridWrap = document.createElement("div");
       gridWrap.className = "sf-layout-main";
-      safeInsertBefore(parent, gridWrap, host);
-      gridWrap.appendChild(host);
+      if (!attachWrapper(parent, gridWrap, host)) return host;
+      if (!takeInto(gridWrap, host)) return host;
       return gridWrap;
     }
     if (host.classList && host.classList.contains("sf-layout-main")) {
@@ -3676,8 +3909,8 @@
     if (!needsBlockMainWrap(host)) return host;
     var wrap = document.createElement("div");
     wrap.className = "sf-layout-main";
-    safeInsertBefore(parent, wrap, host);
-    wrap.appendChild(host);
+    if (!attachWrapper(parent, wrap, host)) return host;
+    if (!takeInto(wrap, host)) return host;
     return wrap;
   }
 
@@ -3695,6 +3928,7 @@
   }
 
   function wrapInsidePageWidth(pageWidth) {
+    if (leaveNativeLayout()) return null;
     if (!pageWidth || isProductGridLike(pageWidth)) return null;
     var existing = null;
     var i;
@@ -3717,10 +3951,11 @@
     if (nested) {
       return nested.querySelector(".sf-layout-main") || nested;
     }
+    if (pageWidth.isConnected === false) return null;
     var main = document.createElement("div");
     main.className = "sf-layout-main";
-    while (pageWidth.firstChild) main.appendChild(pageWidth.firstChild);
-    pageWidth.appendChild(main);
+    if (!attachWrapper(pageWidth, main, pageWidth.firstChild)) return null;
+    adoptFollowing(main);
     return main;
   }
 
@@ -3836,6 +4071,7 @@
   }
 
   function liftLayoutOutOfProductGrid(layout) {
+    if (leaveNativeLayout()) return;
     if (!layout || !layout.parentNode) return;
     var guard = 0;
     while (
@@ -3848,6 +4084,8 @@
       var gridHost = layout.parentNode;
       var grand = gridHost.parentNode;
       if (!grand) break;
+      if (grand.isConnected === false && layout.isConnected !== false) break;
+      if (layout.contains && layout.contains(grand)) break;
       safeInsertBefore(grand, layout, gridHost);
       var main = null;
       var ci;
@@ -3866,7 +4104,8 @@
         layout.appendChild(main);
       }
       if (gridHost.parentNode === grand && !main.contains(gridHost)) {
-        main.appendChild(gridHost);
+        if (gridHost.contains && gridHost.contains(main)) break;
+        takeInto(main, gridHost);
       }
       if (main.classList) main.classList.add("sf-layout-main");
       guard += 1;
@@ -4147,7 +4386,9 @@
   }
 
   function normalizeLayoutShell(layout) {
+    if (leaveNativeLayout()) return;
     if (!layout || !layout.children) return;
+    if (layout.isConnected === false) return;
     var aside = null;
     var main = null;
     var i;
@@ -4172,7 +4413,7 @@
       var node = nodes[i];
       if (node === aside || node === main) continue;
       if (node.nodeType !== 1) {
-        main.appendChild(node);
+        takeInto(main, node);
         continue;
       }
       if (node.classList && node.classList.contains("sf-layout-aside")) {
@@ -4183,11 +4424,22 @@
       if (isLeadingListingChrome(node)) {
         var listing = firstListingChildInMain(main);
         if (!safeInsertBefore(main, node, listing)) {
-          main.insertBefore(node, listing || main.firstChild);
+          if (node.contains && node.contains(main)) continue;
+          if (main.isConnected === false && node.isConnected !== false) continue;
+          var chromeRef =
+            listing && listing.parentNode === main ? listing : main.firstChild;
+          if (chromeRef && chromeRef.parentNode !== main) continue;
+          try {
+            rememberLayoutNode(node);
+            main.insertBefore(node, chromeRef);
+          } catch (chromeErr) {
+            /* leave the node where it is */
+          }
         }
         continue;
       }
-      main.appendChild(node);
+      if (node.contains && node.contains(main)) continue;
+      takeInto(main, node);
     }
   }
 
@@ -4283,9 +4535,12 @@
   }
 
   function repairCollectionLayout(widget) {
+    if (leaveNativeLayout()) return;
     if (repairingLayout) return;
     repairingLayout = true;
     if (widget) widget._reapplyingGrid = true;
+    var prevUndo = layoutUndo;
+    layoutUndo = [];
     try {
       var layout = document.querySelector(".sf-collection-layout");
       if (!layout) return;
@@ -4328,7 +4583,9 @@
         if (child && child.parentNode === pageWidth) {
           safeInsertBefore(pageWidth, layout, child);
           var mainCol = layout.querySelector(".sf-layout-main");
-          if (mainCol && !mainCol.contains(child)) mainCol.appendChild(child);
+          if (mainCol && !mainCol.contains(child)) {
+            if (!(child.contains && child.contains(mainCol))) takeInto(mainCol, child);
+          }
         }
       }
       normalizeLayoutShell(layout);
@@ -4337,8 +4594,10 @@
       ensureProductGridMounted(widget);
       if (layout.setAttribute) layout.setAttribute("data-sf-layout-stable", "1");
     } catch (err) {
-      /* ignore layout repair failures */
+      rollbackLayoutUndo(err);
+      console.warn("[findly] layout rolled back", err);
     } finally {
+      layoutUndo = prevUndo;
       repairingLayout = false;
       if (widget) widget._reapplyingGrid = false;
     }
@@ -4410,6 +4669,7 @@
   }
 
   function fitLayoutIntoThemeContainer(widget) {
+    if (leaveNativeLayout()) return;
     var layout = document.querySelector(".sf-collection-layout");
     if (!layout || !layout.parentNode) return;
     repairCollectionLayout(widget);
@@ -4455,9 +4715,11 @@
       while (pageWidth.firstChild) {
         var widthChild = pageWidth.firstChild;
         if (widthChild === layout) break;
-        mainCol.appendChild(widthChild);
+        if (widthChild.contains && widthChild.contains(mainCol)) break;
+        if (!takeInto(mainCol, widthChild)) break;
       }
-      pageWidth.appendChild(layout);
+      if (layout.contains && layout.contains(pageWidth)) return;
+      if (!takeInto(pageWidth, layout)) return;
       var aside =
         layout.querySelector(".sf-layout-aside") ||
         (widget && widget.root);
@@ -4474,10 +4736,13 @@
       safeInsertBefore(pageWidth, layout, child);
       var mainCol = layout.querySelector(".sf-layout-main");
       if (mainCol && !mainCol.contains(child) && child.parentNode === pageWidth) {
-        mainCol.appendChild(child);
+        if (!(child.contains && child.contains(mainCol))) takeInto(mainCol, child);
       } else if (!mainCol) {
         var wrapped = ensureBlockMain(child);
-        if (wrapped.parentNode !== layout) layout.appendChild(wrapped);
+        if (wrapped.parentNode !== layout && parentCanAdopt(layout, wrapped)) {
+          rememberLayoutNode(wrapped);
+          layout.appendChild(wrapped);
+        }
       }
       normalizeLayoutShell(layout);
       liftSearchPageHeaderAboveLayout(layout, widget);
@@ -4489,13 +4754,16 @@
     var before = themeWidthChildContaining(pageWidth, slot) || pageWidth.firstChild;
     if (before && before.parentNode === pageWidth) {
       safeInsertBefore(pageWidth, layout, before);
-    } else {
+    } else if (parentCanAdopt(pageWidth, layout)) {
+      rememberLayoutNode(layout);
       pageWidth.appendChild(layout);
     }
     if (slot && !layout.contains(slot)) {
       var col = layout.querySelector(".sf-layout-main");
       var move = themeWidthChildContaining(pageWidth, slot) || slot;
-      if (col && move && !col.contains(move)) col.appendChild(move);
+      if (col && move && !col.contains(move)) {
+        if (!(move.contains && move.contains(col))) takeInto(col, move);
+      }
     }
     liftLayoutOutOfProductGrid(layout);
     normalizeLayoutShell(layout);
@@ -4515,6 +4783,7 @@
   }
 
   function liftFragileLayout(el, position) {
+    if (leaveNativeLayout()) return el;
     if (!el || !el.parentNode) return el;
     var parent = el.parentNode;
     var pos = position || "left";
@@ -4540,18 +4809,20 @@
       parent.classList.add("sf-collection-layout--" + pos);
       if (isProductGridLike(el) || isThemeManagedGrid(el) || isLayoutUnsafeHost(el)) {
         main = ensureBlockMain(el);
-        if (main.parentNode !== parent) parent.appendChild(main);
+        if (main.parentNode !== parent && parentCanAdopt(parent, main)) parent.appendChild(main);
         return parent;
       }
       el.classList.add("sf-layout-main");
       return parent;
     }
     var wrapper = document.createElement("div");
-    if (!safeInsertBefore(parent, wrapper, el)) parent.appendChild(wrapper);
+    if (parent.isConnected === false && el.isConnected !== false) return el;
+    if (el.contains && el.contains(parent)) return el;
+    if (!attachWrapper(parent, wrapper, el)) return el;
     main = document.createElement("div");
     main.className = "sf-layout-main";
     wrapper.appendChild(main);
-    main.appendChild(el);
+    if (!takeInto(main, el)) return el;
     wrapper.classList.add("sf-collection-layout");
     wrapper.classList.add("sf-collection-layout--" + pos);
     return wrapper;
@@ -9766,7 +10037,12 @@
   }
 
   function portalMobileDrawer(widget) {
-    if (!widget || !widget.root) return;
+    if (!widget || !widget.root || widget.root.isConnected === false) {
+      if (typeof window.__FINDLY_CLEANUP_PORTALS === "function") {
+        window.__FINDLY_CLEANUP_PORTALS(true);
+      }
+      return;
+    }
     var panel = liveDrawerPanel(widget);
     var backdrop = liveDrawerBackdrop(widget);
     var toggle =
@@ -9778,13 +10054,21 @@
     if (shouldPortalDrawer(widget)) {
       if (backdrop && backdrop.parentNode !== document.body) {
         backdrop.classList.add("sf-drawer-portal");
+        backdrop.hidden = true;
+        backdrop.setAttribute("hidden", "");
         document.body.appendChild(backdrop);
       }
       if (panel.parentNode !== document.body) {
         panel.classList.add("sf-drawer-portal");
+        panel.hidden = true;
+        panel.setAttribute("hidden", "");
         document.body.appendChild(panel);
       } else {
         panel.classList.add("sf-drawer-portal");
+        if (!panel.hidden) {
+          panel.hidden = true;
+          panel.setAttribute("hidden", "");
+        }
       }
       copyDrawerThemeVars(widget, panel);
       applyPortaledPanelLayout(panel, widget);
@@ -9797,8 +10081,11 @@
       if (widget && widget.toggleEl) toggle = widget.toggleEl;
       if (widget.root && widget.root.classList.contains("is-drawer-open")) {
         panel.classList.add("is-open");
+        panel.hidden = false;
+        panel.removeAttribute("hidden");
         if (backdrop) {
           backdrop.hidden = false;
+          backdrop.removeAttribute("hidden");
           backdrop.classList.add("is-open");
         }
         document.documentElement.classList.add("is-sf-drawer-open");
@@ -9806,6 +10093,8 @@
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
         panel.classList.remove("sf-drawer-portal", "is-open");
+        panel.hidden = false;
+        panel.removeAttribute("hidden");
         clearPortaledPanelLayout(panel);
         widget.root.appendChild(panel);
       }
@@ -11903,6 +12192,15 @@
 
     var origWrap = proto.wrapHostWithLayout;
     proto.wrapHostWithLayout = function (host, mount, position) {
+      if (leaveNativeLayout()) {
+        return (
+          (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
+          (host && host.closest && host.closest(".sf-collection-layout")) ||
+          null
+        );
+      }
+      var prevUndo = layoutUndo;
+      layoutUndo = [];
       try {
         host = constrainHostToThemeContainer(
           host,
@@ -11956,11 +12254,15 @@
         scheduleRepairCollectionLayout(this);
         return wrapped;
       } catch (err) {
+        rollbackLayoutUndo(err);
+        console.warn("[findly] layout rolled back", err);
         scheduleRepairCollectionLayout(this);
         return (
           (mount && mount.closest && mount.closest(".sf-collection-layout")) ||
           null
         );
+      } finally {
+        layoutUndo = prevUndo;
       }
     };
 
