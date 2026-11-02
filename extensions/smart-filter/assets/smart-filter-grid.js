@@ -8325,7 +8325,11 @@
   }
 
   function forEachPriceScope(root, fn) {
-    if (!root || !root.querySelectorAll) return;
+    if (!root) return;
+    /* The host's own shadow tree is not returned by querySelectorAll. The
+       visible $35.99 on this theme lives in that tree, so enter it first. */
+    if (root.shadowRoot) forEachPriceScope(root.shadowRoot, fn);
+    if (!root.querySelectorAll) return;
     fn(root);
     var nodes = root.querySelectorAll("*");
     var i;
@@ -8334,10 +8338,36 @@
     }
   }
 
-  /* Horizon (and other Online Store 2.0 themes) render the visible price inside
-     <product-price>, often after the custom element upgrades. Dawn uses
-     .price-item. Write both, including open shadow roots. */
+  function isVisibleMoneyLabel(text) {
+    var value = String(text || "").replace(/\s+/g, " ").trim();
+    if (!value || value.length > 24) return false;
+    return /^(?:US\$|\$|€|£)\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?(?:\s*USD)?$/i.test(value);
+  }
+
+  /* Replace a leaf whose whole text is a price. Titles like "Eclipse 11" and
+     model numbers like "MPG461" do not match. */
+  function paintMoneyLeaves(node, priceText) {
+    if (!node) return false;
+    var changed = false;
+    if (node.shadowRoot && paintMoneyLeaves(node.shadowRoot, priceText)) changed = true;
+    var kids = node.children;
+    if (kids) {
+      var i;
+      for (i = 0; i < kids.length; i++) {
+        if (paintMoneyLeaves(kids[i], priceText)) changed = true;
+      }
+    }
+    if (changed || node.nodeType !== 1) return changed;
+    if (node.querySelector && node.querySelector("img, a, button, h1, h2, h3, h4")) return changed;
+    if (!isVisibleMoneyLabel(node.textContent)) return changed;
+    node.textContent = priceText;
+    return true;
+  }
+
+  /* Horizon renders the visible price inside <product-price>, sometimes after
+     the custom element moves it into an open shadow root. Dawn uses .price-item. */
   function paintPriceText(card, priceText) {
+    paintMoneyLeaves(card, priceText);
     forEachPriceScope(card, function (root) {
       var horizons = root.querySelectorAll("product-price");
       var i;
@@ -8396,25 +8426,28 @@
     }
     var variantId = String(product.variantId || "");
     var i;
-    if (productId) {
-      if (card.getAttribute && card.hasAttribute("data-product-id")) {
-        card.setAttribute("data-product-id", productId);
+    forEachPriceScope(card, function (root) {
+      if (!root.querySelectorAll) return;
+      if (productId) {
+        if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute("data-product-id")) {
+          root.setAttribute("data-product-id", productId);
+        }
+        var stamped = root.querySelectorAll("[data-product-id]");
+        for (i = 0; i < stamped.length; i++) {
+          stamped[i].setAttribute("data-product-id", productId);
+        }
       }
-      var stamped = card.querySelectorAll("[data-product-id]");
-      for (i = 0; i < stamped.length; i++) {
-        stamped[i].setAttribute("data-product-id", productId);
+      if (variantId) {
+        var variantInputs = root.querySelectorAll('input[name="id"]');
+        for (i = 0; i < variantInputs.length; i++) variantInputs[i].value = variantId;
       }
-    }
-    if (variantId) {
-      var variantInputs = card.querySelectorAll('input[name="id"]');
-      for (i = 0; i < variantInputs.length; i++) variantInputs[i].value = variantId;
-    }
-    if (product.title) {
-      var titles = card.querySelectorAll("[data-product-title]");
-      for (i = 0; i < titles.length; i++) {
-        titles[i].setAttribute("data-product-title", product.title);
+      if (product.title) {
+        var titles = root.querySelectorAll("[data-product-title]");
+        for (i = 0; i < titles.length; i++) {
+          titles[i].setAttribute("data-product-title", product.title);
+        }
       }
-    }
+    });
   }
 
   function applyProductDataToThemeCard(card, product, widget) {
