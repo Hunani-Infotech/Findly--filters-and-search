@@ -3027,8 +3027,31 @@
 
   function computeInsertOnly(widget) {
     var horizon = horizonListingShell();
-    if (safeListingActive() && horizon) return true;
-    return Boolean(isOffcanvasPosition(widget) && horizon);
+    var searchList = Boolean(horizonResultsList());
+    var search = isSearchPageContext(widget);
+    var when = (widget && widget._sfInsertOnlyAt) || "boot";
+    var on = false;
+    var reason;
+    if (searchList && search) {
+      on = true;
+      reason = "true: horizon-search";
+    } else if (safeListingActive() && horizon) {
+      on = true;
+      reason = "true: safe-listing";
+    } else if (isOffcanvasPosition(widget) && horizon) {
+      on = true;
+      reason = "true: offcanvas+horizon";
+    } else if (!horizon) {
+      reason = "false: no-horizon-shell";
+    } else {
+      reason =
+        "false: horizon-collection position=" +
+        ((widget && widget.position) || "");
+    }
+    reason += " @" + when;
+    if (widget) widget._sfInsertOnlyReason = reason;
+    window.__FINDLY_INSERT_ONLY_REASON = reason;
+    return on;
   }
 
   function insertOnlyListing(widget) {
@@ -3245,7 +3268,9 @@
   function prepareListingGuard(widget) {
     if (!widget || widget._sfListingReady) return;
     widget._sfListingReady = true;
+    widget._sfInsertOnlyAt = "boot";
     widget._sfInsertOnly = computeInsertOnly(widget);
+    armNarrowLoadCheck();
     if (!window.__FINDLY_BF_BOUND) {
       window.__FINDLY_BF_BOUND = true;
       window.addEventListener("pageshow", function (ev) {
@@ -3512,6 +3537,165 @@
   function leaveNativeLayout() {
     var widget = window.__FINDLY_FILTER_WIDGET;
     return Boolean(widget && widget._sfLeaveNative);
+  }
+
+  function refreshInsertOnly(widget, when) {
+    if (!widget) return;
+    var prev = Boolean(widget._sfInsertOnly);
+    widget._sfInsertOnlyAt = when || "sync";
+    var next = computeInsertOnly(widget);
+    widget._sfInsertOnly = next;
+    if (prev || !next || widget._sfLayoutUndone) return;
+    if (!horizonResultsList()) return;
+    if (!document.querySelector(".sf-collection-layout, [data-sf-theme-width]")) return;
+    undoFindlyLayout(widget);
+  }
+
+  function clearFindlyGridSizing(grid) {
+    if (!grid || !grid.style) return;
+    var hostProps = [
+      "width",
+      "max-width",
+      "min-width",
+      "display",
+      "flex-wrap",
+      "justify-content",
+      "column-gap",
+      "row-gap",
+      "grid-template-columns",
+      "box-sizing",
+    ];
+    var itemProps = [
+      "width",
+      "max-width",
+      "flex",
+      "flex-grow",
+      "flex-shrink",
+      "flex-basis",
+      "box-sizing",
+    ];
+    var p;
+    for (p = 0; p < hostProps.length; p++) grid.style.removeProperty(hostProps[p]);
+    if (!grid.children) return;
+    var i;
+    for (i = 0; i < grid.children.length; i++) {
+      var kid = grid.children[i];
+      if (!kid || !kid.style) continue;
+      if (kid.getAttribute && kid.getAttribute(COL_LOCK_ATTR) === "1") {
+        kid.removeAttribute(COL_LOCK_ATTR);
+      }
+      for (p = 0; p < itemProps.length; p++) kid.style.removeProperty(itemProps[p]);
+    }
+  }
+
+  function undoFindlyLayout(widget) {
+    if (!horizonResultsList()) return;
+    if (widget) widget._sfLayoutUndone = true;
+    rollbackLayoutUndo("insert-only");
+    var guard = 0;
+    var shells;
+    while (guard < 6) {
+      shells = document.querySelectorAll("[data-sf-theme-width]");
+      if (!shells.length) break;
+      var shell = shells[shells.length - 1];
+      var parent = shell.parentNode;
+      if (!parent) break;
+      while (shell.firstChild) parent.insertBefore(shell.firstChild, shell);
+      parent.removeChild(shell);
+      guard += 1;
+    }
+    var list = horizonResultsList();
+    var grid = list && primaryHorizonProductGrid(list);
+    if (grid) clearFindlyGridSizing(grid);
+    if (widget) widget._sfLeaveNative = true;
+    window.__FINDLY_LAYOUT_ROLLED_BACK = true;
+  }
+
+  function measurePrimaryGrid() {
+    var list = horizonResultsList();
+    if (!list || !list.getBoundingClientRect) return null;
+    var grid = primaryHorizonProductGrid(list);
+    if (!grid || grid.isConnected === false || !countProductCards(grid)) return null;
+    var gw = 0;
+    var cw = 0;
+    try {
+      gw = grid.getBoundingClientRect().width || 0;
+      cw = list.getBoundingClientRect().width || 0;
+    } catch (err) {
+      return null;
+    }
+    window.__FINDLY_GRID_WIDTH = Math.round(gw);
+    window.__FINDLY_GRID_CONTAINER_WIDTH = Math.round(cw);
+    return { grid: grid, list: list, gw: gw, cw: cw };
+  }
+
+  function gridIsNarrow(measured) {
+    if (!measured) return false;
+    var vw = 0;
+    try {
+      vw = window.innerWidth || 0;
+    } catch (err) {
+      vw = 0;
+    }
+    if (measured.cw > 0 && measured.gw < measured.cw * 0.25) return true;
+    if (vw >= 750 && measured.gw < 200) return true;
+    return false;
+  }
+
+  function checkGridNarrow(widget) {
+    if (!horizonResultsList()) return;
+    window.__FINDLY_NARROW_CHECKED = true;
+    var measured = measurePrimaryGrid();
+    if (!gridIsNarrow(measured)) return;
+    if (window.__FINDLY_NARROW_HANDLED) {
+      if (!window.__FINDLY_NARROW_UNFIXED) {
+        window.__FINDLY_NARROW_UNFIXED = true;
+        findlyMetric("grid_narrow_unfixed", "still");
+      }
+      return;
+    }
+    window.__FINDLY_NARROW_HANDLED = true;
+    window.__FINDLY_NARROW_ROLLED = true;
+    findlyMetric("grid_narrow", "width");
+    undoFindlyLayout(widget || window.__FINDLY_FILTER_WIDGET);
+    window.requestAnimationFrame(function () {
+      var again = measurePrimaryGrid();
+      if (!gridIsNarrow(again) || window.__FINDLY_NARROW_UNFIXED) return;
+      window.__FINDLY_NARROW_UNFIXED = true;
+      findlyMetric("grid_narrow_unfixed", "remeasure");
+    });
+  }
+
+  function scheduleNarrowCheck(widget) {
+    if (!horizonResultsList()) return;
+    window.requestAnimationFrame(function () {
+      checkGridNarrow(widget);
+    });
+  }
+
+  function armNarrowLoadCheck() {
+    if (window.__FINDLY_NARROW_TIMER || !horizonResultsList()) return;
+    window.__FINDLY_NARROW_TIMER = window.setTimeout(function () {
+      checkGridNarrow(window.__FINDLY_FILTER_WIDGET);
+    }, 600);
+  }
+
+  function presentHorizonSearchDrawer(widget) {
+    if (!widget || !widget.root) return;
+    if (!horizonResultsList() || !isSearchPageContext(widget)) return;
+    widget.root.classList.add("smart-filter--offcanvas");
+    var list = horizonResultsList();
+    var toolbar = document.querySelector(".sf-toolbar[data-sf-search-drawer='1']");
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.className = "sf-toolbar";
+      toolbar.setAttribute("data-sf-search-drawer", "1");
+    }
+    if (list && toolbar.parentNode !== list) {
+      list.insertBefore(toolbar, list.firstChild);
+    }
+    placeMobileToolbarToggle(widget);
+    portalMobileDrawer(widget);
   }
 
   function rememberLayoutNode(node) {
@@ -12854,6 +13038,18 @@
 
     var origSync = proto.syncCollectionLayout;
     proto.syncCollectionLayout = function () {
+      refreshInsertOnly(this, "sync");
+      if (this._sfLeaveNative) {
+        try {
+          presentHorizonSearchDrawer(this);
+          if (!isSearchPageContext(this)) portalMobileDrawer(this);
+        } catch (drawerErr) {
+          /* drawer is best-effort */
+        }
+        verifyListingChain();
+        scheduleNarrowCheck(this);
+        return;
+      }
       var layout;
       try {
         layout = origSync ? origSync.apply(this, arguments) : undefined;
@@ -12862,11 +13058,13 @@
       }
       if (insertOnlyListing(this)) {
         try {
-          portalMobileDrawer(this);
+          presentHorizonSearchDrawer(this);
+          if (!isSearchPageContext(this)) portalMobileDrawer(this);
         } catch (portalErr) {
-          /* drawer portal is best-effort */
+          /* drawer is best-effort */
         }
         verifyListingChain();
+        scheduleNarrowCheck(this);
         return layout;
       }
       try {
@@ -12910,6 +13108,7 @@
         }
       } finally {
         verifyListingChain();
+        scheduleNarrowCheck(this);
       }
       return layout;
     };
@@ -14018,6 +14217,15 @@
         }
       }
       if (origApplySettings) origApplySettings.apply(this, arguments);
+      refreshInsertOnly(this, "settings");
+      if (insertOnlyListing(this)) {
+        try {
+          presentHorizonSearchDrawer(this);
+          if (!isSearchPageContext(this)) portalMobileDrawer(this);
+        } catch (drawerErr) {
+          /* drawer is best-effort */
+        }
+      }
       if (settings && typeof settings === "object") {
         if ("offcanvasSide" in settings) {
           this.offcanvasSide =

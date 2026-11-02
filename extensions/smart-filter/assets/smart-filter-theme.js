@@ -1945,7 +1945,13 @@
         cssLinksConnected: cssCount > 0,
         layoutRolledBack: Boolean(window.__FINDLY_LAYOUT_ROLLED_BACK),
         lastLayoutError: window.__FINDLY_LAST_LAYOUT_ERROR || "",
+        position: (widget && widget.position) || "",
         insertOnly: Boolean(widget && widget._sfInsertOnly),
+        insertOnlyReason: (widget && widget._sfInsertOnlyReason) || "",
+        gridWidth: window.__FINDLY_GRID_WIDTH || 0,
+        gridContainerWidth: window.__FINDLY_GRID_CONTAINER_WIDTH || 0,
+        narrowChecked: Boolean(window.__FINDLY_NARROW_CHECKED),
+        narrowRolledBack: Boolean(window.__FINDLY_NARROW_ROLLED),
         listingLost: Boolean(window.__FINDLY_LISTING_LOST),
         safeListing: (function () {
           try {
