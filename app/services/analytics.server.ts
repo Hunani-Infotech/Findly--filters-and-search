@@ -4,7 +4,25 @@ import { log } from "../lib/log.server";
 import { createTtlCache } from "../lib/read-cache.server";
 import { findShopCached } from "../lib/shop-cache.server";
 
-export const ANALYTICS_KINDS = ["search", "filter", "click", "visit", "rollback", "undo", "slack"] as const;
+const TELEMETRY_KINDS = [
+  "listing_lost",
+  "map_miss",
+  "grid_stuck",
+  "grid_narrow",
+  "grid_narrow_unfixed",
+  "search_mismatch",
+] as const;
+
+export const ANALYTICS_KINDS = [
+  "search",
+  "filter",
+  "click",
+  "visit",
+  "rollback",
+  "undo",
+  "slack",
+  ...TELEMETRY_KINDS,
+] as const;
 export type AnalyticsKind = (typeof ANALYTICS_KINDS)[number];
 export type AnalyticsRange = "this_month" | "last_7" | "last_30";
 
@@ -25,6 +43,10 @@ function clip(value: string, max: number) {
 
 function isKind(value: string): value is AnalyticsKind {
   return (ANALYTICS_KINDS as readonly string[]).includes(value);
+}
+
+function isTelemetryKind(value: string): value is (typeof TELEMETRY_KINDS)[number] {
+  return (TELEMETRY_KINDS as readonly string[]).includes(value);
 }
 
 export function retentionDaysForPlan(plan: string): number {
@@ -170,12 +192,51 @@ export async function countStorefrontSignals(shopId: string) {
 const ANALYTICS_PRUNE_TTL_MS = 10 * 60 * 1000;
 const lastAnalyticsPrune = new Map<string, number>();
 
+/** Detail after `flag=<0|1>|` on a telemetry beacon. */
+const TELEMETRY_DETAIL_MAX = 80;
+const TELEMETRY_DEDUPE_MS = 10 * 60 * 1000;
+/** Caps a signed flood that rotates `handle` (theme is client-supplied). */
+const TELEMETRY_SHOP_CAP = 24;
+const telemetryLast = new Map<string, number>();
+const telemetryShopHits = new Map<string, number[]>();
+
+function capTelemetryCombo(combo: string): string {
+  const bar = combo.indexOf("|");
+  if (bar < 0) return combo.slice(0, TELEMETRY_DETAIL_MAX);
+  const head = combo.slice(0, bar + 1).slice(0, 16);
+  return head + combo.slice(bar + 1).slice(0, TELEMETRY_DETAIL_MAX);
+}
+
+/** At most one stored row per shop + kind + theme per 10 minutes, and 24 per shop. */
+function telemetryStoreAllowed(shopId: string, kind: string, theme: string): boolean {
+  const now = Date.now();
+  const recent = (telemetryShopHits.get(shopId) || []).filter(
+    (at) => now - at < TELEMETRY_DEDUPE_MS,
+  );
+  if (recent.length >= TELEMETRY_SHOP_CAP) {
+    telemetryShopHits.set(shopId, recent);
+    return false;
+  }
+  const key = `${shopId}:${kind}:${theme}`;
+  const last = telemetryLast.get(key) ?? 0;
+  if (now - last < TELEMETRY_DEDUPE_MS) return false;
+  if (telemetryLast.size > 2000) {
+    for (const [stored, at] of telemetryLast) {
+      if (now - at >= TELEMETRY_DEDUPE_MS) telemetryLast.delete(stored);
+    }
+  }
+  telemetryLast.set(key, now);
+  recent.push(now);
+  telemetryShopHits.set(shopId, recent);
+  return true;
+}
+
 export async function ingestAnalyticsEvent(input: IngestInput) {
   const kind = String(input.kind || "").trim();
   if (!isKind(kind)) return { ok: false as const, error: "Invalid kind" };
 
   const query = clip(String(input.query || "").toLowerCase(), 120);
-  const combo = clip(String(input.combo || ""), 240);
+  let combo = clip(String(input.combo || ""), 240);
   const handle = normalizeHandle(String(input.handle || ""));
 
   if (kind === "search" && !query) return { ok: true as const, skipped: true };
@@ -194,6 +255,13 @@ export async function ingestAnalyticsEvent(input: IngestInput) {
     }
     await bumpSignalCount(shop.id, signal);
     if (!signalAllowed(shop.id, kind)) {
+      return { ok: true as const, skipped: true };
+    }
+  }
+
+  if (isTelemetryKind(kind)) {
+    combo = capTelemetryCombo(combo);
+    if (!telemetryStoreAllowed(shop.id, kind, handle)) {
       return { ok: true as const, skipped: true };
     }
   }
