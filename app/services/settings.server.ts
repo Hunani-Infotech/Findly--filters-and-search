@@ -6,6 +6,7 @@ import {
   normalizeHideProductTags,
   normalizeSearchFields,
   normalizeSortOptions,
+  parseFilterOptionOrder,
   parsePaginationStyle,
   parseSortOption,
   parseOffcanvasSide,
@@ -70,6 +71,7 @@ export type AppSettingsInput = {
   enableMarkets?: boolean;
   enableFiltersOnSearch?: boolean;
   hideSingleValueFacets?: boolean;
+  filterOptionOrder?: string;
   showMatchingVariantImage?: boolean;
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
@@ -128,6 +130,9 @@ async function mapAppSettings(shopId: string, row: AppSettings) {
     soldOutToBottom: pinSoldOutToEnd(row),
     paginationStyle: parsePaginationStyle(
       (row as { paginationStyle?: unknown }).paginationStyle,
+    ),
+    filterOptionOrder: parseFilterOptionOrder(
+      (row as { filterOptionOrder?: unknown }).filterOptionOrder,
     ),
     showTotalProductCount:
       (row as { showTotalProductCount?: boolean }).showTotalProductCount !==
@@ -240,6 +245,9 @@ function normalizeSettingsWrite(input: AppSettingsInput) {
     hideSingleValueFacets:
       input.hideSingleValueFacets ??
       DEFAULT_APP_SETTINGS.hideSingleValueFacets,
+    filterOptionOrder: parseFilterOptionOrder(
+      input.filterOptionOrder ?? DEFAULT_APP_SETTINGS.filterOptionOrder,
+    ),
     showMatchingVariantImage:
       input.showMatchingVariantImage ??
       DEFAULT_APP_SETTINGS.showMatchingVariantImage,
@@ -330,6 +338,7 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
       enableMarkets: n.enableMarkets,
       enableFiltersOnSearch: n.enableFiltersOnSearch,
       hideSingleValueFacets: n.hideSingleValueFacets,
+      filterOptionOrder: n.filterOptionOrder,
       showMatchingVariantImage: n.showMatchingVariantImage,
       showRefineBy: n.showRefineBy,
       autoApplyFilters: n.autoApplyFilters,
@@ -434,6 +443,11 @@ export async function saveAppSettings(shopId: string, input: AppSettingsInput) {
         input.hideSingleValueFacets !== undefined,
         "hideSingleValueFacets",
         n.hideSingleValueFacets,
+      ),
+      ...patchIfPresent(
+        input.filterOptionOrder !== undefined,
+        "filterOptionOrder",
+        n.filterOptionOrder,
       ),
       ...patchIfPresent(
         input.showMatchingVariantImage !== undefined,

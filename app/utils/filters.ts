@@ -582,6 +582,79 @@ function compareListedValues(
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
+type AlphabeticalFacetValue = {
+  value: string;
+  label: string;
+  children?: AlphabeticalFacetValue[] | unknown[] | null;
+};
+
+function compareDisplayLabels(
+  a: { value: string; label: string },
+  b: { value: string; label: string },
+) {
+  const aUnspecified = isUnspecifiedFacetValue(a.value) || isUnspecifiedFacetValue(a.label);
+  const bUnspecified = isUnspecifiedFacetValue(b.value) || isUnspecifiedFacetValue(b.label);
+  if (aUnspecified && !bUnspecified) return 1;
+  if (bUnspecified && !aUnspecified) return -1;
+  return String(a.label || a.value).localeCompare(String(b.label || b.value), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortLabeledValues<T extends AlphabeticalFacetValue>(values: T[]): T[] {
+  const next = values.map((item) => {
+    if (!Array.isArray(item.children) || item.children.length === 0) return item;
+    return {
+      ...item,
+      children: sortLabeledValues(item.children as T[]),
+    };
+  });
+  next.sort(compareDisplayLabels);
+  return next;
+}
+
+/**
+ * A–Z by the label shoppers see.
+ * Leaves the existing order alone for manual lists, size, rating, availability,
+ * and booleans, and does not change valueSortMode.
+ */
+export function sortFacetValuesAlphabetically<
+  T extends {
+    key?: string;
+    label?: string;
+    source?: string;
+    type?: string;
+    valueSortMode?: string;
+    values?: AlphabeticalFacetValue[] | null;
+  },
+>(facets: T[]): T[] {
+  return facets.map((facet) => {
+    if (!facet.values?.length) return facet;
+    if (facet.valueSortMode === "manual") return facet;
+    if (
+      facet.source === "availability" ||
+      facet.source === "rating" ||
+      facet.type === "boolean"
+    ) {
+      return facet;
+    }
+    const labels = facet.values.map((item) => String(item.label || item.value));
+    if (
+      isSizeLikeFacet(
+        { key: String(facet.key || ""), label: String(facet.label || "") },
+        labels,
+      )
+    ) {
+      return facet;
+    }
+    return {
+      ...facet,
+      values: sortLabeledValues(facet.values),
+    };
+  });
+}
+
 export function facetsFromConfig(
   config: FilterConfig | null,
   mappings: MetafieldMapping[] = [],

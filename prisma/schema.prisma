@@ -124,6 +124,8 @@ model AppSettings {
   enableFiltersOnSearch Boolean @default(true)
   /// Hide a facet when it has only one value
   hideSingleValueFacets Boolean @default(false)
+  /// Filter choice order: default (current order) | alpha (A–Z by the name shoppers see)
+  filterOptionOrder String @default("default")
   /// Swap theme card image to the matching variant
   showMatchingVariantImage Boolean @default(true)
   /// Show applied “Refine by” chips

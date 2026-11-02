@@ -57,6 +57,7 @@ import {
   normalizeHideProductTags,
   normalizeSearchFields,
   normalizeSortOptions,
+  parseFilterOptionOrder,
   parseHideOutOfStock,
   parseOffcanvasSide,
   parseSortOption,
@@ -65,6 +66,7 @@ import {
   parseWidgetRadius,
   parseWidgetTitleSize,
   resolveHideOutOfStock,
+  type FilterOptionOrder,
   type HideOutOfStockMode,
   type OffcanvasSide,
   type SearchFieldKey,
@@ -161,6 +163,7 @@ type SettingsState = {
   enableMarkets: boolean;
   enableFiltersOnSearch: boolean;
   hideSingleValueFacets: boolean;
+  filterOptionOrder: FilterOptionOrder;
   showMatchingVariantImage: boolean;
   showRefineBy: boolean;
   autoApplyFilters: boolean;
@@ -205,6 +208,7 @@ function toSettingsState(settings: {
   enableMarkets?: boolean;
   enableFiltersOnSearch?: boolean;
   hideSingleValueFacets?: boolean;
+  filterOptionOrder?: string;
   showMatchingVariantImage?: boolean;
   showRefineBy?: boolean;
   autoApplyFilters?: boolean;
@@ -258,6 +262,7 @@ function toSettingsState(settings: {
     enableMarkets: settings.enableMarkets ?? DEFAULT_APP_SETTINGS.enableMarkets,
     enableFiltersOnSearch: settings.enableFiltersOnSearch ?? true,
     hideSingleValueFacets: Boolean(settings.hideSingleValueFacets),
+    filterOptionOrder: parseFilterOptionOrder(settings.filterOptionOrder),
     showMatchingVariantImage: settings.showMatchingVariantImage ?? true,
     showRefineBy: settings.showRefineBy ?? true,
     autoApplyFilters: settings.autoApplyFilters ?? true,
@@ -503,6 +508,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     hideSingleValueFacets:
       form.get("hideSingleValueFacets") === "true" ||
       form.get("hideSingleValueFacets") === "on",
+    filterOptionOrder: parseFilterOptionOrder(form.get("filterOptionOrder")),
     showMatchingVariantImage:
       form.get("showMatchingVariantImage") === "true" ||
       form.get("showMatchingVariantImage") === "on",
@@ -669,6 +675,7 @@ export default function SettingsPage() {
     formData.set("enableMarkets", String(next.enableMarkets));
     formData.set("enableFiltersOnSearch", String(next.enableFiltersOnSearch));
     formData.set("hideSingleValueFacets", String(next.hideSingleValueFacets));
+    formData.set("filterOptionOrder", next.filterOptionOrder);
     formData.set(
       "showMatchingVariantImage",
       String(next.showMatchingVariantImage),
@@ -975,6 +982,28 @@ export default function SettingsPage() {
                           setSettings((s) => ({
                             ...s,
                             hideSortDropdown: checked,
+                          }))
+                        }
+                      />
+                      <Select
+                        label="Filter option order"
+                        options={[
+                          {
+                            label: "Default (current order)",
+                            value: "default",
+                          },
+                          {
+                            label: "Alphabetical (A–Z)",
+                            value: "alpha",
+                          },
+                        ]}
+                        value={settings.filterOptionOrder}
+                        helpText="Alphabetical sorts each filter list by the name shoppers see. Default keeps the current order. Size, rating, availability, and any filter with its own manual order stay as they are."
+                        disabled={saving}
+                        onChange={(value) =>
+                          setSettings((s) => ({
+                            ...s,
+                            filterOptionOrder: parseFilterOptionOrder(value),
                           }))
                         }
                       />

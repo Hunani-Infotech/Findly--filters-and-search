@@ -13,6 +13,7 @@ import {
   parseValueSort,
   productMatchesFilters,
   selectedOptionFilterGroups,
+  sortFacetValuesAlphabetically,
   type ProductFacetRow,
   type SelectedFilters,
 } from "./filters.server";
@@ -34,6 +35,7 @@ import {
 import {
   normalizeHideProductTags,
   normalizeSearchFields,
+  parseFilterOptionOrder,
   pinSoldOutToEnd,
 } from "../utils/app-settings";
 import { getFilterConfig, getMetafieldMappings } from "./shop.server";
@@ -807,7 +809,7 @@ async function buildFacetPayload(input: {
     };
   });
 
-  const aggregations = await resolveFacetMetaobjectLabels(
+  const labeledAggregations = await resolveFacetMetaobjectLabels(
     input.shopDomain,
     aggregationsRaw,
     visibleRows
@@ -818,6 +820,10 @@ async function buildFacetPayload(input: {
       .filter(Boolean)
       .slice(0, 100),
   );
+  const aggregations =
+    parseFilterOptionOrder(appSettings.filterOptionOrder) === "alpha"
+      ? sortFacetValuesAlphabetically(labeledAggregations)
+      : labeledAggregations;
   const productCard = (product: (typeof filtered)[number]) => {
     const variantId = shopifyNumericId(product.variantGid || "");
     const variantImage = product.variantGid

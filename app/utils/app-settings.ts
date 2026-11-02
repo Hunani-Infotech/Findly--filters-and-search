@@ -252,6 +252,13 @@ export function parseSortOption(value: unknown): SortOptionKey {
     : "manual";
 }
 
+export const FILTER_OPTION_ORDERS = ["default", "alpha"] as const;
+export type FilterOptionOrder = (typeof FILTER_OPTION_ORDERS)[number];
+
+export function parseFilterOptionOrder(value: unknown): FilterOptionOrder {
+  return value === "alpha" ? "alpha" : "default";
+}
+
 export const DEFAULT_APP_SETTINGS = {
   widgetPosition: "left" as WidgetPosition,
   offcanvasSide: "left" as OffcanvasSide,
@@ -288,6 +295,7 @@ export const DEFAULT_APP_SETTINGS = {
   enableMarkets: true,
   enableFiltersOnSearch: true,
   hideSingleValueFacets: false,
+  filterOptionOrder: "default" as FilterOptionOrder,
   showMatchingVariantImage: true,
   showRefineBy: true,
   autoApplyFilters: true,
