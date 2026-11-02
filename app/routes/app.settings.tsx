@@ -14,7 +14,6 @@ import {
 } from "react-router";
 import {
   BlockStack,
-  Button,
   Card,
   Checkbox,
   FormLayout,
@@ -1007,19 +1006,6 @@ export default function SettingsPage() {
                           }))
                         }
                       />
-                    </BlockStack>
-                  </Card>
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text as="h2" variant="headingMd">
-                        Search
-                      </Text>
-                      <Text as="p" variant="bodyMd">
-                        Search settings live under Search
-                      </Text>
-                      <Button onClick={() => navigate("/app/search")}>
-                        Open Search
-                      </Button>
                     </BlockStack>
                   </Card>
                 </BlockStack>
