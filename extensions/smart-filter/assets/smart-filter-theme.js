@@ -1231,7 +1231,8 @@
       ".smart-filter--offcanvas .sf-toggle," +
       ".sf-collection-layout--offcanvas .sf-toggle," +
       ".sf-collection-layout--offcanvas .sf-toggle-toolbar," +
-      ".sf-collection-layout--offcanvas .sf-toolbar .sf-toggle" +
+      ".sf-collection-layout--offcanvas .sf-toolbar .sf-toggle," +
+      ".sf-toolbar[data-sf-search-drawer='1'] .sf-toggle" +
       "{display:inline-flex!important}" +
       "}" +
       ".sf-layout-main:not(ul):not(ol):not(.product-grid):not(.main-collection-grid){min-width:0;flex:1 1 0%;display:flex;flex-direction:column}" +

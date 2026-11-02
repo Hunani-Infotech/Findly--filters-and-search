@@ -62,19 +62,27 @@
 
 .smart-filter *,
 .smart-filter *::before,
-.smart-filter *::after {
+.smart-filter *::after,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) *,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) *::before,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) *::after {
   box-sizing: border-box;
 }
 
 .smart-filter button,
 .smart-filter input,
-.smart-filter select {
+.smart-filter select,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) button,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) input,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) select {
   font: inherit;
   max-width: 100%;
 }
 
 .smart-filter input[type="checkbox"],
-.smart-filter input[type="radio"] {
+.smart-filter input[type="radio"],
+:is(.smart-filter, .sf-panel.sf-drawer-portal) input[type="checkbox"],
+:is(.smart-filter, .sf-panel.sf-drawer-portal) input[type="radio"] {
   width: var(--sf-check-size) !important;
   height: var(--sf-check-size) !important;
   min-width: var(--sf-check-size);
@@ -1240,7 +1248,10 @@
 
 .smart-filter .sf-btn-primary:hover,
 .smart-filter .sf-btn-primary:focus,
-.smart-filter .sf-btn-primary:active {
+.smart-filter .sf-btn-primary:active,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) .sf-btn-primary:hover,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) .sf-btn-primary:focus,
+:is(.smart-filter, .sf-panel.sf-drawer-portal) .sf-btn-primary:active {
   background: color-mix(in srgb, var(--sf-accent) 82%, #000);
   border-color: color-mix(in srgb, var(--sf-accent) 82%, #000);
   color: #fff;
@@ -2624,7 +2635,8 @@ results-list > .sf-toolbar {
   .smart-filter--offcanvas .sf-toggle,
   .sf-collection-layout--offcanvas .sf-toggle,
   .sf-collection-layout--offcanvas .sf-toggle-toolbar,
-  .sf-collection-layout--offcanvas .sf-toolbar .sf-toggle {
+  .sf-collection-layout--offcanvas .sf-toolbar .sf-toggle,
+  .sf-toolbar[data-sf-search-drawer="1"] .sf-toggle {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
@@ -2702,7 +2714,8 @@ results-list > .sf-toolbar {
     max-width: 100%;
   }
 
-  .smart-filter--offcanvas .sf-toggle {
+  .smart-filter--offcanvas .sf-toggle,
+  .sf-toolbar[data-sf-search-drawer="1"] .sf-toggle {
     display: inline-flex !important;
   }
 
@@ -2811,6 +2824,10 @@ results-list > .sf-toolbar {
   html.is-sf-drawer-open body {
     overflow: hidden;
   }
+}
+
+.sf-panel.sf-drawer-portal {
+  font-family: var(--sf-font-body, inherit);
 }
 
 /* Collection page layout wrapper (JS adds these classes) */
