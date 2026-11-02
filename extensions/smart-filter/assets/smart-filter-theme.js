@@ -181,7 +181,7 @@
 
   var STYLE_ID = "findly-theme-compat-v13";
   var SKIP =
-    "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow";
+    "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow, dialog, dialog-component, #search-modal, .search-modal, predictive-search-component, #predictive-search-results, [id*='predictive'], [role='dialog'], [popover], [aria-modal='true'], .resource-card__wrapper";
   var PROTECT =
     ".smart-filter, .smart-filter-search, .findly-instant, .sf-panel, .sf-facet, .sf-facets, .sf-header, .sf-backdrop, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
   var NATIVE_INPUT =
@@ -1945,6 +1945,52 @@
         cssLinksConnected: cssCount > 0,
         layoutRolledBack: Boolean(window.__FINDLY_LAYOUT_ROLLED_BACK),
         lastLayoutError: window.__FINDLY_LAST_LAYOUT_ERROR || "",
+        insertOnly: Boolean(widget && widget._sfInsertOnly),
+        listingLost: Boolean(window.__FINDLY_LISTING_LOST),
+        safeListing: (function () {
+          try {
+            var raw = sessionStorage.getItem("findly_safe_listing");
+            var ts = Number(raw);
+            return Boolean(ts && Date.now() - ts < 10 * 60 * 1000);
+          } catch (err) {
+            return false;
+          }
+        })(),
+        gridParentTag: widget && widget._gridParent
+          ? String(widget._gridParent.tagName || "") +
+            (widget._gridParent.id ? "#" + widget._gridParent.id : "")
+          : "",
+        gridParentInDialog: Boolean(
+          widget &&
+            widget._gridParent &&
+            widget._gridParent.closest &&
+            widget._gridParent.closest(
+              "dialog, dialog-component, #search-modal, predictive-search-component, [role='dialog']",
+            ),
+        ),
+        chainOk: window.__FINDLY_CHAIN_OK !== false,
+        chainRoles: (function () {
+          var chain = widget && widget._sfListingChain;
+          if (!chain || !chain.length) return [];
+          var roles = [];
+          var ri;
+          for (ri = 0; ri < chain.length; ri++) {
+            roles.push((chain[ri] && chain[ri].role) || "");
+          }
+          return roles;
+        })(),
+        chainLive: (function () {
+          var chain = widget && widget._sfListingChain;
+          if (!chain || !chain.length) return [];
+          var live = [];
+          var li;
+          for (li = 0; li < chain.length; li++) {
+            live.push(Boolean(chain[li] && chain[li].node && chain[li].node.isConnected !== false));
+          }
+          return live;
+        })(),
+        reloadEnabled: window.__FINDLY_SAFE_RELOAD_ENABLED === true,
+        bootCards: widget && widget._sfBootCards,
         taggedTotal: document.querySelectorAll("[data-findly-theme-hidden='1']").length,
         cards: {
           n: cards.length,
