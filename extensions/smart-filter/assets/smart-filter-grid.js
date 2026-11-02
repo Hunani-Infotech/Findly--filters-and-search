@@ -3271,6 +3271,11 @@
     widget._sfListingReady = true;
     widget._sfInsertOnlyAt = "boot";
     widget._sfInsertOnly = computeInsertOnly(widget);
+    if (horizonSearchInsertOnly(widget)) {
+      widget._sfSearchParity = "unknown";
+      widget._sfParityReason = "before-response";
+      holdSearchToggle(widget, true);
+    }
     armNarrowLoadCheck();
     if (!window.__FINDLY_BF_BOUND) {
       window.__FINDLY_BF_BOUND = true;
@@ -3798,12 +3803,209 @@
     }
   }
 
+  function bareProductHandle(value) {
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    var cut = text.indexOf("::");
+    if (cut !== -1) text = text.slice(0, cut);
+    var match = text.match(/\/products\/([^/?#]+)/);
+    if (match) text = match[1];
+    try {
+      text = decodeURIComponent(text);
+    } catch (err) {
+      /* keep the raw handle */
+    }
+    return text;
+  }
+
+  function handleBag(list) {
+    var bag = {};
+    var n = 0;
+    var i;
+    for (i = 0; i < list.length; i++) {
+      var handle = bareProductHandle(list[i]);
+      if (!handle || bag[handle]) continue;
+      bag[handle] = true;
+      n += 1;
+    }
+    return { bag: bag, n: n };
+  }
+
+  function sameHandleBag(a, b) {
+    var key;
+    if (!a || !b || a.n !== b.n) return false;
+    for (key in a.bag) {
+      if (!b.bag[key]) return false;
+    }
+    return true;
+  }
+
+  function themeGridHandles() {
+    var list = horizonResultsList();
+    var nodes;
+    var out = [];
+    var i;
+    if (!list || !list.querySelectorAll) return out;
+    try {
+      nodes = list.querySelectorAll("li.product-grid__item a[href*='/products/']");
+    } catch (err) {
+      return out;
+    }
+    for (i = 0; i < nodes.length; i++) {
+      out.push(nodes[i].getAttribute("href") || "");
+    }
+    return out;
+  }
+
+  function payloadHandleList(payload) {
+    var out = [];
+    var i;
+    if (!payload) return out;
+    if (Array.isArray(payload.handles) && payload.handles.length) {
+      for (i = 0; i < payload.handles.length; i++) out.push(payload.handles[i]);
+      return out;
+    }
+    if (Array.isArray(payload.products)) {
+      for (i = 0; i < payload.products.length; i++) {
+        var item = payload.products[i];
+        if (!item) continue;
+        if (typeof item === "string") out.push(item);
+        else if (item.handle) out.push(item.handle);
+      }
+    }
+    return out;
+  }
+
+  function holdSearchToggle(widget, hold) {
+    var toggle =
+      (widget &&
+        widget.root &&
+        widget.root.querySelector &&
+        widget.root.querySelector("[data-drawer-toggle]")) ||
+      document.querySelector("[data-drawer-toggle]");
+    if (!toggle || !toggle.style) return;
+    if (hold) toggle.style.setProperty("display", "none", "important");
+    else toggle.style.removeProperty("display");
+  }
+
+  function retractSearchDrawer(widget) {
+    var root = widget && widget.root;
+    var toolbar = searchDrawerToolbar();
+    removeSearchNativeHide();
+    if (toolbar && root) {
+      var toggle = toolbar.querySelector("[data-drawer-toggle]");
+      var sort = toolbar.querySelector("[data-sort-wrap]");
+      var panel = root.querySelector("[data-drawer-panel]");
+      if (toggle && toggle.parentNode !== root) root.insertBefore(toggle, root.firstChild);
+      if (sort && sort.parentNode !== root) {
+        if (panel) root.insertBefore(sort, panel);
+        else root.appendChild(sort);
+      }
+      if (toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
+    }
+    if (root && widget && widget.position !== "offcanvas") {
+      root.classList.remove("smart-filter--offcanvas");
+    }
+    if (widget && widget._sfSearchParity !== "ok") holdSearchToggle(widget, true);
+    if (root && widget && widget._sfSearchParity) {
+      root.setAttribute("data-sf-search-parity", widget._sfSearchParity);
+    }
+  }
+
+  function themeSearchFacts(widget) {
+    var root = widget && widget.root;
+    var raw = root && root.getAttribute ? root.getAttribute("data-theme-result-count") : "";
+    var total = raw == null || String(raw).trim() === "" ? null : Number(raw);
+    if (total != null && !Number.isFinite(total)) total = null;
+    var productsOnly =
+      root &&
+      root.getAttribute &&
+      root.getAttribute("data-theme-products-only") === "true";
+    return { total: total, productsOnly: Boolean(productsOnly) };
+  }
+
+  function indexTotalFrom(payload) {
+    var total = payload ? Number(payload.total) : NaN;
+    if (!Number.isFinite(total)) total = payload ? Number(payload.count) : NaN;
+    return Number.isFinite(total) ? total : null;
+  }
+
+  /* First idle search response only. Stored on widget._sfSearchParity. */
+  function decideSearchParity(widget, payload) {
+    var facts;
+    var indexTotal;
+    var pageSize;
+    var themeBag;
+    var indexBag;
+    if (!horizonSearchInsertOnly(widget)) return;
+    if (widget._sfSearchParity === "ok" || widget._sfSearchParity === "mismatch") return;
+    if (!payload || payload.enabled === false) return;
+    if (listingRefined(widget)) return;
+    if (
+      payload.total == null &&
+      payload.count == null &&
+      !Array.isArray(payload.handles) &&
+      !Array.isArray(payload.products)
+    ) {
+      return;
+    }
+    facts = themeSearchFacts(widget);
+    indexTotal = indexTotalFrom(payload);
+    widget._sfThemeResultCount = facts.total;
+    widget._sfIndexTotal = indexTotal;
+    window.__FINDLY_THEME_RESULT_COUNT = facts.total;
+    window.__FINDLY_INDEX_TOTAL = indexTotal;
+    if (facts.total == null || !facts.productsOnly) {
+      widget._sfSearchParity = "mismatch";
+      widget._sfParityReason = facts.total == null ? "theme-total-unknown" : "not-products-only";
+    } else {
+      pageSize = Math.max(1, Number(widget.pageSize) || Number(widget.root && widget.root.getAttribute("data-page-size")) || 16);
+      if (facts.total <= pageSize && indexTotal != null && indexTotal <= pageSize) {
+        themeBag = handleBag(themeGridHandles());
+        indexBag = handleBag(payloadHandleList(payload));
+        if (sameHandleBag(themeBag, indexBag)) {
+          widget._sfSearchParity = "ok";
+          widget._sfParityReason = "handles";
+        } else {
+          widget._sfSearchParity = "mismatch";
+          widget._sfParityReason = "handles";
+        }
+      } else if (indexTotal != null && facts.total === indexTotal) {
+        widget._sfSearchParity = "ok";
+        widget._sfParityReason = "totals";
+      } else {
+        widget._sfSearchParity = "mismatch";
+        widget._sfParityReason = indexTotal == null ? "index-total-unknown" : "totals";
+      }
+    }
+    window.__FINDLY_SEARCH_PARITY = widget._sfSearchParity;
+    window.__FINDLY_PARITY_REASON = widget._sfParityReason || "";
+    if (widget.root) widget.root.setAttribute("data-sf-search-parity", widget._sfSearchParity);
+    if (widget._sfSearchParity === "mismatch") {
+      widget._sfLeaveNative = true;
+      retractSearchDrawer(widget);
+      if (!window.__FINDLY_SEARCH_MISMATCH_SENT) {
+        window.__FINDLY_SEARCH_MISMATCH_SENT = true;
+        findlyMetric(
+          "search_mismatch",
+          String(widget._sfThemeResultCount) + "," + String(widget._sfIndexTotal),
+        );
+      }
+      return;
+    }
+    holdSearchToggle(widget, false);
+    presentHorizonSearchDrawer(widget);
+  }
+
   function presentHorizonSearchDrawer(widget) {
     if (!widget || !widget.root || widget.root.isConnected === false) {
       removeSearchNativeHide();
       return;
     }
     if (!horizonResultsList() || !isSearchPageContext(widget)) return;
+    if (horizonSearchInsertOnly(widget) && widget._sfSearchParity !== "ok") {
+      retractSearchDrawer(widget);
+      return;
+    }
     if (widget._sfLeaveNative || widget.root.hidden) {
       removeSearchNativeHide();
       return;
@@ -8635,6 +8837,7 @@
 
   function shouldTakeOverThemeCards(widget) {
     if (!widget) return false;
+    if (widget._sfSearchParity && widget._sfSearchParity !== "ok") return false;
     if (nativeHideKilled()) return false;
     if (widget.isAppGridMode && widget.isAppGridMode()) return false;
     if (!storefrontV2()) {
@@ -14063,7 +14266,15 @@
       if (this.ensurePageSize) this.ensurePageSize();
       snapshotNativeGridOrder(this, this._gridParent);
       if (origInit) origInit.apply(this, arguments);
-      portalMobileDrawer(this);
+      if (!(horizonSearchInsertOnly(this) && this._sfSearchParity !== "ok")) {
+        portalMobileDrawer(this);
+      }
+    };
+
+    var origApplyI18n = proto.applyI18n;
+    proto.applyI18n = function (payload) {
+      if (origApplyI18n) origApplyI18n.apply(this, arguments);
+      decideSearchParity(this, payload);
     };
 
     var origI18nChrome = proto.applyI18nChrome;
@@ -14410,6 +14621,7 @@
     var origHideChrome = proto.hideThemeDuplicateChrome;
     proto.hideThemeDuplicateChrome = function () {
       if (this._sfLeaveNative) return;
+      if (this._sfSearchParity && this._sfSearchParity !== "ok") return;
       if (nativeHideKilled()) return;
       if (this._sfChromeHiddenReq === this._reqId && this._reqId) return;
       this._sfChromeHiddenReq = this._reqId;

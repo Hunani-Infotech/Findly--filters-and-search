@@ -184,6 +184,8 @@
   data-collection-handle="{% if request.page_type == 'collection' or template contains 'collection' %}{{ collection.handle }}{% endif %}"
   data-page-size="{{ sf_page_size }}"
   {% if template contains 'search' %}data-search-query="{{ search.terms | default: request.params.q | escape }}"{% endif %}
+  {% if template contains 'search' %}data-theme-result-count="{{ search.results_count }}"{% endif %}
+  {% if template contains 'search' %}data-theme-products-only="{% if search.types.size == 1 and search.types.first == 'product' %}true{% elsif search.types.size == 0 and request.params.type == 'product' %}true{% else %}false{% endif %}"{% endif %}
   data-proxy-base="/apps/smart-filter"
   data-position="{{ sf_position }}"
   data-show-counts="{% if sf_show_counts %}true{% else %}false{% endif %}"

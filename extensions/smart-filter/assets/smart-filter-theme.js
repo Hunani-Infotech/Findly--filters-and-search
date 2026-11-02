@@ -1389,6 +1389,7 @@
     var origHide = proto.hideThemeDuplicateChrome;
     proto.hideThemeDuplicateChrome = function () {
       if (nativeHideKilled()) return;
+      if (this._sfSearchParity && this._sfSearchParity !== "ok") return;
       if (origHide) origHide.call(this);
       if (!storefrontV2()) hideNativeChromeHeuristic();
       else scheduleHidePass("schema-hide");
@@ -1949,6 +1950,16 @@
         position: (widget && widget.position) || "",
         insertOnly: Boolean(widget && widget._sfInsertOnly),
         insertOnlyReason: (widget && widget._sfInsertOnlyReason) || "",
+        searchParity: (widget && widget._sfSearchParity) || "",
+        themeResultCount:
+          widget && widget._sfThemeResultCount != null
+            ? widget._sfThemeResultCount
+            : window.__FINDLY_THEME_RESULT_COUNT,
+        indexTotal:
+          widget && widget._sfIndexTotal != null
+            ? widget._sfIndexTotal
+            : window.__FINDLY_INDEX_TOTAL,
+        parityReason: (widget && widget._sfParityReason) || window.__FINDLY_PARITY_REASON || "",
         gridWidth: window.__FINDLY_GRID_WIDTH || 0,
         gridContainerWidth: window.__FINDLY_GRID_CONTAINER_WIDTH || 0,
         narrowChecked: Boolean(window.__FINDLY_NARROW_CHECKED),
