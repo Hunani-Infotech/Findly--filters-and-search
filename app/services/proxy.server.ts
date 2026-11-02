@@ -833,6 +833,7 @@ async function buildFacetPayload(input: {
         : "";
     return {
       id: product.variantGid || product.productGid,
+      productId: shopifyNumericId(product.productGid || ""),
       handle: product.handle,
       title: product.title,
       vendor: product.vendor,

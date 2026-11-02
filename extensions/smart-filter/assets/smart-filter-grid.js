@@ -8324,26 +8324,96 @@
     return updated || Boolean(prevTitle);
   }
 
+  function forEachPriceScope(root, fn) {
+    if (!root || !root.querySelectorAll) return;
+    fn(root);
+    var nodes = root.querySelectorAll("*");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i].shadowRoot) forEachPriceScope(nodes[i].shadowRoot, fn);
+    }
+  }
+
+  /* Horizon (and other Online Store 2.0 themes) render the visible price inside
+     <product-price>, often after the custom element upgrades. Dawn uses
+     .price-item. Write both, including open shadow roots. */
+  function paintPriceText(card, priceText) {
+    forEachPriceScope(card, function (root) {
+      var horizons = root.querySelectorAll("product-price");
+      var i;
+      for (i = 0; i < horizons.length; i++) {
+        var box =
+          horizons[i].querySelector('[ref="priceContainer"]') || horizons[i];
+        var span = box.querySelector(".price");
+        if (!span) {
+          span = box.ownerDocument.createElement("span");
+          span.className = "price";
+          box.appendChild(span);
+        }
+        span.textContent = priceText;
+      }
+      var nodes = root.querySelectorAll(
+        ".price-item--sale, .price-item--regular, .price-item, .price .money, [data-product-price], .sf-fill-card-price, .price__regular .price-item, .price__sale .price-item",
+      );
+      if (!nodes.length && !horizons.length) {
+        var priceRoot = root.querySelector(
+          "span.price, .price, .product-price, .card-information .price",
+        );
+        if (priceRoot) priceRoot.textContent = priceText;
+      }
+      for (i = 0; i < nodes.length; i++) nodes[i].textContent = priceText;
+      if (!nodes.length) return;
+      var compare = root.querySelectorAll(
+        "s.price-item, .price__compare, .price-item--compare, .price--compare",
+      );
+      var c;
+      for (c = 0; c < compare.length; c++) {
+        compare[c].setAttribute("hidden", "");
+        if (compare[c].style) compare[c].style.display = "none";
+      }
+    });
+  }
+
   function setThemeCardPrice(card, product, widget) {
     if (!card || !card.querySelector || !product) return;
     var priceText = formatFillPrice(product, widget);
     if (!priceText) return;
-    var nodes = card.querySelectorAll(
-      ".price-item--sale, .price-item--regular, .price-item, .price .money, [data-product-price], .sf-fill-card-price, .price__regular .price-item, .price__sale .price-item",
-    );
-    var i;
-    if (!nodes.length) {
-      var priceRoot = card.querySelector(".price, .product-price, .card-information .price");
-      if (priceRoot) priceRoot.textContent = priceText;
-      return;
+    paintPriceText(card, priceText);
+    if (card.setAttribute) card.setAttribute("data-sf-price", priceText);
+    if (typeof window.requestAnimationFrame !== "function") return;
+    window.requestAnimationFrame(function () {
+      if (!card.getAttribute || card.getAttribute("data-sf-price") !== priceText) return;
+      paintPriceText(card, priceText);
+    });
+  }
+
+  function syncThemeCardIdentity(card, product) {
+    if (!card || !product || !card.querySelectorAll) return;
+    var productId = String(product.productId || "");
+    if (!productId && product.id && String(product.id).indexOf("Product/") !== -1) {
+      var match = String(product.id).match(/(\d+)\s*$/);
+      productId = match ? match[1] : "";
     }
-    for (i = 0; i < nodes.length; i++) nodes[i].textContent = priceText;
-    var compare = card.querySelectorAll(
-      "s.price-item, .price__compare, .price-item--compare, .price--compare",
-    );
-    for (i = 0; i < compare.length; i++) {
-      compare[i].setAttribute("hidden", "");
-      if (compare[i].style) compare[i].style.display = "none";
+    var variantId = String(product.variantId || "");
+    var i;
+    if (productId) {
+      if (card.getAttribute && card.hasAttribute("data-product-id")) {
+        card.setAttribute("data-product-id", productId);
+      }
+      var stamped = card.querySelectorAll("[data-product-id]");
+      for (i = 0; i < stamped.length; i++) {
+        stamped[i].setAttribute("data-product-id", productId);
+      }
+    }
+    if (variantId) {
+      var variantInputs = card.querySelectorAll('input[name="id"]');
+      for (i = 0; i < variantInputs.length; i++) variantInputs[i].value = variantId;
+    }
+    if (product.title) {
+      var titles = card.querySelectorAll("[data-product-title]");
+      for (i = 0; i < titles.length; i++) {
+        titles[i].setAttribute("data-product-title", product.title);
+      }
     }
   }
 
@@ -8387,6 +8457,7 @@
     }
     var title = product.title || handle;
     if (title) setThemeCardTitle(card, title);
+    syncThemeCardIdentity(card, product);
     setThemeCardPrice(card, product, widget);
     if (card.querySelectorAll) {
       var slides = card.querySelectorAll("slideshow-slide");
@@ -13075,6 +13146,16 @@
     var proto = Object.getPrototypeOf(widget);
     if (!proto || proto.__findlyGridPatched) return;
     proto.__findlyGridPatched = true;
+
+    var origCloneVariant = proto.cloneVariantCard;
+    proto.cloneVariantCard = function (product) {
+      var clone = origCloneVariant ? origCloneVariant.call(this, product) : null;
+      if (clone && product) {
+        syncThemeCardIdentity(clone, product);
+        setThemeCardPrice(clone, product, this);
+      }
+      return clone;
+    };
 
     proto.isAppGridMode = function () {
       return Boolean(this.appGridTemplate && this.appGridTemplate());
