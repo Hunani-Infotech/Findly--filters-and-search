@@ -665,15 +665,148 @@
     return null;
   }
 
+  function handleFromCard(card) {
+    if (!card || card.nodeType !== 1) return "";
+    var direct = card.getAttribute && card.getAttribute("data-product-handle");
+    if (direct) return String(direct);
+    var link =
+      card.matches && card.matches('a[href*="/products/"]')
+        ? card
+        : card.querySelector && card.querySelector('a[href*="/products/"]');
+    if (!link) return "";
+    var href = link.getAttribute("href") || "";
+    var match = href.match(/\/products\/([^/?#]+)/);
+    return match ? String(match[1]) : "";
+  }
+
+  function isGridChromeNode(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.id === "infinite-loader" || el.id === "findly-sf-pager") return true;
+    if (el.classList && el.classList.contains("sf-pager")) return true;
+    try {
+      if (el.matches) {
+        if (el.matches(THEME_PAGER_SEL)) return true;
+        if (el.matches(THEME_LOAD_MORE_SEL)) return true;
+        if (el.matches(THEME_INFINITE_SEL)) return true;
+        if (
+          el.matches(
+            ".sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-page-chips, .sf-grid-empty, #findly-grid-empty, #findly-card-tray",
+          )
+        ) {
+          return true;
+        }
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  function hideUnauthorizedCard(card, hide) {
+    if (!card || card.nodeType !== 1) return;
+    if (hide) {
+      card.hidden = true;
+      card.setAttribute("data-smart-filter-hidden", "true");
+      card.setAttribute("data-sf-infinite-hidden", "1");
+      card.style.setProperty("display", "none", "important");
+    } else {
+      card.hidden = false;
+      card.removeAttribute("data-smart-filter-hidden");
+      card.removeAttribute("data-sf-infinite-hidden");
+      card.style.removeProperty("display");
+    }
+  }
+
   /** Hide theme-injected cards that are not in the filtered allow-list. */
   function enforceFilteredGrid(widget) {
     if (!widget || !shouldDriveThemePager(widget)) return;
+    var shown = Array.isArray(widget._shownHandles) ? widget._shownHandles : [];
+    if (
+      (!Array.isArray(widget._sfAccumHandles) || !widget._sfAccumHandles.length) &&
+      shown.length
+    ) {
+      widget._sfAccumHandles = shown.slice();
+    }
     var allow = gridAllowList(widget);
     if (!allow || !allow.length) return;
+
+    var allowed = {};
+    var i;
+    for (i = 0; i < allow.length; i++) {
+      var key = String(allow[i] || "").toLowerCase();
+      if (key) allowed[key] = true;
+    }
+
+    var grid = document.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .product-grid",
+    );
+    if (grid) {
+      var kids = grid.children || [];
+      for (i = 0; i < kids.length; i++) {
+        var card = kids[i];
+        if (isGridChromeNode(card)) continue;
+        var handle = handleFromCard(card);
+        if (!handle) continue;
+        hideUnauthorizedCard(card, !allowed[String(handle).toLowerCase()]);
+      }
+    }
+
     if (typeof widget.syncProductGrid === "function") {
-      widget.syncProductGrid(allow);
+      try {
+        widget.syncProductGrid(allow);
+      } catch (err) {
+        /* ignore */
+      }
     }
     widget._visibleHandles = allow.slice();
+  }
+
+  function scheduleFilteredGridEnforce(widget) {
+    if (!widget) return;
+    enforceFilteredGrid(widget);
+    var delays = [50, 150, 400, 900];
+    var d;
+    for (d = 0; d < delays.length; d++) {
+      (function (ms) {
+        window.setTimeout(function () {
+          enforceFilteredGrid(widget);
+        }, ms);
+      })(delays[d]);
+    }
+  }
+
+  function ensureFilteredGridWatch(widget) {
+    if (!widget || typeof MutationObserver !== "function") return;
+    if (widget._sfFilterGridObs) return;
+    var grid = document.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, .product-grid",
+    );
+    if (!grid) return;
+    widget._sfFilterGridObs = new MutationObserver(function () {
+      if (!shouldDriveThemePager(widget)) return;
+      if (widget._sfFilterGridTimer) return;
+      widget._sfFilterGridTimer = window.setTimeout(function () {
+        widget._sfFilterGridTimer = 0;
+        enforceFilteredGrid(widget);
+      }, 40);
+    });
+    widget._sfFilterGridObs.observe(grid, { childList: true, subtree: true });
+  }
+
+  function stopFilteredGridWatch(widget) {
+    if (!widget) return;
+    if (widget._sfFilterGridObs) {
+      try {
+        widget._sfFilterGridObs.disconnect();
+      } catch (err) {
+        /* ignore */
+      }
+      widget._sfFilterGridObs = null;
+    }
+    if (widget._sfFilterGridTimer) {
+      clearTimeout(widget._sfFilterGridTimer);
+      widget._sfFilterGridTimer = 0;
+    }
   }
 
   function clearThemePageFromUrl() {
@@ -1716,7 +1849,8 @@
           return req.then(
             function (value) {
               updateAccumHandles(self, wasAppend);
-              enforceFilteredGrid(self);
+              ensureFilteredGridWatch(self);
+              scheduleFilteredGridEnforce(self);
               return value;
             },
             function (err) {
@@ -1725,7 +1859,8 @@
           );
         }
         updateAccumHandles(this, wasAppend);
-        enforceFilteredGrid(this);
+        ensureFilteredGridWatch(this);
+        scheduleFilteredGridEnforce(this);
         return req;
       };
     }
@@ -1834,12 +1969,15 @@
         setPagerUnneeded(false);
         unhideThemePagers();
         restoreThemeInfiniteAll(this);
+        stopFilteredGridWatch(this);
         var idleRoots = findThemePagers();
         var r;
         for (r = 0; r < idleRoots.length; r++) restorePager(idleRoots[r]);
         bindThemePagerClicks();
         return true;
       }
+
+      ensureFilteredGridWatch(this);
 
       if (total >= 0) applyPagerByProductCount(this, total);
       if (window.__findlyThemePagerSyncing) {
@@ -1860,7 +1998,7 @@
         if (resultsFitOnePage(this) || (total <= size && !payloadHasNext(this))) {
           syncThemeLoadMore(false);
           syncThemeInfinite(this, false);
-          enforceFilteredGrid(this);
+          scheduleFilteredGridEnforce(this);
           return true;
         }
         unhideThemePagers();
@@ -1874,7 +2012,7 @@
           if (!findThemeLoadMore().length && !findThemeInfiniteHosts().length) {
             scheduleThemePagerSync(this);
           }
-          enforceFilteredGrid(this);
+          scheduleFilteredGridEnforce(this);
           return true;
         }
         bindThemePagerClicks();
@@ -1897,7 +2035,7 @@
         } else {
           syncThemeInfinite(this, false);
         }
-        enforceFilteredGrid(this);
+        scheduleFilteredGridEnforce(this);
         return true;
       } finally {
         var self = this;
