@@ -68,7 +68,8 @@
     ".sf-collection-layout .sf-layout-main .sf-app-grid," +
     ".sf-collection-layout .sf-layout-main .main-collection-grid" +
     "{width:100%!important;max-width:none!important;min-width:0;box-sizing:border-box}";
-  /* Exclude theme pagers — Dawn search nests nav.pagination inside div#product-grid. */
+  /* Exclude theme pagers / Load More — Dawn search nests nav.pagination
+     inside div#product-grid; some themes nest load-more there too. */
   var GRID_RESULT_HIDE =
     ":not([" +
     SKEL_ATTR +
@@ -76,7 +77,9 @@
     ":not(.sf-pager):not(.sf-grid-empty):not(#findly-grid-empty):not(#findly-card-tray):not(.smart-filter)" +
     ":not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed)" +
     ":not(nav.pagination):not(.pagination):not(.pagination-wrapper):not([data-pagination])" +
-    ":not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination)";
+    ":not(.paginate):not(#pagination):not(.Pagination):not(#AjaxinatePagination):not(.ajaxinate-pagination)" +
+    ":not(load-more-button):not(.load-more-button):not(.pagination__load-more):not([data-load-more])" +
+    ":not(.js-load-more):not(.btn--load-more)";
   /* Card / list grids only (not shell wrappers like #ProductGridContainer —
      hiding a shell's children would also hide an inner skeleton host). */
   var GRID_BUSY_HOSTS = [
@@ -156,6 +159,12 @@
     "html.sf-filter-loading .Pagination," +
     "html.sf-filter-loading #AjaxinatePagination," +
     "html.sf-filter-loading .ajaxinate-pagination," +
+    "html.sf-filter-loading load-more-button," +
+    "html.sf-filter-loading .load-more-button," +
+    "html.sf-filter-loading .pagination__load-more," +
+    "html.sf-filter-loading [data-load-more]," +
+    "html.sf-filter-loading .js-load-more," +
+    "html.sf-filter-loading .btn--load-more," +
     "html.sf-filter-loading .sf-pager" +
     "{visibility:hidden!important;pointer-events:none!important}";
   var FEW_RESULTS_PAGER_CSS =
@@ -168,6 +177,12 @@
     "html.sf-few-results .Pagination," +
     "html.sf-few-results #AjaxinatePagination," +
     "html.sf-few-results .ajaxinate-pagination," +
+    "html.sf-few-results load-more-button," +
+    "html.sf-few-results .load-more-button," +
+    "html.sf-few-results .pagination__load-more," +
+    "html.sf-few-results [data-load-more]," +
+    "html.sf-few-results .js-load-more," +
+    "html.sf-few-results .btn--load-more," +
     "html.sf-pager-unneeded nav.pagination," +
     "html.sf-pager-unneeded .pagination-wrapper," +
     "html.sf-pager-unneeded .pagination," +
@@ -176,7 +191,13 @@
     "html.sf-pager-unneeded #pagination," +
     "html.sf-pager-unneeded .Pagination," +
     "html.sf-pager-unneeded #AjaxinatePagination," +
-    "html.sf-pager-unneeded .ajaxinate-pagination" +
+    "html.sf-pager-unneeded .ajaxinate-pagination," +
+    "html.sf-pager-unneeded load-more-button," +
+    "html.sf-pager-unneeded .load-more-button," +
+    "html.sf-pager-unneeded .pagination__load-more," +
+    "html.sf-pager-unneeded [data-load-more]," +
+    "html.sf-pager-unneeded .js-load-more," +
+    "html.sf-pager-unneeded .btn--load-more" +
     "{display:none!important}";
   function gridLoadingHideCss(prefix) {
     var i;
@@ -731,7 +752,13 @@
         ".sf-collection-layout[data-sf-single-page='1'] [data-pagination]," +
         ".sf-collection-layout[data-sf-single-page='1'] .paginate," +
         ".sf-collection-layout[data-sf-single-page='1'] #pagination," +
-        ".sf-collection-layout[data-sf-single-page='1'] .Pagination" +
+        ".sf-collection-layout[data-sf-single-page='1'] .Pagination," +
+        ".sf-collection-layout[data-sf-single-page='1'] load-more-button," +
+        ".sf-collection-layout[data-sf-single-page='1'] .load-more-button," +
+        ".sf-collection-layout[data-sf-single-page='1'] .pagination__load-more," +
+        ".sf-collection-layout[data-sf-single-page='1'] [data-load-more]," +
+        ".sf-collection-layout[data-sf-single-page='1'] .js-load-more," +
+        ".sf-collection-layout[data-sf-single-page='1'] .btn--load-more" +
         "{display:none!important}" +
         FEW_RESULTS_PAGER_CSS +
         "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) nav.pagination:not(.sf-pager):not([data-sf-pager-suppressed='1']):not([hidden])," +
@@ -883,7 +910,12 @@
         "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
         "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
         ".sf-app-grid>.sf-pager:not(.sf-pager--pagination),.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-page-chips,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
-        ".sf-app-grid>:not(.sf-app-card):not(.sf-pager):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-grid-empty){display:none!important}";
+        ".sf-app-grid>load-more-button,.sf-app-grid>.load-more-button,.sf-app-grid>.pagination__load-more," +
+        ".sf-app-grid>[data-load-more],.sf-app-grid>.js-load-more,.sf-app-grid>.btn--load-more," +
+        ".sf-app-grid>button[name='load-more']{display:revert!important;visibility:visible!important}" +
+        ".sf-app-grid>:not(.sf-app-card):not(.sf-pager):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-grid-empty)" +
+        ":not(load-more-button):not(.load-more-button):not(.pagination__load-more):not([data-load-more])" +
+        ":not(.js-load-more):not(.btn--load-more){display:none!important}";
       (document.head || document.documentElement).appendChild(bridge);
     }
   }
@@ -13132,6 +13164,8 @@
 
   var THEME_PAGER_SEL_GRID =
     "nav.pagination, .pagination-wrapper, .pagination, [data-pagination], .paginate, #pagination, .Pagination, #AjaxinatePagination, .ajaxinate-pagination";
+  var THEME_LOAD_MORE_SEL_GRID =
+    "load-more-button, .load-more-button, .pagination__load-more, [data-load-more], button[name='load-more'], .js-load-more, .btn--load-more";
 
   function applyPagerByDisplayedCount(widget, count) {
     if (widget && widget.applyPagerByProductCount) {
@@ -13158,7 +13192,9 @@
       if (hide) layout.setAttribute("data-sf-single-page", "1");
       else layout.removeAttribute("data-sf-single-page");
     }
-    var nodes = document.querySelectorAll(THEME_PAGER_SEL_GRID);
+    var nodes = document.querySelectorAll(
+      THEME_PAGER_SEL_GRID + ", " + THEME_LOAD_MORE_SEL_GRID,
+    );
     var i;
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i];

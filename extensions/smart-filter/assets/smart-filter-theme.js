@@ -1160,16 +1160,28 @@
       ".sf-collection-layout[data-sf-single-page='1'] .Pagination," +
       ".sf-collection-layout[data-sf-single-page='1'] #AjaxinatePagination," +
       ".sf-collection-layout[data-sf-single-page='1'] .ajaxinate-pagination," +
+      ".sf-collection-layout[data-sf-single-page='1'] load-more-button," +
+      ".sf-collection-layout[data-sf-single-page='1'] .load-more-button," +
+      ".sf-collection-layout[data-sf-single-page='1'] .pagination__load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] [data-load-more]," +
+      ".sf-collection-layout[data-sf-single-page='1'] .js-load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] .btn--load-more," +
       "html.sf-few-results nav.pagination,html.sf-few-results .pagination-wrapper," +
       "html.sf-few-results .pagination,html.sf-few-results [data-pagination]," +
       "html.sf-few-results .paginate,html.sf-few-results #pagination," +
       "html.sf-few-results .Pagination,html.sf-few-results #AjaxinatePagination," +
       "html.sf-few-results .ajaxinate-pagination," +
+      "html.sf-few-results load-more-button,html.sf-few-results .load-more-button," +
+      "html.sf-few-results .pagination__load-more,html.sf-few-results [data-load-more]," +
+      "html.sf-few-results .js-load-more,html.sf-few-results .btn--load-more," +
       "html.sf-pager-unneeded nav.pagination,html.sf-pager-unneeded .pagination-wrapper," +
       "html.sf-pager-unneeded .pagination,html.sf-pager-unneeded [data-pagination]," +
       "html.sf-pager-unneeded .paginate,html.sf-pager-unneeded #pagination," +
       "html.sf-pager-unneeded .Pagination,html.sf-pager-unneeded #AjaxinatePagination," +
-      "html.sf-pager-unneeded .ajaxinate-pagination" +
+      "html.sf-pager-unneeded .ajaxinate-pagination," +
+      "html.sf-pager-unneeded load-more-button,html.sf-pager-unneeded .load-more-button," +
+      "html.sf-pager-unneeded .pagination__load-more,html.sf-pager-unneeded [data-load-more]," +
+      "html.sf-pager-unneeded .js-load-more,html.sf-pager-unneeded .btn--load-more" +
       "{display:none!important}" +
       "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) nav.pagination:not(.sf-pager):not([hidden]):not([data-sf-pager-suppressed='1'])," +
       "html:not(.sf-few-results):not(.sf-pager-unneeded):not(.sf-filter-loading):has(.smart-filter) .pagination-wrapper:not([hidden]):not([data-sf-pager-suppressed='1'])," +

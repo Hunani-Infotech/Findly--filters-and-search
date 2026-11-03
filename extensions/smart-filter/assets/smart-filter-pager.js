@@ -1,11 +1,13 @@
 /**
- * Collection pager — theme numbered pagination only.
+ * Collection pager — theme numbered pagination + theme Load More sync.
  * Loaded from Liquid via asset_url so it does not count against the 100 KB
  * schema "javascript" cap on smart-filter.min.js.
  *
  * Patches Widget.prototype as soon as window.__FINDLY_FILTER_WIDGET is set.
- * Findly never mounts load-more / infinite chrome; filtered views sync the
- * theme pager via syncThemePager + bindThemePagerClicks → goToPage.
+ * Filtered views rewrite numbered theme pagers via syncThemePager +
+ * bindThemePagerClicks → goToPage. Theme Load More controls are kept
+ * visible/bound separately (not rewritten) so mobile themes that hide
+ * numbered pages still have a next-page control after filter apply.
  * Unfiltered pager clicks are also AJAX (grid only) so the filter panel
  * stays painted instead of a full collection reload.
  */
@@ -14,10 +16,15 @@
 
   var THEME_PAGER_SEL =
     "nav.pagination, .pagination-wrapper, .pagination, [data-pagination], .paginate, #pagination, .Pagination, #AjaxinatePagination, .ajaxinate-pagination";
+  /* Kept separate from THEME_PAGER_SEL so rewritePager never treats these
+     as numbered lists. */
+  var THEME_LOAD_MORE_SEL =
+    "load-more-button, .load-more-button, .pagination__load-more, [data-load-more], button[name='load-more'], .js-load-more, .btn--load-more";
   var PAGER_CHROME_SKIP =
     "header, footer, .header, .footer, .announcement-bar, .predictive-search, .quick-add-modal, product-recommendations, .shopify-section-group-header-group, .shopify-section-group-footer-group";
   var ORIG_ATTR = "data-sf-theme-orig";
   var SUPPRESS_ATTR = "data-sf-pager-suppressed";
+  var LOAD_MORE_CSS_ID = "findly-sf-load-more-css";
 
   function pageWindow(current, count) {
     var pages = [];
@@ -224,16 +231,114 @@
     return total <= size;
   }
 
+  function findThemeLoadMore() {
+    var nodes = document.querySelectorAll(THEME_LOAD_MORE_SEL);
+    var out = [];
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || isFindlyPager(el)) continue;
+      if (el.closest && el.closest(PAGER_CHROME_SKIP)) continue;
+      out.push(el);
+    }
+    return out;
+  }
+
+  function ensureLoadMoreCss() {
+    if (document.getElementById(LOAD_MORE_CSS_ID)) return;
+    var style = document.createElement("style");
+    style.id = LOAD_MORE_CSS_ID;
+    /* Hide when a single page of results; do not force-show with
+       display:flex — theme breakpoints (e.g. Dawn large-up-hide) stay in
+       control after we clear inline suppress. App-grid must not swallow
+       load-more children. */
+    style.textContent =
+      "html.sf-few-results load-more-button," +
+      "html.sf-few-results .load-more-button," +
+      "html.sf-few-results .pagination__load-more," +
+      "html.sf-few-results [data-load-more]," +
+      "html.sf-few-results button[name='load-more']," +
+      "html.sf-few-results .js-load-more," +
+      "html.sf-few-results .btn--load-more," +
+      "html.sf-pager-unneeded load-more-button," +
+      "html.sf-pager-unneeded .load-more-button," +
+      "html.sf-pager-unneeded .pagination__load-more," +
+      "html.sf-pager-unneeded [data-load-more]," +
+      "html.sf-pager-unneeded button[name='load-more']," +
+      "html.sf-pager-unneeded .js-load-more," +
+      "html.sf-pager-unneeded .btn--load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] load-more-button," +
+      ".sf-collection-layout[data-sf-single-page='1'] .load-more-button," +
+      ".sf-collection-layout[data-sf-single-page='1'] .pagination__load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] [data-load-more]," +
+      ".sf-collection-layout[data-sf-single-page='1'] button[name='load-more']," +
+      ".sf-collection-layout[data-sf-single-page='1'] .js-load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] .btn--load-more" +
+      "{display:none!important}" +
+      ".sf-app-grid>load-more-button," +
+      ".sf-app-grid>.load-more-button," +
+      ".sf-app-grid>.pagination__load-more," +
+      ".sf-app-grid>[data-load-more]," +
+      ".sf-app-grid>button[name='load-more']," +
+      ".sf-app-grid>.js-load-more," +
+      ".sf-app-grid>.btn--load-more," +
+      ".sf-app-grid load-more-button:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid .load-more-button:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid .pagination__load-more:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid [data-load-more]:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid button[name='load-more']:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid .js-load-more:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid .btn--load-more:not([" +
+      SUPPRESS_ATTR +
+      "='1'])" +
+      "{display:revert!important;visibility:visible!important;pointer-events:auto!important}";
+    var parent = document.head || document.documentElement;
+    if (parent) parent.appendChild(style);
+  }
+
+  function suppressThemeLoadMore() {
+    ensureLoadMoreCss();
+    var nodes = findThemeLoadMore();
+    var i;
+    for (i = 0; i < nodes.length; i++) suppressPager(nodes[i]);
+  }
+
+  function unhideThemeLoadMore() {
+    ensureLoadMoreCss();
+    var nodes = findThemeLoadMore();
+    var i;
+    for (i = 0; i < nodes.length; i++) unhidePager(nodes[i]);
+  }
+
+  function syncThemeLoadMore(show) {
+    if (show) unhideThemeLoadMore();
+    else suppressThemeLoadMore();
+  }
+
   function suppressThemePagers() {
     var roots = findThemePagers();
     var i;
     for (i = 0; i < roots.length; i++) suppressPager(roots[i]);
+    suppressThemeLoadMore();
   }
 
   function unhideThemePagers() {
     var roots = findThemePagers();
     var i;
     for (i = 0; i < roots.length; i++) unhidePager(roots[i]);
+    unhideThemeLoadMore();
   }
 
   function applyPagerByProductCount(widget, count) {
@@ -522,6 +627,20 @@
     return max;
   }
 
+  function restoreLoadMoreFromSnapshot(el) {
+    if (!el || !el.querySelector) return;
+    if (el.querySelector(THEME_LOAD_MORE_SEL)) return;
+    var orig = el.getAttribute(ORIG_ATTR);
+    if (orig == null || !orig) return;
+    var tmp = document.createElement("div");
+    tmp.innerHTML = orig;
+    var found = tmp.querySelectorAll(THEME_LOAD_MORE_SEL);
+    var i;
+    for (i = 0; i < found.length; i++) {
+      el.appendChild(found[i]);
+    }
+  }
+
   function rewritePager(el, widget) {
     snapshotPager(el);
     var orig = el.getAttribute(ORIG_ATTR) || "";
@@ -574,6 +693,8 @@
     if (maxVisiblePageNumber(el) > pageCount) {
       forceSimplePager(el, widget, page, pageCount, tpls);
     }
+    /* Numbered rewrite may wipe a Load More node nested in the same root. */
+    restoreLoadMoreFromSnapshot(el);
     var grid = document.querySelector(
       "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .product-grid, .sf-app-grid, [data-product-grid], .collection-grid",
     );
@@ -1072,6 +1193,9 @@
         var target = event.target;
         if (!target || !target.closest) return;
         if (target.closest(".sf-pager, .smart-filter")) return;
+        /* Load More is handled by bindThemeLoadMoreClicks — do not treat
+           those controls as numbered page links. */
+        if (target.closest(THEME_LOAD_MORE_SEL)) return;
         var root = target.closest(THEME_PAGER_SEL);
         if (!root || isFindlyPager(root)) return;
         if (root.closest && root.closest(PAGER_CHROME_SKIP)) return;
@@ -1094,6 +1218,37 @@
           event.stopImmediatePropagation();
         }
         if (widget.goToPage) widget.goToPage(page);
+      },
+      true,
+    );
+  }
+
+  function bindThemeLoadMoreClicks() {
+    if (window.__findlyThemeLoadMoreBound) return;
+    window.__findlyThemeLoadMoreBound = true;
+    ensureLoadMoreCss();
+    document.addEventListener(
+      "click",
+      function (event) {
+        var widget = window.__FINDLY_FILTER_WIDGET;
+        if (!widget || !usesThemeNumberedPager()) return;
+        /* Unfiltered browse: leave theme Load More to the theme. */
+        if (!shouldDriveThemePager(widget)) return;
+        var target = event.target;
+        if (!target || !target.closest) return;
+        if (target.closest(".sf-pager, .smart-filter")) return;
+        var btn = target.closest(THEME_LOAD_MORE_SEL);
+        if (!btn || isFindlyPager(btn)) return;
+        if (btn.closest && btn.closest(PAGER_CHROME_SKIP)) return;
+        if (resultsFitOnePage(widget) && !payloadHasNext(widget)) return;
+        var current = Math.max(1, Number(widget.page) || 1);
+        var next = current + 1;
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") {
+          event.stopImmediatePropagation();
+        }
+        if (widget.goToPage) widget.goToPage(next);
       },
       true,
     );
@@ -1283,6 +1438,8 @@
       var drive = shouldDriveThemePager(this);
       clearCustomPagerClass();
       removeFindlyNumberedPagers(this);
+      ensureLoadMoreCss();
+      bindThemeLoadMoreClicks();
 
       // Unfiltered browse: leave theme pager chrome as-is, but still bind
       // clicks so page changes AJAX the grid instead of reloading the panel.
@@ -1313,12 +1470,17 @@
         // Few filtered results (≤ one page): hide theme pager.
         // hasNext / total>pageSize keep search pagination like collection.
         if (resultsFitOnePage(this) || (total <= size && !payloadHasNext(this))) {
+          syncThemeLoadMore(false);
           return true;
         }
         unhideThemePagers();
+        syncThemeLoadMore(true);
         var roots = findThemePagers();
         if (!roots.length) {
-          scheduleThemePagerSync(this);
+          /* No numbered chrome — Load More alone is enough on many mobile themes. */
+          bindThemePagerClicks();
+          this._themePagerTries = 0;
+          if (!findThemeLoadMore().length) scheduleThemePagerSync(this);
           return true;
         }
         bindThemePagerClicks();
@@ -1327,6 +1489,16 @@
         for (i = 0; i < roots.length; i++) {
           snapshotPager(roots[i]);
           rewritePager(roots[i], this);
+        }
+        /* rewritePager may touch wrapper innerHTML; re-assert Load More
+           only when more pages remain (avoid undoing a one-page suppress). */
+        if (
+          !(
+            resultsFitOnePage(this) ||
+            (total <= size && !payloadHasNext(this))
+          )
+        ) {
+          syncThemeLoadMore(true);
         }
         return true;
       } finally {
