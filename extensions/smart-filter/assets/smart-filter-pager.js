@@ -1,15 +1,15 @@
 /**
- * Collection pager — theme numbered pagination + theme Load More sync.
+ * Collection pager — theme numbered pagination + Load More + infinite sync.
  * Loaded from Liquid via asset_url so it does not count against the 100 KB
  * schema "javascript" cap on smart-filter.min.js.
  *
  * Patches Widget.prototype as soon as window.__FINDLY_FILTER_WIDGET is set.
  * Filtered views rewrite numbered theme pagers via syncThemePager +
  * bindThemePagerClicks → goToPage. Theme Load More controls are kept
- * visible/bound separately (not rewritten) so mobile themes that hide
- * numbered pages still have a next-page control after filter apply.
- * Unfiltered pager clicks are also AJAX (grid only) so the filter panel
- * stays painted instead of a full collection reload.
+ * visible/bound separately (not rewritten). Theme #infinite-loader /
+ * [data-next-url] hosts are disarmed while filters are active and driven
+ * by Findly append paging so unfiltered collection ?page=N HTML cannot
+ * leak into the grid. Unfiltered browse leaves theme infinite alone.
  */
 (function () {
   "use strict";
@@ -20,10 +20,13 @@
      as numbered lists. */
   var THEME_LOAD_MORE_SEL =
     "load-more-button, .load-more-button, .pagination__load-more, [data-load-more], button[name='load-more'], .js-load-more, .btn--load-more";
+  var THEME_INFINITE_SEL = "#infinite-loader, [data-next-url]";
   var PAGER_CHROME_SKIP =
     "header, footer, .header, .footer, .announcement-bar, .predictive-search, .quick-add-modal, product-recommendations, .shopify-section-group-header-group, .shopify-section-group-footer-group";
   var ORIG_ATTR = "data-sf-theme-orig";
   var SUPPRESS_ATTR = "data-sf-pager-suppressed";
+  var NEXT_URL_ORIG_ATTR = "data-sf-next-url-orig";
+  var INFINITE_OWNED_ATTR = "data-sf-infinite-owned";
   var LOAD_MORE_CSS_ID = "findly-sf-load-more-css";
 
   function pageWindow(current, count) {
@@ -260,6 +263,10 @@
       "html.sf-few-results button[name='load-more']," +
       "html.sf-few-results .js-load-more," +
       "html.sf-few-results .btn--load-more," +
+      "html.sf-few-results #infinite-loader," +
+      "html.sf-few-results [" +
+      INFINITE_OWNED_ATTR +
+      "='1']," +
       "html.sf-pager-unneeded load-more-button," +
       "html.sf-pager-unneeded .load-more-button," +
       "html.sf-pager-unneeded .pagination__load-more," +
@@ -267,13 +274,21 @@
       "html.sf-pager-unneeded button[name='load-more']," +
       "html.sf-pager-unneeded .js-load-more," +
       "html.sf-pager-unneeded .btn--load-more," +
+      "html.sf-pager-unneeded #infinite-loader," +
+      "html.sf-pager-unneeded [" +
+      INFINITE_OWNED_ATTR +
+      "='1']," +
       ".sf-collection-layout[data-sf-single-page='1'] load-more-button," +
       ".sf-collection-layout[data-sf-single-page='1'] .load-more-button," +
       ".sf-collection-layout[data-sf-single-page='1'] .pagination__load-more," +
       ".sf-collection-layout[data-sf-single-page='1'] [data-load-more]," +
       ".sf-collection-layout[data-sf-single-page='1'] button[name='load-more']," +
       ".sf-collection-layout[data-sf-single-page='1'] .js-load-more," +
-      ".sf-collection-layout[data-sf-single-page='1'] .btn--load-more" +
+      ".sf-collection-layout[data-sf-single-page='1'] .btn--load-more," +
+      ".sf-collection-layout[data-sf-single-page='1'] #infinite-loader," +
+      ".sf-collection-layout[data-sf-single-page='1'] [" +
+      INFINITE_OWNED_ATTR +
+      "='1']" +
       "{display:none!important}" +
       ".sf-app-grid>load-more-button," +
       ".sf-app-grid>.load-more-button," +
@@ -282,6 +297,7 @@
       ".sf-app-grid>button[name='load-more']," +
       ".sf-app-grid>.js-load-more," +
       ".sf-app-grid>.btn--load-more," +
+      ".sf-app-grid>#infinite-loader," +
       ".sf-app-grid load-more-button:not([" +
       SUPPRESS_ATTR +
       "='1'])," +
@@ -301,6 +317,9 @@
       SUPPRESS_ATTR +
       "='1'])," +
       ".sf-app-grid .btn--load-more:not([" +
+      SUPPRESS_ATTR +
+      "='1'])," +
+      ".sf-app-grid #infinite-loader:not([" +
       SUPPRESS_ATTR +
       "='1'])" +
       "{display:revert!important;visibility:visible!important;pointer-events:auto!important}";
@@ -325,6 +344,281 @@
   function syncThemeLoadMore(show) {
     if (show) unhideThemeLoadMore();
     else suppressThemeLoadMore();
+  }
+
+  function findThemeInfiniteHosts() {
+    var nodes = document.querySelectorAll(THEME_INFINITE_SEL);
+    var out = [];
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || isFindlyPager(el)) continue;
+      if (el.closest && el.closest(PAGER_CHROME_SKIP)) continue;
+      out.push(el);
+    }
+    return out;
+  }
+
+  function snapshotNextUrl(el) {
+    if (!el || el.getAttribute(NEXT_URL_ORIG_ATTR) != null) return;
+    var cur = el.getAttribute("data-next-url");
+    if (cur == null) return;
+    el.setAttribute(NEXT_URL_ORIG_ATTR, cur);
+  }
+
+  function disarmThemeInfiniteHost(el) {
+    if (!el) return;
+    snapshotNextUrl(el);
+    el.setAttribute(INFINITE_OWNED_ATTR, "1");
+    /* Theme scripts key off data-next-url — clear so they cannot fetch
+       unfiltered collection HTML while Findly owns paging. */
+    if (el.hasAttribute("data-next-url")) {
+      el.setAttribute("data-next-url", "");
+    }
+    el.hidden = false;
+    el.removeAttribute("hidden");
+    el.removeAttribute(SUPPRESS_ATTR);
+    if (el.style) el.style.removeProperty("display");
+  }
+
+  function restoreThemeInfiniteHost(el) {
+    if (!el) return;
+    var orig = el.getAttribute(NEXT_URL_ORIG_ATTR);
+    if (orig != null) {
+      el.setAttribute("data-next-url", orig);
+      el.removeAttribute(NEXT_URL_ORIG_ATTR);
+    }
+    el.removeAttribute(INFINITE_OWNED_ATTR);
+    el.removeAttribute(SUPPRESS_ATTR);
+    el.hidden = false;
+    el.removeAttribute("hidden");
+    if (el.style) el.style.removeProperty("display");
+  }
+
+  function suppressThemeInfiniteHosts() {
+    ensureLoadMoreCss();
+    var nodes = findThemeInfiniteHosts();
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      snapshotNextUrl(nodes[i]);
+      if (nodes[i].hasAttribute("data-next-url")) {
+        nodes[i].setAttribute("data-next-url", "");
+      }
+      nodes[i].setAttribute(INFINITE_OWNED_ATTR, "1");
+      suppressPager(nodes[i]);
+    }
+  }
+
+  function isThemeCollectionPageUrl(url) {
+    if (!url) return false;
+    try {
+      var u = new URL(String(url), window.location.origin);
+      if (u.origin !== window.location.origin) return false;
+      var path = String(u.pathname || "");
+      if (path.indexOf("/apps/smart-filter") !== -1) return false;
+      if (path.indexOf("/a/smart-filter") !== -1) return false;
+      var page = Number(u.searchParams.get("page") || "0") || 0;
+      if (page <= 1) return false;
+      if (/\/collections\//.test(path) || /\/search\/?$/.test(path) || path === "/search") {
+        return true;
+      }
+      /* Section AJAX often keeps the collection path + page + sections= */
+      if (
+        (u.searchParams.has("sections") || u.searchParams.has("section_id")) &&
+        (path === window.location.pathname || /\/collections\//.test(path))
+      ) {
+        return true;
+      }
+      return false;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function installThemePageFetchGuard() {
+    if (window.__findlyThemePageFetchGuard) return;
+    window.__findlyThemePageFetchGuard = true;
+
+    if (typeof window.fetch === "function") {
+      var origFetch = window.fetch;
+      window.fetch = function (input, init) {
+        var url =
+          typeof input === "string"
+            ? input
+            : input && typeof input.url === "string"
+              ? input.url
+              : "";
+        var w = window.__FINDLY_FILTER_WIDGET;
+        if (w && shouldDriveThemePager(w) && isThemeCollectionPageUrl(url)) {
+          return Promise.resolve(
+            new Response("", {
+              status: 204,
+              statusText: "No Content",
+            }),
+          );
+        }
+        return origFetch.apply(this, arguments);
+      };
+    }
+
+    if (typeof window.XMLHttpRequest === "function") {
+      var xhrOpen = XMLHttpRequest.prototype.open;
+      var xhrSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        this.__findlyReqUrl = url;
+        return xhrOpen.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function () {
+        var w = window.__FINDLY_FILTER_WIDGET;
+        if (
+          w &&
+          shouldDriveThemePager(w) &&
+          isThemeCollectionPageUrl(this.__findlyReqUrl)
+        ) {
+          try {
+            this.abort();
+          } catch (err) {
+            /* ignore */
+          }
+          return;
+        }
+        return xhrSend.apply(this, arguments);
+      };
+    }
+  }
+
+  function loadNextFilteredPage(widget) {
+    if (!widget || !shouldDriveThemePager(widget)) return;
+    if (widget._sfInfiniteLoading || widget._loadingPage || widget._inflight) {
+      return;
+    }
+    if (!payloadHasNext(widget)) {
+      suppressThemeInfiniteHosts();
+      disconnectWidgetInfinite(widget);
+      return;
+    }
+    var current = Math.max(1, Number(widget.page) || 1);
+    var next = current + 1;
+    widget._sfInfiniteLoading = true;
+    widget._sfPaged = true;
+    widget.page = next;
+    var finish = function () {
+      widget._sfInfiniteLoading = false;
+      if (widget.syncThemePager) widget.syncThemePager();
+    };
+    try {
+      var req =
+        widget.fetchFilters && widget.fetchFilters({ append: true });
+      if (req && typeof req.then === "function") {
+        req.then(finish, finish);
+      } else {
+        finish();
+      }
+    } catch (err) {
+      finish();
+    }
+  }
+
+  function disconnectWidgetInfinite(widget) {
+    if (!widget) return;
+    if (widget._infiniteObserver) {
+      try {
+        widget._infiniteObserver.disconnect();
+      } catch (err) {
+        /* ignore */
+      }
+      widget._infiniteObserver = null;
+    }
+    if (widget._infiniteOnScroll) {
+      window.removeEventListener("scroll", widget._infiniteOnScroll);
+      window.removeEventListener("resize", widget._infiniteOnScroll);
+      widget._infiniteOnScroll = null;
+    }
+  }
+
+  function observeFindlyInfinite(widget) {
+    if (!widget) return;
+    installThemePageFetchGuard();
+    disconnectWidgetInfinite(widget);
+    var hosts = findThemeInfiniteHosts();
+    if (!hosts.length) return;
+
+    var i;
+    for (i = 0; i < hosts.length; i++) disarmThemeInfiniteHost(hosts[i]);
+
+    function maybeLoad() {
+      if (!shouldDriveThemePager(widget)) return;
+      if (!payloadHasNext(widget)) {
+        suppressThemeInfiniteHosts();
+        disconnectWidgetInfinite(widget);
+        return;
+      }
+      var host = hosts[0];
+      if (!host || !host.isConnected) {
+        hosts = findThemeInfiniteHosts();
+        host = hosts[0];
+        if (!host) return;
+        disarmThemeInfiniteHost(host);
+      }
+      var rect = host.getBoundingClientRect();
+      var vh =
+        window.innerHeight ||
+        (document.documentElement && document.documentElement.clientHeight) ||
+        0;
+      /* Load a bit before the sentinel fully enters the viewport. */
+      if (rect.top <= vh + 240) loadNextFilteredPage(widget);
+    }
+
+    if (typeof IntersectionObserver === "function") {
+      widget._infiniteObserver = new IntersectionObserver(
+        function (entries) {
+          var e;
+          for (e = 0; e < entries.length; e++) {
+            if (entries[e] && entries[e].isIntersecting) {
+              loadNextFilteredPage(widget);
+              break;
+            }
+          }
+        },
+        { root: null, rootMargin: "240px 0px", threshold: 0 },
+      );
+      for (i = 0; i < hosts.length; i++) {
+        try {
+          widget._infiniteObserver.observe(hosts[i]);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+    }
+
+    widget._infiniteOnScroll = function () {
+      maybeLoad();
+    };
+    window.addEventListener("scroll", widget._infiniteOnScroll, {
+      passive: true,
+    });
+    window.addEventListener("resize", widget._infiniteOnScroll, {
+      passive: true,
+    });
+    window.setTimeout(maybeLoad, 60);
+  }
+
+  function syncThemeInfinite(widget, show) {
+    ensureLoadMoreCss();
+    installThemePageFetchGuard();
+    if (!show) {
+      suppressThemeInfiniteHosts();
+      disconnectWidgetInfinite(widget);
+      return;
+    }
+    observeFindlyInfinite(widget);
+  }
+
+  function restoreThemeInfiniteAll(widget) {
+    disconnectWidgetInfinite(widget);
+    var nodes = findThemeInfiniteHosts();
+    var i;
+    for (i = 0; i < nodes.length; i++) restoreThemeInfiniteHost(nodes[i]);
   }
 
   function suppressThemePagers() {
@@ -1261,15 +1555,7 @@
     proto.__findlyPagerPatched = true;
 
     proto.disconnectInfinite = function () {
-      if (this._infiniteObserver) {
-        this._infiniteObserver.disconnect();
-        this._infiniteObserver = null;
-      }
-      if (this._infiniteOnScroll) {
-        window.removeEventListener("scroll", this._infiniteOnScroll);
-        window.removeEventListener("resize", this._infiniteOnScroll);
-        this._infiniteOnScroll = null;
-      }
+      disconnectWidgetInfinite(this);
     };
 
     proto.hideFindlyPagerEl = function () {
@@ -1440,12 +1726,14 @@
       removeFindlyNumberedPagers(this);
       ensureLoadMoreCss();
       bindThemeLoadMoreClicks();
+      installThemePageFetchGuard();
 
-      // Unfiltered browse: leave theme pager chrome as-is, but still bind
-      // clicks so page changes AJAX the grid instead of reloading the panel.
+      // Unfiltered browse: leave theme pager / infinite chrome as-is, but
+      // still bind numbered clicks so page changes AJAX the grid.
       if (!drive) {
         setPagerUnneeded(false);
         unhideThemePagers();
+        restoreThemeInfiniteAll(this);
         var idleRoots = findThemePagers();
         var r;
         for (r = 0; r < idleRoots.length; r++) restorePager(idleRoots[r]);
@@ -1467,20 +1755,24 @@
           scheduleThemePagerSync(this);
           return true;
         }
-        // Few filtered results (≤ one page): hide theme pager.
+        // Few filtered results (≤ one page): hide theme pager / infinite.
         // hasNext / total>pageSize keep search pagination like collection.
         if (resultsFitOnePage(this) || (total <= size && !payloadHasNext(this))) {
           syncThemeLoadMore(false);
+          syncThemeInfinite(this, false);
           return true;
         }
         unhideThemePagers();
         syncThemeLoadMore(true);
+        syncThemeInfinite(this, true);
         var roots = findThemePagers();
         if (!roots.length) {
-          /* No numbered chrome — Load More alone is enough on many mobile themes. */
+          /* No numbered chrome — Load More / infinite hosts are enough. */
           bindThemePagerClicks();
           this._themePagerTries = 0;
-          if (!findThemeLoadMore().length) scheduleThemePagerSync(this);
+          if (!findThemeLoadMore().length && !findThemeInfiniteHosts().length) {
+            scheduleThemePagerSync(this);
+          }
           return true;
         }
         bindThemePagerClicks();
@@ -1490,8 +1782,8 @@
           snapshotPager(roots[i]);
           rewritePager(roots[i], this);
         }
-        /* rewritePager may touch wrapper innerHTML; re-assert Load More
-           only when more pages remain (avoid undoing a one-page suppress). */
+        /* rewritePager may touch wrapper innerHTML; re-assert Load More /
+           infinite only when more pages remain. */
         if (
           !(
             resultsFitOnePage(this) ||
@@ -1499,6 +1791,9 @@
           )
         ) {
           syncThemeLoadMore(true);
+          syncThemeInfinite(this, true);
+        } else {
+          syncThemeInfinite(this, false);
         }
         return true;
       } finally {
