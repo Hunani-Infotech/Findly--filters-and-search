@@ -8539,12 +8539,44 @@
     return Boolean(el.querySelector("img, svg, [style*='background']"));
   }
 
+  /* When a price filter is active, paint a price inside the overlap of the
+     product band and the selected range. Unfiltered listings still use priceMin. */
+  function displayPriceForFill(product, widget) {
+    if (!product) return NaN;
+    var raw = product.priceMin != null ? product.priceMin : product.price;
+    if (raw == null || raw === "") return NaN;
+    if (typeof raw === "string" && /[^\d.]/.test(raw)) return NaN;
+    var n = Number(raw);
+    if (!Number.isFinite(n)) return NaN;
+    var pMax =
+      product.priceMax != null && product.priceMax !== ""
+        ? Number(product.priceMax)
+        : n;
+    if (!Number.isFinite(pMax)) pMax = n;
+    if (pMax < n) pMax = n;
+
+    var filter = widget && widget.price;
+    if (!filter) return n;
+    var fMin =
+      filter.min === "" || filter.min == null ? NaN : Number(filter.min);
+    var fMax =
+      filter.max === "" || filter.max == null ? NaN : Number(filter.max);
+    if (!Number.isFinite(fMin) && !Number.isFinite(fMax)) return n;
+
+    var lo = n;
+    var hi = pMax;
+    if (Number.isFinite(fMin) && fMin > lo) lo = fMin;
+    if (Number.isFinite(fMax) && fMax < hi) hi = fMax;
+    if (lo > hi) return n;
+    return lo;
+  }
+
   function formatFillPrice(product, widget) {
     if (!product) return "";
     var raw = product.priceMin != null ? product.priceMin : product.price;
     if (raw == null || raw === "") return "";
     if (typeof raw === "string" && /[^\d.]/.test(raw)) return raw;
-    var n = Number(raw);
+    var n = displayPriceForFill(product, widget);
     if (!Number.isFinite(n)) return "";
     var code =
       (widget && widget.currency) ||
