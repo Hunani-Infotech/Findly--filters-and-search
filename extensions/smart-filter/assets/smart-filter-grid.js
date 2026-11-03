@@ -11155,14 +11155,17 @@
       widget &&
       widget.root &&
       widget.root.isConnected !== false &&
-      widget.root.classList.contains("is-drawer-open")
+      (widget.root.classList.contains("is-drawer-open") ||
+        widget._sfOpeningDrawer)
     );
   }
 
   function applyPortaledPanelLayout(panel, widget) {
     if (!panel || !panel.style) return;
     var right = drawerOpensFromRight(widget);
-    var isOpen = drawerRootIsOpen(widget) || panel.classList.contains("is-open");
+    var isOpen =
+      drawerRootIsOpen(widget) ||
+      (panel && panel.classList.contains("is-open"));
     syncDrawerSideAttrs(widget, panel);
     panel.style.setProperty("position", "fixed", "important");
     panel.style.setProperty("top", "0", "important");
@@ -11299,7 +11302,10 @@
       enhancePriceSliders(panel);
       placeMobileToolbarToggle(widget);
       if (widget && widget.toggleEl) toggle = widget.toggleEl;
-      if (widget.root && widget.root.classList.contains("is-drawer-open")) {
+      if (
+        (widget.root && widget.root.classList.contains("is-drawer-open")) ||
+        widget._sfOpeningDrawer
+      ) {
         panel.classList.add("is-open");
         panel.hidden = false;
         panel.removeAttribute("hidden");
@@ -14562,33 +14568,38 @@
 
     var origOpen = proto.openDrawer;
     proto.openDrawer = function () {
-      portalMobileDrawer(this);
-      var panel = liveDrawerPanel(this);
-      if (panel) {
-        syncDrawerPanelRefs(this, panel);
-        applyPortaledPanelLayout(panel, this);
-        ensurePortaledFacetsPainted(this, panel);
+      this._sfOpeningDrawer = true;
+      try {
+        portalMobileDrawer(this);
+        if (origOpen) origOpen.apply(this, arguments);
+        var panel = liveDrawerPanel(this) || this.panelEl;
+        var backdrop = liveDrawerBackdrop(this) || this.backdropEl;
+        if (panel) {
+          panel.classList.add("is-open");
+          panel.hidden = false;
+          panel.removeAttribute("hidden");
+          syncDrawerPanelRefs(this, panel);
+          applyPortaledPanelLayout(panel, this);
+          restoreFindlyPanelChrome(panel);
+          ensurePortaledFacetsPainted(this, panel);
+          enhancePriceSliders(panel);
+          decorateCheckMarks(panel);
+        }
+        if (backdrop) {
+          this.backdropEl = backdrop;
+          backdrop.hidden = false;
+          backdrop.removeAttribute("hidden");
+          backdrop.classList.add("is-open");
+        }
+        document.documentElement.classList.add("is-sf-drawer-open");
+      } finally {
+        this._sfOpeningDrawer = false;
       }
-      if (origOpen) origOpen.apply(this, arguments);
-      panel = liveDrawerPanel(this) || this.panelEl;
-      if (panel) {
-        panel.classList.add("is-open");
-        syncDrawerPanelRefs(this, panel);
-        applyPortaledPanelLayout(panel, this);
-        restoreFindlyPanelChrome(panel);
-        ensurePortaledFacetsPainted(this, panel);
-        enhancePriceSliders(panel);
-        decorateCheckMarks(panel);
-      }
-      if (this.backdropEl) {
-        this.backdropEl.hidden = false;
-        this.backdropEl.classList.add("is-open");
-      }
-      document.documentElement.classList.add("is-sf-drawer-open");
     };
 
     var origClose = proto.closeDrawer;
     proto.closeDrawer = function () {
+      this._sfOpeningDrawer = false;
       if (origClose) origClose.apply(this, arguments);
       var panel = liveDrawerPanel(this) || this.panelEl;
       var backdrop = liveDrawerBackdrop(this) || this.backdropEl;
@@ -14599,6 +14610,7 @@
         applyPortaledPanelLayout(panel, this);
       }
       if (backdrop) {
+        this.backdropEl = backdrop;
         backdrop.hidden = true;
         backdrop.setAttribute("hidden", "");
         backdrop.classList.remove("is-open");

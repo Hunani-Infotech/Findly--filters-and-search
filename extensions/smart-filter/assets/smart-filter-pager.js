@@ -1781,10 +1781,316 @@
     );
   }
 
+  /* ---- shareable filter/drawer trace (copy via window.__FINDLY_FILTER_TRACE) ---- */
+  var TRACE_MAX = 80;
+  var TRACE_PREFIX = "[FindlyFilterTrace]";
+
+  function diagEnabled() {
+    return window.__FINDLY_FILTER_DEBUG !== false;
+  }
+
+  function ensureTrace() {
+    if (!window.__FINDLY_FILTER_TRACE) {
+      window.__FINDLY_FILTER_TRACE = {
+        version: 1,
+        startedAt: new Date().toISOString(),
+        href: String(location.href || ""),
+        events: [],
+      };
+    }
+    return window.__FINDLY_FILTER_TRACE;
+  }
+
+  function elBrief(el) {
+    if (!el || el.nodeType !== 1) return null;
+    var r = el.getBoundingClientRect();
+    var cs = null;
+    try {
+      cs = getComputedStyle(el);
+    } catch (err) {
+      cs = null;
+    }
+    return {
+      tag: el.tagName,
+      id: el.id || null,
+      className: String(el.className || "").slice(0, 80),
+      hidden: !!el.hidden,
+      display: cs ? cs.display : null,
+      visibility: cs ? cs.visibility : null,
+      pointerEvents: cs ? cs.pointerEvents : null,
+      opacity: cs ? cs.opacity : null,
+      transform: cs ? cs.transform : null,
+      zIndex: cs ? cs.zIndex : null,
+      rect: {
+        left: Math.round(r.left),
+        top: Math.round(r.top),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      },
+    };
+  }
+
+  function toggleHitStack(toggle) {
+    if (!toggle || !toggle.getBoundingClientRect) return [];
+    var r = toggle.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return [];
+    var x = r.left + r.width / 2;
+    var y = r.top + r.height / 2;
+    var stack = [];
+    try {
+      var list = document.elementsFromPoint
+        ? document.elementsFromPoint(x, y)
+        : [];
+      var i;
+      for (i = 0; i < Math.min(list.length, 6); i++) {
+        var el = list[i];
+        stack.push(
+          el.tagName +
+            (el.id ? "#" + el.id : "") +
+            "." +
+            String(el.className || "")
+              .replace(/\s+/g, ".")
+              .slice(0, 48),
+        );
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    return stack;
+  }
+
+  function snapshotFilterUi(widget, note) {
+    var panel =
+      document.querySelector(".sf-panel.sf-drawer-portal") ||
+      document.querySelector("[data-drawer-panel]") ||
+      (widget && widget.panelEl) ||
+      null;
+    var backdrop =
+      document.querySelector(".sf-backdrop.sf-drawer-portal") ||
+      document.querySelector("[data-drawer-backdrop]") ||
+      (widget && widget.backdropEl) ||
+      null;
+    var toggle =
+      document.querySelector("[data-drawer-toggle]") ||
+      (widget && widget.toggleEl) ||
+      null;
+    var busy = document.getElementById("findly-grid-busy-overlay");
+    var data = widget && widget._lastFilterData;
+    var hit = toggleHitStack(toggle);
+    var coveredByPanel = hit.some(function (s) {
+      return /sf-panel|sf-facet|sf-option|sf-backdrop/.test(s);
+    });
+    return {
+      note: note || null,
+      t: Date.now(),
+      href: String(location.href || ""),
+      selected: widget && widget.selected ? JSON.parse(JSON.stringify(widget.selected)) : null,
+      page: widget && widget.page,
+      pageSize: widget && widget.pageSize,
+      total: data ? data.total : null,
+      hasNext: data ? Boolean(data.hasNext) : null,
+      accumCount: Array.isArray(widget && widget._sfAccumHandles)
+        ? widget._sfAccumHandles.length
+        : 0,
+      shownCount: Array.isArray(widget && widget._shownHandles)
+        ? widget._shownHandles.length
+        : 0,
+      rootOpen: !!(widget && widget.root && widget.root.classList.contains("is-drawer-open")),
+      htmlDrawerOpen: document.documentElement.classList.contains("is-sf-drawer-open"),
+      filterLoading: document.documentElement.classList.contains("sf-filter-loading"),
+      busyHost: !!document.querySelector(".findly-grid-is-busy"),
+      busyOverlay: !!(
+        busy &&
+        getComputedStyle(busy).display !== "none" &&
+        busy.getBoundingClientRect().height > 0
+      ),
+      overflow: document.documentElement.style.overflow || "",
+      openingFlag: !!(widget && widget._sfOpeningDrawer),
+      panel: elBrief(panel),
+      backdrop: elBrief(backdrop),
+      toggle: elBrief(toggle),
+      toggleHitStack: hit,
+      toggleCoveredByDrawer: coveredByPanel,
+      toggleClickable: !!(toggle && !coveredByPanel),
+    };
+  }
+
+  function pushTrace(event, widget, extra) {
+    if (!diagEnabled()) return;
+    var trace = ensureTrace();
+    var entry = {
+      event: event,
+      at: new Date().toISOString(),
+      snap: snapshotFilterUi(widget, event),
+      extra: extra || null,
+    };
+    trace.events.push(entry);
+    if (trace.events.length > TRACE_MAX) {
+      trace.events.splice(0, trace.events.length - TRACE_MAX);
+    }
+    trace.href = String(location.href || "");
+    trace.updatedAt = entry.at;
+    try {
+      console.log(TRACE_PREFIX, event, entry);
+    } catch (err) {
+      /* ignore */
+    }
+    return entry;
+  }
+
+  function installFilterTrace(widget) {
+    if (!widget || widget.__findlyFilterTracePatched) return;
+    widget.__findlyFilterTracePatched = true;
+    ensureTrace();
+    pushTrace("trace-installed", widget, {
+      tip: "Apply/remove a filter, try Filter drawer, then run: copy(JSON.stringify(window.__FINDLY_FILTER_TRACE,null,2))",
+    });
+
+    var proto = Object.getPrototypeOf(widget);
+    if (!proto) return;
+
+    if (!proto.__findlyFilterTraceProto) {
+      proto.__findlyFilterTraceProto = true;
+
+      var prevFetch = proto.fetchFilters;
+      if (prevFetch) {
+        proto.fetchFilters = function (opts) {
+          opts = opts || {};
+          var kind = opts.append
+            ? "fetch-append"
+            : opts.page != null
+              ? "fetch-page"
+              : "fetch-filter-apply";
+          var beforeSelected = this.selected
+            ? JSON.parse(JSON.stringify(this.selected))
+            : null;
+          pushTrace(kind + ":start", this, {
+            opts: {
+              append: !!opts.append,
+              page: opts.page != null ? opts.page : null,
+            },
+            selectedBefore: beforeSelected,
+          });
+          var self = this;
+          var req = prevFetch.apply(this, arguments);
+          var finish = function (ok, err) {
+            pushTrace(kind + (ok ? ":done" : ":error"), self, {
+              ok: ok,
+              error: err ? String(err && err.message ? err.message : err) : null,
+              selectedAfter: self.selected
+                ? JSON.parse(JSON.stringify(self.selected))
+                : null,
+            });
+            /* Settled UI after enforce timers start */
+            window.setTimeout(function () {
+              pushTrace(kind + ":settle-200ms", self, null);
+            }, 200);
+            window.setTimeout(function () {
+              pushTrace(kind + ":settle-900ms", self, null);
+            }, 900);
+          };
+          if (req && typeof req.then === "function") {
+            return req.then(
+              function (value) {
+                finish(true, null);
+                return value;
+              },
+              function (err) {
+                finish(false, err);
+                throw err;
+              },
+            );
+          }
+          finish(true, null);
+          return req;
+        };
+      }
+
+      var prevClear = proto.clearFilters;
+      if (prevClear) {
+        proto.clearFilters = function () {
+          pushTrace("clear-filters:start", this, {
+            selectedBefore: this.selected
+              ? JSON.parse(JSON.stringify(this.selected))
+              : null,
+          });
+          return prevClear.apply(this, arguments);
+        };
+      }
+
+      var prevOpen = proto.openDrawer;
+      if (prevOpen) {
+        proto.openDrawer = function () {
+          pushTrace("drawer-open:start", this, null);
+          var out = prevOpen.apply(this, arguments);
+          pushTrace("drawer-open:done", this, null);
+          return out;
+        };
+      }
+
+      var prevClose = proto.closeDrawer;
+      if (prevClose) {
+        proto.closeDrawer = function () {
+          pushTrace("drawer-close:start", this, null);
+          var out = prevClose.apply(this, arguments);
+          pushTrace("drawer-close:done", this, null);
+          return out;
+        };
+      }
+    }
+
+    if (!window.__findlyFilterTraceClickBound) {
+      window.__findlyFilterTraceClickBound = true;
+      document.addEventListener(
+        "click",
+        function (event) {
+          if (!diagEnabled()) return;
+          var t = event.target;
+          if (!t || !t.closest) return;
+          var toggle = t.closest("[data-drawer-toggle]");
+          var chip = t.closest(
+            "[data-remove-filter], .sf-chip [data-remove], .sf-page-chips button, .sf-chips button",
+          );
+          var clearBtn = t.closest("[data-clear-all]");
+          var w = window.__FINDLY_FILTER_WIDGET;
+          if (toggle) {
+            pushTrace("click:drawer-toggle", w, {
+              ariaExpanded: toggle.getAttribute("aria-expanded"),
+            });
+          } else if (clearBtn) {
+            pushTrace("click:clear-all", w, null);
+          } else if (chip) {
+            pushTrace("click:remove-chip", w, {
+              text: String(chip.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 60),
+            });
+          }
+        },
+        true,
+      );
+    }
+
+    window.__FINDLY_DUMP_FILTER_TRACE = function () {
+      var payload = ensureTrace();
+      var text = JSON.stringify(payload, null, 2);
+      try {
+        console.log(TRACE_PREFIX, "DUMP", payload);
+      } catch (err) {
+        /* ignore */
+      }
+      return text;
+    };
+  }
+
   function patchWidget(widget) {
     if (!widget) return;
     var proto = Object.getPrototypeOf(widget);
-    if (!proto || proto.__findlyPagerPatched) return;
+    if (!proto || proto.__findlyPagerPatched) {
+      installFilterTrace(widget);
+      return;
+    }
     proto.__findlyPagerPatched = true;
 
     proto.disconnectInfinite = function () {
@@ -2098,6 +2404,7 @@
     };
 
     bindThemePagerClicks();
+    installFilterTrace(widget);
   }
 
   function scheduleThemePagerSync(widget) {
