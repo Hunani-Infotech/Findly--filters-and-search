@@ -183,7 +183,7 @@
   var SKIP =
     "header, footer, .header, .footer, .announcement-bar, .shopify-section-group-header-group, product-recommendations, .related-products, [data-related-products], .recently-viewed, .predictive-search, .quick-add-modal, .complementary-products, .collection-banner, .collection-hero, .slideshow, dialog, dialog-component, #search-modal, .search-modal, predictive-search-component, #predictive-search-results, [id*='predictive'], [role='dialog'], [popover], [aria-modal='true'], .resource-card__wrapper";
   var PROTECT =
-    ".smart-filter, .smart-filter-search, .findly-instant, .sf-panel, .sf-facet, .sf-facets, .sf-header, .sf-backdrop, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout";
+    ".smart-filter, .smart-filter-search, .findly-instant, .sf-panel, .sf-facet, .sf-facets, .sf-header, .sf-backdrop, .sf-toolbar, .sf-sort-host, .sf-search-host, .sf-total-count, .sf-pager, .sf-app-card, .sf-collection-layout, .sf-toggle, [data-drawer-toggle], [data-drawer-panel], [data-drawer-backdrop]";
   var NATIVE_INPUT =
     "[name^='filter.'], [name^='filter.v.'], [name^='filter.p.'], select[name='sort_by'], select[name='sortBy']";
   var PAGER_HINT =
@@ -818,7 +818,12 @@
     if (isFindlyUi(el) || isSkipped(el)) return;
     if (isCustomProductColumn(el)) return;
     if (el.getAttribute("data-findly-native-chrome") === "1") return;
-    if (el.querySelector && el.querySelector(".smart-filter, .sf-panel, .sf-app-card, .sf-pager")) {
+    if (
+      el.querySelector &&
+      el.querySelector(
+        ".smart-filter, .sf-panel, .sf-app-card, .sf-pager, .sf-toggle, [data-drawer-toggle], [data-drawer-panel]",
+      )
+    ) {
       return;
     }
     try {

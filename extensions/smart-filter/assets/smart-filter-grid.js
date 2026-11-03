@@ -271,6 +271,8 @@
     ".findly-grid-is-busy .sf-toolbar,.findly-grid-is-busy .sf-page-chips," +
     ".findly-grid-is-busy .sf-sort-host," +
     ".findly-grid-is-busy .sf-search-host,.findly-grid-is-busy .sf-pager," +
+    ".findly-grid-is-busy .smart-filter,.findly-grid-is-busy .sf-panel," +
+    ".findly-grid-is-busy .sf-toggle,.findly-grid-is-busy [data-drawer-toggle]," +
     ".findly-grid-is-busy nav.pagination,.findly-grid-is-busy .pagination," +
     ".findly-grid-is-busy .pagination-wrapper,.findly-grid-is-busy [data-pagination]," +
     ".findly-grid-is-busy .paginate,.findly-grid-is-busy #pagination," +
@@ -11148,9 +11150,19 @@
     }
   }
 
+  function drawerRootIsOpen(widget) {
+    return !!(
+      widget &&
+      widget.root &&
+      widget.root.isConnected !== false &&
+      widget.root.classList.contains("is-drawer-open")
+    );
+  }
+
   function applyPortaledPanelLayout(panel, widget) {
     if (!panel || !panel.style) return;
     var right = drawerOpensFromRight(widget);
+    var isOpen = drawerRootIsOpen(widget) || panel.classList.contains("is-open");
     syncDrawerSideAttrs(widget, panel);
     panel.style.setProperty("position", "fixed", "important");
     panel.style.setProperty("top", "0", "important");
@@ -11158,12 +11170,34 @@
     if (right) {
       panel.style.setProperty("left", "auto", "important");
       panel.style.setProperty("right", "0", "important");
+      panel.style.setProperty(
+        "transform",
+        isOpen ? "translateX(0)" : "translateX(100%)",
+        "important",
+      );
     } else {
       panel.style.setProperty("left", "0", "important");
       panel.style.setProperty("right", "auto", "important");
+      panel.style.setProperty(
+        "transform",
+        isOpen ? "translateX(0)" : "translateX(-100%)",
+        "important",
+      );
     }
     panel.style.setProperty("z-index", "100050", "important");
-    panel.style.setProperty("display", "flex", "important");
+    /* Closed portaled panels must not keep display:flex — that overrides [hidden]
+       and steals clicks from the Filter toggle / page chrome. */
+    if (isOpen) {
+      panel.style.setProperty("display", "flex", "important");
+      panel.style.setProperty("visibility", "visible", "important");
+      panel.style.setProperty("pointer-events", "auto", "important");
+      panel.style.setProperty("opacity", "1", "important");
+    } else {
+      panel.style.setProperty("display", "none", "important");
+      panel.style.setProperty("visibility", "hidden", "important");
+      panel.style.setProperty("pointer-events", "none", "important");
+      panel.style.setProperty("opacity", "0", "important");
+    }
     panel.style.setProperty("flex-direction", "column", "important");
     panel.style.setProperty("width", "min(400px, 88vw)", "important");
     panel.style.setProperty("max-width", "88vw", "important");
@@ -11203,6 +11237,10 @@
       "overflow",
       "color",
       "background",
+      "transform",
+      "visibility",
+      "pointer-events",
+      "opacity",
     ].forEach(function (prop) {
       panel.style.removeProperty(prop);
     });
@@ -11252,13 +11290,8 @@
         document.body.appendChild(panel);
       } else {
         panel.classList.add("sf-drawer-portal");
-        if (!panel.hidden) {
-          panel.hidden = true;
-          panel.setAttribute("hidden", "");
-        }
       }
       copyDrawerThemeVars(widget, panel);
-      applyPortaledPanelLayout(panel, widget);
       syncDrawerPanelRefs(widget, panel);
       restoreFindlyPanelChrome(panel);
       ensurePortaledFacetsPainted(widget, panel);
@@ -11276,7 +11309,18 @@
           backdrop.classList.add("is-open");
         }
         document.documentElement.classList.add("is-sf-drawer-open");
+      } else {
+        panel.classList.remove("is-open");
+        panel.hidden = true;
+        panel.setAttribute("hidden", "");
+        if (backdrop) {
+          backdrop.hidden = true;
+          backdrop.setAttribute("hidden", "");
+          backdrop.classList.remove("is-open");
+        }
+        document.documentElement.classList.remove("is-sf-drawer-open");
       }
+      applyPortaledPanelLayout(panel, widget);
     } else {
       if (panel.classList.contains("sf-drawer-portal")) {
         panel.classList.remove("sf-drawer-portal", "is-open");
@@ -14547,9 +14591,20 @@
     proto.closeDrawer = function () {
       if (origClose) origClose.apply(this, arguments);
       var panel = liveDrawerPanel(this) || this.panelEl;
-      if (panel) panel.classList.remove("is-open");
-      if (this.backdropEl) this.backdropEl.classList.remove("is-open");
+      var backdrop = liveDrawerBackdrop(this) || this.backdropEl;
+      if (panel) {
+        panel.classList.remove("is-open");
+        panel.hidden = true;
+        panel.setAttribute("hidden", "");
+        applyPortaledPanelLayout(panel, this);
+      }
+      if (backdrop) {
+        backdrop.hidden = true;
+        backdrop.setAttribute("hidden", "");
+        backdrop.classList.remove("is-open");
+      }
       document.documentElement.classList.remove("is-sf-drawer-open");
+      document.documentElement.style.overflow = this._drawerPrevOverflow || "";
     };
 
     var origHideNative = proto.hideNativeGridCards;

@@ -368,12 +368,26 @@
 
   function findThemeInfiniteHosts() {
     var nodes = document.querySelectorAll(THEME_INFINITE_SEL);
+    var grid = document.querySelector(
+      "#product-grid, #ProductGrid, ul.product-grid, ol.product-grid, .sf-app-grid, main .product-grid, #MainContent .product-grid",
+    );
+    var section =
+      (grid &&
+        grid.closest &&
+        grid.closest(
+          ".shopify-section, .collection, .sf-collection-layout, main, #MainContent, [role='main']",
+        )) ||
+      null;
     var out = [];
     var i;
     for (i = 0; i < nodes.length; i++) {
       var el = nodes[i];
       if (!el || isFindlyPager(el)) continue;
       if (el.closest && el.closest(PAGER_CHROME_SKIP)) continue;
+      /* Never touch unrelated [data-next-url] outside the listing section. */
+      if (el.id !== "infinite-loader") {
+        if (!section || !section.contains(el)) continue;
+      }
       out.push(el);
     }
     return out;
@@ -772,13 +786,8 @@
       }
     }
 
-    if (typeof widget.syncProductGrid === "function") {
-      try {
-        widget.syncProductGrid(allow);
-      } catch (err) {
-        /* ignore */
-      }
-    }
+    /* Do not call syncProductGrid here — repeated enforce after filter can
+       re-arm setGridBusy / fixed overlays and block the Filter drawer. */
     widget._visibleHandles = allow.slice();
   }
 
