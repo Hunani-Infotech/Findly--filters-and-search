@@ -621,6 +621,76 @@
     for (i = 0; i < nodes.length; i++) restoreThemeInfiniteHost(nodes[i]);
   }
 
+  function mergeHandleList(into, handles) {
+    var map = {};
+    var out = [];
+    var i;
+    var list = into || [];
+    for (i = 0; i < list.length; i++) {
+      var a = String(list[i] || "");
+      if (!a || map[a]) continue;
+      map[a] = true;
+      out.push(a);
+    }
+    list = handles || [];
+    for (i = 0; i < list.length; i++) {
+      var b = String(list[i] || "");
+      if (!b || map[b]) continue;
+      map[b] = true;
+      out.push(b);
+    }
+    return out;
+  }
+
+  function updateAccumHandles(widget, appended) {
+    if (!widget) return;
+    var shown = Array.isArray(widget._shownHandles)
+      ? widget._shownHandles
+      : [];
+    if (!appended) {
+      widget._sfAccumHandles = shown.slice();
+      return;
+    }
+    widget._sfAccumHandles = mergeHandleList(widget._sfAccumHandles, shown);
+  }
+
+  function gridAllowList(widget) {
+    if (!widget) return null;
+    var accum = widget._sfAccumHandles;
+    var shown = widget._shownHandles;
+    var visible = widget._visibleHandles;
+    if (Array.isArray(accum) && accum.length) return accum;
+    if (Array.isArray(shown) && shown.length) return shown;
+    if (Array.isArray(visible) && visible.length) return visible;
+    return null;
+  }
+
+  /** Hide theme-injected cards that are not in the filtered allow-list. */
+  function enforceFilteredGrid(widget) {
+    if (!widget || !shouldDriveThemePager(widget)) return;
+    var allow = gridAllowList(widget);
+    if (!allow || !allow.length) return;
+    if (typeof widget.syncProductGrid === "function") {
+      widget.syncProductGrid(allow);
+    }
+    widget._visibleHandles = allow.slice();
+  }
+
+  function clearThemePageFromUrl() {
+    try {
+      var url = new URL(window.location.href);
+      if (!url.searchParams.has("page")) return;
+      url.searchParams.delete("page");
+      history.replaceState(
+        history.state,
+        "",
+        url.pathname + url.search + url.hash,
+      );
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function suppressThemePagers() {
     var roots = findThemePagers();
     var i;
@@ -1615,18 +1685,48 @@
     if (origFetchFilters) {
       proto.fetchFilters = function (opts) {
         opts = opts || {};
-        seedPageFromUrl(this);
         var userFilter = !opts.append && opts.page == null;
-        if (!opts.append && opts.page == null && Math.max(1, Number(this.page) || 1) > 1) {
-          opts = Object.assign({}, opts, { page: this.page });
-        }
-        /* Filter/sort/clear only. Page clicks use goToPage and stay on that path.
-           Skip the boot fetch so a restored scroll position is left alone. */
+        /*
+         * Theme infinite scroll often writes ?page=N into the URL. If we
+         * seed that into widget.page before a new filter apply, Findly
+         * requests filtered page N instead of page 1 and the grid looks
+         * "short" while theme cards from other pages stay painted.
+         */
         if (userFilter) {
+          this.page = 1;
+          this._sfAccumHandles = [];
+          this._sfPageSeeded = true;
+          clearThemePageFromUrl();
           if (this._sfScrollReady) armFilterScroll(this);
           this._sfScrollReady = true;
+        } else {
+          seedPageFromUrl(this);
+          if (
+            !opts.append &&
+            opts.page == null &&
+            Math.max(1, Number(this.page) || 1) > 1
+          ) {
+            opts = Object.assign({}, opts, { page: this.page });
+          }
         }
-        return origFetchFilters.call(this, opts);
+        var self = this;
+        var wasAppend = Boolean(opts.append);
+        var req = origFetchFilters.call(this, opts);
+        if (req && typeof req.then === "function") {
+          return req.then(
+            function (value) {
+              updateAccumHandles(self, wasAppend);
+              enforceFilteredGrid(self);
+              return value;
+            },
+            function (err) {
+              throw err;
+            },
+          );
+        }
+        updateAccumHandles(this, wasAppend);
+        enforceFilteredGrid(this);
+        return req;
       };
     }
 
@@ -1760,6 +1860,7 @@
         if (resultsFitOnePage(this) || (total <= size && !payloadHasNext(this))) {
           syncThemeLoadMore(false);
           syncThemeInfinite(this, false);
+          enforceFilteredGrid(this);
           return true;
         }
         unhideThemePagers();
@@ -1773,6 +1874,7 @@
           if (!findThemeLoadMore().length && !findThemeInfiniteHosts().length) {
             scheduleThemePagerSync(this);
           }
+          enforceFilteredGrid(this);
           return true;
         }
         bindThemePagerClicks();
@@ -1795,6 +1897,7 @@
         } else {
           syncThemeInfinite(this, false);
         }
+        enforceFilteredGrid(this);
         return true;
       } finally {
         var self = this;
@@ -1903,5 +2006,7 @@
     }
   }
 
+  /* Arm before widget boot so theme infinite ?page= fetches cannot race. */
+  installThemePageFetchGuard();
   installSetter();
 })();
