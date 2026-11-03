@@ -248,7 +248,13 @@
   }
 
   function ensureLoadMoreCss() {
-    if (document.getElementById(LOAD_MORE_CSS_ID)) return;
+    var existing = document.getElementById(LOAD_MORE_CSS_ID);
+    if (existing) {
+      /* Keep our hide rules after theme CSS by re-homing the node. */
+      var host = document.head || document.documentElement;
+      if (host && existing.parentNode === host) host.appendChild(existing);
+      return;
+    }
     var style = document.createElement("style");
     style.id = LOAD_MORE_CSS_ID;
     /* Hide when a single page of results; do not force-show with
@@ -322,7 +328,21 @@
       ".sf-app-grid #infinite-loader:not([" +
       SUPPRESS_ATTR +
       "='1'])" +
-      "{display:revert!important;visibility:visible!important;pointer-events:auto!important}";
+      "{display:revert!important;visibility:visible!important;pointer-events:auto!important}" +
+      /* Beat theme rules that force li.grid__item { display:list-item!important } */
+      "#product-grid > [data-sf-infinite-hidden='1']," +
+      "#ProductGrid > [data-sf-infinite-hidden='1']," +
+      "ul.product-grid > [data-sf-infinite-hidden='1']," +
+      "ol.product-grid > [data-sf-infinite-hidden='1']," +
+      ".product-grid > [data-sf-infinite-hidden='1']," +
+      ".sf-app-grid > [data-sf-infinite-hidden='1']," +
+      "#product-grid > [data-smart-filter-hidden='true']," +
+      "#ProductGrid > [data-smart-filter-hidden='true']," +
+      "ul.product-grid > [data-smart-filter-hidden='true']," +
+      "ol.product-grid > [data-smart-filter-hidden='true']," +
+      ".product-grid > [data-smart-filter-hidden='true']," +
+      ".sf-app-grid > [data-smart-filter-hidden='true']" +
+      "{display:none!important;visibility:hidden!important;pointer-events:none!important}";
     var parent = document.head || document.documentElement;
     if (parent) parent.appendChild(style);
   }
@@ -720,6 +740,7 @@
   /** Hide theme-injected cards that are not in the filtered allow-list. */
   function enforceFilteredGrid(widget) {
     if (!widget || !shouldDriveThemePager(widget)) return;
+    ensureLoadMoreCss();
     var shown = Array.isArray(widget._shownHandles) ? widget._shownHandles : [];
     if (
       (!Array.isArray(widget._sfAccumHandles) || !widget._sfAccumHandles.length) &&
@@ -764,7 +785,7 @@
   function scheduleFilteredGridEnforce(widget) {
     if (!widget) return;
     enforceFilteredGrid(widget);
-    var delays = [50, 150, 400, 900];
+    var delays = [0, 50, 150, 400, 900, 1600];
     var d;
     for (d = 0; d < delays.length; d++) {
       (function (ms) {
