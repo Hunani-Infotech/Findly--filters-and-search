@@ -1369,10 +1369,22 @@
     proto.placeAtMainFallback = function (mount) {
       var anchor = nativeListingAnchor();
       if (anchor && anchor.before && mount && anchor.before.parentNode) {
-        if (mount.parentNode !== anchor.before.parentNode || mount.nextSibling !== anchor.before) {
+        this._gridParent = anchor.grid;
+        var position =
+          this.position === "right" ||
+          this.position === "top" ||
+          this.position === "offcanvas"
+            ? this.position
+            : "left";
+        /* Same as syncCollectionLayout: wrap `.coll`, do not sibling-insert only. */
+        if (this.wrapHostWithLayout) {
+          this.wrapHostWithLayout(anchor.before, mount, position);
+        } else if (
+          mount.parentNode !== anchor.before.parentNode ||
+          mount.nextSibling !== anchor.before
+        ) {
           anchor.before.parentNode.insertBefore(mount, anchor.before);
         }
-        this._gridParent = anchor.grid;
         this._layoutFallbackDone = true;
         if (this.markFilterPlaced) this.markFilterPlaced();
         return true;
@@ -1451,13 +1463,29 @@
         root && root.closest
           ? root.closest("shopify-app-block, .shopify-app-block, .shopify-block") || root
           : root;
+      /* Custom shells (e.g. Keeling `.coll`) need a real `.sf-collection-layout`
+         wrap around the column. Sibling-insert + return left the filter mount
+         next to `.coll` without a layout, so sort stayed in the 320px root and
+         crushed `.sf-panel` whenever the listing had 2+ product cards. */
       if (anchor && anchor.before && anchor.grid && mount && anchor.before.parentNode) {
-        if (mount.parentNode !== anchor.before.parentNode || mount.nextSibling !== anchor.before) {
+        this._gridParent = anchor.grid;
+        var position =
+          this.position === "right" ||
+          this.position === "top" ||
+          this.position === "offcanvas"
+            ? this.position
+            : "left";
+        if (this.wrapHostWithLayout) {
+          this.wrapHostWithLayout(anchor.before, mount, position);
+        } else if (
+          mount.parentNode !== anchor.before.parentNode ||
+          mount.nextSibling !== anchor.before
+        ) {
           anchor.before.parentNode.insertBefore(mount, anchor.before);
         }
-        this._gridParent = anchor.grid;
         this._layoutFallbackDone = true;
         if (this.markFilterPlaced) this.markFilterPlaced();
+        if (this.inheritThemeType) this.inheritThemeType();
         if (!storefrontV2()) hideNativeChromeHeuristic();
         else scheduleHidePass("layout");
         var aside = anchor.before.querySelector ? anchor.before.querySelector("#filters") : null;
@@ -1471,8 +1499,10 @@
           }
           if (filtersHidden) product.style.gridColumn = "1 / -1";
         }
+        if (this.placeSortOnGrid) this.placeSortOnGrid();
         ensureSortHost(this);
         ensureCollectionSearchHost(this);
+        if (this.replayAppGridIfNeeded) this.replayAppGridIfNeeded();
         return;
       }
       var result = origSync ? origSync.apply(this, arguments) : undefined;
