@@ -187,7 +187,7 @@ function assertWebhookEnqueueOnly(webhook) {
   );
 }
 
-function assertUninstallCancelsBeforeSessionRevoke(compliance) {
+function assertUninstallDbFirstThenCappedCancel(compliance) {
   const start = compliance.indexOf(
     "export async function markShopUninstalled",
   );
@@ -197,28 +197,43 @@ function assertUninstallCancelsBeforeSessionRevoke(compliance) {
     nextExport === -1
       ? compliance.slice(start)
       : compliance.slice(start, nextExport);
-  const cancelIdx = body.indexOf(
+  const deleteIdx = body.indexOf("prisma.session.deleteMany");
+  const uninstalledIdx = body.indexOf("uninstalledAt");
+  const freeIdx = body.indexOf("applyLocalFreePlan");
+  const cancelIdx = body.lastIndexOf(
     "cancelShopifySubscriptionsBestEffortOnUninstall",
   );
-  const deleteIdx = body.indexOf("prisma.session.deleteMany");
+  if (deleteIdx === -1) {
+    fail("markShopUninstalled must prisma.session.deleteMany");
+  }
+  if (freeIdx === -1) {
+    fail("markShopUninstalled must applyLocalFreePlan (local CANCELLED)");
+  }
   if (cancelIdx === -1) {
     fail(
       "markShopUninstalled must call cancelShopifySubscriptionsBestEffortOnUninstall",
     );
   }
-  if (deleteIdx === -1) {
-    fail("markShopUninstalled must prisma.session.deleteMany");
-  }
-  if (!(cancelIdx < deleteIdx)) {
+  // Local offboard first; Shopify cancel after (capped).
+  if (!(deleteIdx < cancelIdx && freeIdx < cancelIdx && uninstalledIdx < cancelIdx)) {
     fail(
-      "markShopUninstalled must cancel Shopify subscriptions BEFORE prisma.session.deleteMany",
+      "markShopUninstalled must complete session revoke + uninstalledAt + applyLocalFreePlan BEFORE Shopify cancel",
     );
   }
-  if (!body.includes("applyLocalFreePlan")) {
-    fail("markShopUninstalled must applyLocalFreePlan (local CANCELLED)");
+  if (
+    !body.includes("timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS") &&
+    !body.includes("timeoutMs: 2000")
+  ) {
+    fail("uninstall Shopify cancel must use a ~2s timeoutMs cap");
+  }
+  if (
+    !compliance.includes("UNINSTALL_CANCEL_TIMEOUT_MS = 2000") &&
+    !body.includes("timeoutMs: 2000")
+  ) {
+    fail("uninstall cancel timeout must be ~2000ms");
   }
   log.info(
-    "8b. uninstall cancels Shopify charge before session revoke + demotes local plan",
+    "8b. uninstall DB-offboards first, then capped (~2s) Shopify cancel",
   );
 }
 
@@ -236,6 +251,80 @@ function assertPendingNeverPaid(billing) {
     fail("hasActivePaidSubscription must allow ACTIVE/TRIAL only");
   }
   log.info("8c. PENDING is never treated as paid access");
+}
+
+/**
+ * Reinstall ordering:
+ * 1) Shopify library stores offline session BEFORE afterAuth
+ *    (token-exchange.mjs: storeSession → handleAfterAuthHook).
+ * 2) afterAuth → ensureShop (clears uninstalledAt only with offline session).
+ * 3) afterAuth → reconcileBillingFromShopify resumes sync.
+ * 4) app loader kickoff creates a fresh confirmationUrl (CANCELLED ids cleared).
+ */
+function assertReinstallSessionBeforeUninstalledClear(
+  shopifyServer,
+  shopServer,
+  appTsx,
+  billing,
+) {
+  const afterAuthIdx = shopifyServer.indexOf("afterAuth:");
+  if (afterAuthIdx === -1) fail("shopify.server.ts missing afterAuth hook");
+  const afterAuthBody = shopifyServer.slice(afterAuthIdx, afterAuthIdx + 2000);
+  const ensureIdx = afterAuthBody.indexOf("ensureShop");
+  const reconcileIdx = afterAuthBody.indexOf("reconcileBillingFromShopify");
+  if (ensureIdx === -1) {
+    fail("afterAuth must call ensureShop (clears uninstalledAt on reinstall)");
+  }
+  if (reconcileIdx === -1 || !(ensureIdx < reconcileIdx)) {
+    fail(
+      "afterAuth must call ensureShop before reconcileBillingFromShopify",
+    );
+  }
+  if (
+    !shopServer.includes("clearUninstalled") ||
+    !shopServer.includes("isOnline: false")
+  ) {
+    fail(
+      "ensureShop must gate uninstalledAt clear on an offline Session row",
+    );
+  }
+
+  // Library contract: offline storeSession before the afterAuth hook *call*
+  // (ignore the earlier function declaration of handleAfterAuthHook).
+  const tokenExchange = read(
+    "node_modules/@shopify/shopify-app-react-router/dist/esm/server/authenticate/admin/strategies/token-exchange.mjs",
+  );
+  const storeIdx = tokenExchange.indexOf(
+    "await config.sessionStorage.storeSession(offlineSession)",
+  );
+  const hookCallIdx = tokenExchange.indexOf(
+    "await handleAfterAuthHook(newSession",
+  );
+  if (storeIdx === -1 || hookCallIdx === -1 || !(storeIdx < hookCallIdx)) {
+    fail(
+      "shopify-app-react-router token-exchange must storeSession(offline) before afterAuth call",
+    );
+  }
+
+  // Fresh confirmationUrl: kickoff create path exists; cancelled rows cannot reuse.
+  if (!appTsx.includes("startStandardSubscriptionIfLive")) {
+    fail("app.tsx must kick off startStandardSubscriptionIfLive on load");
+  }
+  const freePlan = billing.slice(
+    billing.indexOf("export async function applyLocalFreePlan"),
+  );
+  const freeBody = freePlan.slice(0, freePlan.indexOf("\nexport "));
+  if (
+    !freeBody.includes("confirmationUrl: null") ||
+    !freeBody.includes("shopifySubscriptionId: null")
+  ) {
+    fail(
+      "applyLocalFreePlan must null confirmationUrl + shopifySubscriptionId so reinstall creates a fresh charge",
+    );
+  }
+  log.info(
+    "8e. reinstall: storeSession → afterAuth ensureShop clears uninstalledAt → reconcile; fresh confirmationUrl",
+  );
 }
 
 function assertUninstallDeclinedReinstall(billing, shopServer, processors) {
@@ -350,6 +439,7 @@ try {
   const compliance = read("app/services/compliance.server.ts");
   const shopServer = read("app/services/shop.server.ts");
   const processors = read("app/workers/processors.ts");
+  const shopifyServer = read("app/shopify.server.ts");
 
   assertBillingLock(billing);
   assertFetchBeforeCreate(billing);
@@ -359,9 +449,15 @@ try {
   assertClearCachesAfterWrite(billing);
   assertPendingPreserve(billing);
   assertWebhookEnqueueOnly(webhook);
-  assertUninstallCancelsBeforeSessionRevoke(compliance);
+  assertUninstallDbFirstThenCappedCancel(compliance);
   assertPendingNeverPaid(billing);
   assertUninstallDeclinedReinstall(billing, shopServer, processors);
+  assertReinstallSessionBeforeUninstalledClear(
+    shopifyServer,
+    shopServer,
+    appTsx,
+    billing,
+  );
   assertPricingAlreadyActive(billingPage);
   assertDevStoreTestCharge(billing);
 

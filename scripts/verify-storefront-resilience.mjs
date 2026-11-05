@@ -36,6 +36,12 @@ if (!fetchJs.includes("budgetMs: 6000")) {
   ok("fetch has 6s budget");
 }
 
+if (!/ms:\s*4000/.test(fetchJs)) {
+  fail("fetch first-attempt timeout must be ≥4s (ms: 4000)");
+} else {
+  ok("fetch first attempt is ≥4s");
+}
+
 if (!fetchJs.includes("function backoff") || !fetchJs.includes("Math.random()")) {
   fail("fetch retry must use exponential backoff with jitter");
 } else {

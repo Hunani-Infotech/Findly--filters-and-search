@@ -131,7 +131,8 @@
   var STALE = "FindlyStaleRequest";
   var API = {
     STALE: STALE,
-    ms: 2200,
+    /* First attempt ≥4s; retries share the remaining 6s budget. */
+    ms: 4000,
     step: 400,
     max: 2,
     budgetMs: 6000,

@@ -1386,52 +1386,97 @@ export async function mirrorAppSubscriptionWebhook(
 }
 
 /**
- * Uninstall path: cancel Shopify charges while the offline token may still work.
- * Shopify also auto-cancels on uninstall; this is belt-and-suspenders for
- * ACTIVE + leftover PENDING confirmation charges. Failures are expected once
- * the token is already revoked — callers still demote locally.
+ * Uninstall path: cancel Shopify charges (belt-and-suspenders; Shopify also
+ * auto-cancels on uninstall). Callers should pass a pre-captured `admin` when
+ * sessions are already revoked. Failures / timeouts are logged and swallowed.
  */
 export async function cancelShopifySubscriptionsBestEffortOnUninstall(
   shopDomain: string,
+  opts?: { admin?: unknown; timeoutMs?: number },
 ): Promise<void> {
-  const shop = await prisma.shop.findUnique({
-    where: { domain: shopDomain },
-    include: { subscription: true },
-  });
-  if (!shop) return;
+  const timeoutMs =
+    typeof opts?.timeoutMs === "number" && opts.timeoutMs > 0
+      ? opts.timeoutMs
+      : 0;
 
-  let admin: GraphqlAdmin;
-  try {
-    const { unauthenticated } = await import("../shopify.server");
-    ({ admin } = await unauthenticated.admin(shopDomain));
-  } catch (error) {
-    log.warn(
-      `[billing] uninstall cancel skipped for ${shopDomain}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+  const run = async () => {
+    const shop = await prisma.shop.findUnique({
+      where: { domain: shopDomain },
+      include: { subscription: true },
+    });
+    if (!shop) return;
+
+    let admin: GraphqlAdmin | null =
+      opts?.admin && typeof opts.admin === "object"
+        ? (opts.admin as GraphqlAdmin)
+        : null;
+    if (!admin) {
+      try {
+        const { unauthenticated } = await import("../shopify.server");
+        ({ admin } = await unauthenticated.admin(shopDomain));
+      } catch (error) {
+        log.warn(
+          `[billing] uninstall cancel skipped for ${shopDomain}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+    }
+
+    const cancelled = new Set<string>();
+    try {
+      const active = await fetchActiveSubscriptions(admin);
+      for (const sub of active) {
+        if (!sub?.id || cancelled.has(sub.id)) continue;
+        await declineShopifySubscriptionBestEffort(admin, sub.id, shopDomain);
+        cancelled.add(sub.id);
+      }
+    } catch (error) {
+      log.warn(
+        `[billing] uninstall activeSubscriptions cancel failed for ${shopDomain}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    const savedId = shop.subscription?.shopifySubscriptionId?.trim();
+    if (savedId && !cancelled.has(savedId)) {
+      await declineShopifySubscriptionBestEffort(admin, savedId, shopDomain);
+    }
+  };
+
+  if (!timeoutMs) {
+    try {
+      await run();
+    } catch (error) {
+      log.warn(
+        `[billing] uninstall cancel error for ${shopDomain}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
     return;
   }
 
-  const cancelled = new Set<string>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const active = await fetchActiveSubscriptions(admin);
-    for (const sub of active) {
-      if (!sub?.id || cancelled.has(sub.id)) continue;
-      await declineShopifySubscriptionBestEffort(admin, sub.id, shopDomain);
-      cancelled.add(sub.id);
-    }
+    await Promise.race([
+      run(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`uninstall cancel timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
   } catch (error) {
     log.warn(
-      `[billing] uninstall activeSubscriptions cancel failed for ${shopDomain}: ${
+      `[billing] uninstall cancel aborted for ${shopDomain}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
-  }
-
-  const savedId = shop.subscription?.shopifySubscriptionId?.trim();
-  if (savedId && !cancelled.has(savedId)) {
-    await declineShopifySubscriptionBestEffort(admin, savedId, shopDomain);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

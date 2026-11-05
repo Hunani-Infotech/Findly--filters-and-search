@@ -61,10 +61,25 @@ async function deleteShopCacheGenerations(shopDomain: string) {
  * inherit stale ACTIVE paid access before Shopify sync runs. The Subscription
  * row itself is kept until purge.
  */
+const UNINSTALL_CANCEL_TIMEOUT_MS = 2000;
+
 export async function markShopUninstalled(shopDomain: string) {
-  // Cancel Shopify charges while the offline token may still work (Shopify also
-  // auto-cancels on uninstall). Must run before session.deleteMany.
-  await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain);
+  // Capture admin BEFORE session revoke so a post-offboard cancel can still use
+  // the token. Local DB offboarding always completes first; Shopify cancel is
+  // best-effort with a ~2s cap (Shopify also auto-cancels on uninstall).
+  // Pre-captured admin is passed into cancel after sessions are revoked.
+  let adminForCancel: unknown = null;
+  try {
+    const { unauthenticated } = await import("../shopify.server");
+    const { admin } = await unauthenticated.admin(shopDomain);
+    adminForCancel = admin;
+  } catch (error) {
+    log.warn(
+      `[compliance] uninstall cancel admin capture skipped for ${shopDomain}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
 
@@ -78,6 +93,10 @@ export async function markShopUninstalled(shopDomain: string) {
     log.info(
       `[compliance] markShopUninstalled: no Shop row for ${shopDomain}; sessions revoked`,
     );
+    await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain, {
+      admin: adminForCancel,
+      timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS,
+    });
     return { marked: false as const };
   }
 
@@ -93,10 +112,15 @@ export async function markShopUninstalled(shopDomain: string) {
   // Keep the Subscription row; stop trusting pre-uninstall paid status (I-4).
   await applyLocalFreePlan(shop.id);
 
+  await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain, {
+    admin: adminForCancel,
+    timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS,
+  });
+
   log.success(
     `[compliance] markShopUninstalled: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
       shop.uninstalledAt ? "; already marked" : ""
-    }; billing demoted to free; Shopify cancel attempted before session revoke)`,
+    }; billing demoted to free; Shopify cancel attempted after local offboard, capped ${UNINSTALL_CANCEL_TIMEOUT_MS}ms)`,
   );
   return { marked: true as const, shopId: shop.id };
 }
