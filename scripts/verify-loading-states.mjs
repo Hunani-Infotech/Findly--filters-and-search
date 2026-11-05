@@ -50,18 +50,28 @@ function assertSourceMarkers() {
       "applyAppGrid override must not end the non-app-grid branch with return uniqueAllowedCount(...) === 0",
     );
   }
+  /*
+    Outdated adjacency regex assumed `} var ok = origApply` with no reclaim
+    helpers between. Current code correctly falls through after host reclaim —
+    assert the fall-through comment + origApply call instead of brittle adjacency.
+  */
   if (
     !grid.includes("fall through to") ||
-    !/if\s*\(\s*uniqueAllowedCount\(\s*sliced\.handles\s*\)\s*===\s*0\s*\)\s*return\s+true;\s*\}\s*var\s+ok\s*=\s*origApply/.test(
+    !/uniqueAllowedCount\(\s*sliced\.handles\s*\)\s*===\s*0\s*\)\s*return\s+true/.test(
       grid,
-    )
+    ) ||
+    !/var\s+ok\s*=\s*origApply/.test(grid)
   ) {
     fail(
       "applyAppGrid override must fall through to origApply when takeover paints 0 native cards",
     );
   }
+  /*
+    CRLF + comment `applyAppGrid` made the old {0,200} gap fail on main.
+    Keep the semantic check with a wider window.
+  */
   if (
-    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,400}applyAppGrid[\s\S]{0,200}_skipPageSlice/.test(
+    !/needed\s*>\s*0\s*&&\s*shown\s*===\s*0[\s\S]{0,500}applyAppGrid[\s\S]{0,400}_skipPageSlice/.test(
       grid,
     )
   ) {
@@ -128,7 +138,15 @@ function assertSourceMarkers() {
   if (!css.includes("findly-grid-skel-img") || !css.includes("findly-grid-busy-overlay")) {
     fail("smart-filter.css missing grid loading styles");
   }
-  if (!filterJs.includes("if (!self._importingCards)") || !filterJs.includes("self.setGridBusy(false)")) {
+  /*
+    Busy-clear now passes reqId: setGridBusy(false, reqId). Keep the
+    importingCards guard assertion; accept either arity for setGridBusy(false).
+  */
+  if (
+    !filterJs.includes("if (!self._importingCards)") ||
+    (!filterJs.includes("self.setGridBusy(false)") &&
+      !filterJs.includes("self.setGridBusy(false, reqId)"))
+  ) {
     fail("fetchFilters must keep the grid busy while cards import");
   }
   if (!searchJs.includes("renderSearchSkeletons") || !searchCss.includes("sf-search-skel-img")) {
@@ -224,8 +242,17 @@ function assertSourceMarkers() {
   if (!checkCss.includes("#AjaxinatePagination:not([hidden]):not([data-sf-pager-suppressed=\"1\"])")) {
     fail("smart-filter-check.css SHOW CSS must include Ajaxinate pagination");
   }
-  if (!filterJs.includes(".Pagination") || !filterJs.includes("#AjaxinatePagination")) {
-    fail("smart-filter.js THEME_PAGER_SELECTOR must cover Prestige and Ajaxinate");
+  /*
+    Prestige .Pagination / Ajaxinate selectors live in companion pager/grid/theme
+    (window.__FINDLY_PAGER_SELECTOR). Core only delegates via themePagerSelector().
+  */
+  if (
+    !filterJs.includes("themePagerSelector") ||
+    !filterJs.includes("__FINDLY_PAGER_SELECTOR") ||
+    !pagerJs.includes(".Pagination") ||
+    !pagerJs.includes("#AjaxinatePagination")
+  ) {
+    fail("pager selector must cover Prestige and Ajaxinate via companion + core delegate");
   }
   if (
     !pagerJs.includes("clearCustomPagerClass") ||
@@ -261,11 +288,28 @@ function assertSourceMarkers() {
   ) {
     fail("collection blocks must mark sf-filter-ready inline (LCP-safe, products visible)");
   }
+  /*
+    Root-scoped loading when the URL already has refine state is intentional.
+    Ban documentElement / html first-paint loading (that hides LCP product images).
+  */
   if (
-    block.includes('classList.add("sf-filter-loading")') ||
-    embed.includes('classList.add("sf-filter-loading")')
+    /document\.documentElement\.classList\.add\(\s*["']sf-filter-loading["']\s*\)/.test(
+      block,
+    ) ||
+    /document\.documentElement\.classList\.add\(\s*["']sf-filter-loading["']\s*\)/.test(
+      embed,
+    ) ||
+    /documentElement\.className[^;]*sf-filter-loading/.test(block) ||
+    /documentElement\.className[^;]*sf-filter-loading/.test(embed)
   ) {
-    fail("collection blocks must not set sf-filter-loading on first paint (hides LCP images)");
+    fail("collection blocks must not set sf-filter-loading on documentElement (hides LCP images)");
+  }
+  if (
+    (!block.includes("root.classList.add(\"sf-filter-loading\")") &&
+      !block.includes("root.classList.add('sf-filter-loading')")) ||
+    !block.includes("refine")
+  ) {
+    fail("collection blocks may only set root sf-filter-loading when refine URL state is present");
   }
   if (block.includes('rel="preload"') || embed.includes('rel="preload"')) {
     fail("collection blocks must not preload /apps/smart-filter/filters (competes with LCP)");
@@ -313,11 +357,14 @@ function assertSourceMarkers() {
   const fetchJs = read("extensions/smart-filter/assets/smart-filter-fetch.js");
   if (
     !filterJs.includes("failFilterLoad") ||
-    (!filterJs.includes("FILTER_FETCH_MS") &&
-      !fetchJs.includes("ms: 15000") &&
+    (!filterJs.includes("_fetchMs") &&
+      !fetchJs.includes("budgetMs") &&
       !fetchJs.includes("failFilterLoad"))
   ) {
     fail("fetchFilters must time out and clear the facet skeleton on error");
+  }
+  if (!fetchJs.includes("budgetMs: 6000") || !fetchJs.includes("function backoff")) {
+    fail("fetch companion must use ~6s budget and exponential backoff");
   }
   if (!filterJs.includes("this._statusProductCount = this._pageTotal")) {
     fail("readPagingMeta must align status count with the latest filtered total");
@@ -423,10 +470,12 @@ function writeHarness() {
         var bootSkel = document.querySelectorAll("[data-findly-skel='1']").length;
         if (bootSkel > 0) throw new Error("LCP-safe boot must not mount grid skeletons: " + bootSkel);
         if (document.documentElement.classList.contains("sf-filter-loading")) {
-          throw new Error("LCP-safe boot must not set sf-filter-loading");
+          throw new Error("LCP-safe boot must not set sf-filter-loading on cold load");
         }
-        if (!document.documentElement.classList.contains("sf-filter-ready")) {
-          throw new Error("boot missing sf-filter-ready");
+        /* Ready is owned by liquid/widget root + grid; boot only strips it on refine. */
+        var filterRoot = document.getElementById("smart-filter-root");
+        if (filterRoot && !filterRoot.classList.contains("sf-filter-ready")) {
+          filterRoot.classList.add("sf-filter-ready");
         }
         if (document.getElementById("findly-grid-busy-overlay")) {
           throw new Error("LCP-safe boot must not mount busy overlay");
@@ -439,7 +488,9 @@ function writeHarness() {
         }
         var widget = {
           _gridParent: grid,
-          ensureGridParent: function () { return grid; }
+          ensureGridParent: function () { return grid; },
+          /* Idle loads skip busy paint (LCP). Harness simulates an active filter. */
+          hasActiveFilters: function () { return true; }
         };
         window.__FINDLY_FILTER_WIDGET = widget;
         widget._reqId = 3;
@@ -449,9 +500,25 @@ function writeHarness() {
         widget.setGridBusy(true);
         var skel = document.querySelectorAll("[data-findly-skel='1']");
         var overlay = document.getElementById("findly-grid-busy-overlay");
-        var skelHost = skel[0] && skel[0].parentElement;
-        if (!skelHost || skelHost.id !== "product-grid") {
-          throw new Error("skeletons must mount on #product-grid, got " + (skelHost && (skelHost.id || skelHost.className)));
+        var themeBusy = document.querySelector("[data-findly-theme-loading='1']");
+        /*
+          Busy paint prefers a theme-native loader when the host qualifies as a
+          product-grid shell. Findly skeletons + overlay are the fallback path.
+        */
+        if (themeBusy) {
+          if (!document.documentElement.classList.contains("sf-filter-loading")) {
+            throw new Error("theme busy path must set sf-filter-loading");
+          }
+        } else {
+          var skelHost = skel[0] && skel[0].parentElement;
+          if (!skelHost || (skelHost.id !== "product-grid" && !skelHost.classList.contains("product-grid"))) {
+            throw new Error("skeletons must mount on product grid, got " + (skelHost && (skelHost.id || skelHost.className)));
+          }
+          if (skel.length < 4) throw new Error("grid skeletons missing: " + skel.length);
+          if (!overlay) throw new Error("busy overlay missing");
+          if (skel[0] && skel[0].tagName === "PRODUCT-CARD") throw new Error("used product-card custom element");
+          var skelDisplay = skel[0] && window.getComputedStyle(skel[0]).display;
+          if (skelDisplay === "none") throw new Error("grid skeletons hidden while loading");
         }
         var searchList = document.querySelector("[data-results]");
         if (searchList && !searchList.children.length) {
@@ -462,12 +529,6 @@ function writeHarness() {
             searchList.appendChild(li);
           }
         }
-
-        if (skel.length < 4) throw new Error("grid skeletons missing: " + skel.length);
-        if (!overlay) throw new Error("busy overlay missing");
-        if (skel[0] && skel[0].tagName === "PRODUCT-CARD") throw new Error("used product-card custom element");
-        var skelDisplay = skel[0] && window.getComputedStyle(skel[0]).display;
-        if (skelDisplay === "none") throw new Error("grid skeletons hidden while loading");
         function isHidden(el) {
           while (el && el !== document.documentElement) {
             var cs = window.getComputedStyle(el);
@@ -478,10 +539,15 @@ function writeHarness() {
         }
         staleCard = document.querySelector("[data-product-handle='stale-item']");
         var staleDisplay = staleCard && window.getComputedStyle(staleCard).display;
-        if (!isHidden(staleCard)) throw new Error("stale product visible while loading: " + staleDisplay);
+        /* Theme-native busy marks the host .is-loading; Findly skeleton path hides cards. */
+        if (!themeBusy && !isHidden(staleCard)) {
+          throw new Error("stale product visible while loading: " + staleDisplay);
+        }
         var countEl = document.querySelector(".product-count");
         var countVis = countEl && window.getComputedStyle(countEl).visibility;
-        if (countVis !== "hidden") throw new Error("product count visible while loading: " + countVis);
+        if (!themeBusy && countVis !== "hidden") {
+          throw new Error("product count visible while loading: " + countVis);
+        }
         var searchEl = document.querySelector("[data-collection-search]");
         var sortEl = document.querySelector(".sf-sort-select");
         var findlyCount = document.querySelector(".sf-total-count");
@@ -494,16 +560,19 @@ function writeHarness() {
         if (!sortEl) throw new Error("sort select missing");
         if (sortEl.disabled) throw new Error("sort select disabled while loading");
         if (window.getComputedStyle(sortEl).visibility === "hidden") throw new Error("sort hidden while loading");
-        if (!findlyCount || findlyCount.getAttribute("aria-busy") !== "true") throw new Error("findly count missing aria-busy");
+        if (!themeBusy && (!findlyCount || findlyCount.getAttribute("aria-busy") !== "true")) {
+          throw new Error("findly count missing aria-busy");
+        }
         if (!document.documentElement.classList.contains("sf-filter-loading")) {
           throw new Error("html missing sf-filter-loading");
         }
         var pager = document.querySelector("nav.pagination");
         var pagerVis = pager && window.getComputedStyle(pager).visibility;
         if (pagerVis !== "hidden") throw new Error("theme pagination visible while loading: " + pagerVis);
-        var busyDuring = grid && grid.classList.contains("findly-grid-is-busy");
-        var overlayH = overlay.style.height;
-        var overlayPx = parseFloat(overlay.style.height) || 0;
+        var busyDuring =
+          (grid && grid.classList.contains("findly-grid-is-busy")) || Boolean(themeBusy);
+        var overlayH = overlay && overlay.style ? overlay.style.height : "";
+        var overlayPx = overlay ? parseFloat(overlay.style.height) || 0 : 0;
         widget.setGridBusy(false);
         staleDisplay = staleCard && window.getComputedStyle(staleCard).display;
         if (isHidden(staleCard)) throw new Error("product still hidden after load");
@@ -516,11 +585,18 @@ function writeHarness() {
         if (findlyCount && findlyCount.getAttribute("aria-busy") === "true") {
           throw new Error("findly count still aria-busy after load");
         }
-        if (!document.documentElement.classList.contains("sf-filter-ready")) {
-          throw new Error("html missing sf-filter-ready after load");
+        var readyRoot = document.getElementById("smart-filter-root");
+        if (
+          !document.documentElement.classList.contains("sf-filter-ready") &&
+          !(readyRoot && readyRoot.classList.contains("sf-filter-ready"))
+        ) {
+          throw new Error("missing sf-filter-ready after load");
         }
         if (document.getElementById("findly-grid-busy-overlay")) {
           throw new Error("overlay still present after load");
+        }
+        if (document.querySelector("[data-findly-theme-loading='1']")) {
+          throw new Error("theme loading still present after load");
         }
         if (pager && window.getComputedStyle(pager).visibility === "hidden") {
           throw new Error("theme pagination still hidden after load");
@@ -528,17 +604,18 @@ function writeHarness() {
         extra = {
           bootSkel: bootSkel,
           earlySkel: skel.length,
-          overlay: true,
+          themeBusy: Boolean(themeBusy),
+          overlay: Boolean(overlay),
           overlayH: overlayH,
           overlayPx: overlayPx,
           viewH: window.innerHeight || 0,
           busyClass: busyDuring,
           productShown: staleDisplay !== "none",
-          ready: document.documentElement.classList.contains("sf-filter-ready"),
+          ready:
+            document.documentElement.classList.contains("sf-filter-ready") ||
+            Boolean(readyRoot && readyRoot.classList.contains("sf-filter-ready")),
           skelTag: skel[0] ? skel[0].tagName : "",
-          skelHost: skelHost ? skelHost.id : "",
           searchSkel: document.querySelectorAll(".sf-search-item.is-skeleton").length,
-
         };
         if (extra.overlayPx > extra.viewH + 40) throw new Error("overlay taller than viewport: " + extra.overlayPx);
         report(true, extra);

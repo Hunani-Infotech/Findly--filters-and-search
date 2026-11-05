@@ -80,8 +80,13 @@
     }, 8000);
   })();
 </script>
+{% comment %}
+  Companion load order (all defer, never async): privacy → dom → facets → fetch →
+  boot → pager → grid → top-pop → perf → theme → smart-filter.min.js (core last).
+{% endcomment %}
 <script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-dom.min.js' | asset_url }}" defer></script>
+<script src="{{ 'smart-filter-facets.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-fetch.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-boot.min.js' | asset_url }}" defer></script>
 <script src="{{ 'smart-filter-pager.min.js' | asset_url }}" defer></script>

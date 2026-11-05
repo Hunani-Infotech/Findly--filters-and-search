@@ -33,6 +33,7 @@
     "verify:b4": "node ./scripts/verify-b4.mjs",
     "verify:b5": "node ./scripts/verify-b5.mjs",
     "verify:billing-install": "node ./scripts/verify-billing-install.mjs",
+    "verify:billing-shop": "node ./scripts/verify-billing-shop.mjs",
     "verify:contact": "node --import tsx ./scripts/verify-contact.mjs",
     "verify:c1": "node ./scripts/verify-c1.mjs",
     "verify:c2": "node ./scripts/verify-c2.mjs",

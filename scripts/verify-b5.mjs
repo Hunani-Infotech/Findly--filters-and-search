@@ -127,12 +127,15 @@ function assertThemeSeoAndUi() {
   if (gridJs.includes("minmax(11rem,1fr)")) {
     fail("smart-filter-grid.js must not override theme product-card grid columns");
   }
+  /* Gated ?findly_debug=1 console helpers are allowed; always-on dumps are not. */
+  if (gridJs.includes("__FINDLY_DUMP") || gridJs.includes("__FINDLY_LOGS")) {
+    fail("smart-filter-grid.js must not ship always-on storefront debug dumps");
+  }
   if (
-    gridJs.includes("findlyLog") ||
-    gridJs.includes("__FINDLY_DUMP") ||
-    gridJs.includes("__FINDLY_LOGS")
+    gridJs.includes("function findlyLog") &&
+    !gridJs.includes("findly_debug=1")
   ) {
-    fail("smart-filter-grid.js must not ship storefront debug logs");
+    fail("findlyLog must be gated behind ?findly_debug=1");
   }
   if (!gridJs.includes("fillMissingFilterCards") || !gridJs.includes("findly-grid-empty")) {
     fail("smart-filter-grid.js must import off-page matches and show a grid empty state");

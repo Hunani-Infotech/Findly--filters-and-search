@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ackWebhookBatch } from "../lib/queues.server";
 import { log } from "../lib/log.server";
+import { mirrorAppSubscriptionWebhook } from "../services/billing.server";
 import {
   resolveWebhookDeliveryId,
   webhookDeliveryExists,
@@ -23,6 +24,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `[billing] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
     );
     return new Response(null, { status: 200 });
+  }
+
+  // Mirror CANCELLED/DECLINED/EXPIRED/FROZEN/PENDING locally even if the
+  // offline token is already gone (uninstall race). ACTIVE still needs GraphQL.
+  const mirrored = await mirrorAppSubscriptionWebhook(shop, payload, {
+    requestId: webhookId,
+  });
+  if (mirrored.applied) {
+    log.info(
+      `[billing] mirrored app_subscriptions/update for ${shop} status=${mirrored.status} webhookId=${webhookId}`,
+    );
   }
 
   const jobData = { shop, webhookId };

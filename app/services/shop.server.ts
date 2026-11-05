@@ -33,10 +33,18 @@ export async function ensureShop(domain: string) {
     return cached;
   }
 
+  // Only clear uninstalledAt when an offline session proves reinstall.
+  // Post-uninstall billing.syncFromShopify must not resurrect the soft-offboard flag.
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: domain, isOnline: false },
+    select: { id: true },
+  });
+  const clearUninstalled = Boolean(offlineSession);
+
   const shop = await prisma.shop.upsert({
     where: { domain },
     create: { domain, plan: "free" },
-    update: { uninstalledAt: null },
+    update: clearUninstalled ? { uninstalledAt: null } : {},
     include: { subscription: true },
   });
   rememberShop(shop);

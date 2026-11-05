@@ -8,6 +8,7 @@ assets/smart-filter-top-pop.js
 assets/smart-filter-pager.js
 assets/smart-filter-theme.js
 assets/smart-filter-fetch.js
+assets/smart-filter-facets.js
 assets/smart-filter-boot.js
 assets/smart-filter-perf.js
 assets/smart-filter-dom.js

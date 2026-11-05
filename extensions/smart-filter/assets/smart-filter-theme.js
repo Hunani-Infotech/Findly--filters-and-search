@@ -1804,6 +1804,43 @@
     document.addEventListener("shopify:section:unload", function (event) {
       if (scopeHasFilter(event && event.target)) {
         window.__FINDLY_FILTER_BOOTED = false;
+        var current = window.__FINDLY_FILTER_WIDGET;
+        var scope = event && event.target;
+        if (
+          current &&
+          current.root &&
+          scope &&
+          scope.contains &&
+          scope.contains(current.root)
+        ) {
+          if (typeof window.__FINDLY_RECORD_LEAVE === "function") {
+            window.__FINDLY_RECORD_LEAVE("unload");
+          }
+          try {
+            if (current._abortCtrl && current._abortCtrl.abort) {
+              current._abortCtrl.abort();
+            }
+          } catch (abortErr) {
+            /* ignore */
+          }
+          try {
+            if (typeof current.destroy === "function") current.destroy();
+          } catch (err) {
+            /* ignore */
+          }
+          try {
+            current._sfLeaveNative = false;
+            current._sfMapMiss = false;
+            current._inflight = null;
+            current._inflightUrl = "";
+            current._reqId = (current._reqId || 0) + 1;
+          } catch (err2) {
+            /* ignore */
+          }
+          if (window.__FINDLY_FILTER_WIDGET === current) {
+            window.__FINDLY_FILTER_WIDGET = null;
+          }
+        }
         cleanupOrphanPortals(true);
         return;
       }

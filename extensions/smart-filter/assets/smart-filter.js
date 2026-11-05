@@ -28,10 +28,6 @@
   var POSITIONS = { left: true, right: true, top: true, offcanvas: true };
   var FILTER_CACHE_PREFIX = "findly:filters:v1:";
   var FILTER_CACHE_TTL_MS = 5 * 1000;
-  /** Keep in sync with app/limits.ts SIZE_FACET_MATCH_RATIO / SIZE_NUMERIC_RANK_BASE. */
-  var SIZE_FACET_MATCH_RATIO = 0.6;
-  var SIZE_NUMERIC_RANK_BASE = 1000;
-  var COLOR_FACET_MATCH_RATIO = 0.5;
   var CARD_SELECTOR = [
     ".sf-app-card",
     "product-card",
@@ -126,267 +122,106 @@
     else console.error("[Findly]", message);
   }
 
-  function hashHue(value) {
-    var hash = 2166136261;
-    var text = String(value || "").toLowerCase();
-    for (var i = 0; i < text.length; i++) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
+  /*
+    Facet helpers: smart-filter-facets.js. Guard/fallback lives in
+    smart-filter-fetch.js (__FINDLY_ENSURE_FACET_UTILS) so schema JS stays small.
+    Keep FINDLY_EXT_V in sync with facets + fetch.
+  */
+  var FINDLY_EXT_V = "8";
+  window.__FINDLY_EXT_V = FINDLY_EXT_V;
+  function facetUtils() {
+    try {
+      if (typeof window.__FINDLY_ENSURE_FACET_UTILS === "function") {
+        return window.__FINDLY_ENSURE_FACET_UTILS() || {};
+      }
+      return window.__FINDLY_FACET_UTILS || {};
+    } catch (err) {
+      return window.__FINDLY_FACET_UTILS || {};
     }
-    return Math.abs(hash) % 360;
   }
-
-  function swatchColor(value) {
-    var raw = String(value || "").trim();
-    if (!raw) return "";
-    if (
-      /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(raw) ||
-      /^(rgb|rgba|hsl|hsla)\(/i.test(raw)
-    ) {
-      return raw;
-    }
-    if (/^[a-z]{3,24}$/i.test(raw) && looksLikeCssColor(raw)) return raw;
-    return "hsl(" + hashHue(raw) + ", 58%, 52%)";
-  }
-
-  function escapeCssUrl(url) {
-    return String(url || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  }
-
-  function displayTitle(value, fallback) {
-    var text = String(value == null || value === "" ? fallback || "Filter" : value).trim();
-    return text.replace(/:\s*$/, "").trim() || fallback || "Filter";
-  }
-
-  function valuesHaveChildren(values) {
-    return (values || []).some(function (item) {
-      return item && item.children && item.children.length;
-    });
-  }
-
   function nestPathLabels(values) {
-    if (!values || !values.length || valuesHaveChildren(values)) return values || [];
-    var hasPath = values.some(function (item) {
-      return String(item && item.label != null ? item.label : "").indexOf(" > ") !== -1;
-    });
-    if (!hasPath) return values;
-
-    var roots = [];
-    var byPath = {};
-
-    function ensureNode(path, label, leafItem) {
-      if (byPath[path]) {
-        if (leafItem) {
-          byPath[path].value =
-            leafItem.value != null ? leafItem.value : leafItem.label;
-          byPath[path].count =
-            typeof leafItem.count === "number" ? leafItem.count : byPath[path].count;
-          byPath[path].handle = leafItem.handle || byPath[path].handle;
-          byPath[path].url = leafItem.url || byPath[path].url;
-          byPath[path].synthetic = false;
-          if (leafItem.swatch) byPath[path].swatch = leafItem.swatch;
-        }
-        return byPath[path];
-      }
-      var node = {
-        value: leafItem && leafItem.value != null ? leafItem.value : "path:" + path,
-        label: label,
-        count: leafItem && typeof leafItem.count === "number" ? leafItem.count : 0,
-        children: [],
-        synthetic: !leafItem,
-        handle: leafItem && leafItem.handle,
-        url: leafItem && leafItem.url,
-      };
-      byPath[path] = node;
-      return node;
+    try {
+      var api = facetUtils();
+      return api.nestPathLabels ? api.nestPathLabels(values) : values || [];
+    } catch (err) {
+      return values || [];
     }
-
-    values.forEach(function (item) {
-      var label = String(item.label != null ? item.label : item.value || "");
-      var parts = label
-        .split(/\s*>\s*/)
-        .map(function (part) {
-          return part.trim();
-        })
-        .filter(Boolean);
-      if (parts.length < 2) {
-        roots.push(item);
-        return;
-      }
-      var path = "";
-      var parent = null;
-      parts.forEach(function (part, index) {
-        path = path ? path + " > " + part : part;
-        var node = ensureNode(path, part, index === parts.length - 1 ? item : null);
-        if (index === 0) {
-          if (roots.indexOf(node) === -1) roots.push(node);
-        } else if (parent && parent.children.indexOf(node) === -1) {
-          parent.children.push(node);
-        }
-        parent = node;
-      });
-    });
-
-    function walk(node) {
-      (node.children || []).forEach(walk);
-      var members = [];
-      if (!node.synthetic && node.value && String(node.value).indexOf("path:") !== 0) {
-        members.push(String(node.value));
-      }
-      (node.children || []).forEach(function (child) {
-        members = members.concat(child.memberValues || []);
-      });
-      node.memberValues = members;
-      if (node.synthetic) {
-        node.count = (node.children || []).reduce(function (acc, child) {
-          return acc + (Number(child.count) || 0);
-        }, 0);
-      }
-      if (node.children && !node.children.length) delete node.children;
-    }
-    roots.forEach(walk);
-    return roots;
   }
-
   function applyFacetSwatch(label, item, labelText, value) {
-    var spec = item && item.swatch;
-    if (spec && spec.kind === "image" && spec.imageUrl) {
-      label.style.setProperty(
-        "--sf-swatch-image",
-        'url("' + escapeCssUrl(spec.imageUrl) + '")',
-      );
-      label.className += " is-image";
-      return;
+    try {
+      var api = facetUtils();
+      if (api.applyFacetSwatch) api.applyFacetSwatch(label, item, labelText, value);
+    } catch (err) {
+      /* ignore */
     }
-    if (spec && spec.kind === "dual" && spec.color1 && spec.color2) {
-      label.style.setProperty("--sf-swatch", spec.color1);
-      label.style.setProperty("--sf-swatch-2", spec.color2);
-      label.className += " is-dual";
-      return;
-    }
-    if (spec && spec.kind === "solid" && spec.color1) {
-      label.style.setProperty("--sf-swatch", spec.color1);
-      return;
-    }
-    var swatch = swatchColor(labelText) || swatchColor(value);
-    if (swatch) label.style.setProperty("--sf-swatch", swatch);
   }
-
   function isColorFacet(facet) {
-    if (/colou?r|hue|shade/i.test(String(facet.label || facet.key || ""))) {
-      return true;
+    try {
+      var api = facetUtils();
+      return api.isColorFacet ? api.isColorFacet(facet) : false;
+    } catch (err) {
+      return false;
     }
-    var values = facet.values || [];
-    if (values.length < 2) return false;
-    var colorish = 0;
-    values.forEach(function (item) {
-      var text = String(item.value != null ? item.value : item.label || "");
-      if (
-        /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ||
-        (/^[a-z]{3,24}$/i.test(text) && looksLikeCssColor(text))
-      ) {
-        colorish += 1;
-      }
-    });
-    return colorish / values.length >= COLOR_FACET_MATCH_RATIO;
   }
-
-  function sizeRank(raw) {
-    var value = String(raw || "")
-      .trim()
-      .toLowerCase();
-    if (!value) return null;
-    var numeric = value.match(/^(\d+(\.\d+)?)/);
-    if (numeric) return SIZE_NUMERIC_RANK_BASE + Number(numeric[1]);
-    var small = value.match(/^(x*)s$/);
-    if (small) return 40 - small[1].length;
-    if (value === "m") return 50;
-    var large = value.match(/^(x*)l$/);
-    if (large) return 60 + large[1].length;
-    var numbered = value.match(/^(\d+)\s*x?l$/);
-    if (numbered) return 60 + Number(numbered[1]);
-    return null;
-  }
-
   function chipDisplayLabel(facets, key, value) {
-    function walk(values) {
-      var list = values || [];
-      for (var i = 0; i < list.length; i++) {
-        var item = list[i];
-        if (!item) continue;
-        var itemValue = String(item.value != null ? item.value : item.label || "");
-        var handle = String(item.handle || "");
-        if (itemValue === String(value) || (handle && handle === String(value))) {
-          var label = String(item.label != null ? item.label : "").trim();
-          if (label && label.indexOf("gid://") !== 0) return label;
-          if (handle) return handle;
-        }
-        var nested = walk(item.children);
-        if (nested) return nested;
-      }
-      return "";
-    }
-    var list = facets || [];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].key !== key) continue;
-      var found = walk(list[i].values);
-      if (found) return found;
+    try {
+      var api = facetUtils();
+      if (api.chipDisplayLabel) return api.chipDisplayLabel(facets, key, value);
+    } catch (err) {
+      /* ignore */
     }
     var raw = String(value == null ? "" : value);
     return raw.indexOf("gid://") === 0 ? "" : raw;
   }
-
   function isSizeFacet(facet) {
-    var text = String(facet.label || facet.key || "");
-    if (/\bsizes?\b/i.test(text) && !/length|width|weight/i.test(text)) {
-      return true;
+    try {
+      var api = facetUtils();
+      return api.isSizeFacet ? api.isSizeFacet(facet) : false;
+    } catch (err) {
+      return false;
     }
-    var values = facet.values || [];
-    if (values.length < 2) return false;
-    var sized = 0;
-    values.forEach(function (item) {
-      var value = String(item.value != null ? item.value : item.label || "").trim();
-      if (/^(x{0,3}[sml]|xxl|\d+\s*xl)$/i.test(value)) sized += 1;
-    });
-    return sized / values.length >= SIZE_FACET_MATCH_RATIO;
   }
-
   function sortSizeValues(values) {
-    return values.slice().sort(function (a, b) {
-      var av = String(a.value != null ? a.value : a.label || "");
-      var bv = String(b.value != null ? b.value : b.label || "");
-      var ar = sizeRank(av);
-      var br = sizeRank(bv);
-      if (ar != null && br != null) return ar - br;
-      if (ar != null) return -1;
-      if (br != null) return 1;
-      return av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+    try {
+      var api = facetUtils();
+      return api.sortSizeValues ? api.sortSizeValues(values) : (values || []).slice();
+    } catch (err) {
+      return (values || []).slice();
+    }
+  }
+  function valuesHaveChildren(values) {
+    try {
+      var api = facetUtils();
+      if (api.valuesHaveChildren) return api.valuesHaveChildren(values);
+    } catch (err) {
+      /* fall through */
+    }
+    return (values || []).some(function (item) {
+      return item && item.children && item.children.length;
     });
   }
-
   function looksLikeCssColor(value) {
+    try {
+      var api = facetUtils();
+      if (api.looksLikeCssColor) return api.looksLikeCssColor(value);
+    } catch (err) {
+      /* ignore */
+    }
     if (typeof value !== "string") return false;
-    var color = value.trim();
-    if (!color || color.length > 64) return false;
-    if (
-      /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(
-        color,
-      )
-    ) {
-      return true;
-    }
-    if (/^(rgb|rgba|hsl|hsla)\(\s*[\d.%+\-\s,/]+\)$/i.test(color)) {
-      return true;
-    }
-    return /^[a-zA-Z][a-zA-Z-]{1,30}$/.test(color);
+    var c = value.trim();
+    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c) || /^(rgb|rgba|hsl|hsla)\(/i.test(c);
   }
-
   function looksLikeFontFamily(value) {
-    if (typeof value !== "string") return false;
-    var font = value.trim();
-    if (!font || font.length > 120) return false;
-    if (/url\s*\(|expression|@import|[<>]|javascript:/i.test(font)) return false;
-    return /^[a-zA-Z0-9\s"',._-]+$/.test(font);
+    try {
+      var api = facetUtils();
+      return api.looksLikeFontFamily ? api.looksLikeFontFamily(value) : false;
+    } catch (err) {
+      return false;
+    }
+  }
+  function displayTitle(value, fallback) {
+    var text = String(value == null || value === "" ? fallback || "Filter" : value).trim();
+    return text.replace(/:\s*$/, "").trim() || fallback || "Filter";
   }
 
   function handleFromHref(href) {
@@ -3892,8 +3727,10 @@
     var timedOut = false;
     var timeoutId = 0;
     var fetchMs =
-      (fr && fr.ms ? fr.ms : 15000) +
-      attempt * (fr && fr.step ? fr.step : 5000);
+      opts._fetchMs != null
+        ? Math.max(400, Number(opts._fetchMs) || 400)
+        : (fr && fr.ms ? fr.ms : 15000) +
+          attempt * (fr && fr.step ? fr.step : 5000);
     if (ctrl) {
       this._abortCtrl = ctrl;
       timeoutId = window.setTimeout(function () {
@@ -3923,7 +3760,9 @@
         function (response) {
           clearFetchTimer();
           if (!response.ok) {
-            throw new Error("Request failed (" + response.status + ")");
+            var httpErr = new Error("Request failed (" + response.status + ")");
+            httpErr._findlyHttpStatus = response.status;
+            throw httpErr;
           }
           var self = this;
           var tJson =

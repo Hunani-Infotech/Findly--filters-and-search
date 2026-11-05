@@ -1280,8 +1280,13 @@
     }
   }
 
-  function showLeaveNativeStatus(widget) {
+  function showLeaveNativeStatus(widget, reason) {
     if (!widget || !widget.statusEl) return;
+    var why = reason || widget._sfLeaveReason || "leave_native";
+    widget._sfLeaveReason = why;
+    if (typeof window.__FINDLY_RECORD_LEAVE === "function") {
+      window.__FINDLY_RECORD_LEAVE(why);
+    }
     var fallback = "Filters couldn't be applied to this page.";
     widget.statusEl.textContent = widget.t ? widget.t("applyError", fallback) : fallback;
     widget.statusEl.setAttribute("data-error", "true");
@@ -9394,8 +9399,7 @@
       try {
         mountCachedCards(widget, handles, parent);
         applyNativeFilterGrid(handles, parent);
-        if (widget._sfMapMiss || widget._sfLeaveNative) {
-          widget._sfMapMiss = false;
+        if (widget._sfLeaveNative && !widget._sfMapMiss) {
           markGridPainted(widget);
           return;
         }
@@ -9412,6 +9416,8 @@
           widget.applyAppGrid &&
           !(widget.isAppGridMode && widget.isAppGridMode())
         ) {
+          widget._sfMapMiss = false;
+          widget._sfLeaveNative = false;
           widget._skipPageSlice = true;
           try {
             widget.applyAppGrid(
@@ -9426,6 +9432,17 @@
           if (widget._shownHandles && widget._shownHandles.length) {
             shown = Math.max(shown, uniqueAllowedCount(widget._shownHandles));
           }
+        }
+        if (widget._sfMapMiss) {
+          widget._sfMapMiss = false;
+          if (!(shown > 0 || (widget._shownHandles && widget._shownHandles.length))) {
+            widget._sfLeaveNative = true;
+            widget._visibleHandles = null;
+            showLeaveNativeStatus(widget, "map_miss");
+            clearBusyVisuals();
+          }
+          markGridPainted(widget);
+          return;
         }
         syncGridEmptyState(widget, parent, handles, shown);
         markGridPainted(widget);
@@ -9541,10 +9558,11 @@
     if (listed && listed.length > 0 && matchedN === 0) {
       findlyMetric("map_miss", "handles=" + listed.length);
       if (widget) {
+        /* Defer leave-native: callers try applyAppGrid / card import first.
+           Immediate leave-native blocked recovery and flashed applyError
+           after a successful /filters response. */
         widget._sfMapMiss = true;
-        widget._sfLeaveNative = true;
-        widget._visibleHandles = null;
-        showLeaveNativeStatus(widget);
+        widget._sfLeaveReason = "map_miss";
       }
       clearBusyVisuals();
       return false;
@@ -9837,9 +9855,14 @@
           "|grid=" +
           gridSel,
       );
+      /* Filters payload is healthy — unhide Liquid cards quietly.
+         Do not paint applyError after a successful /filters response. */
       widget._sfLeaveNative = true;
+      widget._sfLeaveReason = "grid_stuck";
       widget._visibleHandles = null;
-      showLeaveNativeStatus(widget);
+      if (typeof window.__FINDLY_RECORD_LEAVE === "function") {
+        window.__FINDLY_RECORD_LEAVE("grid_stuck");
+      }
       clearAllGridHiding();
     }, 4000);
   }
@@ -14232,8 +14255,7 @@
       if ((!next || !next.length) && source.length) next = source;
       mountCachedCards(this, next, host);
       applyNativeFilterGrid(next, host);
-      if (this._sfMapMiss || this._sfLeaveNative) {
-        this._sfMapMiss = false;
+      if (this._sfLeaveNative && !this._sfMapMiss) {
         markGridPainted(this);
         if (this.setGridBusy && !this._importingCards) this.setGridBusy(false, this._reqId);
         return true;
@@ -14252,6 +14274,8 @@
           !(this.isAppGridMode && this.isAppGridMode())
         ) {
           this._skipPageSlice = true;
+          this._sfMapMiss = false;
+          this._sfLeaveNative = false;
           var painted = false;
           try {
             painted = this.applyAppGrid(
@@ -14278,8 +14302,15 @@
             return true;
           }
         }
+        this._sfMapMiss = false;
         this._shownHandles = [];
         return false;
+      }
+      if (this._sfMapMiss) {
+        this._sfMapMiss = false;
+        markGridPainted(this);
+        if (this.setGridBusy && !this._importingCards) this.setGridBusy(false, this._reqId);
+        return shown > 0;
       }
       this._shownHandles = shown > 0 ? next.slice() : this._shownHandles || [];
       markGridPainted(this);
@@ -14720,8 +14751,7 @@
         this.setGridBusy(true, this._reqId);
       }
       applyNativeFilterGrid(handles, parent);
-      if (this._sfMapMiss || this._sfLeaveNative) {
-        this._sfMapMiss = false;
+      if (this._sfLeaveNative && !this._sfMapMiss) {
         markGridPainted(this);
         placeCollectionSearchOnGrid(this);
         return;
@@ -14732,8 +14762,11 @@
         handles.length &&
         shown < uniqueAllowedCount(handles)
       ) {
+        /* map_miss leaves shown=0 — fillMissing / app-grid recovery runs next. */
+        this._sfMapMiss = false;
         fillMissingFilterCards(this, handles, parent);
       } else {
+        this._sfMapMiss = false;
         markGridPainted(this);
         syncGridEmptyState(this, parent, handles, shown);
       }
@@ -15098,6 +15131,91 @@
         }
       }
     };
+
+    /* Theme HTML import failures must not hard-leave before applyAppGrid recovery. */
+    var origFetchThemePage = proto.fetchThemePage;
+    if (origFetchThemePage && !proto.__findlySoftThemePage) {
+      proto.__findlySoftThemePage = true;
+      proto.fetchThemePage = function (page) {
+        var self = this;
+        var reqId = this._reqId;
+        return Promise.resolve(origFetchThemePage.apply(this, arguments)).then(
+          function (ok) {
+            if (ok) return true;
+            if (self._reqId !== reqId) return false;
+            if (typeof window.__FINDLY_RECORD_LEAVE === "function") {
+              window.__FINDLY_RECORD_LEAVE("theme_bail");
+            }
+            self._sfLeaveReason = "theme_bail";
+            self._sfLeaveNative = false;
+            if (self.statusEl) {
+              self.statusEl.textContent = "";
+              self.statusEl.removeAttribute("data-error");
+            }
+            return false;
+          },
+        );
+      };
+    }
+
+    /* Prefer app-grid recovery before painting leave-native applyError. */
+    var origPagingFallback = proto.enterPagingFallback;
+    if (origPagingFallback && !proto.__findlyPagingRecover) {
+      proto.__findlyPagingRecover = true;
+      proto.enterPagingFallback = function (handles, data, reqId) {
+        if (isStale(this, reqId)) return;
+        if (
+          this.applyAppGrid &&
+          !(this.isAppGridMode && this.isAppGridMode()) &&
+          Array.isArray(this._lastProducts) &&
+          this._lastProducts.length
+        ) {
+          var list = Array.isArray(handles) && handles.length
+            ? handles
+            : extractHandlesFromProducts(this._lastProducts);
+          /* Preserve already-painted pages on load-more failures. */
+          var useAppend =
+            Array.isArray(this._shownHandles) && this._shownHandles.length > 0;
+          this._sfLeaveNative = false;
+          this._skipPageSlice = true;
+          var painted = false;
+          try {
+            painted = !!this.applyAppGrid(
+              data && data.products ? data : { products: this._lastProducts },
+              list,
+              useAppend,
+            );
+          } finally {
+            this._skipPageSlice = false;
+          }
+          if (painted || (this._shownHandles && this._shownHandles.length)) {
+            this._sfLeaveNative = false;
+            this._pagingFallback = false;
+            markGridPainted(this);
+            if (this.setGridBusy && !this._importingCards) {
+              this.setGridBusy(false, reqId);
+            }
+            if (this.statusEl) {
+              this.statusEl.textContent = "";
+              this.statusEl.removeAttribute("data-error");
+            }
+            return;
+          }
+        }
+        return origPagingFallback.apply(this, arguments);
+      };
+    }
+  }
+
+  function extractHandlesFromProducts(products) {
+    var out = [];
+    var i;
+    for (i = 0; i < products.length; i++) {
+      var p = products[i];
+      var h = p && (p.handle || p.productHandle || p.product_handle);
+      if (h) out.push(String(h));
+    }
+    return out;
   }
 
   function installSetter(held) {

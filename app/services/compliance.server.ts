@@ -8,7 +8,11 @@ import {
 import { forgetShop } from "../lib/shop-cache.server";
 import { log } from "../lib/log.server";
 import { ackWebhookBatch } from "../lib/queues.server";
-import { applyLocalFreePlan, clearBillingCaches } from "./billing.server";
+import {
+  applyLocalFreePlan,
+  cancelShopifySubscriptionsBestEffortOnUninstall,
+  clearBillingCaches,
+} from "./billing.server";
 
 export type ComplianceLogStatus = "received" | "acknowledged";
 
@@ -58,6 +62,10 @@ async function deleteShopCacheGenerations(shopDomain: string) {
  * row itself is kept until purge.
  */
 export async function markShopUninstalled(shopDomain: string) {
+  // Cancel Shopify charges while the offline token may still work (Shopify also
+  // auto-cancels on uninstall). Must run before session.deleteMany.
+  await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain);
+
   await prisma.session.deleteMany({ where: { shop: shopDomain } });
 
   const shop = await prisma.shop.findUnique({
@@ -88,7 +96,7 @@ export async function markShopUninstalled(shopDomain: string) {
   log.success(
     `[compliance] markShopUninstalled: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
       shop.uninstalledAt ? "; already marked" : ""
-    }; billing demoted to free)`,
+    }; billing demoted to free; Shopify cancel attempted before session revoke)`,
   );
   return { marked: true as const, shopId: shop.id };
 }

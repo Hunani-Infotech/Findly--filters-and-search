@@ -41,7 +41,15 @@ function isMissingOfflineSessionError(error: unknown): boolean {
 async function syncBillingFromShopify(shopDomain: string, webhookId?: string) {
   const tag = webhookId ? ` webhookId=${webhookId}` : "";
   try {
+    // Do not call ensureShop first — it must not clear uninstalledAt without a session.
+    // Mirror already demoted local billing; GraphQL sync needs a live offline token.
     const shopRow = await ensureShop(shopDomain);
+    if (shopRow.uninstalledAt) {
+      log.warn(
+        `[billing] syncFromShopify skipped for ${shopDomain}${tag}: shop marked uninstalled`,
+      );
+      return;
+    }
     const { unauthenticated } = await import("../shopify.server");
     const { admin } = await unauthenticated.admin(shopDomain);
     await syncActiveSubscriptions(admin, shopRow.id, {

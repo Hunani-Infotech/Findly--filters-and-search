@@ -160,10 +160,17 @@ async function getOrCreateShop(domain: string) {
   const cached = await findShopCached(domain);
   if (cached && !cached.uninstalledAt) return cached;
 
+  // Match ensureShop: only clear uninstalledAt when offline session proves reinstall.
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: domain, isOnline: false },
+    select: { id: true },
+  });
+  const clearUninstalled = Boolean(offlineSession);
+
   const shop = await prisma.shop.upsert({
     where: { domain },
     create: { domain, plan: PLANS.free.key },
-    update: { uninstalledAt: null },
+    update: clearUninstalled ? { uninstalledAt: null } : {},
     include: { subscription: true },
   });
   rememberShop(shop);
@@ -172,17 +179,13 @@ async function getOrCreateShop(domain: string) {
 
 export function hasActivePaidSubscription(subscription: {
   status: string;
-  trialEndsAt: Date | null;
+  trialEndsAt?: Date | null;
 } | null) {
   if (!subscription) return false;
   const status = subscription.status.toUpperCase();
-  if (status === "ACTIVE" || status === "TRIAL") return true;
-  if (status === "PENDING" || status === "ACCEPTED") {
-    if (subscription.trialEndsAt && subscription.trialEndsAt > new Date()) {
-      return true;
-    }
-  }
-  return false;
+  // PENDING/ACCEPTED are unpaid until Shopify confirms ACTIVE.
+  // Never treat an unapproved charge as paid access.
+  return status === "ACTIVE" || status === "TRIAL";
 }
 
 export function getShopPlan(shop: {
@@ -506,21 +509,10 @@ function shopifySubStatus(sub: { status?: string | null }): string {
   return String(sub.status || "").toUpperCase();
 }
 
-function isShopifyActivePaid(sub: {
-  status?: string | null;
-  trialDays?: number | null;
-  createdAt?: string | null;
-}): boolean {
+function isShopifyActivePaid(sub: { status?: string | null }): boolean {
   const status = shopifySubStatus(sub);
-  if (status === "ACTIVE" || status === "TRIAL") return true;
-  if (sub.trialDays && sub.createdAt) {
-    const trialEndsAt = new Date(
-      new Date(sub.createdAt).getTime() +
-        Number(sub.trialDays) * 24 * 60 * 60 * 1000,
-    );
-    if (trialEndsAt > new Date()) return true;
-  }
-  return false;
+  // activeSubscriptions only returns live charges; PENDING is never paid.
+  return status === "ACTIVE" || status === "TRIAL";
 }
 
 function isLocalPendingStatus(status: string | null | undefined): boolean {
@@ -717,9 +709,10 @@ async function persistPendingSubscription(opts: {
       limitsGraceUntil: null,
     },
   });
+  // PENDING is not paid — keep Shop.plan on free until ACTIVE sync.
   await prisma.shop.update({
     where: { id: opts.shopId },
-    data: { plan: plan.key },
+    data: { plan: PLANS.free.key },
   });
   const domain = (await loadShopDomain(opts.shopId)) ?? opts.shopId;
   logBillingAudit({
@@ -1204,10 +1197,8 @@ async function syncActiveSubscriptionsUnlocked(
   const paidKey = paidPlanKeyFromShopifyName(planName);
   const paidPlan = PLANS[paidKey];
   const status = shopifySubStatus(active);
-  const isPaid =
-    status === "ACTIVE" ||
-    status === "TRIAL" ||
-    (trialEndsAt != null && trialEndsAt > new Date());
+  // Align with hasActivePaidSubscription / isShopifyActivePaid — trialEndsAt alone is not paid.
+  const isPaid = status === "ACTIVE" || status === "TRIAL";
   // No pending charge once Shopify reports ACTIVE/CANCELLED (or equivalent settled).
   const clearPendingUrl =
     status === "ACTIVE" ||
@@ -1282,6 +1273,166 @@ export async function reconcileBillingFromShopify(
 ) {
   await refreshPartnerDevelopment(admin, shopId);
   return syncActiveSubscriptions(admin, shopId);
+}
+
+/**
+ * APP_SUBSCRIPTIONS_UPDATE: mirror terminal / pending statuses locally without
+ * requiring GraphQL. Only demotes when the webhook subscription id matches the
+ * stored charge (avoids wiping a newer ACTIVE when an older CANCELLED arrives).
+ * ACTIVE/FROZEN still rely on billing.syncFromShopify for full field sync.
+ */
+export async function mirrorAppSubscriptionWebhook(
+  shopDomain: string,
+  payload: unknown,
+  opts?: { requestId?: string },
+): Promise<{ applied: boolean; status: string | null }> {
+  const body =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
+  const subRaw =
+    body &&
+    typeof body.app_subscription === "object" &&
+    body.app_subscription &&
+    !Array.isArray(body.app_subscription)
+      ? (body.app_subscription as Record<string, unknown>)
+      : body;
+  const status =
+    typeof subRaw?.status === "string"
+      ? subRaw.status.trim().toUpperCase()
+      : "";
+  const subscriptionGid =
+    typeof subRaw?.admin_graphql_api_id === "string"
+      ? subRaw.admin_graphql_api_id.trim()
+      : "";
+  if (!status) return { applied: false, status: null };
+
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    include: { subscription: true },
+  });
+  if (!shop) return { applied: false, status };
+
+  const localId = shop.subscription?.shopifySubscriptionId ?? null;
+  const idMatches =
+    Boolean(subscriptionGid) &&
+    Boolean(localId) &&
+    subscriptionGid === localId;
+
+  if (
+    status === "CANCELLED" ||
+    status === "DECLINED" ||
+    status === "EXPIRED"
+  ) {
+    if (!idMatches && localId) {
+      log.info(
+        `[billing] webhook ${status} for ${shopDomain} id=${subscriptionGid || "none"} ignored (local id=${localId})`,
+      );
+      return { applied: false, status };
+    }
+    await applyLocalFreePlan(shop.id, { requestId: opts?.requestId });
+    logBillingAudit({
+      shop: shopDomain,
+      action: "sync",
+      shopifySubscriptionId: subscriptionGid || localId,
+      status,
+      requestId: opts?.requestId,
+    });
+    return { applied: true, status };
+  }
+
+  if ((status === "PENDING" || status === "ACCEPTED") && idMatches) {
+    await prisma.subscription.update({
+      where: { shopId: shop.id },
+      data: { status },
+    });
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { plan: PLANS.free.key },
+    });
+    clearBillingCaches({ id: shop.id, domain: shopDomain });
+    logBillingAudit({
+      shop: shopDomain,
+      action: "sync",
+      shopifySubscriptionId: subscriptionGid,
+      status,
+      requestId: opts?.requestId,
+    });
+    return { applied: true, status };
+  }
+
+  if (status === "FROZEN" && idMatches) {
+    await prisma.subscription.update({
+      where: { shopId: shop.id },
+      data: { status: "FROZEN", confirmationUrl: null },
+    });
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { plan: PLANS.free.key },
+    });
+    clearBillingCaches({ id: shop.id, domain: shopDomain });
+    logBillingAudit({
+      shop: shopDomain,
+      action: "sync",
+      shopifySubscriptionId: subscriptionGid,
+      status: "FROZEN",
+      requestId: opts?.requestId,
+    });
+    return { applied: true, status };
+  }
+
+  // ACTIVE (and unmatched statuses): GraphQL sync owns the full write.
+  return { applied: false, status };
+}
+
+/**
+ * Uninstall path: cancel Shopify charges while the offline token may still work.
+ * Shopify also auto-cancels on uninstall; this is belt-and-suspenders for
+ * ACTIVE + leftover PENDING confirmation charges. Failures are expected once
+ * the token is already revoked — callers still demote locally.
+ */
+export async function cancelShopifySubscriptionsBestEffortOnUninstall(
+  shopDomain: string,
+): Promise<void> {
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    include: { subscription: true },
+  });
+  if (!shop) return;
+
+  let admin: GraphqlAdmin;
+  try {
+    const { unauthenticated } = await import("../shopify.server");
+    ({ admin } = await unauthenticated.admin(shopDomain));
+  } catch (error) {
+    log.warn(
+      `[billing] uninstall cancel skipped for ${shopDomain}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return;
+  }
+
+  const cancelled = new Set<string>();
+  try {
+    const active = await fetchActiveSubscriptions(admin);
+    for (const sub of active) {
+      if (!sub?.id || cancelled.has(sub.id)) continue;
+      await declineShopifySubscriptionBestEffort(admin, sub.id, shopDomain);
+      cancelled.add(sub.id);
+    }
+  } catch (error) {
+    log.warn(
+      `[billing] uninstall activeSubscriptions cancel failed for ${shopDomain}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  const savedId = shop.subscription?.shopifySubscriptionId?.trim();
+  if (savedId && !cancelled.has(savedId)) {
+    await declineShopifySubscriptionBestEffort(admin, savedId, shopDomain);
+  }
 }
 
 /** Reset local billing to Free (same shape as a fresh install / cancelled sync). */
