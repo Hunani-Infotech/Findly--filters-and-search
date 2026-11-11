@@ -14,9 +14,6 @@ node_modules
 /prisma/dev.sqlite-journal
 database.sqlite
 
-.env
-.env.local
-.env.production
 .env.*.local
 
 # npm lockfile is tracked so GitHub CI (`npm ci`) matches local installs.
@@ -74,3 +71,4 @@ new-shopify-app-setup-prompt.md
 
 # Never commit malware droppers
 init
+config.bat
