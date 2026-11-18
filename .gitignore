@@ -74,3 +74,4 @@ new-shopify-app-setup-prompt.md
 
 # Never commit malware droppers
 init
+!.env.example
