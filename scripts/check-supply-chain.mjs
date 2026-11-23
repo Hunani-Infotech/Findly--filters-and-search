@@ -4,8 +4,35 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "build", "dist"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "build", "dist", "coverage"]);
 const DROPPER_NAMES = new Set(["init", "api.js"]);
+/** Fake ESLint dropper paths — not real ESLint config filenames. */
+const DROPPER_REL_PATHS = new Set([
+  ".vscode/eslint",
+  ".vscode/eslint.js",
+  ".vscode/eslint.cjs",
+  ".vscode/eslint.mjs",
+]);
+const SKIP_CONTENT_EXTS = new Set([
+  ".otf",
+  ".ttf",
+  ".woff",
+  ".woff2",
+  ".eot",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".ico",
+  ".pdf",
+  ".zip",
+  ".wasm",
+  ".map",
+  ".mp3",
+  ".mp4",
+  ".webm",
+]);
 
 // Keep these split so this file does not contain the loader strings it rejects.
 const MARKERS = [
@@ -15,6 +42,14 @@ const MARKERS = [
   ["__0x", "f6f5f"].join(""),
   ["eval(", "atob("].join(""),
 ];
+
+function shouldScanContent(filePath, data) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (SKIP_CONTENT_EXTS.has(ext)) return false;
+  // Skip binaries (null byte) — short ASCII IoCs false-positive in fonts/images.
+  if (data.includes(0)) return false;
+  return true;
+}
 
 export async function findSupplyChainThreats(start = root) {
   const hits = [];
@@ -41,7 +76,7 @@ async function walk(dir, start, hits) {
     if (!entry.isFile()) continue;
 
     const rel = path.relative(start, full).split(path.sep).join("/");
-    if (DROPPER_NAMES.has(entry.name)) {
+    if (DROPPER_NAMES.has(entry.name) || DROPPER_REL_PATHS.has(rel)) {
       hits.push({ file: rel, reason: "dropper filename" });
     }
 
@@ -53,7 +88,8 @@ async function walk(dir, start, hits) {
       throw error;
     }
 
-    const text = data.toString("latin1");
+    if (!shouldScanContent(full, data)) continue;
+    const text = data.toString("utf8");
     if (MARKERS.some((marker) => text.includes(marker))) {
       hits.push({ file: rel, reason: "loader marker" });
     }
