@@ -1460,21 +1460,26 @@ export async function cancelShopifySubscriptionsBestEffortOnUninstall(
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      run(),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error(`uninstall cancel timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }),
-    ]);
-  } catch (error) {
+  // Catch the losing promise so a late rejection after timeout is not unhandled.
+  const runPromise = run().catch((error: unknown) => {
     log.warn(
-      `[billing] uninstall cancel aborted for ${shopDomain}: ${
+      `[billing] uninstall cancel rejected for ${shopDomain}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
+  });
+  try {
+    await Promise.race([
+      runPromise,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          log.warn(
+            `[billing] uninstall cancel timed out after ${timeoutMs}ms for ${shopDomain}`,
+          );
+          resolve();
+        }, timeoutMs);
+      }),
+    ]);
   } finally {
     if (timer) clearTimeout(timer);
   }

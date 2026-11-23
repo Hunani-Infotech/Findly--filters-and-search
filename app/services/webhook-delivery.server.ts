@@ -305,3 +305,29 @@ export async function tryRecordWebhookDelivery(opts: {
     throw error;
   }
 }
+
+/**
+ * Claim a delivery id up front (uninstall / redact).
+ * Empty webhookId skips durable dedupe and always returns "claimed".
+ */
+export async function claimWebhookDelivery(params: {
+  webhookId: string | undefined;
+  topic: string;
+  shopDomain: string;
+}): Promise<"claimed" | "duplicate"> {
+  const result = await tryRecordWebhookDelivery({
+    webhookId: params.webhookId ?? "",
+    shopDomain: params.shopDomain,
+    topic: params.topic,
+  });
+  return result === "duplicate" ? "duplicate" : "claimed";
+}
+
+/** Drop a claim so Shopify's retry can run the handler again. */
+export async function releaseWebhookDelivery(
+  webhookId: string | undefined,
+): Promise<void> {
+  const id = (webhookId || "").trim().slice(0, 128);
+  if (!id) return;
+  await prisma.webhookDelivery.deleteMany({ where: { webhookId: id } });
+}

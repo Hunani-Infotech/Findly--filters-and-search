@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
 import { logComplianceEvent } from "../services/compliance.server";
 import { log } from "../lib/log.server";
 import {
@@ -10,16 +10,19 @@ import {
 
 /** GDPR: app does not store customer PII — audit row only (no webhook body). */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
+  const { shop, topic, payload, webhookId: authWebhookId } =
+    await authenticateWebhookSafe(request);
 
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const webhookId = resolveCustomersDataRequestWebhookId({
-    request,
-    topic,
-    shopDomain: shop,
-    payload,
-  });
+  const webhookId =
+    authWebhookId ||
+    resolveCustomersDataRequestWebhookId({
+      request,
+      topic,
+      shopDomain: shop,
+      payload,
+    });
 
   if (await webhookDeliveryExists(webhookId)) {
     log.info(

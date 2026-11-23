@@ -61,13 +61,19 @@ async function deleteShopCacheGenerations(shopDomain: string) {
  * inherit stale ACTIVE paid access before Shopify sync runs. The Subscription
  * row itself is kept until purge.
  */
-const UNINSTALL_CANCEL_TIMEOUT_MS = 2000;
+const UNINSTALL_CANCEL_TIMEOUT_MS = 4000;
 
-export async function markShopUninstalled(shopDomain: string) {
+/**
+ * Soft-offboard only: revoke sessions, mark uninstalled, demote billing.
+ * Does NOT call Shopify Admin cancel — callers race that as best-effort.
+ */
+export async function softUninstallShop(shopDomain: string): Promise<{
+  marked: boolean;
+  shopId?: string;
+  adminForCancel: unknown;
+}> {
   // Capture admin BEFORE session revoke so a post-offboard cancel can still use
-  // the token. Local DB offboarding always completes first; Shopify cancel is
-  // best-effort with a ~2s cap (Shopify also auto-cancels on uninstall).
-  // Pre-captured admin is passed into cancel after sessions are revoked.
+  // the token. Local DB offboarding always completes first.
   let adminForCancel: unknown = null;
   try {
     const { unauthenticated } = await import("../shopify.server");
@@ -91,13 +97,9 @@ export async function markShopUninstalled(shopDomain: string) {
   if (!shop) {
     forgetShop(shopDomain);
     log.info(
-      `[compliance] markShopUninstalled: no Shop row for ${shopDomain}; sessions revoked`,
+      `[compliance] softUninstallShop: no Shop row for ${shopDomain}; sessions revoked`,
     );
-    await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain, {
-      admin: adminForCancel,
-      timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS,
-    });
-    return { marked: false as const };
+    return { marked: false, adminForCancel };
   }
 
   clearBillingCaches({ id: shop.id, domain: shop.domain });
@@ -112,17 +114,54 @@ export async function markShopUninstalled(shopDomain: string) {
   // Keep the Subscription row; stop trusting pre-uninstall paid status (I-4).
   await applyLocalFreePlan(shop.id);
 
+  log.success(
+    `[compliance] softUninstallShop: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
+      shop.uninstalledAt ? "; already marked" : ""
+    }; billing demoted to free)`,
+  );
+  return { marked: true, shopId: shop.id, adminForCancel };
+}
+
+export async function markShopUninstalled(shopDomain: string) {
+  const result = await softUninstallShop(shopDomain);
+  // Shopify also auto-cancels on uninstall; this is best-effort with a ~4s cap.
   await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain, {
-    admin: adminForCancel,
+    admin: result.adminForCancel,
     timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS,
   });
+  return result.marked
+    ? ({ marked: true as const, shopId: result.shopId! })
+    : ({ marked: false as const });
+}
 
-  log.success(
-    `[compliance] markShopUninstalled: marked ${shopDomain} uninstalledAt (queueJobs=${queueDeleted.count}${
-      shop.uninstalledAt ? "; already marked" : ""
-    }; billing demoted to free; Shopify cancel attempted after local offboard, capped ${UNINSTALL_CANCEL_TIMEOUT_MS}ms)`,
-  );
-  return { marked: true as const, shopId: shop.id };
+/** True when an offline Session proves the app was reinstalled. */
+export async function shopLooksReinstalled(
+  shopDomain: string,
+): Promise<boolean> {
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: shopDomain, isOnline: false },
+    select: { id: true },
+  });
+  return Boolean(offlineSession);
+}
+
+export async function shopExists(shopDomain: string): Promise<boolean> {
+  const row = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
+/** Catalog/billing webhooks: skip work when the shop is gone or soft-uninstalled. */
+export async function isShopUninstalledOrMissing(
+  shopDomain: string,
+): Promise<boolean> {
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    select: { uninstalledAt: true },
+  });
+  return !shop || Boolean(shop.uninstalledAt);
 }
 
 /**

@@ -58,4 +58,10 @@ app.all(
   }),
 );
 
-app.listen(process.env.PORT ?? 3000);
+const port = process.env.PORT ?? 3000;
+app.listen(port, () => {
+  // Deploy proof: Partner app version ≠ server code. Confirm this line after restart.
+  console.log(
+    `[findly] listening on ${port} webhook-auth=hmac-safe build=2026-11-23-webhook-fix`,
+  );
+});

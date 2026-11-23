@@ -1,23 +1,28 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
 import { ackWebhookBatch } from "../lib/queues.server";
 import { log } from "../lib/log.server";
 import { mirrorAppSubscriptionWebhook } from "../services/billing.server";
+import { isShopUninstalledOrMissing } from "../services/compliance.server";
 import {
   resolveWebhookDeliveryId,
+  tryRecordWebhookDelivery,
   webhookDeliveryExists,
 } from "../services/webhook-delivery.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
+  const { shop, topic, payload, webhookId: authWebhookId } =
+    await authenticateWebhookSafe(request);
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const webhookId = resolveWebhookDeliveryId({
-    request,
-    topic,
-    shopDomain: shop,
-    payload,
-  });
+  const webhookId =
+    authWebhookId ||
+    resolveWebhookDeliveryId({
+      request,
+      topic,
+      shopDomain: shop,
+      payload,
+    });
 
   if (await webhookDeliveryExists(webhookId)) {
     log.info(
@@ -35,6 +40,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     log.info(
       `[billing] mirrored app_subscriptions/update for ${shop} status=${mirrored.status} webhookId=${webhookId}`,
     );
+  }
+
+  if (await isShopUninstalledOrMissing(shop)) {
+    log.info(
+      `[billing] app_subscriptions/update: shop missing/uninstalled for ${shop}; ack 200`,
+    );
+    await tryRecordWebhookDelivery({
+      webhookId,
+      shopDomain: shop,
+      topic,
+    });
+    return new Response(null, { status: 200 });
   }
 
   const jobData = { shop, webhookId };

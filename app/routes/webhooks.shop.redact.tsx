@@ -1,62 +1,41 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
+import { processShopRedact } from "../utils/webhook-shop-redact.server";
 import {
   ensureShopPurged,
   logComplianceEvent,
+  shopExists,
+  shopLooksReinstalled,
 } from "../services/compliance.server";
-import { log } from "../lib/log.server";
 import {
-  resolveShopScopedWebhookId,
-  tryRecordWebhookDelivery,
-  webhookDeliveryExists,
+  claimWebhookDelivery,
+  releaseWebhookDelivery,
 } from "../services/webhook-delivery.server";
 
+/**
+ * shop/redact — queue hard purge. No Admin API / offline token dependency.
+ * Already-purged or reinstalled shops ack 200. Real purge/enqueue failure → 5xx.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const ctx = await authenticateWebhookSafe(request);
 
-  log.info(`Received ${topic} webhook for ${shop}`);
-
-  const webhookId = resolveShopScopedWebhookId({
-    request,
-    topic,
-    shopDomain: shop,
-  });
-
-  if (await webhookDeliveryExists(webhookId)) {
-    log.info(
-      `[compliance] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
-    );
-    return new Response(null, { status: 200 });
-  }
-
-  try {
-    const purged = await ensureShopPurged(shop, "shop/redact");
-    const status =
-      purged.mode === "queued" ? "queued" : "skipped_reinstalled";
-    await logComplianceEvent(shop, topic, {
-      requestId: webhookId,
-      status,
-    });
-  } catch (error) {
-    try {
-      await logComplianceEvent(shop, topic, {
-        requestId: webhookId,
-        status: "failed",
-      });
-    } catch (logError) {
-      log.error(
-        `[compliance] shop/redact: could not persist failed audit for ${shop}`,
-        logError,
-      );
-    }
-    throw error;
-  }
-
-  await tryRecordWebhookDelivery({
-    webhookId,
-    shopDomain: shop,
-    topic,
-  });
-
-  return new Response(null, { status: 200 });
+  return processShopRedact(
+    {
+      shop: ctx.shop,
+      topic: ctx.topic,
+      webhookId: ctx.webhookId,
+    },
+    {
+      claimDelivery: claimWebhookDelivery,
+      releaseDelivery: releaseWebhookDelivery,
+      shopExists,
+      shopLooksReinstalled,
+      purgeShopData: async (shopDomain) => {
+        await ensureShopPurged(shopDomain, "shop/redact");
+      },
+      audit: async ({ shopDomain, requestId, topic, status }) => {
+        await logComplianceEvent(shopDomain, topic, { requestId, status });
+      },
+    },
+  );
 };

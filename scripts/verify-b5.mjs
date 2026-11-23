@@ -321,25 +321,28 @@ function assertThemeSeoAndUi() {
     fail("shopify.server.ts still targets ApiVersion.October25");
   }
   if (
-    !uninstall.includes("markShopUninstalled") ||
+    (!uninstall.includes("softUninstallShop") &&
+      !uninstall.includes("markShopUninstalled") &&
+      !uninstall.includes("processAppUninstalled")) ||
     uninstall.includes("ensureShopPurged")
   ) {
     fail(
-      "app/uninstalled must call markShopUninstalled (soft-offboard), not ensureShopPurged",
+      "app/uninstalled must soft-offboard (softUninstallShop / processAppUninstalled), not ensureShopPurged",
     );
   }
   if (
-    !compliance.includes("markShopUninstalled") ||
+    (!compliance.includes("softUninstallShop") &&
+      !compliance.includes("markShopUninstalled")) ||
     !compliance.includes("uninstalledAt")
   ) {
     fail(
-      "compliance.server.ts must markShopUninstalled / set uninstalledAt on uninstall",
+      "compliance.server.ts must softUninstallShop / markShopUninstalled / set uninstalledAt on uninstall",
     );
   }
   // I-4: uninstall must demote local paid mirror; reinstall rebuilds from Shopify.
   if (!compliance.includes("applyLocalFreePlan")) {
     fail(
-      "I-4: markShopUninstalled must applyLocalFreePlan (no stale ACTIVE after uninstall)",
+      "I-4: softUninstallShop must applyLocalFreePlan (no stale ACTIVE after uninstall)",
     );
   }
   if (!compliance.includes("webhookDelivery.deleteMany")) {

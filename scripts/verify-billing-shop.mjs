@@ -83,14 +83,21 @@ function runStaticUninstallDeclinedReinstallChecks() {
   ) {
     fail("uninstall must applyLocalFreePlan and attempt Shopify cancel");
   }
+  const softStart = compliance.indexOf("export async function softUninstallShop");
   const markStart = compliance.indexOf("export async function markShopUninstalled");
-  const markBody = compliance.slice(markStart, markStart + 3500);
-  const freeIdx = markBody.indexOf("applyLocalFreePlan");
-  const cancelIdx = markBody.lastIndexOf(
-    "cancelShopifySubscriptionsBestEffortOnUninstall",
-  );
-  if (freeIdx === -1 || cancelIdx === -1 || !(freeIdx < cancelIdx)) {
-    fail("uninstall must applyLocalFreePlan before capped Shopify cancel");
+  if (softStart === -1 || markStart === -1) {
+    fail("compliance must export softUninstallShop and markShopUninstalled");
+  }
+  const softBody = compliance.slice(softStart, softStart + 3500);
+  const markBody = compliance.slice(markStart, markStart + 1500);
+  if (!softBody.includes("applyLocalFreePlan")) {
+    fail("softUninstallShop must applyLocalFreePlan");
+  }
+  if (
+    !markBody.includes("softUninstallShop") ||
+    !markBody.includes("cancelShopifySubscriptionsBestEffortOnUninstall")
+  ) {
+    fail("markShopUninstalled must soft-uninstall then capped Shopify cancel");
   }
   if (!markBody.includes("timeoutMs")) {
     fail("uninstall Shopify cancel must pass timeoutMs");

@@ -1,32 +1,49 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
 import { ackWebhookBatch } from "../lib/queues.server";
 import { log } from "../lib/log.server";
+import { isShopUninstalledOrMissing } from "../services/compliance.server";
 import {
   resolveCustomersRedactWebhookId,
+  tryRecordWebhookDelivery,
   webhookDeliveryExists,
 } from "../services/webhook-delivery.server";
 
 /**
  * GDPR customers/redact: durable enqueue, then delivery dedupe, ack 200.
- * Enqueue failure → 5xx so Shopify retries (no inline scrub on the request path).
+ * Missing / uninstalled shop → 200 (nothing to scrub). Enqueue failure → 5xx.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
+  const { shop, topic, payload, webhookId: authWebhookId } =
+    await authenticateWebhookSafe(request);
 
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const webhookId = resolveCustomersRedactWebhookId({
-    request,
-    topic,
-    shopDomain: shop,
-    payload,
-  });
+  const webhookId =
+    authWebhookId ||
+    resolveCustomersRedactWebhookId({
+      request,
+      topic,
+      shopDomain: shop,
+      payload,
+    });
 
   if (await webhookDeliveryExists(webhookId)) {
     log.info(
       `[compliance] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
     );
+    return new Response(null, { status: 200 });
+  }
+
+  if (await isShopUninstalledOrMissing(shop)) {
+    log.info(
+      `[compliance] customers/redact: shop missing/uninstalled for ${shop}; ack 200`,
+    );
+    await tryRecordWebhookDelivery({
+      webhookId,
+      shopDomain: shop,
+      topic,
+    });
     return new Response(null, { status: 200 });
   }
 

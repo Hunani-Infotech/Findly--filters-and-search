@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
 import prisma from "../db.server";
 import { log } from "../lib/log.server";
 import {
@@ -9,15 +9,18 @@ import {
 } from "../services/webhook-delivery.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { payload, session, topic, shop } = await authenticate.webhook(request);
+  const { payload, session, topic, shop, webhookId: authWebhookId } =
+    await authenticateWebhookSafe(request);
   log.info(`Received ${topic} webhook for ${shop}`);
 
-  const webhookId = resolveScopesUpdateWebhookId({
-    request,
-    topic,
-    shopDomain: shop,
-    payload,
-  });
+  const webhookId =
+    authWebhookId ||
+    resolveScopesUpdateWebhookId({
+      request,
+      topic,
+      shopDomain: shop,
+      payload,
+    });
 
   if (await webhookDeliveryExists(webhookId)) {
     log.info(
@@ -50,7 +53,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         `[webhooks] ${topic} session already gone for ${shop}; ack 200`,
       );
     }
-  } else if (session) {
+  } else if (!session) {
+    log.info(
+      `[webhooks] ${topic} no session for ${shop} (revoked/HMAC fallback); ack 200`,
+    );
+  } else {
     log.warn(
       `[webhooks] ${topic} missing current scopes for ${shop}; ack 200`,
     );

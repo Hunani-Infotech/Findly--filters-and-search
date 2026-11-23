@@ -172,6 +172,9 @@ const shopify = shopifyApp({
     },
   },
   future: {
+    // With expiring offline tokens, authenticate.webhook() may 500 while
+    // refreshing a revoked token (uninstall / redact). All webhook routes
+    // must use authenticateWebhookSafe so HMAC still succeeds and handlers run.
     expiringOfflineAccessTokens: true,
   },
   hooks: {

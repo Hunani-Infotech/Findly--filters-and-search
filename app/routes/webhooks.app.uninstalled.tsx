@@ -1,46 +1,46 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
-import { markShopUninstalled } from "../services/compliance.server";
+import { authenticateWebhookSafe } from "../utils/authenticate-webhook.server";
+import { processAppUninstalled } from "../utils/webhook-app-uninstalled.server";
 import {
-  resolveShopScopedWebhookId,
-  tryRecordWebhookDelivery,
-  webhookDeliveryExists,
+  cancelShopifySubscriptionsBestEffortOnUninstall,
+} from "../services/billing.server";
+import { softUninstallShop } from "../services/compliance.server";
+import {
+  claimWebhookDelivery,
+  releaseWebhookDelivery,
 } from "../services/webhook-delivery.server";
-import { log } from "../lib/log.server";
 
+/**
+ * app/uninstalled — soft uninstall only.
+ * Delete sessions + set uninstalledAt. Hard purge waits for shop/redact.
+ * Shopify subscription cancel is best-effort and never causes a non-2xx
+ * after soft uninstall.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const ctx = await authenticateWebhookSafe(request);
+  let capturedAdmin: unknown = ctx.admin ?? null;
 
-  log.info(`Received ${topic} webhook for ${shop}`);
-
-  const webhookId = resolveShopScopedWebhookId({
-    request,
-    topic,
-    shopDomain: shop,
-  });
-
-  if (await webhookDeliveryExists(webhookId)) {
-    log.info(
-      `[compliance] duplicate ${topic} for ${shop} webhookId=${webhookId}; ack 200`,
-    );
-    return new Response(null, { status: 200 });
-  }
-
-  // Soft-offboard only — revoke sessions, set uninstalledAt. Hard-delete waits
-  // for shop/redact / shop.cleanup (skipped if an offline Session exists again).
-  const result = await markShopUninstalled(shop);
-  log.success(
-    `[compliance] app/uninstalled: ${
-      result.marked ? "marked uninstalled" : "no Shop row (sessions revoked)"
-    } for ${shop}`,
+  return processAppUninstalled(
+    {
+      shop: ctx.shop,
+      topic: ctx.topic,
+      webhookId: ctx.webhookId,
+      admin: ctx.admin ?? null,
+    },
+    {
+      claimDelivery: claimWebhookDelivery,
+      releaseDelivery: releaseWebhookDelivery,
+      softUninstall: async (shopDomain) => {
+        const result = await softUninstallShop(shopDomain);
+        if (!capturedAdmin) capturedAdmin = result.adminForCancel;
+      },
+      cleanupBestEffort: async ({ shopDomain, admin }) => {
+        await cancelShopifySubscriptionsBestEffortOnUninstall(shopDomain, {
+          admin: admin ?? capturedAdmin,
+          // Timeout is owned by processAppUninstalled's Promise.race.
+          timeoutMs: 0,
+        });
+      },
+    },
   );
-
-  // Record only after soft-offboard succeeds so a 5xx retry is not swallowed.
-  await tryRecordWebhookDelivery({
-    webhookId,
-    shopDomain: shop,
-    topic,
-  });
-
-  return new Response(null, { status: 200 });
 };

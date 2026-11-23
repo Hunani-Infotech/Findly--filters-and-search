@@ -25,6 +25,7 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
+    "test:webhooks": "tsx --test scripts/test-webhook-handlers.ts",
     "seed:catalog": "node ./scripts/seed-dev-catalog.mjs",
     "verify:a7": "node ./scripts/verify-step7.mjs",
     "verify:b1": "node ./scripts/verify-b1.mjs",

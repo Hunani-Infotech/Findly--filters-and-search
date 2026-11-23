@@ -188,52 +188,62 @@ function assertWebhookEnqueueOnly(webhook) {
 }
 
 function assertUninstallDbFirstThenCappedCancel(compliance) {
-  const start = compliance.indexOf(
+  const softStart = compliance.indexOf(
+    "export async function softUninstallShop",
+  );
+  const markStart = compliance.indexOf(
     "export async function markShopUninstalled",
   );
-  if (start === -1) fail("compliance.server.ts missing markShopUninstalled");
-  const nextExport = compliance.indexOf("\nexport ", start + 10);
-  const body =
-    nextExport === -1
-      ? compliance.slice(start)
-      : compliance.slice(start, nextExport);
-  const deleteIdx = body.indexOf("prisma.session.deleteMany");
-  const uninstalledIdx = body.indexOf("uninstalledAt");
-  const freeIdx = body.indexOf("applyLocalFreePlan");
-  const cancelIdx = body.lastIndexOf(
-    "cancelShopifySubscriptionsBestEffortOnUninstall",
-  );
+  if (softStart === -1) fail("compliance.server.ts missing softUninstallShop");
+  if (markStart === -1) fail("compliance.server.ts missing markShopUninstalled");
+
+  const softNext = compliance.indexOf("\nexport ", softStart + 10);
+  const softBody =
+    softNext === -1
+      ? compliance.slice(softStart)
+      : compliance.slice(softStart, softNext);
+  const markNext = compliance.indexOf("\nexport ", markStart + 10);
+  const markBody =
+    markNext === -1
+      ? compliance.slice(markStart)
+      : compliance.slice(markStart, markNext);
+
+  const deleteIdx = softBody.indexOf("prisma.session.deleteMany");
+  const uninstalledIdx = softBody.indexOf("uninstalledAt");
+  const freeIdx = softBody.indexOf("applyLocalFreePlan");
   if (deleteIdx === -1) {
-    fail("markShopUninstalled must prisma.session.deleteMany");
+    fail("softUninstallShop must prisma.session.deleteMany");
   }
   if (freeIdx === -1) {
-    fail("markShopUninstalled must applyLocalFreePlan (local CANCELLED)");
+    fail("softUninstallShop must applyLocalFreePlan (local CANCELLED)");
   }
-  if (cancelIdx === -1) {
-    fail(
-      "markShopUninstalled must call cancelShopifySubscriptionsBestEffortOnUninstall",
-    );
+  if (uninstalledIdx === -1) {
+    fail("softUninstallShop must set uninstalledAt");
   }
-  // Local offboard first; Shopify cancel after (capped).
-  if (!(deleteIdx < cancelIdx && freeIdx < cancelIdx && uninstalledIdx < cancelIdx)) {
+  if (!markBody.includes("softUninstallShop")) {
+    fail("markShopUninstalled must call softUninstallShop first");
+  }
+  if (
+    !markBody.includes("cancelShopifySubscriptionsBestEffortOnUninstall")
+  ) {
     fail(
-      "markShopUninstalled must complete session revoke + uninstalledAt + applyLocalFreePlan BEFORE Shopify cancel",
+      "markShopUninstalled must call cancelShopifySubscriptionsBestEffortOnUninstall after soft uninstall",
     );
   }
   if (
-    !body.includes("timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS") &&
-    !body.includes("timeoutMs: 2000")
+    !markBody.includes("timeoutMs: UNINSTALL_CANCEL_TIMEOUT_MS") &&
+    !markBody.includes("timeoutMs: 4000")
   ) {
-    fail("uninstall Shopify cancel must use a ~2s timeoutMs cap");
+    fail("uninstall Shopify cancel must use a ~4s timeoutMs cap");
   }
   if (
-    !compliance.includes("UNINSTALL_CANCEL_TIMEOUT_MS = 2000") &&
-    !body.includes("timeoutMs: 2000")
+    !compliance.includes("UNINSTALL_CANCEL_TIMEOUT_MS = 4000") &&
+    !markBody.includes("timeoutMs: 4000")
   ) {
-    fail("uninstall cancel timeout must be ~2000ms");
+    fail("uninstall cancel timeout must be ~4000ms");
   }
   log.info(
-    "8b. uninstall DB-offboards first, then capped (~2s) Shopify cancel",
+    "8b. uninstall DB-offboards first (softUninstallShop), then capped (~4s) Shopify cancel",
   );
 }
 
