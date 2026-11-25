@@ -196,6 +196,14 @@
     var actions = document.createElement("div");
     actions.className = "sf-toolbar-actions";
     toggle.classList.add("sf-toggle-toolbar");
+    if (toggle.getAttribute("data-sf-tap-armed") !== "1") {
+      toggle.setAttribute("data-sf-tap-armed", "1");
+      toggle.addEventListener("click", function () {
+        if (toggle.getAttribute("data-sf-drawer-bound") === "1") return;
+        window.__FINDLY_DRAWER_TAP = Date.now();
+        toggle.setAttribute("aria-busy", "true");
+      });
+    }
     actions.appendChild(toggle);
     end.appendChild(actions);
     toolbar.appendChild(end);

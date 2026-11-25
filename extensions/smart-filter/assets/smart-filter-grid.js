@@ -14673,6 +14673,7 @@
           self.closeDrawer();
         });
       }
+      replayReservedDrawerTap(this);
     };
 
     var origOpen = proto.openDrawer;
@@ -15340,6 +15341,33 @@
     }
   }
 
+  var RESERVED_TAP_MS = 3000;
+
+  /** Remember one pre-boot tap. bindDrawer replays it if it is still fresh. */
+  function armReservedDrawerTap(toggle) {
+    if (!toggle || toggle.getAttribute("data-sf-tap-armed") === "1") return;
+    toggle.setAttribute("data-sf-tap-armed", "1");
+    toggle.addEventListener("click", function () {
+      if (toggle.getAttribute("data-sf-drawer-bound") === "1") return;
+      window.__FINDLY_DRAWER_TAP = Date.now();
+      toggle.setAttribute("aria-busy", "true");
+    });
+  }
+
+  function replayReservedDrawerTap(widget) {
+    if (!widget || !widget.toggleEl) return;
+    var toggle = widget.toggleEl;
+    toggle.setAttribute("data-sf-drawer-bound", "1");
+    var tapAt = Number(window.__FINDLY_DRAWER_TAP) || 0;
+    window.__FINDLY_DRAWER_TAP = 0;
+    toggle.removeAttribute("aria-busy");
+    if (!tapAt || widget._sfReplayedDrawerTap) return;
+    widget._sfReplayedDrawerTap = true;
+    if (Date.now() - tapAt > RESERVED_TAP_MS) return;
+    if (widget.root && widget.root.classList.contains("is-drawer-open")) return;
+    widget.openDrawer();
+  }
+
   /**
    * The mobile and off-canvas toolbars are the Filter button row. Build that
    * row before the widget boots so the grid is not pushed down later.
@@ -15389,6 +15417,7 @@
     var actions = document.createElement("div");
     actions.className = "sf-toolbar-actions";
     toggle.classList.add("sf-toggle-toolbar");
+    armReservedDrawerTap(toggle);
     actions.appendChild(toggle);
     end.appendChild(actions);
     toolbar.appendChild(end);
