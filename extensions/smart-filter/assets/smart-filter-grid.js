@@ -14674,6 +14674,7 @@
         });
       }
       replayReservedDrawerTap(this);
+      keepBoundFilterButton(this);
     };
 
     var origOpen = proto.openDrawer;
@@ -15345,6 +15346,25 @@
       });
     } catch (err) {
       /* ignore */
+    }
+  }
+
+  function keepBoundFilterButton(widget) {
+    var keep = widget && widget.toggleEl;
+    if (!keep || keep.getAttribute("data-sf-drawer-bound") !== "1") return;
+    var nodes = document.querySelectorAll("[data-drawer-toggle]");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || node === keep) continue;
+      var toolbar = node.closest ? node.closest(".sf-toolbar") : null;
+      if (node.parentNode) node.parentNode.removeChild(node);
+      if (!toolbar || !toolbar.parentNode) continue;
+      if (toolbar.querySelector("[data-drawer-toggle]")) continue;
+      if (toolbarHoldsVisibleSortOrSearch(toolbar, null)) continue;
+      if (toolbar.getAttribute("data-sf-reserved") === "1") {
+        toolbar.parentNode.removeChild(toolbar);
+      }
     }
   }
 
