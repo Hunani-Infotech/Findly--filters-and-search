@@ -1792,6 +1792,7 @@
     /* Section reload replaces the DOM, so the new theme filters are not hidden
        yet and the editor may have dropped the embed asset tags. */
     document.addEventListener("shopify:section:load", function () {
+      window.__FINDLY_FORCE_GRID_LOCK = true;
       window.setTimeout(function () {
         rebindLayout();
         if (storefrontV2()) scheduleHidePass("section-load");

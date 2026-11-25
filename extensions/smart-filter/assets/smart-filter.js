@@ -5162,6 +5162,7 @@
   }
 
   document.addEventListener("shopify:section:load", function (event) {
+    window.__FINDLY_FORCE_GRID_LOCK = true;
     var scope = event && event.target;
     if (!scope || !scope.querySelector) return;
     if (

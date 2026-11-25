@@ -1381,6 +1381,51 @@
     return false;
   }
 
+  function urlHasPageParam() {
+    var search = "";
+    var hash = "";
+    try {
+      search = String(window.location.search || "");
+      hash = String(window.location.hash || "");
+    } catch (err) {
+      return false;
+    }
+    var parts = (search.replace(/^\?/, "") + "&" + hash.replace(/^#/, "")).split("&");
+    var i;
+    for (i = 0; i < parts.length; i++) {
+      var key = "";
+      try {
+        key = decodeURIComponent(String(parts[i].split("=")[0] || "").replace(/\+/g, " "));
+      } catch (err2) {
+        key = String(parts[i].split("=")[0] || "");
+      }
+      if (key === "page") return true;
+    }
+    return false;
+  }
+
+  /**
+   * First paint of an unfiltered collection page 1. Liquid already rendered
+   * the cards, so the null-handle rewrite and column lock are skipped.
+   * Any real filter, sort, search, page param, or a later section reload
+   * sets __FINDLY_FORCE_GRID_LOCK and keeps the existing path.
+   */
+  function skipIdleNativeGridRewrite(widget) {
+    if (window.__FINDLY_FORCE_GRID_LOCK) return false;
+    if (widget && widget._sfSectionReloadLock) return false;
+    var refined =
+      urlHasGridRefine() ||
+      urlHasPageParam() ||
+      isSearchPageContext(widget) ||
+      widgetHasRefine(widget) ||
+      Boolean(widget && widget.searchQuery);
+    if (refined) {
+      window.__FINDLY_FORCE_GRID_LOCK = true;
+      return false;
+    }
+    return true;
+  }
+
   function widgetHasRefine(widget) {
     if (!widget) return false;
     if (widget.hasActiveFilters && widget.hasActiveFilters()) return true;
@@ -2462,7 +2507,10 @@
     return true;
   }
 
-  function lockThemeGridTracks(host) {
+  function lockThemeGridTracks(host, force) {
+    if (!force && skipIdleNativeGridRewrite(window.__FINDLY_FILTER_WIDGET)) {
+      return;
+    }
     host = resolveListingCardGrid(host) || preferProductCardGrid(host) || host;
     if (!host || !host.style || typeof host.style.setProperty !== "function") {
       return;
@@ -2687,7 +2735,7 @@
     clearThemeGridSnap(host);
     clearFindlyInlinePxGap(host);
     clearDawnFlexColumnWidths(host);
-    lockThemeGridTracks(host);
+    lockThemeGridTracks(host, true);
     if (host.closest && host.closest(".sf-collection-layout .sf-layout-main")) {
       var relockFlex = false;
       try {
@@ -4736,6 +4784,7 @@
     var layout = document.querySelector(".sf-collection-layout");
     var main = layout && layout.querySelector(".sf-layout-main");
     var connected = grid.isConnected !== false;
+    var wasConnected = connected;
 
     if (!connected) {
       var mountRoot = topDetachedAncestor(grid) || grid;
@@ -4771,7 +4820,7 @@
     if (shell) shell.removeAttribute("data-findly-orphan-hidden");
     widget._gridParent =
       resolveListingCardGrid(grid) || preferProductCardGrid(grid) || grid;
-    lockThemeGridTracks(widget._gridParent);
+    lockThemeGridTracks(widget._gridParent, !wasConnected);
     scheduleRelockProductGridTracks(widget);
     if (!connected || (main && shell && !main.contains(grid))) {
       gridLog("normalized product grid shell", {
@@ -9296,7 +9345,7 @@
     showEl(parent);
     parent.removeAttribute("data-findly-orphan-hidden");
     parent.removeAttribute("data-findly-theme-hidden");
-    lockThemeGridTracks(parent);
+    lockThemeGridTracks(parent, true);
     if (widget) {
       widget._gridParent = parent;
       scheduleRelockProductGridTracks(widget);
@@ -10144,7 +10193,9 @@
     }
     if (!shouldTakeOverThemeCards(self)) {
       if (!storefrontV2()) {
-        applyNativeFilterGrid(null, self._gridParent);
+        if (!skipIdleNativeGridRewrite(self)) {
+          applyNativeFilterGrid(null, self._gridParent);
+        }
         markGridPainted(self);
         syncGridEmptyState(self, self._gridParent, null, 0);
         return;
@@ -10159,7 +10210,9 @@
         syncGridEmptyState(self, self._gridParent, [], 0);
         return;
       }
-      applyNativeFilterGrid(null, self._gridParent);
+      if (!skipIdleNativeGridRewrite(self)) {
+        applyNativeFilterGrid(null, self._gridParent);
+      }
       if (
         !nativeHideKilled() &&
         listingRefined(self) &&
@@ -13783,7 +13836,7 @@
         Math.max(1, Number(this.page) || 1) <= 1 &&
         !this._loadingPage
       ) {
-        if (!alreadyPaintedGrid(this)) {
+        if (!alreadyPaintedGrid(this) && !skipIdleNativeGridRewrite(this)) {
           applyNativeFilterGrid(null, this._gridParent);
         }
         /* Empty theme grid: paint API products via .sf-app-card (no-op when
@@ -13840,7 +13893,11 @@
               this.defaultSort &&
               this.sortKey !== this.defaultSort,
           );
-        applyNativeFilterGrid(themeFiltered ? sliced.handles : null, themePcardGrid);
+        if (themeFiltered) {
+          applyNativeFilterGrid(sliced.handles, themePcardGrid);
+        } else if (!skipIdleNativeGridRewrite(this)) {
+          applyNativeFilterGrid(null, themePcardGrid);
+        }
         if (this.setGridBusy) this.setGridBusy(false, this._reqId);
         this._loadingPage = false;
         return true;
@@ -13849,7 +13906,7 @@
         mountCachedCards(this, sliced.handles, parent);
         if (shouldTakeOverThemeCards(this) || Math.max(1, Number(this.page) || 1) > 1) {
           applyNativeFilterGrid(sliced.handles, parent);
-        } else {
+        } else if (!skipIdleNativeGridRewrite(this)) {
           applyNativeFilterGrid(null, parent);
         }
         var shownNative = countAllowedInHost(parent, sliced.handles);
@@ -14234,7 +14291,9 @@
         Math.max(1, Number(this.page) || 1) <= 1 &&
         !this._loadingPage
       ) {
-        applyNativeFilterGrid(null, host);
+        if (!skipIdleNativeGridRewrite(this)) {
+          applyNativeFilterGrid(null, host);
+        }
         ensureAppCardsIfThemeEmpty(this, handles, host, append);
         markGridPainted(this);
         return true;
@@ -14733,7 +14792,9 @@
         Math.max(1, Number(this.page) || 1) <= 1 &&
         !this._loadingPage
       ) {
-        applyNativeFilterGrid(null, parent);
+        if (!skipIdleNativeGridRewrite(this)) {
+          applyNativeFilterGrid(null, parent);
+        }
         if (!ensureAppCardsIfThemeEmpty(this, handles, parent, false)) {
           markGridPainted(this);
           syncGridEmptyState(this, parent, null, 0);
