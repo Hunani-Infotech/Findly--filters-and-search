@@ -184,7 +184,6 @@ export function HomePageSkeleton() {
     "Sync your catalog",
     "Turn on a filter",
     "Enable Collection filters",
-    "Add Product search",
     "Check performance",
   ];
   return (

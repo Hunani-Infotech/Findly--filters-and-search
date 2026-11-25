@@ -21,7 +21,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     errors,
     defaultShop:
-      process.env.SHOPIFY_FLAG_STORE || "findly-test-store.myshopify.com",
+      process.env.SHOPIFY_FLAG_STORE || "",
   };
 };
 

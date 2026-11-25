@@ -81,7 +81,7 @@ function emptyHomeData(shopDomain: string) {
       id: "sync",
       number: 1,
       title: "Sync your catalog",
-      description: "Index products and collections so filters and search stay fast.",
+      description: "Index products and collections for filters and search.",
       href: "/app",
       actionLabel: "Sync catalog",
       status: "todo",
@@ -107,24 +107,12 @@ function emptyHomeData(shopDomain: string) {
       status: "todo",
       external: true,
     },
-    // Product search setup step temporarily disabled (theme conflict).
-    // {
-    //   id: "product-search",
-    //   number: 4,
-    //   title: "Add Product search",
-    //   description:
-    //     "In the theme editor, add Product search to the search template (or header), then save.",
-    //   href: editorUrls.productSearch,
-    //   actionLabel: "Open theme editor",
-    //   status: "todo",
-    //   external: true,
-    // },
     {
       id: "performance",
       number: 4,
       title: "Check performance",
       description:
-        "See how shoppers use search and filters. Counts stay at zero until the widgets are live.",
+        "See how shoppers use filters. Counts stay at zero until the widgets are live.",
       href: "/app/analytics",
       actionLabel: "View performance",
       status: "todo",
@@ -132,7 +120,6 @@ function emptyHomeData(shopDomain: string) {
   ];
   const themeSteps = steps.filter(
     (step) => step.id === "collection-filters",
-    // || step.id === "product-search" // temporarily disabled
   );
   const setup: SetupProgress = {
     shopDomain: shopDomain || "example.myshopify.com",
@@ -334,12 +321,7 @@ export default function Home() {
   const embedReady = setup.themeSteps.some(
     (step) => step.id === "collection-filters" && step.status === "complete",
   );
-  // Product search home card temporarily disabled (theme conflict).
-  // const searchReady = setup.themeSteps.some(
-  //   (step) => step.id === "product-search" && step.status === "complete",
-  // );
   const embedStep = setup.themeSteps.find((step) => step.id === "collection-filters");
-  // const searchStep = setup.themeSteps.find((step) => step.id === "product-search");
   const wasShowingGuide = useRef(setup.showGuide);
   const queuedOk = Boolean(
     syncFetcher.data?.intent === "sync" && syncFetcher.data.ok,
@@ -502,34 +484,6 @@ export default function Home() {
                     </InlineStack>
                   </BlockStack>
                 </Card>
-                {/* Product search home card temporarily disabled (theme conflict).
-                <Card>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="center" wrap gap="200">
-                      <Text as="h2" variant="headingMd">
-                        Product search
-                      </Text>
-                      <Badge tone={searchReady ? "success" : "attention"}>
-                        {searchReady ? "Added" : "Not added"}
-                      </Badge>
-                    </InlineStack>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {searchReady
-                        ? "Product search is on the search template."
-                        : "Add the Product search block in the theme editor."}
-                    </Text>
-                    <InlineStack>
-                      <Button
-                        url={searchStep?.href || setup.editorUrls.productSearch}
-                        target="_blank"
-                        variant={searchReady ? "secondary" : "primary"}
-                      >
-                        {searchReady ? "Open search editor" : "Add"}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Card>
-                */}
               </InlineGrid>
             ) : null}
 

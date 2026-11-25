@@ -67,9 +67,8 @@ export default function TermsOfService() {
             options, and mapped metafields) configured in the Shopify admin.
           </li>
           <li>
-            Storefront product search via the Theme App Extension (keyword
-            search, instant suggestions, pins, synonyms, and redirects as
-            configured).
+            Search within collection pages when that setting is on, and
+            filters on the store search results page when that setting is on.
           </li>
           <li>
             A Theme App Extension widget you add in the theme editor
@@ -112,8 +111,9 @@ export default function TermsOfService() {
         <ul>
           <li>
             <strong>Development</strong> — $0.00. No Shopify App Subscription
-            charge. For Shopify development and partner stores only; all
-            features are included there. Live stores are not included.
+            charge. For Shopify development and partner stores only. Caps on
+            those stores are 5,000 products, 25 metafield filters, and 90-day
+            analytics. Live stores are not included.
           </li>
           <li>
             <strong>Standard</strong> — $11.99 USD every 30 days. No trial.
@@ -144,8 +144,8 @@ export default function TermsOfService() {
           <strong>Findly → Pricing plans</strong> without reinstalling. Paid
           upgrades create or replace a Shopify charge that you must approve
           in Admin. Live shops are asked to start Standard when the app is
-          installed. If you decline the charge, you stay on Development (no
-          live catalog).
+          installed. If you decline the charge, a live shop stays on no paid
+          plan (no catalog index).
         </p>
         <p>
           There is <strong>no free trial</strong> on any plan and{" "}

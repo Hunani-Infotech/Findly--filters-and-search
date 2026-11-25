@@ -604,7 +604,7 @@ export default function SwatchesPage() {
       backAction={{ content: "Filters", onAction: () => navigate("/app/filters") }}
       secondaryActions={[
         {
-          content: "Auto-fill with AI",
+          content: "Auto-fill colors",
           icon: MagicIcon,
           disabled: busy,
           onAction: autofillDrafts,

@@ -15,7 +15,7 @@ export const meta: MetaFunction = () => [
   {
     name: "description",
     content:
-      "Collection filters, storefront search, metafield mapping, and GDPR-ready shop-scoped data for Shopify.",
+      "Collection filters, collection-page search, and metafield mapping for Shopify Online Store 2.0 themes.",
   },
 ];
 
@@ -91,7 +91,7 @@ export default function App() {
     <PublicShell>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Built for Shopify themes</p>
+          <p className={styles.kicker}>Works with your theme</p>
           <h1 className={styles.heading}>
             Help shoppers find the right product — without leaving your theme
           </h1>
@@ -206,16 +206,17 @@ export default function App() {
             <h3>Sync the catalog</h3>
             <p>
               Products, collections, vendors, tags, and mapped metafields are
-              indexed so filters and search stay fast on the storefront.
+              indexed for filters and search.
             </p>
           </li>
           <li>
             <span className={styles.stepNum}>3</span>
             <h3>Enable the theme blocks</h3>
             <p>
-              Add Collection filters to the collection template and Product
-              search on the search template (or header) in the theme editor.
-              Placement, accent, and counts are configurable.
+              Add Collection filters to the collection template in the theme
+              editor. Placement, accent, and counts are configurable. The
+              app embed is the fallback and loads on collection and search
+              templates.
             </p>
           </li>
         </ol>
@@ -228,9 +229,9 @@ export default function App() {
             What merchants get
           </h2>
           <p className={styles.sectionLede}>
-            Collection filters, storefront search, and the Theme App Extension
-            — plus search extras, translation, and usage analytics —
-            configured per shop in Admin.
+            Collection filters, collection-page search, and the Theme App
+            Extension — plus translation and filter analytics — configured
+            per shop in Admin.
           </p>
         </div>
         <div className={styles.lead}>
@@ -253,11 +254,11 @@ export default function App() {
             </ul>
           </article>
           <article className={styles.tile}>
-            <h3 className={styles.featureTitle}>Storefront search</h3>
+            <h3 className={styles.featureTitle}>Search within collection pages</h3>
             <p className={styles.featureCopy}>
-              Keyword product search through the Theme App Extension —
-              pinnings, synonyms, and redirects from your indexed catalog, not
-              a separate search-engine UI.
+              When Allow searching within collection pages is on, the
+              collection filters show a search field. Matches stay inside
+              that collection and any active filters.
             </p>
             <div className={styles.searchSnip}>
               <span>Search products…</span>
@@ -268,7 +269,7 @@ export default function App() {
           <article>
             <h3 className={styles.featureTitle}>Theme App Extension</h3>
             <p className={styles.featureCopy}>
-              Collection filters app block and Product search block.
+              Collection filters app block, with the app embed as a fallback.
               Async-loaded widget, scoped CSS, and basic styling: position
               (left, right, or top), accent color, product counts, and
               collapse-by-default.
@@ -294,24 +295,25 @@ export default function App() {
           <article>
             <h3 className={styles.featureTitle}>Translation</h3>
             <p className={styles.featureCopy}>
-              Edit widget labels per locale. After Ajax filtering, review and
-              wishlist widgets (and Weglot) can re-init so they stay in sync
-              with the filtered grid.
+              Edit widget labels per locale. When Judge.me, Wishlist Hero, or
+              Weglot is already on the page, Findly calls that app after the
+              product grid updates.
             </p>
           </article>
           <article>
-            <h3 className={styles.featureTitle}>Filter &amp; search analytics</h3>
+            <h3 className={styles.featureTitle}>Filter analytics</h3>
             <p className={styles.featureCopy}>
-              See top queries, no-results, and popular filters in Admin. Counts
-              stay at zero until the theme widgets are live on the storefront.
+              See filter usage in Admin. Counts stay at zero until the theme
+              widgets are live on the storefront.
             </p>
           </article>
           <article>
-            <h3 className={styles.featureTitle}>Shop-scoped &amp; GDPR ready</h3>
+            <h3 className={styles.featureTitle}>
+              Implements Shopify&apos;s mandatory privacy webhooks (data
+              request, customer redact, shop redact)
+            </h3>
             <p className={styles.featureCopy}>
-              Every table is tied to the installing shop. Mandatory compliance
-              webhooks (data request, customer redact, shop redact) are
-              implemented — not empty stubs.
+              Every table is tied to the installing shop.
             </p>
           </article>
         </div>
@@ -348,7 +350,7 @@ export default function App() {
 
       <section className={styles.trust} aria-labelledby="trust-heading">
         <div className={styles.sectionHead}>
-          <p className={styles.kicker}>Built for Shopify</p>
+          <p className={styles.kicker}>Embedded admin, no shopper login</p>
           <h2 className={styles.sectionTitle} id="trust-heading">
             Admin GraphQL only. No shopper login.
           </h2>

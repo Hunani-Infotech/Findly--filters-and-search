@@ -220,8 +220,7 @@ export function SyncDetailsModal({
                 for layout, search, and sort
               </List.Item>
               <List.Item>
-                Enable Collection filters, then add Product search in the theme
-                editor
+                Enable Collection filters in the theme editor
               </List.Item>
             </List>
           </BlockStack>

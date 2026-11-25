@@ -352,7 +352,7 @@ export default function BillingPage() {
             {data.devUnlockLimits && (
               <Banner tone="info">
                 <p>
-                  Dev unlock is on: Development uses full catalog caps for
+                  Dev unlock is on: Development uses the development-store caps for
                   local testing ({data.usage.productLimit} products /{" "}
                   {data.usage.filterLimit} metafield filters).
                 </p>
@@ -365,9 +365,9 @@ export default function BillingPage() {
               !data.pendingChargeBlocked && (
                 <Banner tone="info">
                   <p>
-                    This is a Shopify development store. All Findly features are
-                    free here so you can configure filters and search before
-                    going live. Choosing Standard, Pro, or Plus opens a Shopify test
+                    This is a Shopify development store. Caps here are 5,000
+                    products, 25 metafield filters, and 90-day analytics.
+                    Choosing Standard, Pro, or Plus opens a Shopify test
                     charge you can approve or cancel without a payment method.
                   </p>
                 </Banner>
@@ -490,7 +490,7 @@ export default function BillingPage() {
                     Development stores only — nothing for live shops
                   </Text>
                   <List>
-                    <List.Item>All features included in development</List.Item>
+                    <List.Item>Up to 5,000 products, 25 metafield filters, and 90-day analytics</List.Item>
                     <List.Item>Configure filters and search before going live</List.Item>
                     <List.Item>For development and partner test stores</List.Item>
                     <List.Item>Live shops start Standard on install</List.Item>

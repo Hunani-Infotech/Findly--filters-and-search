@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "check:loader": "node scripts/check-supply-chain.mjs",
+    "check:claims": "node ./scripts/check-claims.js",
     "build": "node scripts/check-supply-chain.mjs && prisma generate && node ./scripts/run-migrate-deploy.mjs && react-router build",
     "dev": "node scripts/check-supply-chain.mjs && node ./scripts/dev.mjs",
     "dev:shopify": "node ./scripts/minify-theme-extension.mjs && node ./scripts/shopify-dev.mjs",

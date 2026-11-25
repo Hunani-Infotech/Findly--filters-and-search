@@ -30,14 +30,14 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "setup",
     question: "How do I show filters and search on the storefront?",
     answer:
-      "In the theme editor, add the Collection filters app block to collection (and search) templates. For storefront search, add the Product search block. Placement (left, right, or top), accent color, and product counts are set in Findly → Settings. You do not need custom theme code for the core widget.",
+      "In the theme editor, add the Collection filters app block to collection templates. You can also add it to the search template when Show filters on the search results page is on. Placement (left, right, or top), accent color, and product counts are set in Findly → Settings. The app embed is the fallback and loads on collection and search templates.",
   },
   {
     id: "theme-code",
     category: "setup",
     question: "Do I need to edit my theme’s code?",
     answer:
-      "No. Findly ships as a Theme App Extension. Add the blocks in the theme editor. After Ajax filtering, review and wishlist widgets (and Weglot) re-init automatically so they stay in sync with the filtered grid.",
+      "No. Findly ships as a Theme App Extension. Add Collection filters in the theme editor. When Judge.me, Wishlist Hero, or Weglot is already on the page, Findly calls that app after the product grid updates.",
   },
   {
     id: "which-filters",
@@ -51,7 +51,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "filters",
     question: "How do metafield filters work?",
     answer:
-      "Map product metafields in Settings → Metafields, then include them in a filter set. Plan limits apply to metafield mappings (0 on Development for live shops, 6 on Standard, 15 on Pro). Development stores get the full catalog. Other filter types are included on every plan, subject to the product index cap.",
+      "Map product metafields in Settings → Metafields, then include them in a filter set. Plan limits apply to metafield mappings: 0 on a live shop with no paid plan, 6 on Standard, 15 on Pro, and 40 on Plus. Development stores are capped at 5,000 products and 25 metafield filters. Other filter types are included on every plan, subject to the product index cap.",
   },
   {
     id: "filters-not-showing",
@@ -63,23 +63,16 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     id: "storefront-search",
     category: "search",
-    question: "How does storefront search work?",
+    question: "How does collection search work?",
     answer:
-      "Shoppers search your indexed catalog through the Theme App Extension — keyword product search via the Product search block. Findly is not a separate search-engine site and does not use AI ranking. Configure fields, pinnings, synonyms, and redirects under Search in Admin.",
+      "In Settings, turn on Allow searching within collection pages. Collection pages then show a search field in the collection filters. Matches stay inside that collection and any active filters. Search in Admin chooses which product fields are matched, plus fuzzy matching, fallback, and stop words.",
   },
   {
-    id: "search-extras",
+    id: "search-results-filters",
     category: "search",
-    question: "What are pinnings, synonyms, and redirects?",
+    question: "Can shoppers filter the search results page?",
     answer:
-      "Pinnings pin specific products to the top of chosen queries. Synonyms map related terms so a search for one word also matches another. Redirects send a query to a collection or page you choose. All three are configured in Findly → Search.",
-  },
-  {
-    id: "instant-vs-block",
-    category: "search",
-    question: "What happened to Instant search? How do I use Product search?",
-    answer:
-      "The Instant search app embed has been removed. Use the Product search theme app block instead — place it on the search template (or header) in the theme editor. Pinnings, synonyms, and redirects under Findly → Search still apply to Product search.",
+      "Yes, when Show filters on the search results page is on in Settings and Collection filters is on the search template (or the app embed is enabled). That filters the store’s own search results. Findly does not add a header search field.",
   },
   {
     id: "translation",
@@ -93,21 +86,21 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: "search",
     question: "Where can I see popular searches and filters?",
     answer:
-      "Open Analytics in the Findly admin for top queries, no-results, and popular filters. Counts stay at zero until the theme widgets are live and shoppers use them.",
+      "Open Analytics in the Findly admin for filter usage. Counts stay at zero until the theme widgets are live and shoppers use them.",
   },
   {
     id: "plans",
     category: "billing",
     question: "What plans are available?",
     answer:
-      "Development ($0, Shopify development / partner stores only, all features included). Live shops are not on Development. Standard ($11.99 USD every 30 days, 200 products, 6 metafield filters, analytics kept 90 days) starts at install with no trial. Pro ($19.99 USD every 30 days, 1,000 products, 15 metafield filters, analytics kept 180 days). Plus ($34.99 USD every 30 days, 5,000 products, 40 metafield filters, analytics kept 365 days). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
+      "Development ($0, Shopify development stores only: 5,000 products, 25 metafield filters, analytics kept 90 days). A live shop with no paid plan is labeled No paid plan and has 0 products and 0 metafield filters. Standard ($11.99 USD every 30 days, 200 products, 6 metafield filters, analytics kept 90 days) starts at install with no trial. Pro ($19.99 USD every 30 days, 1,000 products, 15 metafield filters, analytics kept 180 days). Plus ($34.99 USD every 30 days, 5,000 products, 40 metafield filters, analytics kept 365 days). Charges go through the Shopify Billing API. See the [Terms of Service](/terms#billing) for the full billing section.",
   },
   {
     id: "change-plan",
     category: "billing",
     question: "How do I change or cancel a plan?",
     answer:
-      "Switch plans in Findly → Pricing plans without reinstalling. Paid upgrades create or replace a Shopify charge you must approve in Admin. Uninstalling cancels the Shopify subscription according to Shopify’s billing rules. If you decline a new charge, you stay on Development (no live catalog) until you approve Standard, Pro, or Plus.",
+      "Switch plans in Findly → Pricing plans without reinstalling. Paid upgrades create or replace a Shopify charge you must approve in Admin. Uninstalling cancels the Shopify subscription according to Shopify’s billing rules. If you decline a new charge, a live shop stays on no paid plan (no catalog index) until you approve Standard, Pro, or Plus.",
   },
   {
     id: "refunds",

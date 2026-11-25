@@ -14,15 +14,10 @@ import {
 import {
   Banner,
   BlockStack,
-  Button,
   Card,
   Checkbox,
-  InlineStack,
   Layout,
   Page,
-  ResourceItem,
-  ResourceList,
-  Tag,
   Text,
   TextField,
 } from "@shopify/polaris";
@@ -31,26 +26,22 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { authenticateAdminAllowReviewBot } from "../lib/admin-auth.server";
 import { ensureShopAccess } from "../services/billing.server";
+import { getAppSettings, saveSearchSettings } from "../services/settings.server";
 import { DEFAULT_SEARCH_EXTRAS } from "../utils/instant-search";
 import { isMutationBusy } from "../components/admin-loading";
 import { CheckboxOrderList } from "../components/checkbox-order-list";
 import {
   SEARCH_FIELD_KEYS,
   SEARCH_FIELD_LABELS,
-  SUGGESTION_LIST_MAX,
   normalizeHandleList,
   normalizeSearchFields,
   type SearchFieldKey,
 } from "../utils/app-settings";
 import {
-  POPULAR_TERM_MAX,
-  normalizePopularTerms,
-  parseSearchExtras,
   normalizeStopWordList,
+  parseSearchExtras,
   type SearchExtras,
 } from "../utils/instant-search";
-import { getAppSettings, saveSearchSettings } from "../services/settings.server";
-import { useEmbeddedNavigate } from "../hooks/use-embedded-navigate";
 import {
   ContextualSaveBar,
   isDirtySnapshot,
@@ -58,27 +49,6 @@ import {
 } from "../components/contextual-save-bar";
 
 export { SearchPageSkeleton as HydrateFallback } from "../components/admin-skeletons";
-
-const PREFERENCES = [
-  {
-    id: "pinnings",
-    title: "Pinnings",
-    description: "Prioritize products for a search query",
-    url: "/app/search/pinnings",
-  },
-  {
-    id: "synonyms",
-    title: "Synonyms",
-    description: "Map related search terms",
-    url: "/app/search/synonyms",
-  },
-  {
-    id: "redirects",
-    title: "Redirects",
-    description: "Send a search to a specific URL",
-    url: "/app/search/redirects",
-  },
-] as const;
 
 function orderedFieldKeys(enabled: SearchFieldKey[]): SearchFieldKey[] {
   const seen = new Set(enabled);
@@ -197,11 +167,9 @@ export default function SearchPage() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
-  const navigate = useEmbeddedNavigate();
   const shopify = useAppBridge();
   const [state, setState] = useState<SearchPageState>(data.settings);
   const [loaderSettings, setLoaderSettings] = useState(data.settings);
-  const [popularDraft, setPopularDraft] = useState("");
 
   if (data.settings !== loaderSettings) {
     setLoaderSettings(data.settings);
@@ -255,20 +223,6 @@ export default function SearchPage() {
     submitState(state);
   };
 
-  const addPopularTerm = () => {
-    setState((s) => ({
-      ...s,
-      searchExtras: {
-        ...s.searchExtras,
-        popularSearchTerms: normalizePopularTerms([
-          ...s.searchExtras.popularSearchTerms,
-          popularDraft,
-        ]),
-      },
-    }));
-    setPopularDraft("");
-  };
-
   return (
     <>
     <ContextualSaveBar
@@ -300,15 +254,6 @@ export default function SearchPage() {
                     }
                   />
                   <Checkbox
-                    label="Spell check"
-                    checked={state.searchExtras.spellCheck}
-                    disabled={saving}
-                    helpText="When a typo is corrected, show Did you mean. This is edit-distance, not AI."
-                    onChange={(checked) =>
-                      patchExtras({ spellCheck: checked })
-                    }
-                  />
-                  <Checkbox
                     label="Fallback search"
                     checked={state.searchExtras.fallbackSearch}
                     disabled={saving}
@@ -333,51 +278,10 @@ export default function SearchPage() {
                 </BlockStack>
               </Card>
 
-              <Text as="h2" variant="headingMd">
-                Preferences
+              <Text as="p" variant="bodySm" tone="subdued">
+                Fuzzy matching, fallback, stop words, and field order apply
+                when Allow searching within collection pages is on in Settings.
               </Text>
-              <Card padding="0">
-                <ResourceList
-                  resourceName={{
-                    singular: "preference",
-                    plural: "preferences",
-                  }}
-                  items={[...PREFERENCES]}
-                  renderItem={(item) => (
-                    <ResourceItem
-                      id={item.id}
-                      accessibilityLabel={`Open ${item.title}`}
-                      onClick={() => navigate(item.url)}
-                    >
-                      <InlineStack
-                        align="space-between"
-                        blockAlign="center"
-                        gap="400"
-                        wrap={false}
-                      >
-                        <BlockStack gap="050">
-                          <Text
-                            as="span"
-                            variant="bodyMd"
-                            fontWeight="semibold"
-                          >
-                            {item.title}
-                          </Text>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {item.description}
-                          </Text>
-                        </BlockStack>
-                        <Button
-                          variant="plain"
-                          onClick={() => navigate(item.url)}
-                        >
-                          Open
-                        </Button>
-                      </InlineStack>
-                    </ResourceItem>
-                  )}
-                />
-              </Card>
 
               <Card>
                 <BlockStack gap="300">
@@ -431,141 +335,6 @@ export default function SearchPage() {
                       })
                     }
                   />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    No search result suggestions
-                  </Text>
-                  <Checkbox
-                    label="Show pinned suggestions when a search has no results"
-                    checked={state.showSuggestionsOnNoResults}
-                    disabled={saving}
-                    helpText="When a query matches nothing, keep the empty-results message and list pinned handles underneath."
-                    onChange={(checked) =>
-                      setState((s) => ({
-                        ...s,
-                        showSuggestionsOnNoResults: checked,
-                      }))
-                    }
-                  />
-                  <TextField
-                    label="Pinned product handles"
-                    value={state.suggestionProductHandles.join("\n")}
-                    multiline={4}
-                    autoComplete="off"
-                    disabled={saving}
-                    helpText={`One handle or product URL per line. First ${SUGGESTION_LIST_MAX} unique handles are kept.`}
-                    onChange={(value) =>
-                      setState((s) => ({
-                        ...s,
-                        suggestionProductHandles: normalizeHandleList(value),
-                      }))
-                    }
-                  />
-                  <TextField
-                    label="Pinned collection handles"
-                    value={state.suggestionCollectionHandles.join("\n")}
-                    multiline={3}
-                    autoComplete="off"
-                    disabled={saving}
-                    helpText="Optional collection links shown with the same suggestion lists."
-                    onChange={(value) =>
-                      setState((s) => ({
-                        ...s,
-                        suggestionCollectionHandles:
-                          normalizeHandleList(value),
-                      }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Zero character suggestions
-                  </Text>
-                  <Checkbox
-                    label="Show pinned suggestions when the search box is empty"
-                    checked={state.showSuggestionsOnEmptyQuery}
-                    disabled={saving}
-                    helpText="On focus with no query, show merchant-pinned products and collections — not the full catalog."
-                    onChange={(checked) =>
-                      setState((s) => ({
-                        ...s,
-                        showSuggestionsOnEmptyQuery: checked,
-                      }))
-                    }
-                  />
-                </BlockStack>
-              </Card>
-
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">
-                    Suggestion dictionary
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Merchant-entered queries returned with Product search
-                    results as shoppers type.
-                  </Text>
-                  <InlineStack gap="200" blockAlign="end" wrap={false}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <TextField
-                        label="Keyword"
-                        labelHidden
-                        placeholder="Shirt"
-                        value={popularDraft}
-                        autoComplete="off"
-                        disabled={
-                          saving ||
-                          state.searchExtras.popularSearchTerms.length >=
-                            POPULAR_TERM_MAX
-                        }
-                        onChange={setPopularDraft}
-                      />
-                    </div>
-                    <Button
-                      disabled={
-                        saving ||
-                        !popularDraft.trim() ||
-                        state.searchExtras.popularSearchTerms.length >=
-                          POPULAR_TERM_MAX
-                      }
-                      onClick={addPopularTerm}
-                    >
-                      Add
-                    </Button>
-                  </InlineStack>
-                  {state.searchExtras.popularSearchTerms.length === 0 ? (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      No keywords selected.
-                    </Text>
-                  ) : (
-                    <InlineStack gap="200" wrap>
-                      {state.searchExtras.popularSearchTerms.map((term) => (
-                        <Tag
-                          key={term}
-                          onRemove={
-                            saving
-                              ? undefined
-                              : () =>
-                                  patchExtras({
-                                    popularSearchTerms:
-                                      state.searchExtras.popularSearchTerms.filter(
-                                        (item) => item !== term,
-                                      ),
-                                  })
-                          }
-                        >
-                          {term}
-                        </Tag>
-                      ))}
-                    </InlineStack>
-                  )}
                 </BlockStack>
               </Card>
             </BlockStack>

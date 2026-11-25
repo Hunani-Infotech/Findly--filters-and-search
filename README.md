@@ -1,6 +1,6 @@
 # Findly: Smart Filters & Search
 
-Shopify embedded app for **collection filters + storefront search** via Theme App Extension. Analytics, search extras, translation, and integrations are included; AI ranking and advanced merchandising stay out of scope. Built on Shopify’s official React Router 7 template.
+Shopify embedded app for **collection filters and collection-page search** via Theme App Extension. Translation and filter analytics are included. AI ranking and advanced merchandising stay out of scope. Built on Shopify’s official React Router 7 template.
 
 **Build order / verification gate:** [docs/build-order.md](docs/build-order.md)  
 **MVP guide + build notes:** [docs/mvp-guide.md](docs/mvp-guide.md) · [docs/build-instructions.md](docs/build-instructions.md)  

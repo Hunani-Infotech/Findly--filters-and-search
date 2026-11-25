@@ -81,7 +81,7 @@ export function PublicMessage({
   children?: ReactNode;
   actionLabel?: string;
   actionTo?: string;
-  /** Title + action only — no marketing header/footer. */
+  /** Title and action. The marketing header and footer stay off this screen. */
   minimal?: boolean;
 }) {
   const body = (

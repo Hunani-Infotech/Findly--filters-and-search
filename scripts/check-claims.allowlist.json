@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "app/routes/_index/route.tsx",
+      "patternId": "never",
+      "contains": "Shoppers never create a",
+      "reason": "Shoppers do not get a Findly account."
+    },
+    {
+      "path": "app/routes/_index/route.tsx",
+      "patternId": "only",
+      "contains": "development stores only",
+      "reason": "Development is limited to Shopify development stores."
+    },
+    {
+      "path": "app/routes/_index/route.tsx",
+      "patternId": "only",
+      "contains": "Admin GraphQL only",
+      "reason": "The admin app uses the GraphQL Admin API."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "only",
+      "contains": "GraphQL API only",
+      "reason": "GraphQL Admin API."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "only",
+      "contains": "only when Shopify",
+      "reason": "Analytics runs when the Customer Privacy API allows it."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "only",
+      "contains": "sent only when Shopify",
+      "reason": "Same privacy gate."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "only",
+      "contains": "only to call Shopify",
+      "reason": "Offline token is used for Admin GraphQL."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "only",
+      "contains": "stores only shop",
+      "reason": "Compliance row fields."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "first",
+      "contains": "first name",
+      "reason": "Staff session field from Shopify."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "first",
+      "contains": "merchant first",
+      "reason": "Support routing."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "never",
+      "contains": "never the raw customer body",
+      "reason": "Compliance rows omit the webhook body."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "always",
+      "contains": "always at this URL",
+      "reason": "The live policy URL is the current version."
+    },
+    {
+      "path": "app/routes/privacy.tsx",
+      "patternId": "ai-word",
+      "contains": "AI models",
+      "reason": "States the app does not train third-party models."
+    },
+    {
+      "path": "app/routes/terms.tsx",
+      "patternId": "only",
+      "contains": "partner stores only",
+      "reason": "Development plan eligibility."
+    },
+    {
+      "path": "app/routes/terms.tsx",
+      "patternId": "only",
+      "contains": "If you only used",
+      "reason": "Liability clause."
+    },
+    {
+      "path": "app/routes/terms.tsx",
+      "patternId": "guarantee",
+      "contains": "do not guarantee",
+      "reason": "Denial of a response-time promise."
+    },
+    {
+      "path": "app/routes/terms.tsx",
+      "patternId": "guarantee",
+      "contains": "money-back guarantee",
+      "reason": "States there is no money-back guarantee."
+    },
+    {
+      "path": "app/data/public-faq.ts",
+      "patternId": "only",
+      "contains": "development stores only",
+      "reason": "Development plan eligibility."
+    },
+    {
+      "path": "app/data/public-faq.ts",
+      "patternId": "only",
+      "contains": "Shoppers only use",
+      "reason": "Shoppers use the theme widgets."
+    },
+    {
+      "path": "app/data/public-faq.ts",
+      "patternId": "only",
+      "contains": "Admin GraphQL API only",
+      "reason": "The admin app uses the GraphQL Admin API."
+    },
+    {
+      "path": "app/data/public-faq.ts",
+      "patternId": "never",
+      "contains": "never create a Findly login",
+      "reason": "No shopper account."
+    },
+    {
+      "path": "app/data/public-faq.ts",
+      "patternId": "guarantee",
+      "contains": "money-back guarantee",
+      "reason": "States there is no money-back guarantee."
+    },
+    {
+      "path": "app/routes/app.billing.tsx",
+      "patternId": "guarantee",
+      "contains": "money-back guarantee",
+      "reason": "States there is no money-back guarantee."
+    },
+    {
+      "path": "docs/partner-listing.md",
+      "patternId": "never",
+      "contains": "never placeholder text",
+      "reason": "Instruction to the person pasting the listing."
+    },
+    {
+      "path": "docs/partner-listing.md",
+      "patternId": "instant-search",
+      "contains": "Untick these Partner search tags",
+      "reason": "Names a Partner checkbox to clear. The feature is not live."
+    },
+    {
+      "path": "docs/partner-listing.md",
+      "patternId": "instant",
+      "contains": "Untick these Partner search tags",
+      "reason": "Names a Partner checkbox to clear. The feature is not live."
+    },
+    {
+      "path": "listing/listing-content.md",
+      "patternId": "never",
+      "contains": "never placeholder text",
+      "reason": "Instruction to the person pasting the listing."
+    },
+    {
+      "path": "listing/listing-content.md",
+      "patternId": "instant-search",
+      "contains": "Untick these Partner search tags",
+      "reason": "Names a Partner checkbox to clear. The feature is not live."
+    },
+    {
+      "path": "listing/listing-content.md",
+      "patternId": "instant",
+      "contains": "Untick these Partner search tags",
+      "reason": "Names a Partner checkbox to clear. The feature is not live."
+    },
+    {
+      "path": "docs/mvp-guide.md",
+      "patternId": "ai-word",
+      "contains": "not AI ranking",
+      "reason": "Internal note that AI ranking is out of scope."
+    },
+    {
+      "path": "docs/mvp-guide.md",
+      "patternId": "ai-word",
+      "contains": "AI/ML semantic ranking",
+      "reason": "Internal note that AI ranking is out of scope."
+    },
+    {
+      "path": "README.md",
+      "patternId": "ai-word",
+      "contains": "AI ranking",
+      "reason": "Says AI ranking is out of scope."
+    }
+  ]
+}

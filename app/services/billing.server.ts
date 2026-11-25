@@ -111,7 +111,7 @@ export function isAllowedShopifyConfirmationUrl(url: string): boolean {
   }
 }
 
-/** Local/dev only: Development plan uses full catalog caps without a paid subscription. */
+/** Local/dev only: Development plan uses the development-store caps without a paid subscription. */
 export function isDevUnlockLimits() {
   return (process.env.DEV_UNLOCK_LIMITS ?? "false").toLowerCase() === "true";
 }

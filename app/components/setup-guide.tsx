@@ -175,8 +175,7 @@ export function SetupGuide({ progress }: { progress: SetupProgress }) {
                     {themeStep && !complete ? (
                       <Text as="p" variant="bodySm" tone="subdued">
                         Open the theme editor, save, then return here. We detect
-                        Collection filters and Product search from the published
-                        theme.
+                        Collection filters from the published theme.
                       </Text>
                     ) : null}
                     <InlineStack gap="200" wrap>

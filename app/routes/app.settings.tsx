@@ -1102,7 +1102,7 @@ export default function SettingsPage() {
                           },
                         ]}
                         value={settings.autoApplyFilters ? "instant" : "apply"}
-                        helpText="Instant updates the product grid over AJAX as soon as a shopper picks a value. Apply now lets them select several options first, then confirm."
+                        helpText="Updates the product grid as soon as a shopper picks a value. Apply now lets them select several options, then confirm."
                         disabled={saving}
                         onChange={(value) =>
                           setSettings((s) => ({

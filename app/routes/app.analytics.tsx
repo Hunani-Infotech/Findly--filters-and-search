@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSearchParams } from "react-router";
 import {
@@ -10,7 +9,6 @@ import {
   Layout,
   Page,
   Select,
-  Tabs,
   Text,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -36,12 +34,6 @@ const RANGE_VALUES = new Set<string>(
   DATE_RANGE_OPTIONS.map((option) => option.value),
 );
 
-const TABS = [
-  { id: "filter", content: "Filter analytics", panelID: "analytics-filter" },
-  { id: "search", content: "Search analytics", panelID: "analytics-search" },
-] as const;
-
-type AnalyticsTabId = (typeof TABS)[number]["id"];
 type CountRow = { label: string; count: number };
 
 function parseRange(value: string | null): AnalyticsRange {
@@ -60,17 +52,12 @@ type AnalyticsDashboard = Awaited<ReturnType<typeof loadAnalyticsDashboard>>;
 function analyticsCsv(dashboard: AnalyticsDashboard) {
   const metricRows = [
     ["Unique visitors", dashboard.metrics.uniqueVisitors],
-    ["Click-through rate", `${dashboard.metrics.ctr}%`],
-    ["No-result rate", `${dashboard.metrics.noResultRate}%`],
     ["Unique desktop", dashboard.metrics.uniqueDesktop],
     ["Unique mobile", dashboard.metrics.uniqueMobile],
-    ["Search events", dashboard.metrics.searchCount],
     ["Filter events", dashboard.metrics.filterCount],
   ].map((row) => row.map(csvCell).join(","));
 
   const listRows = [
-    ...countRowsToCsv("Top queries", dashboard.topQueries),
-    ...countRowsToCsv("No-result queries", dashboard.noResultQueries),
     ...countRowsToCsv("Top filter option value", dashboard.topFilterValues),
     ...countRowsToCsv("Usually filtered together", dashboard.filterCombos),
     ...countRowsToCsv("Most visited products", dashboard.mostVisited),
@@ -152,28 +139,21 @@ export default function AnalyticsPage() {
   const navigate = useEmbeddedNavigate();
   const [searchParams] = useSearchParams();
   const shopify = useAppBridge();
-  const [tab, setTab] = useState<AnalyticsTabId>("filter");
-  const selectedTabIndex = Math.max(
-    0,
-    TABS.findIndex((item) => item.id === tab),
-  );
-  const isFilter = tab === "filter";
   const metrics = [
     { label: "Unique visitors", value: String(dashboard.metrics.uniqueVisitors) },
-    { label: "Click-through rate", value: `${dashboard.metrics.ctr}%` },
-    { label: "No-result rate", value: `${dashboard.metrics.noResultRate}%` },
+    { label: "Filter events", value: String(dashboard.metrics.filterCount) },
     { label: "Unique desktop", value: String(dashboard.metrics.uniqueDesktop) },
     { label: "Unique mobile", value: String(dashboard.metrics.uniqueMobile) },
   ];
   const sessionRows = dashboard.sessions.map((session) => ({
     date: session.date,
-    count: isFilter ? session.filter : session.search,
+    count: session.filter,
   }));
 
   return (
     <Page
       title="Analytics"
-      subtitle="Storefront beacons from search + filters"
+      subtitle="Filter usage from the storefront widgets"
       backAction={{ content: "Home", onAction: () => navigate("/app") }}
       secondaryActions={[
         {
@@ -199,15 +179,6 @@ export default function AnalyticsPage() {
               </p>
             </Banner>
 
-            <Tabs
-              tabs={[...TABS]}
-              selected={selectedTabIndex}
-              onSelect={(index) => {
-                const next = TABS[index];
-                if (next) setTab(next.id);
-              }}
-            />
-
             <Select
               label="Date range"
               options={DATE_RANGE_OPTIONS}
@@ -219,7 +190,7 @@ export default function AnalyticsPage() {
               }}
             />
 
-            <InlineGrid columns={{ xs: 1, sm: 2, md: 5 }} gap="400">
+            <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
               {metrics.map((metric) => (
                 <Card key={metric.label}>
                   <BlockStack gap="100">
@@ -237,7 +208,7 @@ export default function AnalyticsPage() {
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">
-                  {isFilter ? "Filter sessions" : "Search sessions"}
+                  Filter sessions
                 </Text>
                 {sessionRows.length === 0 ? (
                   <Text as="p" tone="subdued">
@@ -262,8 +233,7 @@ export default function AnalyticsPage() {
               </BlockStack>
             </Card>
 
-            {isFilter ? (
-              <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+            <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
                 <InsightCard
                   title="Top filter option value"
                   rows={dashboard.topFilterValues}
@@ -277,19 +247,6 @@ export default function AnalyticsPage() {
                   rows={dashboard.mostVisited}
                 />
               </InlineGrid>
-            ) : (
-              <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-                <InsightCard title="Top queries" rows={dashboard.topQueries} />
-                <InsightCard
-                  title="No-result queries"
-                  rows={dashboard.noResultQueries}
-                />
-                <InsightCard
-                  title="Most visited products"
-                  rows={dashboard.mostVisited}
-                />
-              </InlineGrid>
-            )}
           </BlockStack>
         </Layout.Section>
       </Layout>

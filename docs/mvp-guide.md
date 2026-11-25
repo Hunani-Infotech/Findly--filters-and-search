@@ -9,10 +9,9 @@ Launch product = collection filters + storefront search + Theme App Extension, p
 - Filter by price, availability, vendor, product type, tags, options, and mapped metafields
 - Per-collection / filter-set configuration in the admin dashboard
 - Mobile-responsive storefront filter widget (Theme App Extension)
-- Storefront Product search (not AI ranking)
-- Search extras: pinnings, synonyms, redirects
-- Analytics dashboard (filter + search usage)
-- Translation (widget label locales) and Integrations (review / wishlist re-init after Ajax)
+- Storefront collection search (not AI ranking)
+- Analytics dashboard (filter usage)
+- Translation (widget label locales)
 - Plans: Development (dev-only) / Standard / Pro / Plus
 
 **Do not advertise as finished:** AI/ML semantic ranking, drag-drop theme editor.
@@ -65,12 +64,12 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 | Plan | Price | Caps | Analytics retention | Includes |
 |---|---|---|---|---|
-| **Development** | $0 | Live: 0 products. Development stores: full catalog | 90 days | All features, development stores only |
-| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | 90 days | Live plan (previous Free caps), billed from install |
-| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | 180 days | Higher product and metafield caps |
-| **Plus** | $34.99 / 30 days · no trial | 5,000 products · 40 metafield filters | 365 days | Highest product and metafield caps |
+| **Development** | $0 | Live unpaid: 0 products and 0 metafield filters. Development stores: 5,000 products and 25 metafield filters | 90 days | Development stores only |
+| **Standard** | $11.99 / 30 days · no trial | 200 products · 6 metafield filters | 90 days | Live plan, billed from install |
+| **Pro** | $19.99 / 30 days · no trial | 1,000 products · 15 metafield filters | 180 days | 1,000 products and 15 metafield filters |
+| **Plus** | $34.99 / 30 days · no trial | 5,000 products · 40 metafield filters | 365 days | 5,000 products and 40 metafield filters |
 
-Search extras and analytics are **not** separate SKUs — they ship on every plan. Product/metafield caps and analytics retention differentiate plans.
+Collection-page search uses the fields, fuzzy matching, fallback, and stop words configured under Search. Pins, synonyms, and redirects are stored but do not change the storefront while the separate search section is disabled.
 
 ## 5. Summary
 
