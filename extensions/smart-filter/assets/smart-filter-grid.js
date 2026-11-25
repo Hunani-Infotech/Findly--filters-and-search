@@ -203,16 +203,10 @@
     var i;
     var parts = [];
     for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
-      parts.push(prefix + ":not(.sf-storefront-v2) " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
-    }
-    var v2 = [];
-    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
-      v2.push(prefix + ".sf-storefront-v2 " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
+      parts.push(prefix + " " + GRID_BUSY_HOSTS[i] + ">" + GRID_RESULT_HIDE);
     }
     return (
       parts.join(",") +
-      "{opacity:0;pointer-events:none}" +
-      v2.join(",") +
       "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
     );
   }
@@ -236,25 +230,11 @@
     var parts = [];
     for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
       parts.push(
-        "html.sf-filter-loading:not(.sf-storefront-v2) " +
-          GRID_BUSY_HOSTS[i] +
-          " " +
-          BUSY_NESTED_CARD,
-      );
-    }
-    var v2 = [];
-    for (i = 0; i < GRID_BUSY_HOSTS.length; i++) {
-      v2.push(
-        "html.sf-filter-loading.sf-storefront-v2 " +
-          GRID_BUSY_HOSTS[i] +
-          " " +
-          BUSY_NESTED_CARD,
+        "html.sf-filter-loading " + GRID_BUSY_HOSTS[i] + " " + BUSY_NESTED_CARD,
       );
     }
     return (
       parts.join(",") +
-      "{opacity:0;pointer-events:none}" +
-      v2.join(",") +
       "{opacity:0;animation:findly-loading-reveal 0s linear 3s forwards}"
     );
   }

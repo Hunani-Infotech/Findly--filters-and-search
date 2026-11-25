@@ -301,8 +301,9 @@
    Use html.sf-filter-loading (class toggle) — not html:has(), which
    forces a full-tree style recalc and can freeze large collection pages.
    Keep in sync with GRID_BUSY_HOSTS in smart-filter-grid.js.
-   Opacity (not display) so a failed script cannot leave the grid blank:
-   the animation reveals products after 3s even if the class stays on. */
+   Opacity (not display) so a failed script cannot leave the grid blank.
+   Both modes use the same 3s reveal. Removing .sf-filter-loading drops the
+   animation; it does not run again unless the class is added again. */
 @keyframes findly-loading-reveal {
   to {
     opacity: 1;
@@ -398,7 +399,7 @@ html.sf-filter-loading:not(.sf-storefront-v2) :is(
 )
   > :not([data-findly-skel="1"]):not([data-findly-skel-host="1"]):not(.sf-toolbar):not(.sf-page-chips):not(.sf-sort-host):not(.sf-search-host):not(.sf-total-count):not(.sf-pager):not(.sf-grid-empty):not(.smart-filter):not(.sf-collection-layout):not(.sf-layout-aside):not(#smart-filter-root):not(#smart-filter-embed) {
   opacity: 0;
-  pointer-events: none;
+  animation: findly-loading-reveal 0s linear 3s forwards;
 }
 
 html.sf-storefront-v2.sf-filter-loading :is(

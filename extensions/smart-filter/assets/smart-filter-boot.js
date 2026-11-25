@@ -5,6 +5,94 @@
  */
 (function () {
   "use strict";
+
+  function findlyFilterIsSettled() {
+    var widget = window.__FINDLY_FILTER_WIDGET;
+    if (!widget || widget._sfLeaveNative) return false;
+    var doc = document.documentElement;
+    if (!doc || !doc.classList || doc.classList.contains("sf-filter-loading")) return false;
+    if (widget._inflight || widget._loadingPage) return false;
+    if (widget._sfPaintedReq == null || widget._sfPaintedReq === -1) return false;
+    return widget._sfPaintedReq === widget._reqId;
+  }
+
+  function isFindlyFailureEvent(event) {
+    var file = event && event.filename ? String(event.filename) : "";
+    var reason = event && (event.error || event.reason);
+    var stack = "";
+    if (reason && reason.stack) stack = String(reason.stack);
+    else if (event && event.message) stack = String(event.message);
+    return /smart-filter/i.test(file + "\n" + stack);
+  }
+
+  function revealLeftoverCardHides() {
+    var nodes = document.querySelectorAll("[data-smart-filter-hidden='true']");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || el.nodeType !== 1) continue;
+      el.removeAttribute("data-smart-filter-hidden");
+      el.hidden = false;
+      if (el.style && el.style.getPropertyValue("display") === "none") {
+        el.style.removeProperty("display");
+      }
+    }
+  }
+
+  function restoreFindlyStorefront() {
+    if (window.__FINDLY_IN_RESTORE) return;
+    if ((window.__FINDLY_RESTORE_COUNT || 0) > 3) return;
+    window.__FINDLY_IN_RESTORE = true;
+    window.__FINDLY_RESTORE_COUNT = (window.__FINDLY_RESTORE_COUNT || 0) + 1;
+    try {
+      var doc = document.documentElement;
+      if (doc && doc.classList) {
+        doc.classList.remove("sf-filter-loading");
+        if (!doc.classList.contains("sf-filter-ready")) {
+          doc.classList.add("sf-filter-ready");
+        }
+      }
+      var busy = document.querySelectorAll(".findly-grid-is-busy, .sf-grid-busy");
+      var i;
+      for (i = 0; i < busy.length; i++) {
+        busy[i].classList.remove("findly-grid-is-busy");
+        busy[i].classList.remove("sf-grid-busy");
+      }
+      if (typeof window.__FINDLY_CLEAR_GRID_HIDING === "function") {
+        window.__FINDLY_CLEAR_GRID_HIDING();
+      }
+      revealLeftoverCardHides();
+    } catch (err) {
+      try {
+        revealLeftoverCardHides();
+      } catch (err2) {
+        /* loading class is already off */
+      }
+    } finally {
+      window.__FINDLY_IN_RESTORE = false;
+    }
+  }
+
+  if (!window.__FINDLY_FAILSAFE_INSTALLED) {
+    window.__FINDLY_FAILSAFE_INSTALLED = true;
+    window.__FINDLY_RESTORE_STOREFRONT = restoreFindlyStorefront;
+    window.addEventListener("error", function (event) {
+      if (window.__FINDLY_IN_RESTORE) return;
+      if (!isFindlyFailureEvent(event)) return;
+      if (findlyFilterIsSettled()) return;
+      restoreFindlyStorefront();
+    });
+    window.addEventListener("unhandledrejection", function (event) {
+      if (window.__FINDLY_IN_RESTORE) return;
+      if (!isFindlyFailureEvent(event)) return;
+      if (findlyFilterIsSettled()) return;
+      var reason = event && event.reason;
+      if (reason && (reason.name === "FindlyStaleRequest" || reason._findlySoftCancel)) return;
+      if (reason && reason.name === "AbortError" && !reason._findlyTimedOut) return;
+      restoreFindlyStorefront();
+    });
+  }
+
   if (!window.__FINDLY_FACET_HIDE_SELECTOR) {
   window.__FINDLY_FACET_HIDE_SELECTOR = [
     ".facets__wrapper",

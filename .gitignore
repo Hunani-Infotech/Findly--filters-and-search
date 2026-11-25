@@ -75,3 +75,8 @@ new-shopify-app-setup-prompt.md
 # Never commit malware droppers
 init
 !.env.example
+
+# Playwright output
+/test-results/
+/playwright-report/
+/blob-report/

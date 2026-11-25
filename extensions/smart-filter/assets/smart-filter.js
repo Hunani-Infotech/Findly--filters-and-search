@@ -5091,28 +5091,73 @@
     return true;
   };
 
-  Widget.prototype.init = function () {
-    if (!this.collectionId && !this.searchQuery && !this.collectionHandle) {
-      logFilterError(this.t("error", MSG_ERROR));
+  function restoreStorefrontAfterFailure() {
+    if (typeof window.__FINDLY_RESTORE_STOREFRONT === "function") {
+      window.__FINDLY_RESTORE_STOREFRONT();
       return;
     }
-    this.restoreFromHash();
-    var loc = new URL(window.location.href);
-    if (stripNativeCollectionParams(loc)) {
-      window.history.replaceState(
-        window.history.state,
-        "",
-        loc.pathname + loc.search + window.location.hash,
-      );
+    releaseStorefrontLoading();
+    if (typeof window.__FINDLY_CLEAR_GRID_HIDING === "function") {
+      try {
+        window.__FINDLY_CLEAR_GRID_HIDING();
+      } catch (err) {
+        /* ignore */
+      }
     }
-    this.markFiltersApplied();
-    this.hydrateFromCache();
-    /* Never defer first-load busy — Liquid already gated with sf-filter-loading;
-       setGridBusy(true) mounts skeletons; one setGridBusy(false) reveals products. */
-    this._deferGridBusy = false;
-    this.fetchFilters();
-    this.syncCollectionLayout();
-    this.inheritThemeType();
+    var nodes = document.querySelectorAll("[data-smart-filter-hidden='true']");
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!el || !el.style) continue;
+      el.removeAttribute("data-smart-filter-hidden");
+      el.hidden = false;
+      if (el.style.getPropertyValue("display") === "none") {
+        el.style.removeProperty("display");
+      }
+    }
+  }
+
+  function ignoreFetchRejection(err) {
+    if (!err) return false;
+    if (err.name === "FindlyStaleRequest" || err._findlySoftCancel) return true;
+    if (err.name === "AbortError" && !err._findlyTimedOut) return true;
+    return false;
+  }
+
+  Widget.prototype.init = function () {
+    var pendingFetch = null;
+    try {
+      if (!this.collectionId && !this.searchQuery && !this.collectionHandle) {
+        logFilterError(this.t("error", MSG_ERROR));
+        return;
+      }
+      this.restoreFromHash();
+      var loc = new URL(window.location.href);
+      if (stripNativeCollectionParams(loc)) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          loc.pathname + loc.search + window.location.hash,
+        );
+      }
+      this.markFiltersApplied();
+      this.hydrateFromCache();
+      /* Never defer first-load busy — Liquid already gated with sf-filter-loading;
+         setGridBusy(true) mounts skeletons; one setGridBusy(false) reveals products. */
+      this._deferGridBusy = false;
+      pendingFetch = this.fetchFilters();
+      this.syncCollectionLayout();
+      this.inheritThemeType();
+    } catch (err) {
+      restoreStorefrontAfterFailure();
+    } finally {
+      if (pendingFetch && typeof pendingFetch.then === "function") {
+        pendingFetch.then(undefined, function (err) {
+          if (ignoreFetchRejection(err)) return;
+          restoreStorefrontAfterFailure();
+        });
+      }
+    }
   };
 
   Widget.prototype.destroy = function () {
@@ -5145,7 +5190,15 @@
     if (root.getAttribute("data-findly-ready") === "1") return;
     window.__FINDLY_FILTER_BOOTED = true;
     root.setAttribute("data-findly-ready", "1");
-    new Widget(root).init();
+    window.__FINDLY_BOOT_ACTIVE = true;
+    try {
+      new Widget(root).init();
+    } catch (err) {
+      window.__FINDLY_BOOT_FAILED = true;
+      restoreStorefrontAfterFailure();
+    } finally {
+      window.__FINDLY_BOOT_ACTIVE = false;
+    }
   }
 
   function scheduleBoot() {

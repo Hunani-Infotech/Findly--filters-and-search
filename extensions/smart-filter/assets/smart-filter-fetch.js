@@ -367,15 +367,26 @@
           Only the latest non-append request may show the error UI.
           Superseded races (typing price, rapid facet clicks) are ignored.
         */
-        if (
-          !opts.append &&
-          self._reqId === reqId &&
-          !shouldSkipFailUi(err) &&
-          !self._inflight
-        ) {
-          failFilterUi(self, err, reqId);
+        var restored = false;
+        try {
+          if (
+            !opts.append &&
+            self._reqId === reqId &&
+            !shouldSkipFailUi(err) &&
+            !self._inflight
+          ) {
+            failFilterUi(self, err, reqId);
+            restored = true;
+          }
+        } catch (failErr) {
+          restored = true;
         }
-        throw err;
+        if (restored && typeof window.__FINDLY_RESTORE_STOREFRONT === "function") {
+          window.__FINDLY_RESTORE_STOREFRONT();
+        }
+        /* Resolve instead of rejecting. failFilterLoad already restored the grid;
+           a rejection here became an unhandled rejection on boot. */
+        return;
       });
     };
   }

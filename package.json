@@ -27,6 +27,7 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
     "test:webhooks": "tsx --test scripts/test-webhook-handlers.ts",
+    "test:smoke": "playwright test",
     "seed:catalog": "node ./scripts/seed-dev-catalog.mjs",
     "verify:a7": "node ./scripts/verify-step7.mjs",
     "verify:b1": "node ./scripts/verify-b1.mjs",
@@ -108,6 +109,7 @@
     "vite-tsconfig-paths": "^6.0.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@shopify/api-codegen-preset": "^2.0.0",
     "@shopify/cli": "^4.6.1",
     "@shopify/polaris-types": "1.0.1",
