@@ -2348,6 +2348,22 @@
       var inner = inners[i];
       if (!inner || !inner.style) continue;
       if (!inner.classList.contains("ratio")) inner.classList.add("ratio");
+      var existingRatio = "";
+      try {
+        existingRatio = String(
+          inner.style.getPropertyValue("--ratio-percent") || "",
+        ).trim();
+      } catch (ratioErr) {
+        existingRatio = "";
+      }
+      /* Theme already set the frame. Do not read layout per image. */
+      if (existingRatio) {
+        if (forceSearch) {
+          inner.style.setProperty("--ratio-percent", TARGET);
+          inner.style.setProperty("--ratio", "0.8");
+        }
+        continue;
+      }
       var media = inner.querySelector(".card__media, .media");
       var mediaH = 0;
       var mediaW = 0;
@@ -2362,7 +2378,7 @@
         mediaW = 0;
       }
       var collapsed = mediaW > 0 && mediaH > 0 && mediaH / mediaW < 1.05;
-      if (forceSearch || collapsed || !inner.style.getPropertyValue("--ratio-percent")) {
+      if (forceSearch || collapsed || !existingRatio) {
         inner.style.setProperty("--ratio-percent", TARGET);
         inner.style.setProperty("--ratio", "0.8");
       }
