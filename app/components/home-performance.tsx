@@ -83,6 +83,25 @@ function PerformanceCard({
   );
 }
 
+export function HomePerformancePending() {
+  return (
+    <BlockStack gap="400">
+      <Card>
+        <BlockStack gap="300">
+          <div className="findly-skel findly-skel--title" style={{ width: "42%" }} />
+          <div className="findly-skel findly-skel--block" style={{ height: 72 }} />
+        </BlockStack>
+      </Card>
+      <Card>
+        <BlockStack gap="300">
+          <div className="findly-skel findly-skel--title" style={{ width: "42%" }} />
+          <div className="findly-skel findly-skel--block" style={{ height: 72 }} />
+        </BlockStack>
+      </Card>
+    </BlockStack>
+  );
+}
+
 export function HomePerformance({
   metrics,
   viewHref,

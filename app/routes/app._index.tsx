@@ -1,11 +1,12 @@
 import { MS_PER_DAY } from "../constants/limits";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
 import {
+  Await,
   Link,
   useFetcher,
   useLoaderData,
@@ -39,7 +40,10 @@ import prisma from "../db.server";
 import { queueFullSync } from "../sync/queue-full-sync";
 import { recoverStuckSyncIfNeeded } from "../sync/sync.server";
 import { SetupGuide } from "../components/setup-guide";
-import { HomePerformance } from "../components/home-performance";
+import {
+  HomePerformance,
+  HomePerformancePending,
+} from "../components/home-performance";
 import {
   SyncDetailsModal,
   catalogSummaryLabel,
@@ -156,8 +160,10 @@ function emptyHomeData(shopDomain: string) {
       overProductLimit: false,
       indexingBlocked: PLANS.free.productLimit <= 0,
     },
-    performance: EMPTY_PERFORMANCE,
-    performanceFrom: new Date(0).toISOString(),
+    performance: Promise.resolve({
+      metrics: EMPTY_PERFORMANCE,
+      from: new Date(0).toISOString(),
+    }),
   };
 }
 
@@ -184,18 +190,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
 
-    const [setup, syncJob, dashboard, caps] = await Promise.all([
-      getSetupProgress(shop.id, session.shop),
-      prisma.syncJob.findUnique({
-        where: { shopId: shop.id },
-        select: {
-          status: true,
-          lastFullSyncAt: true,
-          lastIncrementalSyncAt: true,
-          errorLog: true,
-        },
-      }),
-      loadAnalyticsDashboard(shop.id, "last_30", plan).catch((error) => {
+    const performance = loadAnalyticsDashboard(shop.id, "last_30", plan)
+      .then((dashboard) => ({
+        metrics: dashboard.metrics,
+        from: dashboard.from,
+      }))
+      .catch((error) => {
         log.warn(
           `[home] analytics skipped: ${
             error instanceof Error ? error.message : String(error)
@@ -205,6 +205,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           metrics: EMPTY_PERFORMANCE,
           from: new Date(Date.now() - 30 * MS_PER_DAY).toISOString(),
         };
+      });
+
+    const [setup, syncJob, caps] = await Promise.all([
+      getSetupProgress(shop.id, session.shop),
+      prisma.syncJob.findUnique({
+        where: { shopId: shop.id },
+        select: {
+          status: true,
+          lastFullSyncAt: true,
+          lastIncrementalSyncAt: true,
+          errorLog: true,
+        },
       }),
       resolvePlanCaps(shop.id),
     ]);
@@ -236,8 +248,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         overProductLimit: setup.productCount > caps.productLimit,
         indexingBlocked: caps.productLimit <= 0,
       },
-      performance: dashboard.metrics,
-      performanceFrom: dashboard.from,
+      performance,
     };
   } catch (error) {
     log.error(
@@ -596,10 +607,16 @@ export default function Home() {
               </BlockStack>
             </Card>
 
-            <HomePerformance
-              metrics={{ ...data.performance, from: data.performanceFrom }}
-              viewHref={hrefFor("/app/analytics")}
-            />
+            <Suspense fallback={<HomePerformancePending />}>
+              <Await resolve={data.performance}>
+                {(performance) => (
+                  <HomePerformance
+                    metrics={{ ...performance.metrics, from: performance.from }}
+                    viewHref={hrefFor("/app/analytics")}
+                  />
+                )}
+              </Await>
+            </Suspense>
           </BlockStack>
         </Layout.Section>
       </Layout>

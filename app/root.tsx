@@ -7,11 +7,15 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
   useRouteError,
 } from "react-router";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import adminStyles from "./styles/admin.css?url";
 import { PublicMessage, PublicPending } from "./components/public-shell";
+
+const PUBLIC_FONT_STYLESHEET =
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: polarisStyles },
@@ -21,15 +25,19 @@ export const links: LinksFunction = () => [
     rel: "stylesheet",
     href: "https://cdn.shopify.com/static/fonts/inter/v4/styles.css",
   },
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap",
-  },
 ];
 
-function Document({ children }: { children: ReactNode }) {
+function isEmbeddedAdminPath(pathname: string) {
+  return pathname === "/app" || pathname.startsWith("/app/");
+}
+
+function Document({
+  children,
+  publicFonts,
+}: {
+  children: ReactNode;
+  publicFonts: boolean;
+}) {
   return (
     <html lang="en">
       <head>
@@ -37,6 +45,17 @@ function Document({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <Meta />
         <Links />
+        {publicFonts ? (
+          <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link
+              rel="preconnect"
+              href="https://fonts.gstatic.com"
+              crossOrigin="anonymous"
+            />
+            <link rel="stylesheet" href={PUBLIC_FONT_STYLESHEET} />
+          </>
+        ) : null}
       </head>
       <body>
         {children}
@@ -48,8 +67,9 @@ function Document({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
   return (
-    <Document>
+    <Document publicFonts={!isEmbeddedAdminPath(pathname)}>
       <Outlet />
     </Document>
   );
@@ -57,10 +77,10 @@ export default function App() {
 
 export function HydrateFallback() {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const isAdmin = path.startsWith("/app");
+  const isAdmin = isEmbeddedAdminPath(path);
 
   return (
-    <Document>
+    <Document publicFonts={!isAdmin}>
       {isAdmin ? (
         <div className="findly-admin-shell" aria-busy="true" aria-live="polite">
           <div className="findly-root-skeleton">
@@ -79,10 +99,11 @@ export function HydrateFallback() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+  const { pathname } = useLocation();
   const notFound = isRouteErrorResponse(error) && error.status === 404;
 
   return (
-    <Document>
+    <Document publicFonts={!isEmbeddedAdminPath(pathname)}>
       {notFound ? (
         <PublicMessage title="Page not found" actionLabel="Go back" minimal>
           That address isn’t a Findly page. Head home, or open the app from

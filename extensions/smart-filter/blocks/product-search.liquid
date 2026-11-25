@@ -1,6 +1,8 @@
 {% comment %}
   Product search UI temporarily disabled (theme conflict).
-  Keep schema so existing theme placements do not error; render nothing.
+  Keep the block schema so existing placements do not error, and render nothing.
+  Stylesheet and javascript stay off this schema while the body renders nothing,
+  so Shopify does not inject those assets.
 {% endcomment %}
 {% if false %}
 <script src="{{ 'smart-filter-privacy.min.js' | asset_url }}" defer></script>
@@ -63,8 +65,6 @@
     "templates": ["search"],
     "groups": ["header"]
   },
-  "stylesheet": "smart-filter-search.min.css",
-  "javascript": "smart-filter-search.min.js",
   "settings": [
     {
       "type": "text",

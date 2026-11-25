@@ -1,5 +1,4 @@
-/* Findly brand — matches the app icon (leaf green + white check).
-   Strong green is darkened so white button text stays WCAG AA. */
+/* Custom chrome accents. Polaris buttons, links, and focus use default tokens. */
 :root,
 .p-theme-light {
   --findly-green: #3bb75e;
@@ -10,23 +9,6 @@
   --findly-green-soft-2: #c6ebd2;
   --findly-green-text: #146c34;
   --findly-green-rgb: 59 183 94;
-
-  --p-color-bg-fill-brand: var(--findly-green-strong);
-  --p-color-bg-fill-brand-hover: var(--findly-green-hover);
-  --p-color-bg-fill-brand-active: var(--findly-green-active);
-  --p-color-bg-fill-brand-selected: var(--findly-green-strong);
-  --p-color-bg-surface-brand: var(--findly-green-soft);
-  --p-color-bg-surface-brand-hover: #d4f0de;
-  --p-color-bg-surface-brand-active: var(--findly-green-soft-2);
-  --p-color-bg-surface-brand-selected: var(--findly-green-soft);
-  --p-color-text-brand: var(--findly-green-strong);
-  --p-color-text-brand-hover: var(--findly-green-hover);
-  --p-color-text-link: var(--findly-green-strong);
-  --p-color-text-link-hover: var(--findly-green-hover);
-  --p-color-text-link-active: var(--findly-green-active);
-  --p-color-border-focus: var(--findly-green-strong);
-  --p-color-border-brand: var(--findly-green-soft-2);
-  --p-color-icon-brand: var(--findly-green-strong);
 }
 
 .findly-root-skeleton {

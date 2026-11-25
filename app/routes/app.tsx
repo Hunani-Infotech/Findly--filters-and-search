@@ -51,6 +51,10 @@ import { findShopCached } from "../lib/shop-cache.server";
 import { appUrl } from "../shopify.server";
 import { embeddedAdminAppUrl } from "../utils/admin-path";
 
+/** Same 120s window as the billing page Shopify sync. Process-local, like that map. */
+const BILLING_RECONCILE_TTL_MS = 120_000;
+const lastBillingReconcileAt = new Map<string, number>();
+
 const BILLING_GATE_BOT: BillingApproveGate = {
   show: false,
   reason: null,
@@ -86,22 +90,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     await ensureShop(auth.session.shop);
     // I-4 backup if afterAuth reconcile missed: Shopify → local before kickoff/access.
+    const requestUrl = new URL(request.url);
     const shopRow = await findShopCached(auth.session.shop);
     if (shopRow) {
-      try {
-        await reconcileBillingFromShopify(auth.admin, shopRow.id);
-      } catch (error) {
-        log.warn(
-          `[app] billing reconcile skipped shop=${auth.session.shop}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+      const lastReconcile = lastBillingReconcileAt.get(shopRow.id) ?? 0;
+      const forceReconcile = requestUrl.searchParams.has("charge_id");
+      if (
+        forceReconcile ||
+        Date.now() - lastReconcile > BILLING_RECONCILE_TTL_MS
+      ) {
+        try {
+          await reconcileBillingFromShopify(auth.admin, shopRow.id);
+          lastBillingReconcileAt.set(shopRow.id, Date.now());
+        } catch (error) {
+          log.warn(
+            `[app] billing reconcile skipped shop=${auth.session.shop}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
     }
-    const path = new URL(request.url).pathname;
+    const path = requestUrl.pathname;
     const skipBillingKickoff =
-      path.includes("/billing") ||
-      new URL(request.url).searchParams.has("charge_id");
+      path.includes("/billing") || requestUrl.searchParams.has("charge_id");
 
     let kickoffUrl: string | null = null;
     if (!skipBillingKickoff) {
@@ -233,7 +245,12 @@ function ApprovePlanButton({ label }: { label: string }) {
   useEffect(() => {
     const error =
       fetcher.data && "error" in fetcher.data ? fetcher.data.error : null;
-    if (error) shopify.toast.show(String(error), { isError: true });
+    if (error) {
+      shopify.toast.show(String(error), {
+        isError: true,
+        duration: Infinity,
+      });
+    }
   }, [fetcher.data, shopify]);
 
   return (
