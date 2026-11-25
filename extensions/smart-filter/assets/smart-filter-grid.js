@@ -14879,7 +14879,13 @@
         this._sfSettingsStamp === stamp &&
         this._sfSettingsApplied
       ) {
-        /* Same settings payload as last apply — skip sort/search/chrome rebuild. */
+        /* Same settings payload as last apply — skip sort/search/chrome rebuild.
+           Search vs collection can still change whether the root is hidden. */
+        if (this.root) {
+          this.root.hidden =
+            Boolean(this.searchQuery) && this.enableFiltersOnSearch === false;
+        }
+        syncMovedFilterToolbar(this);
         return;
       }
       if (stamp) {
@@ -14944,6 +14950,7 @@
         }
       }
       if (origApplySettings) origApplySettings.apply(this, arguments);
+      syncMovedFilterToolbar(this);
       refreshInsertOnly(this, "settings");
       if (insertOnlyListing(this)) {
         try {
@@ -15339,6 +15346,72 @@
     } catch (err) {
       /* ignore */
     }
+  }
+
+  function toolbarHoldsVisibleSortOrSearch(toolbar, toggle) {
+    if (!toolbar || !toolbar.querySelectorAll) return false;
+    var nodes = toolbar.querySelectorAll(
+      "[data-sort-wrap], .sf-sort, [data-collection-search-wrap], .sf-search",
+    );
+    var i;
+    for (i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || node === toggle) continue;
+      if (node.hidden || node.getAttribute("hidden") != null) continue;
+      if (node.closest && node.closest("[hidden]")) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function clearSuppressedToolbar(toolbar) {
+    if (!toolbar || toolbar.getAttribute("data-sf-toolbar-suppressed") !== "1") {
+      return;
+    }
+    toolbar.removeAttribute("data-sf-toolbar-suppressed");
+    toolbar.style.removeProperty("display");
+    toolbar.style.removeProperty("margin");
+  }
+
+  function clearSuppressedToggle(toggle) {
+    if (!toggle || toggle.getAttribute("data-sf-toggle-suppressed") !== "1") {
+      return;
+    }
+    toggle.removeAttribute("data-sf-toggle-suppressed");
+    toggle.style.removeProperty("display");
+  }
+
+  /**
+   * root.hidden hides the embed, not a Filter button already moved into
+   * .sf-toolbar. Hide that toolbar (and its margin) when filters are off.
+   * If the same toolbar is also showing sort or collection search, hide
+   * only the button.
+   */
+  function syncMovedFilterToolbar(widget) {
+    if (!widget || !widget.root) return;
+    var toggle =
+      (widget.toggleEl &&
+        widget.toggleEl.isConnected !== false &&
+        widget.toggleEl) ||
+      document.querySelector("[data-drawer-toggle]");
+    if (!toggle) return;
+    var toolbar = toggle.closest ? toggle.closest(".sf-toolbar") : null;
+    var hide = Boolean(widget.root.hidden);
+    if (!hide || !toolbar) {
+      if (toolbar) clearSuppressedToolbar(toolbar);
+      clearSuppressedToggle(toggle);
+      return;
+    }
+    if (toolbarHoldsVisibleSortOrSearch(toolbar, toggle)) {
+      clearSuppressedToolbar(toolbar);
+      toggle.setAttribute("data-sf-toggle-suppressed", "1");
+      toggle.style.setProperty("display", "none", "important");
+      return;
+    }
+    clearSuppressedToggle(toggle);
+    toolbar.setAttribute("data-sf-toolbar-suppressed", "1");
+    toolbar.style.setProperty("display", "none", "important");
+    toolbar.style.setProperty("margin", "0", "important");
   }
 
   var RESERVED_TAP_MS = 3000;
