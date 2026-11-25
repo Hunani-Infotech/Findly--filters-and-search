@@ -220,6 +220,49 @@
     <span class="sf-btn-label">{{ "blocks.collection_filters_embed.filter" | t }}</span>
     <span class="sf-badge" data-drawer-count hidden></span>
   </button>
+  <script>
+  (function () {
+    if (document.querySelector(".sf-toolbar")) return;
+    var root = document.getElementById("smart-filter-embed");
+    if (!root) return;
+    var position = String(root.getAttribute("data-position") || "");
+    var offcanvas = position === "offcanvas" || root.classList.contains("smart-filter--offcanvas");
+    var mobile = false;
+    try { mobile = window.matchMedia("(max-width: 989px)").matches; }
+    catch (e) { mobile = window.innerWidth < 990; }
+    if (!mobile && !offcanvas) return;
+    var toggle = root.querySelector("[data-drawer-toggle]");
+    if (!toggle) return;
+    var grid =
+      document.querySelector("#ProductGridContainer") ||
+      document.querySelector("#CollectionProductGrid") ||
+      document.querySelector(".product-grid-container") ||
+      document.querySelector("#product-grid") ||
+      document.querySelector("ul.product-grid") ||
+      document.querySelector("ol.product-grid") ||
+      document.querySelector(".main-collection-grid") ||
+      document.querySelector("results-list");
+    if (!grid || !grid.parentNode) return;
+    if (grid.closest && grid.closest(".smart-filter, .sf-panel")) return;
+    var toolbar = document.createElement("div");
+    toolbar.className = "sf-toolbar";
+    toolbar.setAttribute("data-sf-reserved", "1");
+    var end = document.createElement("div");
+    end.className = "sf-toolbar-end";
+    var actions = document.createElement("div");
+    actions.className = "sf-toolbar-actions";
+    toggle.classList.add("sf-toggle-toolbar");
+    actions.appendChild(toggle);
+    end.appendChild(actions);
+    toolbar.appendChild(end);
+    var chips = document.createElement("div");
+    chips.className = "sf-page-chips";
+    chips.setAttribute("data-page-filter-chips", "");
+    chips.hidden = true;
+    grid.parentNode.insertBefore(toolbar, grid);
+    grid.parentNode.insertBefore(chips, grid);
+  })();
+  </script>
   <div class="sf-sort" data-sort-wrap hidden>
     <div class="sf-sort-row">
       <label class="sf-sort-label" for="smart-filter-embed-sort">

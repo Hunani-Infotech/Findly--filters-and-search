@@ -911,7 +911,10 @@
         "appearance:none!important;-webkit-appearance:none!important;opacity:1!important;visibility:visible!important;" +
         "position:relative!important;width:16px!important;height:16px!important;min-width:16px!important;margin:2px 0 0!important;" +
         "border:1px solid #cfcfcf!important;display:inline-grid!important;clip:auto!important;transform:none!important}" +
-        ".sf-app-grid>.sf-pager:not(.sf-pager--pagination),.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-page-chips,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
+        ".sf-app-grid>.sf-pager:not(.sf-pager--pagination),.sf-app-grid>.sf-toolbar,.sf-app-grid>.sf-sort-host,.sf-app-grid>.sf-search-host,.sf-app-grid>.sf-grid-empty{display:block!important;visibility:visible!important}" +
+        "@media(max-width:989px){.sf-app-grid>.sf-page-chips:not([hidden]):has(.sf-chip){display:block!important;visibility:visible!important}}" +
+        ".sf-page-chips[hidden],.sf-app-grid>.sf-page-chips[hidden],.sf-page-chips:not(:has(.sf-chip)){display:none!important}" +
+        "@media(min-width:990px){.sf-page-chips,.sf-app-grid>.sf-page-chips{display:none!important}}" +
         ".sf-app-grid>load-more-button,.sf-app-grid>.load-more-button,.sf-app-grid>.pagination__load-more," +
         ".sf-app-grid>[data-load-more],.sf-app-grid>.js-load-more,.sf-app-grid>.btn--load-more," +
         ".sf-app-grid>button[name='load-more']{display:revert!important;visibility:visible!important}" +
@@ -15337,8 +15340,69 @@
     }
   }
 
+  /**
+   * The mobile and off-canvas toolbars are the Filter button row. Build that
+   * row before the widget boots so the grid is not pushed down later.
+   * Desktop left/right/top keep the button in the sidebar; an empty toolbar
+   * there would be a gap, because sort and search depend on settings.
+   */
+  function reserveListingToolbar() {
+    if (document.querySelector(".sf-toolbar")) return;
+    var root =
+      document.getElementById("smart-filter-embed") ||
+      document.getElementById("smart-filter-root");
+    if (!root) return;
+    var position = "";
+    try {
+      position = String(root.getAttribute("data-position") || "");
+    } catch (err) {
+      position = "";
+    }
+    var offcanvas =
+      position === "offcanvas" ||
+      (root.classList && root.classList.contains("smart-filter--offcanvas"));
+    var mobile = false;
+    try {
+      mobile = window.matchMedia("(max-width: 989px)").matches;
+    } catch (err2) {
+      mobile = window.innerWidth < 990;
+    }
+    if (!mobile && !offcanvas) return;
+    var toggle = root.querySelector("[data-drawer-toggle]");
+    if (!toggle) return;
+    var grid =
+      document.querySelector("#ProductGridContainer") ||
+      document.querySelector("#CollectionProductGrid") ||
+      document.querySelector(".product-grid-container") ||
+      document.querySelector("#product-grid") ||
+      document.querySelector("ul.product-grid") ||
+      document.querySelector("ol.product-grid") ||
+      document.querySelector(".main-collection-grid") ||
+      document.querySelector("results-list");
+    if (!grid || !grid.parentNode) return;
+    if (grid.closest && grid.closest(".smart-filter, .sf-panel")) return;
+    var toolbar = document.createElement("div");
+    toolbar.className = "sf-toolbar";
+    toolbar.setAttribute("data-sf-reserved", "1");
+    var end = document.createElement("div");
+    end.className = "sf-toolbar-end";
+    var actions = document.createElement("div");
+    actions.className = "sf-toolbar-actions";
+    toggle.classList.add("sf-toggle-toolbar");
+    actions.appendChild(toggle);
+    end.appendChild(actions);
+    toolbar.appendChild(end);
+    var chips = document.createElement("div");
+    chips.className = "sf-page-chips";
+    chips.setAttribute("data-page-filter-chips", "");
+    chips.hidden = true;
+    grid.parentNode.insertBefore(toolbar, grid);
+    grid.parentNode.insertBefore(chips, grid);
+  }
+
   function install() {
     injectCss();
+    reserveListingToolbar();
     installGridDebugApi();
     bindFindlyChangeCapture();
     bindHashChange();

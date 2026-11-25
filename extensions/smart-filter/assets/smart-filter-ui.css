@@ -629,7 +629,9 @@
   min-width: 0;
 }
 
-.sf-page-chips[hidden] {
+.sf-page-chips[hidden],
+.sf-app-grid > .sf-page-chips[hidden],
+.sf-page-chips:not(:has(.sf-chip)) {
   display: none !important;
 }
 
